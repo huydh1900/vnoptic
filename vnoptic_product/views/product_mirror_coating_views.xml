@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tree View -->
+    <record id="product_mirror_coating_tree_view" model="ir.ui.view">
+        <field name="name">product.mirror.coating.tree</field>
+        <field name="model">product.mirror.coating</field>
+        <field name="arch" type="xml">
+            <list string="Màu tráng gương">
+                <field name="name"/>
+                <field name="cid"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="product_mirror_coating_form_view" model="ir.ui.view">
+        <field name="name">product.mirror.coating.form</field>
+        <field name="model">product.mirror.coating</field>
+        <field name="arch" type="xml">
+            <form string="Màu tráng gương">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="cid"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="description"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Wizard Form -->
+    <record id="product_mirror_coating_wizard_form_view" model="ir.ui.view">
+        <field name="name">product.mirror.coating.wizard.form</field>
+        <field name="model">product.mirror.coating.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Tạo màu tráng gương mới">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="cid"/>
+                        </group>
+                        <group>
+                            <field name="description"/>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="Tạo" type="object" name="action_create_mirror_coating" class="btn-primary"/>
+                    <button string="Hủy" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action for List -->
+    <record id="action_product_mirror_coating" model="ir.actions.act_window">
+        <field name="name">Màu tráng gương</field>
+        <field name="res_model">product.mirror.coating</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Chưa có màu tráng gương nào!
+            </p>
+            <p>
+                Hãy tạo màu tráng gương đầu tiên của bạn.<br/>
+                Màu tráng gương giúp phân loại màu phản chiếu của tròng kính (Vàng, Xanh, Bạc, Hồng...).
+            </p>
+        </field>
+    </record>
+
+    <!-- Action for Wizard -->
+    <record id="action_product_mirror_coating_wizard" model="ir.actions.act_window">
+        <field name="name">Tạo màu tráng gương mới</field>
+        <field name="res_model">product.mirror.coating.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="product_mirror_coating_wizard_form_view"/>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Menu -->
+    <menuitem id="menu_product_mirror_coating"
+              name="Màu tráng gương"
+              parent="menu_vnoptic_main"
+              action="action_product_mirror_coating"
+              sequence="29"/>
+</odoo>

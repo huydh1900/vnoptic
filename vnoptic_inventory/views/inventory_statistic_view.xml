@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 
+        VIEW: FORM
+        Giao diện chính để thao tác thống kê
+    -->
+    <record id="view_vnoptic_inventory_statistic_form" model="ir.ui.view">
+        <field name="name">vnoptic.inventory.statistic.form</field>
+        <field name="model">vnoptic.inventory.statistic</field>
+        <field name="arch" type="xml">
+            <form string="Inventory Statistic" create="false" edit="true" delete="false">
+                <header>
+                    <!-- Nút bấm để chạy hàm tính toán ma trận -->
+                    <button name="action_generate_matrix" 
+                            string="Thống kê" 
+                            type="object" 
+                            class="oe_highlight"/>
+                    <button name="action_reset_filter" 
+                            string="Reset Filter" 
+                            type="object"/>
+                </header>
+                <sheet>
+               
+                    <!-- KHỐI BỘ LỌC (FILTER) -->
+                    <group>
+                        <group string="Phạm vi SPH / CYL">
+                            <!-- Nhập số dương, hệ thống tự xử lý âm/dương theo Mode -->
+                            <field name="sph_max" placeholder="Ví dụ: 4 (tức là 4.00 diop)"/>
+                            <field name="cyl_max" placeholder="Ví dụ: 4 (tức là 4.00 diop)"/>
+                            <field name="sph_mode" widget="radio"/>
+                        </group>
+                        <group string="Bộ lọc Sản phẩm">
+                            <!-- Lấy từ xnk.brand -->
+                            <field name="brand_id" options="{'no_create': True}"/>
+                            <!-- Lấy từ product.lens.index -->
+                            <field name="index_id" options="{'no_create': True}"/>
+                        </group>
+                    </group>
+
+                    <!-- KHỐI KẾT QUẢ TỔNG QUAN -->
+                    <group string="Kết quả tổng quan">
+                        <group>
+                            <field name="total_qty" class="oe_right" style="font-weight: bold; font-size: 16px;"/>
+                        </group>
+                        <group>
+                            <field name="good_qty" decoration-success="1"/>  <!-- Màu xanh -->
+                            <field name="defect_qty" decoration-danger="1"/> <!-- Màu đỏ -->
+                        </group>
+                    </group>
+
+                    <field name="html_matrix" nolabel="1" colspan="2" widget="html"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- 
+        ACTION: WINDOW
+        Định nghĩa hành động mở cửa sổ
+    -->
+    <record id="action_vnoptic_inventory_statistic" model="ir.actions.act_window">
+        <field name="name">Thống kê mắt kính</field> <!-- Tên hiển thị trên Menu -->
+        <field name="res_model">vnoptic.inventory.statistic</field>
+        <field name="view_mode">form</field>
+        <field name="target">inline</field> <!-- Hiển thị đè lên vùng nội dung chính -->
+    </record>
+
+    <!-- 
+        MENU
+        Gắn vào bên trong ứng dụng Stock (Inventory)
+        parent="stock.menu_stock_root" => Nằm trên thanh menu ngang của Inventory
+    -->
+    <menuitem id="menu_vnoptic_inventory_dashboard"
+              name="Thống kê mắt kính"
+              parent="stock.menu_stock_root"
+              action="action_vnoptic_inventory_statistic"
+              sequence="50"/> <!-- Sequence cao để nằm sau các menu Overview, Operations -->
+</odoo>

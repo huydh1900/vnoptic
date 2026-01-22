@@ -1,0 +1,15 @@
+<odoo>
+    <!-- Action to fix product types -->
+    <record id="action_fix_product_types" model="ir.actions.server">
+        <field name="name">Fix Product Types</field>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="binding_model_id" ref="product.model_product_template"/>
+        <field name="state">code</field>
+        <field name="code">
+if records:
+    records.action_fix_product_type()
+else:
+    env['product.template'].cron_fix_all_product_types()
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Form View -->
+    <record id="view_springboot_connector_form" model="ir.ui.view">
+        <field name="name">springboot.connector.form</field>
+        <field name="model">springboot.connector</field>
+        <field name="arch" type="xml">
+            <form string="Spring Boot Connector">
+                <header>
+                    <button name="test_connection" string="Test Connection"
+                            type="object" class="btn-primary"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="API Configuration">
+                            <field name="api_url"/>
+                            <field name="service_username"/>
+                            <field name="service_password" password="True"/>
+                        </group>
+                        <group string="Status">
+                            <field name="last_sync_date"/>
+                            <field name="last_sync_status"/>
+                            <field name="last_sync_message"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_springboot_connector" model="ir.actions.act_window">
+        <field name="name">Spring Boot Connector</field>
+        <field name="res_model">springboot.connector</field>
+        <field name="view_mode">form</field>
+    </record>
+
+    <!-- Menu -->
+    <menuitem id="menu_springboot_connector"
+              name="API Connector"
+              parent="xnk_intergration.menu_xnk_config"
+              action="action_springboot_connector"
+              sequence="100"/>
+</odoo>

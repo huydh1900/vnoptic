@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="product_uv_tree_view" model="ir.ui.view">
+        <field name="name">product.uv.tree</field>
+        <field name="model">product.uv</field>
+        <field name="arch" type="xml">
+            <list string="UV Protection">
+                <field name="name"/>
+                <field name="cid"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="product_uv_form_view" model="ir.ui.view">
+        <field name="name">product.uv.form</field>
+        <field name="model">product.uv</field>
+        <field name="arch" type="xml">
+            <form string="UV Protection">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="cid"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="description"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_uv" model="ir.actions.act_window">
+        <field name="name">UV Protection</field>
+        <field name="res_model">product.uv</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Chưa có lớp phủ nào!
+            </p>
+            <p>
+                Hãy tạo lớp phủ đầu tiên của bạn.<br/>
+                Lớp phủ giúp phân loại sản phẩm theo công nghệ phủ (UV, UV400, UV380...).
+            </p>
+        </field>
+    </record>
+
+    <record id="product_cl_tree_view" model="ir.ui.view">
+        <field name="name">product.cl.tree</field>
+        <field name="model">product.cl</field>
+        <field name="arch" type="xml">
+            <list string="Pho CL">
+                <field name="name"/>
+                <field name="cid"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="product_cl_form_view" model="ir.ui.view">
+        <field name="name">product.cl.form</field>
+        <field name="model">product.cl</field>
+        <field name="arch" type="xml">
+            <form string="Pho CL">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="cid"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="description"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_cl" model="ir.actions.act_window">
+        <field name="name">Pho CL</field>
+        <field name="res_model">product.cl</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Chưa có lớp phủ nào!
+            </p>
+            <p>
+                Hãy tạo lớp phủ đầu tiên của bạn.<br/>
+                Lớp phủ giúp phân loại sản phẩm theo công nghệ phủ (Pho Col, HMC, Blue Cut, Photochromic...).
+            </p>
+        </field>
+    </record>
+
+    <!-- ==================== MENUS ==================== -->
+    <!-- Menu cha "Tích hợp" -->
+    <menuitem id="menu_product_integration_root"
+              name="Tích hợp"
+              parent="menu_vnoptic_main"
+              sequence="30"/>
+
+    <!-- Submenu UV -->
+    <menuitem id="menu_product_uv"
+              name="UV"
+              parent="menu_product_integration_root"
+              action="action_product_uv"
+              sequence="1"/>
+
+    <!-- Submenu Pho CL -->
+    <menuitem id="menu_product_cl"
+              name="Pho CL"
+              parent="menu_product_integration_root"
+              action="action_product_cl"
+              sequence="2"/>
+</odoo>

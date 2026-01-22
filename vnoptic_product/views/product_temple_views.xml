@@ -1,0 +1,38 @@
+<odoo>
+    <record id="product_temple_tree_view" model="ir.ui.view">
+        <field name="name">product.temple.tree</field>
+        <field name="model">product.temple</field>
+        <field name="arch" type="xml">
+            <list string="Temple">
+                <field name="name"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="product_temple_form_view" model="ir.ui.view">
+        <field name="name">product.temple.form</field>
+        <field name="model">product.temple</field>
+        <field name="arch" type="xml">
+            <form string="Temple">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="description"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_temple" model="ir.actions.act_window">
+        <field name="name">Temple</field>
+        <field name="res_model">product.temple</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

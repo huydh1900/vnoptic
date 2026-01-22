@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_xnk_brand_search" model="ir.ui.view">
+        <field name="name">xnk.brand.search</field>
+        <field name="model">xnk.brand</field>
+        <field name="arch" type="xml">
+            <search string="Search Brands">
+                <field name="name" string="Brand"
+                       filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
+                <field name="code"/>
+                <separator/>
+                <filter name="filter_active" string="Active" domain="[('active', '=', True)]"/>
+                <filter name="filter_archived" string="Archived" domain="[('active', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_by_active" string="Status" context="{'group_by': 'active'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_product_template_brand" model="ir.actions.act_window">
+        <field name="name">Products</field>
+        <field name="res_model">product.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_brand_id', '=', active_id)]</field>
+        <field name="context">{'default_x_brand_id': active_id}</field>
+    </record>
+
+    <record id="action_xnk_brand" model="ir.actions.act_window">
+        <field name="name">Brands</field>
+        <field name="res_model">xnk.brand</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_xnk_brand_search"/>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first Brand!</p>
+            <p>Brands help organize products by manufacturer.</p>
+        </field>
+    </record>
+
+    <record id="view_xnk_brand_tree" model="ir.ui.view">
+        <field name="name">xnk.brand.tree</field>
+        <field name="model">xnk.brand</field>
+        <field name="arch" type="xml">
+            <list string="Brands">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="product_count"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_xnk_brand_form" model="ir.ui.view">
+        <field name="name">xnk.brand.form</field>
+        <field name="model">xnk.brand</field>
+        <field name="arch" type="xml">
+            <form string="Brand">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="%(action_product_template_brand)d"
+                                type="action"
+                                class="oe_stat_button"
+                                icon="fa-cubes"
+                                context="{'search_default_x_brand_id': id}"
+                                invisible="product_count == 0">
+                            <field name="product_count" widget="statinfo" string="Products"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="bg-danger"
+                            invisible="active == True"/>
+                    <group>
+                        <group>
+                            <field name="name" placeholder="e.g. Essilor"/>
+                            <field name="code" placeholder="e.g. ESS"/>
+                        </group>
+                        <group>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Description" name="description">
+                            <field name="description" placeholder="Brand description..." nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <menuitem id="menu_xnk_brand"
+              name="Brands"
+              parent="menu_xnk_master_data"
+              action="action_xnk_brand"
+              sequence="10"/>
+
+</odoo>

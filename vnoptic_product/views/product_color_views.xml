@@ -1,0 +1,35 @@
+<odoo>
+    <record id="view_product_color_tree" model="ir.ui.view">
+        <field name="name">product.color.tree</field>
+        <field name="model">product.color</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="code"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_color_form" model="ir.ui.view">
+        <field name="name">product.color.form</field>
+        <field name="model">product.color</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="code"/>
+                        <field name="active"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_color" model="ir.actions.act_window">
+        <field name="name">Màu sắc</field>
+        <field name="res_model">product.color</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    
+</odoo>

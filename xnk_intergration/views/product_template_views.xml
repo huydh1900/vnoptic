@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+    <record id="product_template_form_inherit_xnk" model="ir.ui.view">
+        <field name="name">product.template.form.inherit.xnk</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/notebook/page[@name='general_information']/group" position="inside">
+                <group string="XNK Info">
+                    <field name="x_eng_name"/>
+                    <field name="x_trade_name"/>
+                    <field name="x_brand_id"/>
+                    <field name="x_warranty_id"/>
+                    <field name="x_status_name"/>
+                    <field name="x_tax_percent"/>
+                </group>
+            </xpath>
+            
+            <!-- Hide product_type field in form view -->
+            <xpath expr="//field[@name='product_type']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="product_template_tree_inherit_xnk" model="ir.ui.view">
+        <field name="name">product.template.tree.inherit.xnk</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_tree_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="x_eng_name"/>
+                <field name="x_brand_id"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="product_template_search_inherit_xnk" model="ir.ui.view">
+        <field name="name">product.template.search.inherit.xnk</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_search_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <field name="x_eng_name"/>
+                <filter string="Has Warranty" name="has_warranty" domain="[('x_warranty_id','!=',False)]"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

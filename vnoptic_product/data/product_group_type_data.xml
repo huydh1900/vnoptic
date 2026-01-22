@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Lens Group Type (id=1) -->
+        <record id="product_group_type_lens" model="product.group.type">
+            <field name="name">Mắt</field>
+            <field name="description">Lens Products</field>
+            <field name="activated">True</field>
+        </record>
+
+        <!-- Optical Group Type (id=2) -->
+        <record id="product_group_type_opt" model="product.group.type">
+            <field name="name">Gọng</field>
+            <field name="description">Optical Products</field>
+            <field name="activated">True</field>
+        </record>
+
+        <!-- Other/Accessory Group Type (id=3) -->
+        <record id="product_group_type_other" model="product.group.type">
+            <field name="name">Khác</field>
+            <field name="description">Accessory Products</field>
+            <field name="activated">True</field>
+        </record>
+    </data>
+</odoo>
