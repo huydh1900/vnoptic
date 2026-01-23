@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- ===================== GROUP XNK ===================== -->
+    <record id="group_xnk" model="res.groups">
+        <field name="name">Xuất nhập khẩu</field>
+        <!-- Kế thừa quyền mua hàng + kho -->
+        <field name="implied_ids" eval="[
+            (4, ref('purchase.group_purchase_user')),
+            (4, ref('stock.group_stock_user'))
+        ]"/>
+        <field name="category_id" ref="base.module_category_inventory"/>
+    </record>
+
+    <!-- ===================== GROUP OTK ===================== -->
+    <record id="group_otk" model="res.groups">
+        <field name="name">OTK</field>
+        <!-- Quyền kho + kiểm tra chất lượng -->
+        <field name="implied_ids" eval="[
+            (4, ref('stock.group_stock_user')),
+            (4, ref('quality.group_quality_user'))
+        ]"/>
+        <field name="category_id" ref="base.module_category_inventory"/>
+    </record>
+
+    <!-- ============== GROUP KẾ TOÁN HÀNG HÓA ============== -->
+    <record id="group_ke_toan_hang_hoa" model="res.groups">
+        <field name="name">Kế toán hàng hóa</field>
+        <!-- Quyền kế toán + xem kho -->
+        <field name="implied_ids" eval="[
+            (4, ref('account.group_account_user')),
+            (4, ref('stock.group_stock_user'))
+        ]"/>
+        <field name="category_id" ref="base.module_category_accounting"/>
+    </record>
+
+</odoo>

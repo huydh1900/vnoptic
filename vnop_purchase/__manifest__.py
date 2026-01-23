@@ -2,11 +2,8 @@
 {
     'name': "vnop_purchase",
     'depends': ['base', 'purchase'],
-
-    # always loaded
     'data': [
-        'views/views.xml',
-        'views/templates.xml',
+        'views/purchase_order_views.xml',
     ],
 }
 

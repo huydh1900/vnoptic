@@ -1,0 +1,32 @@
+<odoo>
+    <record id="purchase_order_form_inherit_attachments" model="ir.ui.view">
+        <field name="name">purchase.order.form.inherit.attachments</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='print_quotation']" position='replace'/>
+            <xpath expr="//button[@name='print_quotation']" position='replace'/>
+            <xpath expr="//button[@name='button_done']" position='replace'/>
+            <xpath expr="//button[@name='action_rfq_send']" position='replace'/>
+
+            <xpath expr="//field[@name='partner_ref']" position="after">
+                <field name="vendor_document_ids" widget="many2many_binary"/>
+            </xpath>
+
+            <xpath expr="//button[@name='button_confirm']" position='replace'>
+                <button name="action_send_approve"
+                        type="object"
+                        string="Gửi duyệt"
+                        class="btn-primary"
+                        invisible="state != 'draft'"/>
+            </xpath>
+            <xpath expr="//button[@name='button_cancel']" position='replace'>
+                <button name="button_cancel" invisible="state != 'to_approve'" string="Hủy" type="object"
+                        class="btn-danger"
+                        data-hotkey="x" confirm="Bạn có chăc muốn Hủy đơn mua hàng này?"/>
+            </xpath>
+
+
+        </field>
+    </record>
+</odoo>

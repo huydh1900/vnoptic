@@ -1,0 +1,134 @@
+<template>
+    <t t-name="many2many_attachment_preview.Many2ManyImageField" owl="1">
+        <div t-attf-class="oe_fileupload {{ props.className ? props.className : ''}}"
+             aria-atomic="true">
+            <div class="o_attachments o_attachments_widget">
+                <t t-foreach="files" t-as="file" t-key="file_index">
+                    <t t-call="many2many_attachment_preview.image_preview"/>
+                </t>
+            </div>
+            <div t-if="!props.readonly" class="oe_add">
+                <FileInput
+                        acceptedFileExtensions="props.acceptedFileExtensions"
+                        multiUpload="true"
+                        onUpload.bind="onFileUploaded"
+                        resModel="props.record.resModel"
+                        resId="props.record.data.id or 0">
+                    <button class="btn btn-secondary o_attach o_attach_wiget"
+                            data-tooltip="Attach">
+                        <span class="fa fa-paperclip" aria-label="Attach"/>
+                        <t t-esc="uploadText"/>
+                    </button>
+                </FileInput>
+            </div>
+
+        </div>
+    </t>
+
+    <t t-name="many2many_attachment_preview.image_preview" owl="1">
+        <t t-set="editable" t-value="!props.readonly"/>
+        <div t-attf-class="o_attachment_widget o_attachment_many2many #{ editable ? 'o_attachment_editable' : '' } #{upload ? 'o_attachment_uploading' : ''}"
+             t-att-title="file.name">
+            <div t-attf-class="o_attachment o_attachment_many2many #{ editable ? 'o_attachment_editable' : '' } #{upload ? 'o_attachment_uploading' : ''}"
+                 t-att-title="file.name">
+                <div class="o_attachment_wrap">
+                    <t t-set="ext" t-value="getExtension(file)"/>
+                    <t t-if="ext=='png' or ext=='jpg' or ext=='jpeg'">
+                        <div class="o_image_box float-start"
+                             t-att-data-tooltip="'Download ' + file.name">
+                            <a t-att-href="getUrl(file.id)"
+                               aria-label="Download"
+                               style="cursor: zoom-in;" data-fancybox="gallery"
+                               data-options="Toolbar">
+                                <span class="o_image o_hover"
+                                      t-att-data-mimetype="file.mimetype"
+                                      t-att-data-ext="ext" role="img"
+                                      t-attf-data-src="/web/content/{{file.id}}"/>
+                            </a>
+                        </div>
+                    </t>
+                    <t t-if="ext=='pdf'">
+                        <div class="o_image_box float-start"
+                             t-att-data-tooltip="'Download ' + file.name">
+                            <a t-att-href="getUrl(file.id)"
+                               aria-label="Download"
+                               style="cursor: zoom-in;" data-fancybox=""
+                               data-type="iframe">
+                                <span class="o_image o_hover"
+                                      t-att-data-mimetype="file.mimetype"
+                                      t-att-data-ext="ext" role="img"
+                                      t-attf-data-src="/web/content/{{file.id}}"/>
+                            </a>
+                        </div>
+                    </t>
+                    <t t-if="ext=='mkv'">
+                        <div class="o_image_box float-start"
+                             t-att-data-tooltip="'Download ' + file.name">
+                            <a t-att-href="getUrl(file.id)"
+                               aria-label="Download"
+                               style="cursor: zoom-in;" data-fancybox=""
+                               data-type="html5video" data-width="640"
+                               data-height="360">
+                                <span class="o_image o_hover"
+                                      t-att-data-mimetype="file.mimetype"
+                                      t-att-data-ext="ext" role="img"
+                                      t-attf-data-src="/web/content/{{file.id}}"/>
+                            </a>
+                        </div>
+                    </t>
+                    <t t-if="ext=='mp4' or ext=='webm' or ext=='ogg'">
+                        <div class="o_image_box float-start"
+                             t-att-data-tooltip="'Play ' + file.name">
+                            <a t-att-href="getUrl(file.id)"
+                               data-fancybox="gallery"
+                               data-type="video">
+                                <span class="o_image o_hover"
+                                      role="img"
+                                      t-attf-data-src="/web/content/{{file.id}}"/>
+                            </a>
+                        </div>
+                    </t>
+                    <t t-if="ext=='docx'">
+                        <div class="o_image_box float-start" t-on-click="() => this.previewDocx(file.id)">
+                            <span class="o_image o_hover" role="img"/>
+                        </div>
+                    </t>
+
+
+                    <div class="caption">
+                        <a class="ml4"
+                           t-att-data-tooltip="'Download ' + file.name"
+                           t-att-href="getUrl(file.id)">
+                            <t t-esc='file.name'/>
+                        </a>
+                    </div>
+                    <div class="caption small">
+                        <a class="ml4 small text-uppercase"
+                           t-att-href="getUrl(file.id)">
+                            <b>
+                                <t t-esc='ext'/>
+                            </b>
+                        </a>
+                        <div t-if="editable"
+                             class="progress o_attachment_progress_bar">
+                            <div class="progress-bar progress-bar-striped active"
+                                 style="width: 100%">Uploading
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="o_attachment_uploaded">
+                        <i class="text-success fa fa-check" role="img"
+                           aria-label="Uploaded" title="Uploaded"/>
+                    </div>
+                    <div t-if="editable" class="o_attachment_delete"
+                         t-on-click.stop="() => this.onFileRemove(file.id)">
+                        <span class="text-white" role="img" aria-label="Delete"
+                              title="Delete">×
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+</template>
