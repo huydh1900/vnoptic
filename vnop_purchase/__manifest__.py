@@ -4,6 +4,7 @@
     # always loaded
     'depends': ['base', 'purchase'],
     'data': [
+        'views/product_views.xml',
         'views/purchase_order_views.xml',
     ],
 }
