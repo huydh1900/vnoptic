@@ -15,31 +15,23 @@
                 </div>
             </xpath>
             
-            <!-- Add Product Code Generation Section -->
+            <!-- Add Product General Info Section -->
             <xpath expr="//sheet/notebook/page[@name='general_information']/group" position="before">
-                <group string="Mã sản phẩm tự động">
+                <group string="Thông tin chung">
                     <group>
                         <field name="group_id" options="{'no_create': True}"/>
                         <field name="brand_id" options="{'no_create': True}"/>
+                        <field name="warranty_id" options="{'no_create': True}"/>
                         <field name="index_id" options="{'no_create': True}" 
                                invisible="product_type != 'lens'"/>
                     </group>
                     <group>
+                        <field name="x_eng_name"/>
+                        <field name="x_trade_name"/>
+                        <field name="x_status_name"/>
                         <field name="auto_generate_code"/>
                         <field name="default_code" readonly="auto_generate_code == True"/>
                     </group>
-                </group>
-            </xpath>
-            
-            <!-- Add XNK Info in general information tab -->
-            <xpath expr="//sheet/notebook/page[@name='general_information']/group" position="inside">
-                <group string="XNK Info">
-                    <field name="x_eng_name"/>
-                    <field name="x_trade_name"/>
-                    <field name="x_brand_id"/>
-                    <field name="x_warranty_id"/>
-                    <field name="x_status_name"/>
-                    <field name="x_tax_percent"/>
                 </group>
             </xpath>
             
