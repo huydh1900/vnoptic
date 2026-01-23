@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Product Group Tree View -->
+    <record id="view_product_group_tree" model="ir.ui.view">
+        <field name="name">product.group.tree</field>
+        <field name="model">product.group</field>
+        <field name="arch" type="xml">
+            <list string="Product Groups">
+                <field name="cid"/>
+                <field name="name"/>
+                <field name="group_type_id"/>
+                <field name="activated"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Product Group Form View -->
+    <record id="view_product_group_form" model="ir.ui.view">
+        <field name="name">product.group.form</field>
+        <field name="model">product.group</field>
+        <field name="arch" type="xml">
+            <form string="Product Group">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="cid"/>
+                        </group>
+                        <group>
+                            <field name="group_type_id"/>
+                            <field name="activated"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Product Group Action -->
+    <record id="action_product_group" model="ir.actions.act_window">
+        <field name="name">Product Groups</field>
+        <field name="res_model">product.group</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first product group
+            </p>
+            <p>
+                Product groups are used for organizing products and generating product codes.
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu Item -->
+    <menuitem id="menu_product_group"
+              name="Product Groups"
+              parent="vnop_sync.menu_xnk_config"
+              action="action_product_group"
+              sequence="10"/>
+</odoo>
