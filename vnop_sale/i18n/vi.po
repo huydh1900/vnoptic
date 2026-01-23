@@ -19,3 +19,45 @@ msgstr "Nhóm sản phẩm"
 #: model_terms:ir.ui.view,arch_db:uom.product_uom_tree_view
 msgid "Units of Measure"
 msgstr "Đơn vị tính lưu kho"
+
+#. module: product
+#: model:ir.model,name:product.model_product_category
+#: model:ir.model.fields,field_description:product.field_product_product__categ_id
+#: model:ir.model.fields,field_description:product.field_product_template__categ_id
+#: model:ir.model.fields.selection,name:product.selection__product_pricelist_item__applied_on__2_product_category
+#: model_terms:ir.ui.view,arch_db:product.product_category_list_view
+#: model_terms:ir.ui.view,arch_db:product.product_template_search_view
+#: model_terms:ir.ui.view,arch_db:product.product_view_search_catalog
+msgid "Product Category"
+msgstr "Nhóm sản phẩm"
+
+#. module: product
+#: model:ir.actions.act_window,name:product.product_category_action_form
+#: model_terms:ir.ui.view,arch_db:product.product_category_list_view
+#: model_terms:ir.ui.view,arch_db:product.product_category_search_view
+msgid "Product Categories"
+msgstr "Nhóm sản phẩm"
+
+#. module: sale
+#: model:ir.ui.menu,name:sale.menu_product_categories
+msgid "Product Categories"
+msgstr "Nhóm sản phẩm"
+
+#. module: sale
+#: model:ir.model,name:sale.model_product_category
+#: model:ir.model.fields,field_description:sale.field_sale_report__categ_id
+#: model_terms:ir.ui.view,arch_db:sale.view_order_product_search
+msgid "Product Category"
+msgstr "Nhóm sản phẩm"
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_route__categ_ids
+#: model:ir.ui.menu,name:stock.menu_product_category_config_stock
+#: model_terms:ir.ui.view,arch_db:stock.stock_location_route_form_view
+msgid "Product Categories"
+msgstr "Nhóm sản phẩm"
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order__state__draft
+msgid "RFQ"
+msgstr "Dự thảo"
