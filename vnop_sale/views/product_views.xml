@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ========================================== -->
+    <!-- PRODUCT ACTION - Override with default lens -->
+    <!-- Uses common tree view from vnoptic_product -->
+    <!-- ========================================== -->
+    <record id="product_template_action" model="ir.actions.act_window">
+        <field name="name">Products</field>
+        <field name="res_model">product.template</field>
+        <field name="path">products</field>
+        <field name="view_mode">kanban,list,form,activity</field>
+        <field name="view_id" ref="product.product_template_kanban_view"/>
+        <field name="search_view_id" ref="xnk_intergration.product_template_search_view_common"/>
+        <field name="context">{"search_default_filter_to_sell":1, "search_default_filter_lens":1, "sale_multi_pricelist_product_template": 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Tạo sản phẩm mới
+            </p><p>
+                Sử dụng các filter để chuyển đổi giữa Lens, Opt và Phụ kiện
+            </p>
+        </field>
+    </record>
+</odoo>

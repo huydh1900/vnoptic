@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_xnk_warranty_search" model="ir.ui.view">
+        <field name="name">xnk.warranty.search</field>
+        <field name="model">xnk.warranty</field>
+        <field name="arch" type="xml">
+            <search string="Search Warranties">
+                <field name="name" string="Warranty"
+                       filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
+                <field name="code"/>
+                <separator/>
+                <filter name="filter_active" string="Active" domain="[('active', '=', True)]"/>
+                <filter name="filter_archived" string="Archived" domain="[('active', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_by_active" string="Status" context="{'group_by': 'active'}"/>
+                    <filter name="group_by_value" string="Duration" context="{'group_by': 'value'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============== ACTIONS SAU ============== -->
+    <record id="action_product_template_warranty" model="ir.actions.act_window">
+        <field name="name">Products</field>
+        <field name="res_model">product.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_warranty_id', '=', active_id)]</field>
+        <field name="context">{'default_x_warranty_id': active_id}</field>
+    </record>
+
+    <record id="action_xnk_warranty" model="ir.actions.act_window">
+        <field name="name">Warranties</field>
+        <field name="res_model">xnk.warranty</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_xnk_warranty_search"/>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first Warranty!</p>
+            <p>Warranties define product warranty periods.</p>
+        </field>
+    </record>
+
+    <!-- ============== TREE/FORM VIEWS ============== -->
+    <record id="view_xnk_warranty_tree" model="ir.ui.view">
+        <field name="name">xnk.warranty.tree</field>
+        <field name="model">xnk.warranty</field>
+        <field name="arch" type="xml">
+            <list string="Warranties">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="value" string="Duration (Days)"/>
+                <field name="product_count"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_xnk_warranty_form" model="ir.ui.view">
+        <field name="name">xnk.warranty.form</field>
+        <field name="model">xnk.warranty</field>
+        <field name="arch" type="xml">
+            <form string="Warranty">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="%(action_product_template_warranty)d"
+                                type="action"
+                                class="oe_stat_button"
+                                icon="fa-cubes"
+                                context="{'search_default_x_warranty_id': id}"
+                                invisible="product_count == 0">
+                            <field name="product_count" widget="statinfo" string="Products"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="bg-danger"
+                            invisible="active == True"/>
+                    <group>
+                        <group>
+                            <field name="name" placeholder="e.g. 3 Months Warranty"/>
+                            <field name="code" placeholder="e.g. BH3"/>
+                        </group>
+                        <group>
+                            <field name="value" string="Duration (Days)"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Description" name="description">
+                            <field name="description" placeholder="Warranty terms and conditions..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <menuitem id="menu_xnk_warranty"
+              name="Warranties"
+              parent="menu_xnk_master_data"
+              action="action_xnk_warranty"
+              sequence="20"/>
+
+</odoo>

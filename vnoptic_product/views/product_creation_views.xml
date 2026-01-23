@@ -1,0 +1,302 @@
+<odoo>
+    <record id="view_product_creation_wizard_v2" model="ir.ui.view">
+        <field name="name">product.creation.wizard.form.v2</field>
+        <field name="model">product.creation.wizard</field>
+        <field name="priority">1</field>
+        <field name="arch" type="xml">
+            <form string="Thêm sản phẩm">
+                <field name="product_type" invisible="1"/>
+                <sheet>
+                    <group>
+                        <group>
+                            <group string="Ảnh sản phẩm">
+                                <field name="image_1920" widget="image" class="oe_avatar"/>
+                                <field name="group_id" string="Nhóm"
+                                       options="{'no_create': True, 'no_open': True}"/>
+                            </group>
+
+                            <group string="Thông tin cơ bản">
+                                <field name="cid" string="Ký hiệu viết tắt" readonly="1" force_save="1"/>
+                                <field name="name" string="Tên đầy đủ" required="1"/>
+                                <field name="eng_name" string="Tên Tiếng anh" required="1"/>
+                                <field name="trade_name" string="Tên Thương mại"/>
+                                <field name="unit" string="Đơn vị" required="1"/>
+                            </group>
+                        </group>
+
+                        <group>
+                            <group string="Thương hiệu / NCC / Xuất xứ">
+                                <field name="brand_id" string="Thương hiệu"
+                                       options="{'no_create': True, 'no_open': True}"/>
+                                <field name="supplier_id" string="Nhà cung cấp"
+                                       options="{'no_create': True, 'no_open': True}"/>
+                                <field name="country_id" string="Xuất xứ"
+                                       options="{'no_create': True, 'no_open': True}"/>
+
+                            </group>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Mô tả &amp; Hướng dẫn">
+                            <group>
+                                <group string="Mô tả">
+                                    <field name="description" nolabel="1" placeholder="Nhập mô tả sản phẩm"/>
+                                </group>
+                                <group string="Công dụng">
+                                    <field name="uses" nolabel="1" placeholder="Nhập công dụng"/>
+                                </group>
+                                <group string="Hướng dẫn sử dụng">
+                                    <field name="guide" nolabel="1" placeholder="Nhập hướng dẫn sử dụng"/>
+                                </group>
+                                <group string="Cảnh báo">
+                                    <field name="warning" nolabel="1" placeholder="Nhập cảnh báo"/>
+                                </group>
+                                <group string="Bảo quản">
+                                    <field name="preserve" nolabel="1" placeholder="Nhập cách bảo quản"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Giá &amp; Thuế">
+                            <group>
+                                <group>
+                                    <field name="rt_price" string="Giá bán lẻ (Retail)"/>
+                                    <field name="x_ws_price" string="Giá sỉ (Wholesale)"/>
+                                    <field name="x_ws_price_max" string="Giá sỉ tối đa"/>
+                                    <field name="x_ws_price_min" string="Giá sỉ tối thiểu"/>
+                                </group>
+                                <group>
+                                    <field name="currency_selection" string="Ngoại tệ"/>
+                                    <field name="x_currency_zone_value" string="Tỉ giá"/>
+                                    <field name="x_ct_price" string="Giá vốn (Cost)"/>
+                                    <field name="x_or_price" string="Giá nguyên tệ (Original)"/>
+                                    <field name="x_tax_percent" string="Thuế (%)"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Bảo hành">
+                            <group>
+                                <group>
+                                    <field name="warranty_id" string="Bảo hành chính"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="warranty_detail_id" string="Bảo hành chi tiết"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </group>
+                                <group>
+                                    <field name="warranty_retail_id" string="Bảo hành bán lẻ"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="warranty_supplier_id" string="Bảo hành hãng"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Thiết kế Lens"
+                              invisible="product_type != 'lens'">
+                            <group>
+                                <group>
+                                    <field name="sph" string="SPH"/>
+                                    <field name="cyl" string="CYL"/>
+                                    <field name="diameter" string="Đường kính"/>
+                                    <field name="prism" string="Prism"/>
+                                </group>
+                                <group>
+                                    <field name="len_add" string="ADD"/>
+                                    <field name="base" string="Base Curve"/>
+                                    <label for="design1_id"/>
+                                    <div class="o_row">
+                                        <field name="design1_id"
+                                               options="{'no_create': True, 'no_open': True}"
+                                               placeholder="Chọn thiết kế..."/>
+                                    </div>
+
+                                    <label for="design2_id"/>
+                                    <div class="o_row">
+                                        <field name="design2_id"
+                                               options="{'no_create': True, 'no_open': True}"
+                                               placeholder="Chọn thiết kế..."/>
+                                    </div>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Chất liệu Lens"
+                              invisible="product_type != 'lens'">
+                            <group>
+                                <field name="material_id" string="Vật liệu"
+                                       options="{'no_create': True, 'no_open': True}"/>
+                                <field name="index_id" string="Chiết suất"
+                                       options="{'no_create': True, 'no_open': True}"/>
+                            </group>
+                        </page>
+
+                        <page string="Tích hợp"
+                              invisible="product_type != 'lens'">
+                            <group>
+                                    <field name="uv_id" string="UV"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="cl_pho_id" string="Pho Col"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="cl_hmc_id" string="HMC"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="cl_tint_id" string="Tint Col"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="color_int" string="Độ đậm màu" placeholder="Nhập độ đậm màu..."/>
+                                    <field name="mir_coating" string="Màu tráng gương" placeholder="Nhập màu tráng gương..."/>
+                                    <field name="coating_ids" string="Coating"
+                                           widget="many2many_tags"
+                                           options="{'no_create': True}"/>
+                            </group>
+                        </page>
+
+                        <page string="Thông tin Gọng"
+                              invisible="product_type != 'opt'">
+                            <group>
+                                <group>
+                                    <field name="season" string="Season"/>
+                                    <field name="sku" string="SKU"/>
+                                    <field name="color_code" string="Color Code"/>
+                                </group>
+                                <group>
+                                    <field name="model_name" string="Model"/>
+                                    <field name="serial" string="Serial"/>
+                                    <field name="original_code" string="Mã gốc"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Thiết kế Gọng"
+                              invisible="product_type != 'opt'">
+                            <group>
+                                <group string="Loại gọng">
+                                    <field name="frame_id" string="Kiểu gọng"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="gender" string="Giới tính"/>
+                                    <field name="frame_type_id" string="Loại gọng"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </group>
+                                <group string="Chi tiết">
+                                    <field name="ve_id" string="Ve"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="shape_id" string="Kiểu dáng mặt kính"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="temple_id" string="Chuôi càng"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Chất liệu Gọng"
+                              invisible="product_type != 'opt'">
+                            <group>
+                                <group>
+                                    <field name="material_front_ids" string="Mặt trước"
+                                           widget="many2many_tags"
+                                           options="{'no_create': True}"/>
+                                    <field name="material_temple_ids" string="Càng"
+                                           widget="many2many_tags"
+                                           options="{'no_create': True}"/>
+                                    <field name="material_temple_tip_id" string="Chuôi càng"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </group>
+                                <group>
+                                    <field name="material_lens_id" string="Mắt kính"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="material_ve_id" string="Ve kính"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="coating_opt" string="Lớp mạ"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Màu sắc"
+                              invisible="product_type != 'opt'">
+                            <group>
+                                <group>
+                                    <field name="color_front_id" string="Màu mặt trước"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="color_temple_id" string="Màu càng kính"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </group>
+                                <group>
+                                    <field name="color_lens_id" string="Màu mắt kính"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Kích thước"
+                              invisible="product_type != 'opt'">
+                            <group>
+                                <group string="Chiều dài">
+                                    <field name="temple_width" string="Dài gọng (mm)"/>
+                                    <field name="lens_width" string="Dài mắt (mm)"/>
+                                    <field name="bridge_width" string="Dài cầu (mm)"/>
+                                </group>
+                                <group string="Chiều cao &amp; Ngang">
+                                    <field name="lens_height" string="Cao mắt (mm)"/>
+                                    <field name="lens_span" string="Ngang mắt (mm)"/>
+                                </group>
+                            </group>
+                        </page>
+
+                    </notebook>
+                </sheet>
+
+                <footer>
+                    <button string="Tạo Sản Phẩm"
+                            type="object"
+                            name="action_create_product"
+                            class="btn-primary"/>
+                    <button string="Hủy"
+                            class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+
+    <record id="action_product_creation_wizard_lens_v2" model="ir.actions.act_window">
+        <field name="name">Thêm Lens</field>
+        <field name="res_model">product.creation.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_product_creation_wizard_v2"/>
+        <field name="target">new</field>
+        <field name="context">{
+            'default_product_type': 'lens',
+            'default_unit': 'Chiếc'
+            }
+        </field>
+    </record>
+
+    <record id="action_product_creation_wizard_opt_v2" model="ir.actions.act_window">
+        <field name="name">Thêm OPT</field>
+        <field name="res_model">product.creation.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_product_creation_wizard_v2"/>
+        <field name="target">new</field>
+        <field name="context">{
+            'default_product_type': 'opt',
+            'default_unit': 'Chiếc'
+            }
+        </field>
+    </record>
+
+    <record id="action_product_creation_wizard_other_v2" model="ir.actions.act_window">
+        <field name="name">Thêm Phụ Kiện</field>
+        <field name="res_model">product.creation.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_product_creation_wizard_v2"/>
+        <field name="target">new</field>
+        <field name="context">{
+            'default_product_type': 'accessory',
+            'default_unit': 'Chiếc'
+            }
+        </field>
+    </record>
+
+</odoo>

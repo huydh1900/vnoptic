@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- COMMENTED OUT: This action is incomplete (missing URL field) and causes XML validation errors
+    <record id="action_external_create_product" model="ir.actions.act_url">
+        <field name="name">Tạo Sản Phẩm</field>
+        <field name="target">new</field>
+    </record>
+    -->
+</odoo>
+

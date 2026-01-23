@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Menu gốc - phải load đầu tiên vì các file khác tham chiếu đến -->
+    <menuitem id="menu_vnoptic_main" name="VNOPTIC" sequence="10"/>
+</odoo>

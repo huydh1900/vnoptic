@@ -1,0 +1,55 @@
+<odoo>
+    <!-- Temporarily disabled to test -->
+    <!--
+    <record id="action_product_creation_wizard_lens_v2" model="ir.actions.act_window">
+        <field name="name">Thêm Lens</field>
+        <field name="res_model">product.creation.wizard</field>
+        <field na me="view_mode">form</field>
+        <field name="view_id" ref="view_product_creation_wizard_v2"/>
+        <field name="target">new</field>
+        <field name="context">{'default_group_type_id': %(vnoptic_product.product_group_type_lens)d}</field>
+    </record>
+
+    <record id="action_product_creation_wizard_opt_v2" model="ir.actions.act_window">
+        <field name="name">Thêm OPT</field>
+        <field name="res_model">product.creation.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_product_creation_wizard_v2"/>
+        <field name="target">new</field>
+        <field name="context">{'default_group_type_id': %(vnoptic_product.product_group_type_opt)d}</field>
+    </record>
+
+    <record id="action_product_creation_wizard_other_v2" model="ir.actions.act_window">
+        <field name="name">Thêm Khác</field>
+        <field name="res_model">product.creation.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_product_creation_wizard_v2"/>
+        <field name="target">new</field>
+        <field name="context">{'default_group_type_id': %(vnoptic_product.product_group_type_other)d}</field>
+    </record>
+    -->
+    
+    <record id="action_product_creation_wizard_lens_v2" model="ir.actions.act_window">
+        <field name="name">Thêm Lens</field>
+        <field name="res_model">product.creation.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_product_creation_wizard_v2"/>
+        <field name="target">current</field>
+    </record>
+
+    <record id="action_product_creation_wizard_opt_v2" model="ir.actions.act_window">
+        <field name="name">Thêm OPT</field>
+        <field name="res_model">product.creation.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_product_creation_wizard_v2"/>
+        <field name="target">current</field>
+    </record>
+
+    <record id="action_product_creation_wizard_other_v2" model="ir.actions.act_window">
+        <field name="name">Thêm Khác</field>
+        <field name="res_model">product.creation.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_product_creation_wizard_v2"/>
+        <field name="target">current</field>
+    </record>
+</odoo>

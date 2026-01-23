@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tree View -->
+    <record id="product_material_tree_view" model="ir.ui.view">
+        <field name="name">product.material.tree</field>
+        <field name="model">product.material</field>
+        <field name="arch" type="xml">
+            <list string="Chất liệu sản phẩm">
+                <field name="name"/>
+                <field name="cid"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="product_material_form_view" model="ir.ui.view">
+        <field name="name">product.material.form</field>
+        <field name="model">product.material</field>
+        <field name="arch" type="xml">
+            <form string="Chất liệu sản phẩm">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="cid"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="description"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Wizard Form -->
+    <record id="product_material_wizard_form_view" model="ir.ui.view">
+        <field name="name">product.material.wizard.form</field>
+        <field name="model">product.material.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Tạo chất liệu mới">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="cid"/>
+                        </group>
+                        <group>
+                            <field name="description"/>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="Tạo" type="object" name="action_create_material" class="btn-primary"/>
+                    <button string="Hủy" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action for Material List -->
+    <record id="action_product_material" model="ir.actions.act_window">
+        <field name="name">Chất liệu sản phẩm</field>
+        <field name="res_model">product.material</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Chưa có chất liệu nào!
+            </p>
+            <p>
+                Hãy tạo chất liệu đầu tiên của bạn.<br/>
+                Chất liệu giúp phân loại sản phẩm theo vật liệu (MR-8, Polycarbonate, CR-39...).
+            </p>
+        </field>
+    </record>
+
+    <!-- Action for Wizard -->
+    <record id="action_product_material_wizard" model="ir.actions.act_window">
+        <field name="name">Tạo chất liệu mới</field>
+        <field name="res_model">product.material.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="product_material_wizard_form_view"/>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Menu -->
+    <menuitem id="menu_product_material"
+              name="Chất liệu"
+              parent="menu_vnoptic_main"
+              action="action_product_material"
+              sequence="26"/>
+</odoo>
+

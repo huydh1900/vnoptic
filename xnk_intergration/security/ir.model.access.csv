@@ -1,0 +1,26 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_product_sync_user,access_product_sync_user,model_product_sync,base.group_user,1,1,1,0
+access_product_sync_manager,access_product_sync_manager,model_product_sync,base.group_system,1,1,1,1
+access_xnk_brand_user,access_xnk_brand_user,model_xnk_brand,base.group_user,1,0,0,0
+access_xnk_brand_manager,access_xnk_brand_manager,model_xnk_brand,base.group_system,1,1,1,1
+access_xnk_warranty_user,access_xnk_warranty_user,model_xnk_warranty,base.group_user,1,0,0,0
+access_xnk_warranty_manager,access_xnk_warranty_manager,model_xnk_warranty,base.group_system,1,1,1,1
+access_xnk_country_user,xnk.country user,model_xnk_country,base.group_user,1,1,1,1
+access_product_lens_user,product.lens user,model_product_lens,base.group_user,1,1,1,1
+access_product_opt_user,product.opt user,model_product_opt,base.group_user,1,1,1,1
+access_product_group_user,product.group user,model_product_group,base.group_user,1,1,1,1
+access_product_group_type_user,product.group.type user,model_product_group_type,base.group_user,1,1,1,1
+access_product_status_user,product.status user,model_product_status,base.group_user,1,1,1,1
+access_product_design_user,product.design user,model_product_design,base.group_user,1,1,1,1
+access_product_material_user,product.material user,model_product_material,base.group_user,1,1,1,1
+access_product_lens_index_user,product.lens.index user,model_product_lens_index,base.group_user,1,1,1,1
+access_product_coating_user,product.coating user,model_product_coating,base.group_user,1,1,1,1
+access_product_cl_user,product.cl user,model_product_cl,base.group_user,1,1,1,1
+access_product_uv_user,product.uv user,model_product_uv,base.group_user,1,1,1,1
+access_product_frame_user,product.frame user,model_product_frame,base.group_user,1,1,1,1
+access_product_frame_type_user,product.frame.type user,model_product_frame_type,base.group_user,1,1,1,1
+access_product_shape_user,product.shape user,model_product_shape,base.group_user,1,1,1,1
+access_product_ve_user,product.ve user,model_product_ve,base.group_user,1,1,1,1
+access_product_temple_user,product.temple user,model_product_temple,base.group_user,1,1,1,1
+access_product_excel_import_user,product.excel.import user,model_product_excel_import,base.group_user,1,1,1,1
+access_product_excel_preview_line_user,product.excel.preview.line user,model_product_excel_preview_line,base.group_user,1,1,1,1

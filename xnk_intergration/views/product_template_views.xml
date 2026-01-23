@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+    <record id="product_template_form_inherit_xnk" model="ir.ui.view">
+        <field name="name">product.template.form.inherit.xnk</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view"/>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            
+            <!-- Add product_type selection in header -->
+            <xpath expr="//div[@class='oe_title']" position="inside">
+                <div class="o_row mt-2">
+                    <label for="product_type" string="Loại SP"/>
+                    <field name="product_type" widget="radio" options="{'horizontal': true}"/>
+                </div>
+            </xpath>
+            
+            <!-- Add XNK Info in general information tab -->
+            <xpath expr="//sheet/notebook/page[@name='general_information']/group" position="inside">
+                <group string="XNK Info">
+                    <field name="x_eng_name"/>
+                    <field name="x_trade_name"/>
+                    <field name="x_brand_id"/>
+                    <field name="x_warranty_id"/>
+                    <field name="x_status_name"/>
+                    <field name="x_tax_percent"/>
+                </group>
+            </xpath>
+            
+            <!-- Add custom tabs to notebook -->
+            <xpath expr="//notebook" position="inside">
+                
+                <!-- Tab: Lens Design (only visible when product_type = lens) -->
+                <page string="Thiết kế Lens" name="xnk_lens_design"
+                      invisible="product_type != 'lens'">
+                    <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}">
+                        <list editable="bottom" create="1" delete="1">
+                            <field name="sph" string="SPH"/>
+                            <field name="cyl" string="CYL"/>
+                            <field name="len_add" string="ADD"/>
+                            <field name="diameter" string="Đường kính"/>
+                            <field name="prism" string="Prism"/>
+                            <field name="base" string="Base"/>
+                            <field name="axis" string="Axis"/>
+                            <field name="design1_id" string="Thiết kế 1" options="{'no_create': True}"/>
+                            <field name="design2_id" string="Thiết kế 2" options="{'no_create': True}"/>
+                        </list>
+                        <form>
+                            <sheet>
+                                <group>
+                                    <group string="Thông số quang học">
+                                        <field name="sph" string="SPH"/>
+                                        <field name="cyl" string="CYL"/>
+                                        <field name="len_add" string="ADD"/>
+                                        <field name="diameter" string="Đường kính"/>
+                                        <field name="prism" string="Prism"/>
+                                        <field name="base" string="Base Curve"/>
+                                        <field name="axis" string="Axis"/>
+                                        <field name="corridor" string="Corridor"/>
+                                        <field name="abbe" string="Abbe"/>
+                                    </group>
+                                    <group string="Thiết kế">
+                                        <field name="design1_id" string="Thiết kế 1" options="{'no_create': True}"/>
+                                        <field name="design2_id" string="Thiết kế 2" options="{'no_create': True}"/>
+                                        <field name="polarized" string="Polarized"/>
+                                        <field name="prism_base" string="Prism Base"/>
+                                    </group>
+                                </group>
+                            </sheet>
+                        </form>
+                    </field>
+                </page>
+                
+                <!-- Tab: Lens Material -->
+                <page string="Chất liệu Lens" name="xnk_lens_material"
+                      invisible="product_type != 'lens'">
+                    <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
+                        <list editable="bottom">
+                            <field name="material_id" string="Vật liệu" options="{'no_create': True}"/>
+                            <field name="index_id" string="Chiết suất" options="{'no_create': True}"/>
+                        </list>
+                    </field>
+                </page>
+                
+                <!-- Tab: Lens Integration (UV, Coating...) -->
+                <page string="Tích hợp Lens" name="xnk_lens_integration"
+                      invisible="product_type != 'lens'">
+                    <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
+                        <list editable="bottom">
+                            <field name="uv_id" string="UV" options="{'no_create': True}"/>
+                            <field name="cl_pho_id" string="Pho Col" options="{'no_create': True}"/>
+                            <field name="cl_hmc_id" string="HMC" options="{'no_create': True}"/>
+                            <field name="cl_tint_id" string="Tint Col" options="{'no_create': True}"/>
+                            <field name="color_int" string="Độ đậm màu"/>
+                            <field name="mir_coating" string="Màu tráng gương"/>
+                            <field name="coating_ids" string="Coating" widget="many2many_tags" options="{'no_create': True}"/>
+                        </list>
+                    </field>
+                </page>
+                
+                <!-- Tab: Optical Info (only visible when product_type = opt) -->
+                <page string="Thông tin Gọng" name="xnk_opt_info"
+                      invisible="product_type != 'opt'">
+                    <field name="opt_ids" nolabel="1" context="{'default_product_tmpl_id': id}">
+                        <list editable="bottom" create="1" delete="1">
+                            <field name="season" string="Season"/>
+                            <field name="sku" string="SKU"/>
+                            <field name="model" string="Model"/>
+                            <field name="serial" string="Serial"/>
+                            <field name="color" string="Color Code"/>
+                            <field name="oem_ncc" string="Mã gốc"/>
+                        </list>
+                    </field>
+                </page>
+                
+                <!-- Tab: Optical Design -->
+                <page string="Thiết kế Gọng" name="xnk_opt_design"
+                      invisible="product_type != 'opt'">
+                    <field name="opt_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
+                        <list editable="bottom">
+                            <field name="frame_id" string="Kiểu gọng" options="{'no_create': True}"/>
+                            <field name="gender" string="Giới tính"/>
+                            <field name="frame_type_id" string="Loại gọng" options="{'no_create': True}"/>
+                            <field name="ve_id" string="Ve" options="{'no_create': True}"/>
+                            <field name="shape_id" string="Kiểu dáng mặt kính" options="{'no_create': True}"/>
+                            <field name="temple_id" string="Chuôi càng" options="{'no_create': True}"/>
+                        </list>
+                    </field>
+                </page>
+                
+                <!-- Tab: Optical Material -->
+                <page string="Chất liệu Gọng" name="xnk_opt_material"
+                      invisible="product_type != 'opt'">
+                    <field name="opt_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
+                        <list editable="bottom">
+                            <field name="materials_front_ids" string="Mặt trước" widget="many2many_tags" options="{'no_create': True}"/>
+                            <field name="materials_temple_ids" string="Càng" widget="many2many_tags" options="{'no_create': True}"/>
+                            <field name="material_temple_tip_id" string="Chuôi càng" options="{'no_create': True}"/>
+                            <field name="material_lens_id" string="Mắt kính" options="{'no_create': True}"/>
+                            <field name="material_ve_id" string="Ve kính" options="{'no_create': True}"/>
+                            <field name="coating_ids" string="Lớp mạ" widget="many2many_tags" options="{'no_create': True}"/>
+                        </list>
+                    </field>
+                </page>
+                
+                <!-- Tab: Optical Color -->
+                <page string="Màu sắc Gọng" name="xnk_opt_color"
+                      invisible="product_type != 'opt'">
+                    <field name="opt_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
+                        <list editable="bottom">
+                            <field name="color_front_id" string="Màu mặt trước" options="{'no_create': True}"/>
+                            <field name="color_temple_id" string="Màu càng kính" options="{'no_create': True}"/>
+                            <field name="color_lens_id" string="Màu mắt kính" options="{'no_create': True}"/>
+                        </list>
+                    </field>
+                </page>
+                
+                <!-- Tab: Optical Size -->
+                <page string="Kích thước Gọng" name="xnk_opt_size"
+                      invisible="product_type != 'opt'">
+                    <field name="opt_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
+                        <list editable="bottom">
+                            <field name="temple_width" string="Dài gọng (mm)"/>
+                            <field name="lens_width" string="Dài mắt (mm)"/>
+                            <field name="bridge_width" string="Dài cầu (mm)"/>
+                            <field name="lens_height" string="Cao mắt (mm)"/>
+                            <field name="lens_span" string="Ngang mắt (mm)"/>
+                        </list>
+                    </field>
+                </page>
+                
+            </xpath>
+        </field>
+    </record>
+
+    <record id="product_template_tree_inherit_xnk" model="ir.ui.view">
+        <field name="name">product.template.tree.inherit.xnk</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_tree_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="x_eng_name"/>
+                <field name="x_brand_id"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="product_template_search_inherit_xnk" model="ir.ui.view">
+        <field name="name">product.template.search.inherit.xnk</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_search_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <field name="x_eng_name"/>
+                <filter string="Has Warranty" name="has_warranty" domain="[('x_warranty_id','!=',False)]"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

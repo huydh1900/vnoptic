@@ -1,0 +1,49 @@
+<odoo>
+    <!-- Sản phẩm đơn hàng Menu - FIRST to show product list by default -->
+    <menuitem id="menu_products_main" 
+              name="Sản phẩm đơn hàng"
+              parent="menu_vnoptic_main" 
+              sequence="10"/>
+
+    <!-- Tạo sản phẩm Menu with submenu -->
+    <menuitem id="menu_create_product"
+              name="Tạo sản phẩm"
+              parent="menu_vnoptic_main"
+              sequence="20"/>
+    
+    <menuitem id="menu_create_lens_product"
+              name="Tạo Lens"
+              parent="menu_create_product"
+              action="action_product_creation_wizard_lens_v2"
+              sequence="10"/>
+    
+    <menuitem id="menu_create_opt_product"
+              name="Tạo OPT"
+              parent="menu_create_product"
+              action="action_product_creation_wizard_opt_v2"
+              sequence="20"/>
+    
+    <menuitem id="menu_create_other_product"
+              name="Tạo Phụ Kiện"
+              parent="menu_create_product"
+              action="action_product_creation_wizard_other_v2"
+              sequence="30"/>
+    
+    <menuitem id="menu_lens_products"
+              name="Lens"
+              parent="menu_products_main"
+              action="action_lens_products"
+              sequence="10"/>
+    
+    <menuitem id="menu_opt_products"
+              name="OPT"
+              parent="menu_products_main"
+              action="action_opt_products"
+              sequence="20"/>
+    
+    <menuitem id="menu_accessory_products"
+              name="Khác"
+              parent="menu_products_main"
+              action="action_accessory_products"
+              sequence="30"/>
+</odoo>

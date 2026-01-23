@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_product_sync_search" model="ir.ui.view">
+        <field name="name">product.sync.search</field>
+        <field name="model">product.sync</field>
+        <field name="arch" type="xml">
+            <search string="Search Sync">
+                <field name="name"/>
+                <separator/>
+                <filter name="filter_success" string="Success" domain="[('sync_status', '=', 'success')]"/>
+                <filter name="filter_error" string="Error" domain="[('sync_status', '=', 'error')]"/>
+                <filter name="filter_never" string="Never Synced" domain="[('sync_status', '=', 'never')]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_by_status" string="Status" context="{'group_by': 'sync_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_product_sync_tree" model="ir.ui.view">
+        <field name="name">product.sync.tree</field>
+        <field name="model">product.sync</field>
+        <field name="arch" type="xml">
+            <list string="Product Synchronization">
+                <field name="name"/>
+                <field name="last_sync_date"/>
+                <field name="total_synced"/>
+                <field name="lens_count" optional="hide"/>
+                <field name="opts_count" optional="hide"/>
+                <field name="other_count" optional="hide"/>
+                <field name="sync_status" widget="badge"
+                       decoration-success="sync_status == 'success'"
+                       decoration-danger="sync_status == 'error'"
+                       decoration-muted="sync_status == 'never'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_sync_form" model="ir.ui.view">
+        <field name="name">product.sync.form</field>
+        <field name="model">product.sync</field>
+        <field name="arch" type="xml">
+            <form string="Product Synchronization">
+                <header>
+                    <button name="sync_products_from_springboot"
+                            string="Sync All Products"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="id == False"
+                            confirm="Sync toàn bộ 11k+ sản phẩm? Có thể mất nhiều thời gian."/>
+                    <button name="sync_products_limited"
+                            string="🧪 Sync 200 Test"
+                            type="object"
+                            invisible="id == False"/>
+                    <button name="test_api_connection"
+                            string="Test Connection"
+                            type="object"
+                            invisible="id == False"/>
+                    <field name="sync_status" widget="statusbar" statusbar_visible="never,success,error"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" string="Sync Configuration"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Daily Full Sync"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group string="Sync Statistics">
+                            <field name="last_sync_date" readonly="1"/>
+                            <field name="total_synced" readonly="1"/>
+                            <field name="total_failed" readonly="1"/>
+                        </group>
+                        <group string="Product Counts">
+                            <field name="lens_count" readonly="1"/>
+                            <field name="opts_count" readonly="1"/>
+                            <field name="other_count" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Sync Log" name="sync_log">
+                            <field name="sync_log" widget="text" placeholder="Sync logs will appear here..."/>
+                        </page>
+                        <page string="Info" name="info">
+                            <group>
+                                <div class="alert alert-info" role="alert">
+                                    <h4>How it works:</h4>
+                                    <ol>
+                                        <li>Enter Spring Boot <strong>username</strong> and
+                                            <strong>password</strong>
+                                        </li>
+                                        <li>Click <strong>"Test Connection"</strong> to verify credentials
+                                        </li>
+                                        <li>Click <strong>"Sync All Products"</strong> to start synchronization
+                                        </li>
+                                        <li>Products will be automatically categorized:
+                                            <ul>
+                                                <li>
+                                                    <strong>Mắt</strong>
+                                                    
+                                                </li>
+                                                <li>
+                                                    <strong>Gọng</strong>
+                                                  
+                                                </li>
+                                                <li>
+                                                    <strong>Khác</strong>
+                                                   
+                                                </li>
+                                            </ul>
+                                        </li>
+                                    </ol>
+                                    <hr/>
+
+                                    <p>
+                                        <strong>Authentication:</strong>
+                                        JWT Bearer Token (auto-login)
+                                    </p>
+                                </div>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ==================== ACTION ==================== -->
+    <record id="action_product_sync" model="ir.actions.act_window">
+        <field name="name">Product Synchronization</field>
+        <field name="res_model">product.sync</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_product_sync_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first Product Sync configuration!
+            </p>
+            <p>
+                Sync all products from Spring Boot API with automatic categorization.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_product_sync_root"
+              name="Product Sync"
+              sequence="50"/>
+
+    <menuitem id="menu_product_sync_sync"
+              name="Synchronization"
+              parent="menu_product_sync_root"
+              sequence="10"/>
+
+    <menuitem id="menu_product_sync_config"
+              name="Sync Configuration"
+              parent="menu_product_sync_sync"
+              action="action_product_sync"
+              sequence="10"/>
+
+    <menuitem id="menu_xnk_master_data"
+              name="Master Data"
+              parent="menu_product_sync_root"
+              sequence="20"/>
+
+</odoo>
