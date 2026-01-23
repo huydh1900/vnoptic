@@ -7,3 +7,5 @@ from . import xnk_brand
 from . import xnk_country
 from . import xnk_warranty
 from . import server_connector
+from . import product_excel_import
+from . import product_excel_preview_line

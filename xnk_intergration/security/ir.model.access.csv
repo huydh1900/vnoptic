@@ -22,3 +22,5 @@ access_product_frame_type_user,product.frame.type user,model_product_frame_type,
 access_product_shape_user,product.shape user,model_product_shape,base.group_user,1,1,1,1
 access_product_ve_user,product.ve user,model_product_ve,base.group_user,1,1,1,1
 access_product_temple_user,product.temple user,model_product_temple,base.group_user,1,1,1,1
+access_product_excel_import_user,product.excel.import user,model_product_excel_import,base.group_user,1,1,1,1
+access_product_excel_preview_line_user,product.excel.preview.line user,model_product_excel_preview_line,base.group_user,1,1,1,1
