@@ -57,7 +57,3 @@ msgstr "Nhóm sản phẩm"
 msgid "Product Categories"
 msgstr "Nhóm sản phẩm"
 
-#. module: purchase
-#: model:ir.model.fields.selection,name:purchase.selection__purchase_order__state__draft
-msgid "RFQ"
-msgstr "Dự thảo"

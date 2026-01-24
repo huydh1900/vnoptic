@@ -4,10 +4,33 @@
         <field name="model">purchase.order</field>
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//button[@name='print_quotation']" position='replace'/>
-            <xpath expr="//button[@name='print_quotation']" position='replace'/>
-            <xpath expr="//button[@name='button_done']" position='replace'/>
-            <xpath expr="//button[@name='action_rfq_send']" position='replace'/>
+            <xpath expr="//button[@name='print_quotation']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_rfq_send']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <xpath expr="//button[@name='button_done']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <xpath expr="//button[@id='draft_confirm']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+<!--            <xpath expr="//button[@id='bid_confirm']" position="attributes">-->
+<!--                <attribute name="invisible">1</attribute>-->
+<!--            </xpath>-->
+
+
+            <xpath expr="//button[@name='button_cancel']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <field name="state" position="replace">
+                <field name="state" widget="statusbar" statusbar_visible="draft,to approve,purchase,cancel" readonly="1"/>
+            </field>
 
             <xpath expr="//field[@name='partner_ref']" position="after">
                 <field name="vendor_document_ids" widget="many2many_binary"/>
@@ -20,8 +43,8 @@
                         class="btn-primary"
                         invisible="state != 'draft'"/>
             </xpath>
-            <xpath expr="//button[@name='button_cancel']" position='replace'>
-                <button name="button_cancel" invisible="state != 'to_approve'" string="Hủy" type="object"
+            <xpath expr="//button[@name='button_cancel']" position='after'>
+                <button name="button_cancel" invisible="state != 'to approve'" string="Hủy" type="object"
                         class="btn-danger"
                         data-hotkey="x" confirm="Bạn có chăc muốn Hủy đơn mua hàng này?"/>
             </xpath>

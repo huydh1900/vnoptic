@@ -5,13 +5,6 @@ from odoo.exceptions import ValidationError
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
-
-    state = fields.Selection(
-        selection_add=[
-            ('to_approve', 'Chờ duyệt'),
-        ]
-    )
-
     vendor_document_ids = fields.Many2many(
         'ir.attachment',
         string="Chứng từ NCC (Phiếu xuất/Hóa đơn)",
@@ -20,7 +13,7 @@ class PurchaseOrder(models.Model):
 
     def action_send_approve(self):
         for order in self:
-            order.state = 'to_approve'
+            order.state = 'to approve'
 
     def button_confirm(self):
         for order in self:
