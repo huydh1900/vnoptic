@@ -402,7 +402,13 @@ class ProductSync(models.Model):
         return success, failed
 
     def sync_products_from_springboot(self):
-        return self._run_sync()
+        # If called from cron/server action, self might be empty
+        rec = self
+        if not rec:
+            rec = self.search([], limit=1, order='last_sync_date desc')
+            if not rec:
+                rec = self.create({'name': 'Daily Auto Sync'})
+        return rec._run_sync()
 
     def sync_products_limited(self, limit=200):
         return self._run_sync(limit)

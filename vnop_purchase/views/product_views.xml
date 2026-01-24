@@ -9,7 +9,7 @@
         <field name="res_model">product.template</field>
         <field name="view_mode">kanban,list,form,activity</field>
         <field name="context">{"search_default_filter_to_purchase":1, "search_default_filter_lens":1, "purchase_product_template": 1}</field>
-        <field name="search_view_id" ref="xnk_intergration.product_template_search_view_common_purchase"/>
+        <field name="search_view_id" ref="vnop_sync.product_template_search_view_xnk_purchase"/>
         <field name="view_id" eval="False"/>
         <field name="help" type="html">
           <p class="o_view_nocontent_smiling_face">
@@ -19,4 +19,11 @@
           </p>
         </field>
     </record>
+
+    <!-- Import Excel Menu in Purchase -->
+    <menuitem id="menu_import_excel_purchase"
+              name="Import sản phẩm"
+              parent="purchase.menu_purchase_products"
+              action="vnop_sync.action_import_excel_products"
+              sequence="99"/>
 </odoo>

@@ -2,7 +2,7 @@
 {
     'name': "vnop_sale",
     # any module necessary for this one to work correctly
-    'depends': ['base', 'product', 'sale', 'xnk_intergration', 'stock'],
+    'depends': ['base', 'product', 'sale', 'vnop_sync', 'stock'],
 
     # always loaded
     'data': [

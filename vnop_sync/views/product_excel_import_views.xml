@@ -179,18 +179,11 @@
          ============================================== -->
     
     <!-- Menu in Sale Module -->
-    <menuitem id="menu_import_excel_sale"
-              name="Import sản phẩm"
-              parent="sale.product_menu_catalog"
-              action="action_import_excel_products"
-              sequence="99"/>
+    <!-- Menu in Sale Module (Moved to vnop_sale) -->
+    <!-- <menuitem id="menu_import_excel_sale" ... /> -->
     
-    <!-- Menu in Purchase Module -->
-    <menuitem id="menu_import_excel_purchase"
-              name="Import sản phẩm"
-              parent="purchase.menu_purchase_products"
-              action="action_import_excel_products"
-              sequence="99"/>
+    <!-- Menu in Purchase Module (Moved to vnop_purchase) -->
+    <!-- <menuitem id="menu_import_excel_purchase" ... /> -->
     
     <!-- Menu in Inventory/Stock Module -->
     <menuitem id="menu_import_excel_stock"
