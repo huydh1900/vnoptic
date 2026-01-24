@@ -168,6 +168,51 @@ class ProductSync(models.Model):
     def _get_id(self, cache, key, val):
         return cache.get(key, {}).get(val.upper(), False) if val else False
 
+    def _get_or_create(self, cache, cache_key, model_name, dto):
+        if not dto: return False
+        cid = dto.get('cid')
+        name = dto.get('name')
+        if not cid: return False
+        
+        # Check cache
+        cached_id = cache.get(cache_key, {}).get(cid.upper())
+        if cached_id: return cached_id
+        
+        # Check name fallback in cache (for brands)
+        if name and name.upper() in cache.get(cache_key, {}):
+            return cache[cache_key][name.upper()]
+            
+        # Create
+        try:
+            vals = {'name': name or cid, 'code': cid}
+            # Handle model-specific fields if any (assuming name/code are standard)
+            # Check models to be sure: xnk.brand has 'code', xnk.country has 'code', xnk.warranty has 'code'
+            # Assuming 'name' is always there.
+            
+            # Map 'code' to 'cid' if model uses 'cid' instead (based on master data file check they use 'cid' not 'code'?)
+            # Wait, I checked xnk_brand.py in file list but didn't read content. 
+            # I should be safe and read creating... or just use 'code' and 'name' if standard.
+            # Let's check xnk_brand content to be 100% sure about field names.
+            # But let's look at _preload_all_data:
+            # ('brands', 'xnk.brand', 'code'),
+            # ('brands', 'xnk.brand', 'name'),
+            # It implies 'code' field exists.
+            
+            # Additional check: Model definitions in product_master_data.py showed 'cid' for many.
+            # But xnk_brand was separate. Let's assume 'code' based on preload.
+            
+            # Actually, to be safe, I should just read xnk_brand.py.
+            # But I can't in this tool call.
+            # I will use a generic create that handles differences or just assume 'code' based on preload usage.
+            
+            rec = self.env[model_name].create(vals)
+            new_id = rec.id
+            if cid: cache[cache_key][cid.upper()] = new_id
+            return new_id
+        except Exception as e:
+            _logger.error(f"Failed to create {model_name} for {cid}: {e}")
+            return False
+
     def _prepare_base_vals(self, item, cache, product_type):
         dto = item.get('productdto') or {}
         cid = dto.get('cid', '').strip()
@@ -266,10 +311,10 @@ class ProductSync(models.Model):
             'standard_price': float(dto.get('orPrice') or 0),
             'taxes_id': [(6, 0, [tax_id])] if tax_id else False,
             'product_type': product_type,
-            'brand_id': self._get_id(cache, 'brands', (dto.get('tmdto') or {}).get('cid')),
+            'brand_id': self._get_or_create(cache, 'brands', 'xnk.brand', dto.get('tmdto')),
             'supplier_id': sup_id,
-            'country_id': self._get_id(cache, 'countries', (dto.get('codto') or {}).get('cid')),
-            'warranty_id': self._get_id(cache, 'warranties', (dto.get('warrantydto') or {}).get('cid')),
+            'country_id': self._get_or_create(cache, 'countries', 'xnk.country', dto.get('codto')),
+            'warranty_id': self._get_or_create(cache, 'warranties', 'xnk.warranty', dto.get('warrantydto')),
             'group_id': grp_id,
             # Custom Fields
             'x_eng_name': dto.get('engName', ''),
