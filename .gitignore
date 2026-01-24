@@ -1,0 +1,50 @@
+# =========================
+# Python cache
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+venv*/
+.env
+.env.*
+
+# =========================
+# Odoo cache / runtime
+# =========================
+.odoo/
+*.log
+*.pid
+*.db
+*.db-journal
+
+# Odoo filestore (rất to, không commit)
+filestore/
+data/filestore/
+
+# Odoo session & temp
+sessions/
+tmp/
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Build / dist
+# =========================
+dist/
+build/
+*.egg-info/
