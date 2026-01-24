@@ -10,7 +10,7 @@
         'views/xnk_warranty_views.xml',
         'views/product_tree_common_views.xml',
         'views/product_template_views.xml',
-        'views/product_excel_import_views.xml',
+        'wizard/product_excel_import_views.xml',
         'views/product_group_views.xml',
         'data/ir_cron_data.xml',
     ],
