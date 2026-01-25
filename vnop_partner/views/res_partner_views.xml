@@ -11,7 +11,7 @@
             <xpath expr="//form/sheet/group/group[2]/field[@name='website']" position="replace"/>
             <xpath expr="//form/sheet/group/group[2]/field[@name='function']" position="replace"/>
             <field name="vat" position="after">
-                <field name="code"/>
+                <field name="ref"/>
             </field>
         </field>
     </record>

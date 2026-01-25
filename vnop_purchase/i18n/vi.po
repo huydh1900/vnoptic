@@ -3,7 +3,7 @@
 #: model:ir.model.fields.selection,name:purchase.selection__purchase_report__state__to_approve
 #: model_terms:ir.ui.view,arch_db:purchase.view_purchase_order_filter
 msgid "To Approve"
-msgstr "Chờ duyệt"
+msgstr "Chờ phê duyệt"
 
 #. module: purchase
 #: model:ir.model.fields.selection,name:purchase.selection__purchase_order__state__draft
@@ -14,3 +14,11 @@ msgstr "Dự thảo"
 #: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
 msgid "Approve Order"
 msgstr "Phê duyệt đơn mua"
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_order__date_approve
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_line__date_approve
+#: model:ir.model.fields,field_description:purchase.field_purchase_report__date_approve
+#: model_terms:ir.ui.view,arch_db:purchase.view_purchase_order_search
+msgid "Confirmation Date"
+msgstr "Ngày duyệt"

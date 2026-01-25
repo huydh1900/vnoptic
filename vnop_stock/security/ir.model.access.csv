@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_vnop_stock_vnop_stock,vnop_stock.vnop_stock,model_vnop_stock_vnop_stock,base.group_user,1,1,1,1

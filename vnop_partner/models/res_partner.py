@@ -8,7 +8,5 @@ class ResPartner(models.Model):
     _inherit = 'res.partner'
 
     _sql_constraints = [
-        ('code_unique', 'unique(code)', 'Mã khách hàng đã tồn tại, vui lòng kiểm tra lại!')
+        ('ref_unique', 'unique(ref)', 'Mã khách hàng đã tồn tại, vui lòng kiểm tra lại!')
     ]
-
-    code = fields.Char(string='Mã khách hàng', required=True)

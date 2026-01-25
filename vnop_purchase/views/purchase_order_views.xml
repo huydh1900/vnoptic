@@ -1,6 +1,30 @@
 <odoo>
-    <record id="purchase_order_form_inherit_attachments" model="ir.ui.view">
-        <field name="name">purchase.order.form.inherit.attachments</field>
+
+    <record id="vnop_purchase_order_tree_inherit" model="ir.ui.view">
+        <field name="name">vnop.purchase.order.tree.inherit</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_view_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='activity_ids']" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='company_id']" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='priority']" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="approver_id"/>
+            </xpath>
+            <xpath expr="//field[@name='name']" position="attributes">
+                <attribute name="string">Mã đơn hàng</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="vnop_purchase_order_form_inherit" model="ir.ui.view">
+        <field name="name">vnop.purchase.order.form.inherit</field>
         <field name="model">purchase.order</field>
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
@@ -10,46 +34,66 @@
             <xpath expr="//button[@name='action_rfq_send']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
-
             <xpath expr="//button[@name='button_done']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
-
             <xpath expr="//button[@id='draft_confirm']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
-
-<!--            <xpath expr="//button[@id='bid_confirm']" position="attributes">-->
-<!--                <attribute name="invisible">1</attribute>-->
-<!--            </xpath>-->
-
-
             <xpath expr="//button[@name='button_cancel']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
-
-            <field name="state" position="replace">
-                <field name="state" widget="statusbar" statusbar_visible="draft,to approve,purchase,cancel" readonly="1"/>
-            </field>
-
-            <xpath expr="//field[@name='partner_ref']" position="after">
-                <field name="vendor_document_ids" widget="many2many_binary"/>
+            <xpath expr="//button[@name='button_draft']" position="attributes">
+                <attribute name="invisible">1</attribute>
             </xpath>
-
+            <field name="state" position="replace">
+                <field name="state" widget="statusbar" statusbar_visible="draft,to approve,,purchase,cancel"
+                       readonly="1"/>
+            </field>
+            <xpath expr="//field[@name='partner_ref']" position="after">
+                <field name="vendor_document_ids" widget="many2many_binary" readonly="state != 'draft'"/>
+            </xpath>
+            <xpath expr="//field[@name='partner_ref']" position="after">
+                <field name="contract_id" options="{'no_create': True}" readonly="state != 'draft'"/>
+            </xpath>
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </xpath>
+            <xpath expr="//field[@name='partner_ref']" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </xpath>
+            <xpath expr="//field[@name='date_order']" position="before">
+                <field name="approver_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+            </xpath>
             <xpath expr="//button[@name='button_confirm']" position='replace'>
                 <button name="action_send_approve"
                         type="object"
                         string="Gửi duyệt"
                         class="btn-primary"
-                        invisible="state != 'draft'"/>
+                        invisible="state not in ('draft', 'need_edit')"/>
             </xpath>
             <xpath expr="//button[@name='button_cancel']" position='after'>
-                <button name="button_cancel" invisible="state != 'to approve'" string="Hủy" type="object"
+                <button name="button_cancel" invisible="state in ('purchase','cancel')" string="Hủy" type="object"
                         class="btn-danger"
-                        data-hotkey="x" confirm="Bạn có chăc muốn Hủy đơn mua hàng này?"/>
+                        confirm="Bạn có chăc muốn Hủy đơn mua hàng này?"/>
             </xpath>
-
-
+            <xpath expr="//button[@name='button_approve']" position='before'>
+                <button name="button_need_edit" invisible="state != 'to approve'" string="Cần chỉnh sửa" type="object"
+                        class="btn-warning"
+                        confirm="Bạn có chăc muốn Chỉnh sửa đơn mua hàng này?"/>
+            </xpath>
+            <field name="partner_id" position="attributes">
+                <attribute name="domain">[('supplier_rank', '>', 0)]</attribute>
+                <attribute name="options">{'no_quick_create': True}</attribute>
+            </field>
         </field>
+    </record>
+
+    <record id="purchase.purchase_rfq" model="ir.actions.act_window">
+        <field name="domain">[('state', '!=', 'purchase')]</field>
+    </record>
+
+    <record id="purchase.purchase_form_action" model="ir.actions.act_window">
+        <field name="context">{'create': False}</field>
     </record>
 </odoo>
