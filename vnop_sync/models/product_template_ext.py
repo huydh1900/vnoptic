@@ -40,7 +40,6 @@ class ProductTemplateExtension(models.Model):
         help="Storage and preservation guidelines"
     )
 
-    # ==================== SUPPLIER & STATUS FIELDS ====================
 
     cid_ncc = fields.Char(
         'Mã NCC',
