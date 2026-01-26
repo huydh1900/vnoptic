@@ -3,7 +3,7 @@ from . import product_lens
 from . import product_opt
 from . import product_sync
 from . import product_template_ext
-from . import xnk_brand
-from . import xnk_country
-from . import xnk_warranty
+from . import product_brand
+from . import product_country
+from . import product_warranty
 from . import server_connector

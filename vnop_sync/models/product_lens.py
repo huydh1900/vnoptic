@@ -27,16 +27,17 @@ class ProductLens(models.Model):
     mir_coating = fields.Char('Màu tráng gương', size=50)
 
     # Relational fields
-    design1_id = fields.Many2one('product.design', string='Design 1')
-    design2_id = fields.Many2one('product.design', string='Design 2')
-    uv_id = fields.Many2one('product.uv', string='UV Protection')
-    cl_hmc_id = fields.Many2one('product.cl', string='CL HMC')
-    cl_pho_id = fields.Many2one('product.cl', string='CL Pho')
-    cl_tint_id = fields.Many2one('product.cl', string='CL Tint')
-    index_id = fields.Many2one('product.lens.index', string='Index')
-    material_id = fields.Many2one('product.material', string='Material')
+    # Relational fields
+    design1_id = fields.Many2one('product.design', string='Thiết kế 1')
+    design2_id = fields.Many2one('product.design', string='Thiết kế 2')
+    uv_id = fields.Many2one('product.uv', string='Chống UV')
+    cl_hmc_id = fields.Many2one('product.cl', string='Màu HMC')
+    cl_pho_id = fields.Many2one('product.cl', string='Màu đổi màu (Pho)')
+    cl_tint_id = fields.Many2one('product.cl', string='Màu nhuộm (Tint)')
+    index_id = fields.Many2one('product.lens.index', string='Chiết suất')
+    material_id = fields.Many2one('product.material', string='Chất liệu')
 
     coating_ids = fields.Many2many(
         'product.coating', 'lens_coating_rel',
-        'lens_id', 'coating_id', 'Coatings'
+        'lens_id', 'coating_id', 'Lớp phủ'
     )

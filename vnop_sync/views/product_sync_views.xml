@@ -4,15 +4,15 @@
         <field name="name">product.sync.search</field>
         <field name="model">product.sync</field>
         <field name="arch" type="xml">
-            <search string="Search Sync">
+            <search string="Tìm kiếm đồng bộ">
                 <field name="name"/>
                 <separator/>
-                <filter name="filter_success" string="Success" domain="[('sync_status', '=', 'success')]"/>
-                <filter name="filter_error" string="Error" domain="[('sync_status', '=', 'error')]"/>
-                <filter name="filter_never" string="Never Synced" domain="[('sync_status', '=', 'never')]"/>
+                <filter name="filter_success" string="Thành công" domain="[('sync_status', '=', 'success')]"/>
+                <filter name="filter_error" string="Lỗi" domain="[('sync_status', '=', 'error')]"/>
+                <filter name="filter_never" string="Chưa đồng bộ" domain="[('sync_status', '=', 'never')]"/>
                 <separator/>
-                <group expand="0" string="Group By">
-                    <filter name="group_by_status" string="Status" context="{'group_by': 'sync_status'}"/>
+                <group expand="0" string="Nhóm theo">
+                    <filter name="group_by_status" string="Trạng thái" context="{'group_by': 'sync_status'}"/>
                 </group>
             </search>
         </field>
@@ -22,7 +22,7 @@
         <field name="name">product.sync.tree</field>
         <field name="model">product.sync</field>
         <field name="arch" type="xml">
-            <list string="Product Synchronization">
+            <list string="Đồng bộ sản phẩm">
                 <field name="name"/>
                 <field name="last_sync_date"/>
                 <field name="total_synced"/>
@@ -41,39 +41,39 @@
         <field name="name">product.sync.form</field>
         <field name="model">product.sync</field>
         <field name="arch" type="xml">
-            <form string="Product Synchronization">
+            <form string="Đồng bộ sản phẩm">
                 <header>
                     <button name="sync_products_from_springboot"
-                            string="Sync All Products"
+                            string="Đồng bộ toàn bộ"
                             type="object"
                             class="oe_highlight"
                             invisible="id == False"
                             confirm="Sync toàn bộ 11k+ sản phẩm? Có thể mất nhiều thời gian."/>
                     <button name="sync_products_limited"
-                            string="🧪 Sync 200 Test"
+                            string="🧪 Đồng bộ 200 Test"
                             type="object"
                             invisible="id == False"/>
                     <button name="test_api_connection"
-                            string="Test Connection"
+                            string="Kiểm tra kết nối"
                             type="object"
                             invisible="id == False"/>
                     <field name="sync_status" widget="statusbar" statusbar_visible="never,success,error"/>
                 </header>
                 <sheet>
                     <div class="oe_title">
-                        <label for="name" string="Sync Configuration"/>
+                        <label for="name" string="Cấu hình đồng bộ"/>
                         <h1>
-                            <field name="name" placeholder="e.g. Daily Full Sync"/>
+                            <field name="name" placeholder="vd: Đồng bộ hàng ngày"/>
                         </h1>
                     </div>
 
                     <group>
-                        <group string="Sync Statistics">
+                        <group string="Thống kê">
                             <field name="last_sync_date" readonly="1"/>
                             <field name="total_synced" readonly="1"/>
                             <field name="total_failed" readonly="1"/>
                         </group>
-                        <group string="Product Counts">
+                        <group string="Số lượng">
                             <field name="lens_count" readonly="1"/>
                             <field name="opts_count" readonly="1"/>
                             <field name="other_count" readonly="1"/>
@@ -81,22 +81,22 @@
                     </group>
 
                     <notebook>
-                        <page string="Sync Log" name="sync_log">
-                            <field name="sync_log" widget="text" placeholder="Sync logs will appear here..."/>
+                        <page string="Nhật ký" name="sync_log">
+                            <field name="sync_log" widget="text" placeholder="Nhật ký sẽ hiển thị ở đây..."/>
                         </page>
-                        <page string="Info" name="info">
+                        <page string="Thông tin" name="info">
                             <group>
                                 <div class="alert alert-info" role="alert">
-                                    <h4>How it works:</h4>
+                                    <h4>Hướng dẫn:</h4>
                                     <ol>
-                                        <li>Enter Spring Boot <strong>username</strong> and
+                                        <li>Nhập Spring Boot <strong>username</strong> và
                                             <strong>password</strong>
                                         </li>
-                                        <li>Click <strong>"Test Connection"</strong> to verify credentials
+                                        <li>Nhấn <strong>"Kiểm tra kết nối"</strong> để xác thực
                                         </li>
-                                        <li>Click <strong>"Sync All Products"</strong> to start synchronization
+                                        <li>Nhấn <strong>"Đồng bộ toàn bộ"</strong> để bắt đầu
                                         </li>
-                                        <li>Products will be automatically categorized:
+                                        <li>Sản phẩm sẽ được phân loại tự động:
                                             <ul>
                                                 <li>
                                                     <strong>Mắt</strong>
@@ -116,7 +116,7 @@
                                     <hr/>
 
                                     <p>
-                                        <strong>Authentication:</strong>
+                                        <strong>Xác thực:</strong>
                                         JWT Bearer Token (auto-login)
                                     </p>
                                 </div>
@@ -136,38 +136,38 @@
         <field name="search_view_id" ref="view_product_sync_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-                Create your first Product Sync configuration!
+                Tạo cấu hình đồng bộ đầu tiên!
             </p>
             <p>
-                Sync all products from Spring Boot API with automatic categorization.
+                Đồng bộ tất cả sản phẩm từ Spring Boot API với phân loại tự động.
             </p>
         </field>
     </record>
 
     <menuitem id="menu_product_sync_root"
-              name="Product Sync"
+              name="Đồng bộ sản phẩm"
               sequence="50"/>
 
     <menuitem id="menu_product_sync_sync"
-              name="Synchronization"
+              name="Đồng bộ hóa"
               parent="menu_product_sync_root"
               sequence="10"/>
 
     <menuitem id="menu_product_sync_config"
-              name="Sync Configuration"
+              name="Cấu hình"
               parent="menu_product_sync_sync"
               action="action_product_sync"
               sequence="10"/>
 
-    <menuitem id="menu_xnk_master_data"
-              name="Master Data"
+    <menuitem id="menu_product_master_data"
+              name="Dữ liệu gốc"
               parent="menu_product_sync_root"
               sequence="20"/>
     
     <!-- Configuration submenu -->
-    <menuitem id="menu_xnk_config"
-              name="Configuration"
-              parent="menu_xnk_master_data"
+    <menuitem id="menu_product_config"
+              name="Cấu hình"
+              parent="menu_product_master_data"
               sequence="100"/>
 
 </odoo>

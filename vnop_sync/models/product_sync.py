@@ -15,23 +15,23 @@ class ProductSync(models.Model):
     _description = 'Product Synchronization'
     _order = 'last_sync_date desc'
 
-    name = fields.Char('Sync Name', required=True, default='Product Sync')
-    last_sync_date = fields.Datetime('Last Sync Date', readonly=True)
+    name = fields.Char('Tên đồng bộ', required=True, default='Đồng bộ sản phẩm')
+    last_sync_date = fields.Datetime('Ngày đồng bộ cuối', readonly=True)
     sync_status = fields.Selection([
-        ('never', 'Never Synced'),
-        ('in_progress', 'In Progress'),
-        ('success', 'Success'),
-        ('error', 'Error')
-    ], default='never', string='Status', readonly=True)
-    sync_log = fields.Text('Sync Log', readonly=True)
+        ('never', 'Chưa đồng bộ'),
+        ('in_progress', 'Đang đồng bộ'),
+        ('success', 'Thành công'),
+        ('error', 'Lỗi')
+    ], default='never', string='Trạng thái', readonly=True)
+    sync_log = fields.Text('Nhật ký', readonly=True)
 
-    total_synced = fields.Integer('Total Products Synced', readonly=True)
-    total_failed = fields.Integer('Total Failed', readonly=True)
-    lens_count = fields.Integer('Lens Products', readonly=True)
-    opts_count = fields.Integer('Optical OPT', readonly=True)
-    other_count = fields.Integer('Other Products', readonly=True)
+    total_synced = fields.Integer('Tổng sản phẩm đã sync', readonly=True)
+    total_failed = fields.Integer('Tổng thất bại', readonly=True)
+    lens_count = fields.Integer('Sản phẩm Mắt', readonly=True)
+    opts_count = fields.Integer('Sản phẩm Gọng', readonly=True)
+    other_count = fields.Integer('Sản phẩm khác', readonly=True)
 
-    progress = fields.Float('Progress (%)', readonly=True, compute='_compute_progress')
+    progress = fields.Float('Tiến độ (%)', readonly=True, compute='_compute_progress')
 
     @api.depends('total_synced', 'total_failed')
     def _compute_progress(self):
@@ -41,14 +41,28 @@ class ProductSync(models.Model):
 
     @api.model
     def _get_api_config(self):
+        # Lấy cấu hình từ biến môi trường (Docker/.env)
+        base_url = os.getenv('SPRING_BOOT_BASE_URL')
+        username = os.getenv('SPRINGBOOT_SERVICE_USERNAME')
+        password = os.getenv('SPRINGBOOT_SERVICE_PASSWORD')
+
+        # Kiểm tra nếu thiếu cấu hình bắt buộc
+        if not all([base_url, username, password]):
+            missing = []
+            if not base_url: missing.append('SPRING_BOOT_BASE_URL')
+            if not username: missing.append('SPRINGBOOT_SERVICE_USERNAME')
+            if not password: missing.append('SPRINGBOOT_SERVICE_PASSWORD')
+            raise UserError(_("Thiếu cấu hình môi trường bắt buộc: %s. "
+                              "Vui lòng kiểm tra file .env hoặc cấu hình Docker.") % ", ".join(missing))
+
         return {
-            'base_url': os.getenv('SPRING_BOOT_BASE_URL', 'https://localhost:8443'),
+            'base_url': base_url,
             'login_endpoint': os.getenv('API_LOGIN_ENDPOINT', '/api/auth/service-token'),
             'lens_endpoint': os.getenv('API_LENS_ENDPOINT', '/api/product/lens'),
             'opts_endpoint': os.getenv('API_OPTS_ENDPOINT', '/api/product/opts'),
             'types_endpoint': os.getenv('API_TYPES_ENDPOINT', '/api/product/types'),
-            'service_username': os.getenv('SPRINGBOOT_SERVICE_USERNAME', 'odoo'),
-            'service_password': os.getenv('SPRINGBOOT_SERVICE_PASSWORD', 'odoo'),
+            'service_username': username,
+            'service_password': password,
             'ssl_verify': os.getenv('SSL_VERIFY', 'False').lower() == 'true',
             'login_timeout': int(os.getenv('LOGIN_TIMEOUT', '30')),
             'api_timeout': int(os.getenv('API_TIMEOUT', '300')),
@@ -124,10 +138,10 @@ class ProductSync(models.Model):
 
         # Master Data Config
         MODELS = [
-            ('brands', 'xnk.brand', 'code'),
-            ('brands', 'xnk.brand', 'name'), # Fallback to name
-            ('countries', 'xnk.country', 'code'),
-            ('warranties', 'xnk.warranty', 'code'),
+            ('brands', 'product.brand', 'code'),
+            ('brands', 'product.brand', 'name'), # Fallback to name
+            ('countries', 'product.country', 'code'),
+            ('warranties', 'product.warranty', 'code'),
             ('groups', 'product.group', 'cid'),
             ('groups', 'product.group', 'name'),
             ('designs', 'product.design', 'cid'),
@@ -186,7 +200,7 @@ class ProductSync(models.Model):
         try:
             vals = {'name': name or cid, 'code': cid}
             # Handle model-specific fields if any (assuming name/code are standard)
-            # Check models to be sure: xnk.brand has 'code', xnk.country has 'code', xnk.warranty has 'code'
+            # Check models to be sure: product.brand has 'code', product.country has 'code', product.warranty has 'code'
             # Assuming 'name' is always there.
             
             # Map 'code' to 'cid' if model uses 'cid' instead (based on master data file check they use 'cid' not 'code'?)
@@ -194,8 +208,8 @@ class ProductSync(models.Model):
             # I should be safe and read creating... or just use 'code' and 'name' if standard.
             # Let's check xnk_brand content to be 100% sure about field names.
             # But let's look at _preload_all_data:
-            # ('brands', 'xnk.brand', 'code'),
-            # ('brands', 'xnk.brand', 'name'),
+            # ('brands', 'product.brand', 'code'),
+            # ('brands', 'product.brand', 'name'),
             # It implies 'code' field exists.
             
             # Additional check: Model definitions in product_master_data.py showed 'cid' for many.
@@ -311,29 +325,29 @@ class ProductSync(models.Model):
             'standard_price': float(dto.get('orPrice') or 0),
             'taxes_id': [(6, 0, [tax_id])] if tax_id else False,
             'product_type': product_type,
-            'brand_id': self._get_or_create(cache, 'brands', 'xnk.brand', dto.get('tmdto')),
+            'brand_id': self._get_or_create(cache, 'brands', 'product.brand', dto.get('tmdto')),
             'supplier_id': sup_id,
-            'country_id': self._get_or_create(cache, 'countries', 'xnk.country', dto.get('codto')),
-            'warranty_id': self._get_or_create(cache, 'warranties', 'xnk.warranty', dto.get('warrantydto')),
+            'country_id': self._get_or_create(cache, 'countries', 'product.country', dto.get('codto')),
+            'warranty_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantydto')),
             'group_id': grp_id,
             # Custom Fields
-            'x_eng_name': dto.get('engName', ''),
-            'x_trade_name': dto.get('tradeName', ''),
-            'x_note_long': dto.get('note', ''),
-            'x_uses': dto.get('uses', ''),
-            'x_guide': dto.get('guide', ''),
-            'x_warning': dto.get('warning', ''),
-            'x_preserve': dto.get('preserve', ''),
-            'x_cid_ncc': dto.get('cidNcc', ''),
-            'x_accessory_total': int(dto.get('accessoryTotal') or 0),
-            'x_status_name': (dto.get('statusProductdto') or {}).get('name', ''),
-            'x_tax_percent': tax_pct,
-            'x_currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
-            'x_currency_zone_value': float((dto.get('currencyZoneDTO') or {}).get('value') or 0),
-            'x_ws_price': float(dto.get('wsPrice') or 0),
-            'x_ct_price': float(dto.get('ctPrice') or 0),
-            'x_or_price': float(dto.get('orPrice') or 0),
-            'x_group_type_name': grp_type_name,
+            'eng_name': dto.get('engName', ''),
+            'trade_name': dto.get('tradeName', ''),
+            'note_long': dto.get('note', ''),
+            'uses': dto.get('uses', ''),
+            'guide': dto.get('guide', ''),
+            'warning': dto.get('warning', ''),
+            'preserve': dto.get('preserve', ''),
+            'cid_ncc': dto.get('cidNcc', ''),
+            'accessory_total': int(dto.get('accessoryTotal') or 0),
+            'status_name': (dto.get('statusProductdto') or {}).get('name', ''),
+            'tax_percent': tax_pct,
+            'currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
+            'currency_zone_value': float((dto.get('currencyZoneDTO') or {}).get('value') or 0),
+            'ws_price': float(dto.get('wsPrice') or 0),
+            'ct_price': float(dto.get('ctPrice') or 0),
+            'or_price': float(dto.get('orPrice') or 0),
+            'group_type_name': grp_type_name,
         }
         return vals, cache['products'].get(cid)
 
@@ -452,7 +466,7 @@ class ProductSync(models.Model):
         if not rec:
             rec = self.search([], limit=1, order='last_sync_date desc')
             if not rec:
-                rec = self.create({'name': 'Daily Auto Sync'})
+                rec = self.create({'name': 'Đồng bộ tự động hàng ngày'})
         return rec._run_sync()
 
     def sync_products_limited(self, limit=200):
@@ -461,7 +475,7 @@ class ProductSync(models.Model):
     def _run_sync(self, limit=None):
         self.ensure_one()
         try:
-            self.write({'sync_status': 'in_progress', 'sync_log': 'Syncing...', 'last_sync_date': fields.Datetime.now()})
+            self.write({'sync_status': 'in_progress', 'sync_log': 'Đang đồng bộ...', 'last_sync_date': fields.Datetime.now()})
             self.env.cr.commit()
             
             token = self._get_access_token()
@@ -491,26 +505,26 @@ class ProductSync(models.Model):
             self.env.cr.commit()
             
             total = stats['lens'] + stats['opt'] + stats['acc']
-            msg = f"Synced {total} (Lens:{stats['lens']}, Opt:{stats['opt']}, Acc:{stats['acc']}). Failed: {stats['failed']}"
+            msg = f"Đã đồng bộ {total} (Mắt:{stats['lens']}, Gọng:{stats['opt']}, Khác:{stats['acc']}). Lỗi: {stats['failed']}"
             self.write({'sync_status': 'success' if stats['failed'] == 0 else 'success', 'sync_log': msg, 
                        'total_synced': total, 'total_failed': stats['failed'], 
                        'lens_count': stats['lens'], 'opts_count': stats['opt'], 'other_count': stats['acc']})
             
             return {'type': 'ir.actions.client', 'tag': 'display_notification', 
-                    'params': {'title': 'Sync Done', 'message': msg, 'type': 'success'}}
+                    'params': {'title': 'Đồng bộ hoàn tất', 'message': msg, 'type': 'success'}}
 
         except Exception as e:
             self.env.cr.rollback()
             self.write({'sync_status': 'error', 'sync_log': str(e)})
             self.env.cr.commit()
             return {'type': 'ir.actions.client', 'tag': 'display_notification', 
-                    'params': {'title': 'Sync Failed', 'message': str(e), 'type': 'danger'}}
+                    'params': {'title': 'Đồng bộ thất bại', 'message': str(e), 'type': 'danger'}}
 
     def test_api_connection(self):
         try:
             token = self._get_access_token()
             return {'type': 'ir.actions.client', 'tag': 'display_notification', 
-                    'params': {'title': 'Connection OK', 'message': 'Token obtained.', 'type': 'success'}}
+                    'params': {'title': 'Kết nối thành công', 'message': 'Đã lấy được token.', 'type': 'success'}}
         except Exception as e:
             return {'type': 'ir.actions.client', 'tag': 'display_notification', 
-                    'params': {'title': 'Connection Failed', 'message': str(e), 'type': 'danger'}}
+                    'params': {'title': 'Kết nối thất bại', 'message': str(e), 'type': 'danger'}}

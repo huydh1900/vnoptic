@@ -1,8 +1,8 @@
 from odoo import models, fields, api
 
 
-class XnkBrand(models.Model):
-    _name = 'xnk.brand'
+class ProductBrand(models.Model):
+    _name = 'product.brand'
     _description = 'Brand (XNK)'
     _order = 'name'
     _rec_name = 'name'

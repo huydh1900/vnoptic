@@ -9,7 +9,7 @@ class ProductOpt(models.Model):
     product_tmpl_id = fields.Many2one('product.template', 'Product Template')
     product_id = fields.Many2one('product.product', 'Product Variant')
 
-    # Product info
+
     season = fields.Char('Season', size=50)
     model = fields.Char('Model', size=50)
     serial = fields.Char('Serial', size=50)
@@ -30,32 +30,32 @@ class ProductOpt(models.Model):
 
     # Colors
     color = fields.Char('Color', size=50)
-    color_front_id = fields.Many2one('product.cl', 'Front Color')
-    color_temple_id = fields.Many2one('product.cl', 'Temple Color')
-    color_lens_id = fields.Many2one('product.cl', 'Lens Color')
+    color_front_id = fields.Many2one('product.cl', 'Màu mặt trước')
+    color_temple_id = fields.Many2one('product.cl', 'Màu càng')
+    color_lens_id = fields.Many2one('product.cl', 'Màu mắt kính')
 
     # Design fields
-    frame_id = fields.Many2one('product.frame', 'Frame')
-    frame_type_id = fields.Many2one('product.frame.type', 'Frame Type')
-    shape_id = fields.Many2one('product.shape', 'Shape')
-    ve_id = fields.Many2one('product.ve', 'VE')
-    temple_id = fields.Many2one('product.temple', 'Temple')
+    frame_id = fields.Many2one('product.frame', 'Kiểu gọng')
+    frame_type_id = fields.Many2one('product.frame.type', 'Loại gọng')
+    shape_id = fields.Many2one('product.shape', 'Dáng')
+    ve_id = fields.Many2one('product.ve', 'Ve')
+    temple_id = fields.Many2one('product.temple', 'Càng kính')
     
     # Material fields
-    material_ve_id = fields.Many2one('product.material', 'VE Material')
-    material_temple_tip_id = fields.Many2one('product.material', 'Temple Tip Material')
-    material_lens_id = fields.Many2one('product.material', 'Lens Material')
+    material_ve_id = fields.Many2one('product.material', 'Chất liệu ve')
+    material_temple_tip_id = fields.Many2one('product.material', 'Chất liệu chuôi càng')
+    material_lens_id = fields.Many2one('product.material', 'Chất liệu mắt')
 
     # Many2many
     coating_ids = fields.Many2many(
         'product.coating', 'opt_coating_rel',
-        'opt_id', 'coating_id', 'Coatings'
+        'opt_id', 'coating_id', 'Lớp phủ'
     )
     materials_front_ids = fields.Many2many(
         'product.material', 'opt_material_front_rel',
-        'opt_id', 'material_id', 'Front Materials'
+        'opt_id', 'material_id', 'Chất liệu mặt trước'
     )
     materials_temple_ids = fields.Many2many(
         'product.material', 'opt_material_temple_rel',
-        'opt_id', 'material_id', 'Temple Materials'
+        'opt_id', 'material_id', 'Chất liệu càng'
     )

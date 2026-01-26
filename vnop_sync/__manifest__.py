@@ -6,8 +6,8 @@
     'data': [
         'security/ir.model.access.csv',
         'views/product_sync_views.xml',
-        'views/xnk_brand_views.xml',
-        'views/xnk_warranty_views.xml',
+        'views/product_brand_views.xml',
+        'views/product_warranty_views.xml',
         'views/product_tree_common_views.xml',
         'views/product_template_views.xml',
         'wizard/product_excel_import_views.xml',

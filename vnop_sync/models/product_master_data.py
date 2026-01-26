@@ -19,8 +19,8 @@ class ProductGroupType(models.Model):
     _description = 'Product Group Type'
     _order = 'name'
 
-    name = fields.Char('Name', required=True)
-    code = fields.Char('Code')
+    name = fields.Char('Tên', required=True)
+    code = fields.Char('Mã')
 
 
 class ProductStatus(models.Model):
@@ -28,9 +28,9 @@ class ProductStatus(models.Model):
     _description = 'Product Status'
     _order = 'name'
 
-    name = fields.Char('Status Name', required=True)
-    description = fields.Text('Description')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Tên trạng thái', required=True)
+    description = fields.Text('Mô tả')
+    activated = fields.Boolean('Kích hoạt', default=True)
 
 
 class ProductDesign(models.Model):
@@ -38,10 +38,10 @@ class ProductDesign(models.Model):
     _description = 'Product Design'
     _order = 'name'
 
-    name = fields.Char('Design Name', required=True)
-    cid = fields.Char('CID')
-    description = fields.Text('Description')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Tên thiết kế', required=True)
+    cid = fields.Char('Mã CID')
+    description = fields.Text('Mô tả')
+    activated = fields.Boolean('Kích hoạt', default=True)
 
 
 class ProductMaterial(models.Model):
@@ -49,10 +49,10 @@ class ProductMaterial(models.Model):
     _description = 'Product Material'
     _order = 'name'
 
-    name = fields.Char('Material Name', required=True)
-    cid = fields.Char('CID')
-    description = fields.Text('Description')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Tên chất liệu', required=True)
+    cid = fields.Char('Mã CID')
+    description = fields.Text('Mô tả')
+    activated = fields.Boolean('Kích hoạt', default=True)
 
 
 class ProductLensIndex(models.Model):
@@ -60,10 +60,10 @@ class ProductLensIndex(models.Model):
     _description = 'Lens Index'
     _order = 'name'
 
-    name = fields.Char('Index Value', required=True)
-    cid = fields.Char('CID')
-    description = fields.Text('Description')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Chiết suất', required=True)
+    cid = fields.Char('Mã CID')
+    description = fields.Text('Mô tả')
+    activated = fields.Boolean('Kích hoạt', default=True)
 
 
 class ProductCoating(models.Model):
@@ -71,10 +71,10 @@ class ProductCoating(models.Model):
     _description = 'Product Coating'
     _order = 'name'
 
-    name = fields.Char('Coating Name', required=True)
-    cid = fields.Char('CID')
-    description = fields.Text('Description')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Tên lớp phủ', required=True)
+    cid = fields.Char('Mã CID')
+    description = fields.Text('Mô tả')
+    activated = fields.Boolean('Kích hoạt', default=True)
 
 
 class ProductCl(models.Model):
@@ -82,10 +82,10 @@ class ProductCl(models.Model):
     _description = 'Color Options'
     _order = 'name'
 
-    name = fields.Char('Color Name', required=True)
-    code = fields.Char('Color Code')
-    cid = fields.Char('CID')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Tên màu', required=True)
+    code = fields.Char('Mã màu')
+    cid = fields.Char('Mã CID')
+    activated = fields.Boolean('Kích hoạt', default=True)
 
 
 class ProductUv(models.Model):
@@ -93,9 +93,9 @@ class ProductUv(models.Model):
     _description = 'UV Protection'
     _order = 'name'
 
-    name = fields.Char('UV Type', required=True)
-    cid = fields.Char('CID')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Loại UV', required=True)
+    cid = fields.Char('Mã CID')
+    activated = fields.Boolean('Kích hoạt', default=True)
 
 
 class ProductFrame(models.Model):
@@ -103,9 +103,9 @@ class ProductFrame(models.Model):
     _description = 'Frame Style'
     _order = 'name'
 
-    name = fields.Char('Frame Name', required=True)
-    cid = fields.Char('CID')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Tên gọng', required=True)
+    cid = fields.Char('Mã CID')
+    activated = fields.Boolean('Kích hoạt', default=True)
 
 
 class ProductFrameType(models.Model):
@@ -113,9 +113,9 @@ class ProductFrameType(models.Model):
     _description = 'Frame Type'
     _order = 'name'
 
-    name = fields.Char('Frame Type', required=True)
-    cid = fields.Char('CID')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Loại gọng', required=True)
+    cid = fields.Char('Mã CID')
+    activated = fields.Boolean('Kích hoạt', default=True)
 
 
 class ProductShape(models.Model):
@@ -123,9 +123,9 @@ class ProductShape(models.Model):
     _description = 'Product Shape'
     _order = 'name'
 
-    name = fields.Char('Shape Name', required=True)
-    cid = fields.Char('CID')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Tên dáng', required=True)
+    cid = fields.Char('Mã CID')
+    activated = fields.Boolean('Kích hoạt', default=True)
 
 
 class ProductVe(models.Model):
@@ -133,9 +133,9 @@ class ProductVe(models.Model):
     _description = 'VE'
     _order = 'name'
 
-    name = fields.Char('VE Name', required=True)
-    cid = fields.Char('CID')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Tên ve', required=True)
+    cid = fields.Char('Mã CID')
+    activated = fields.Boolean('Kích hoạt', default=True)
 
 
 class ProductTemple(models.Model):
@@ -143,6 +143,6 @@ class ProductTemple(models.Model):
     _description = 'Temple Style'
     _order = 'name'
 
-    name = fields.Char('Temple Name', required=True)
-    cid = fields.Char('CID')
-    activated = fields.Boolean('Activated', default=True)
+    name = fields.Char('Tên càng kính', required=True)
+    cid = fields.Char('Mã CID')
+    activated = fields.Boolean('Kích hoạt', default=True)

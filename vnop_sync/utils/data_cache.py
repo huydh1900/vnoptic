@@ -29,7 +29,7 @@ class MasterDataCache:
         
         # Brands (by code and name as fallback)
         self.brands = {}
-        for b in self.env['xnk.brand'].search([]):
+        for b in self.env['product.brand'].search([]):
             # Index by code if available
             if hasattr(b, 'code') and b.code:
                 self.brands[b.code.upper()] = b
@@ -39,7 +39,7 @@ class MasterDataCache:
         
         # Countries (by code)
         self.countries = {}
-        for c in self.env['xnk.country'].search([]):
+        for c in self.env['product.country'].search([]):
             if c.code:
                 self.countries[c.code.upper()] = c
         
@@ -51,7 +51,7 @@ class MasterDataCache:
         
         # Warranties (by code)
         self.warranties = {}
-        for w in self.env['xnk.warranty'].search([]):
+        for w in self.env['product.warranty'].search([]):
             if hasattr(w, 'code') and w.code:
                 self.warranties[w.code.upper()] = w
             # Also index by name for fallback

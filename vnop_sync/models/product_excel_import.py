@@ -578,12 +578,12 @@ class ProductExcelImport(models.TransientModel):
                 product_vals['currency_zone_id'] = currency.id
         
         # Prices
-        product_vals['x_or_price'] = float(row_data.get('Origin_Price', 0) or 0)
-        product_vals['x_ct_price'] = float(row_data.get('Cost_Price', 0) or 0)
+        product_vals['or_price'] = float(row_data.get('Origin_Price', 0) or 0)
+        product_vals['ct_price'] = float(row_data.get('Cost_Price', 0) or 0)
         product_vals['list_price'] = float(row_data.get('Retail_Price', 0) or 0)
-        product_vals['x_ws_price'] = float(row_data.get('Wholesale_Price', 0) or 0)
-        product_vals['x_ws_price_max'] = float(row_data.get('Wholesale_Price_Max', 0) or 0)
-        product_vals['x_ws_price_min'] = float(row_data.get('Wholesale_Price_Min', 0) or 0)
+        product_vals['ws_price'] = float(row_data.get('Wholesale_Price', 0) or 0)
+        product_vals['ws_price_max'] = float(row_data.get('Wholesale_Price_Max', 0) or 0)
+        product_vals['ws_price_min'] = float(row_data.get('Wholesale_Price_Min', 0) or 0)
         
         # Text fields
         if row_data.get('Unit'):
@@ -659,12 +659,12 @@ class ProductExcelImport(models.TransientModel):
                 product_vals['currency_zone_id'] = currency.id
         
         # Prices
-        product_vals['x_or_price'] = float(row_data.get('Origin_Price', 0) or 0)
-        product_vals['x_ct_price'] = float(row_data.get('Cost_Price', 0) or 0)
+        product_vals['or_price'] = float(row_data.get('Origin_Price', 0) or 0)
+        product_vals['ct_price'] = float(row_data.get('Cost_Price', 0) or 0)
         product_vals['list_price'] = float(row_data.get('Retail_Price', 0) or 0)
-        product_vals['x_ws_price'] = float(row_data.get('Wholesale_Price', 0) or 0)
-        product_vals['x_ws_price_max'] = float(row_data.get('Wholesale_Price_Max', 0) or 0)
-        product_vals['x_ws_price_min'] = float(row_data.get('Wholesale_Price_Min', 0) or 0)
+        product_vals['ws_price'] = float(row_data.get('Wholesale_Price', 0) or 0)
+        product_vals['ws_price_max'] = float(row_data.get('Wholesale_Price_Max', 0) or 0)
+        product_vals['ws_price_min'] = float(row_data.get('Wholesale_Price_Min', 0) or 0)
         
         # Text fields
         if row_data.get('Unit'):

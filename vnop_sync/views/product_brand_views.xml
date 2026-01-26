@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_xnk_brand_search" model="ir.ui.view">
-        <field name="name">xnk.brand.search</field>
-        <field name="model">xnk.brand</field>
+    <record id="view_product_brand_search" model="ir.ui.view">
+        <field name="name">product.brand.search</field>
+        <field name="model">product.brand</field>
         <field name="arch" type="xml">
             <search string="Search Brands">
                 <field name="name" string="Brand"
@@ -23,15 +23,15 @@
         <field name="name">Products</field>
         <field name="res_model">product.template</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('x_brand_id', '=', active_id)]</field>
-        <field name="context">{'default_x_brand_id': active_id}</field>
+        <field name="domain">[('brand_id', '=', active_id)]</field>
+        <field name="context">{'default_brand_id': active_id}</field>
     </record>
 
-    <record id="action_xnk_brand" model="ir.actions.act_window">
+    <record id="action_product_brand" model="ir.actions.act_window">
         <field name="name">Brands</field>
-        <field name="res_model">xnk.brand</field>
+        <field name="res_model">product.brand</field>
         <field name="view_mode">list,form</field>
-        <field name="search_view_id" ref="view_xnk_brand_search"/>
+        <field name="search_view_id" ref="view_product_brand_search"/>
         <field name="context">{'search_default_filter_active': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first Brand!</p>
@@ -39,9 +39,9 @@
         </field>
     </record>
 
-    <record id="view_xnk_brand_tree" model="ir.ui.view">
-        <field name="name">xnk.brand.tree</field>
-        <field name="model">xnk.brand</field>
+    <record id="view_product_brand_tree" model="ir.ui.view">
+        <field name="name">product.brand.tree</field>
+        <field name="model">product.brand</field>
         <field name="arch" type="xml">
             <list string="Brands">
                 <field name="code"/>
@@ -52,9 +52,9 @@
         </field>
     </record>
 
-    <record id="view_xnk_brand_form" model="ir.ui.view">
-        <field name="name">xnk.brand.form</field>
-        <field name="model">xnk.brand</field>
+    <record id="view_product_brand_form" model="ir.ui.view">
+        <field name="name">product.brand.form</field>
+        <field name="model">product.brand</field>
         <field name="arch" type="xml">
             <form string="Brand">
                 <sheet>
@@ -63,7 +63,7 @@
                                 type="action"
                                 class="oe_stat_button"
                                 icon="fa-cubes"
-                                context="{'search_default_x_brand_id': id}"
+                                context="{'search_default_brand_id': id}"
                                 invisible="product_count == 0">
                             <field name="product_count" widget="statinfo" string="Products"/>
                         </button>
@@ -89,10 +89,10 @@
         </field>
     </record>
 
-    <menuitem id="menu_xnk_brand"
+    <menuitem id="menu_product_brand"
               name="Brands"
-              parent="menu_xnk_master_data"
-              action="action_xnk_brand"
+              parent="menu_product_master_data"
+              action="action_product_brand"
               sequence="10"/>
 
 </odoo>

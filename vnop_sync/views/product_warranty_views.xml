@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-    <record id="view_xnk_warranty_search" model="ir.ui.view">
-        <field name="name">xnk.warranty.search</field>
-        <field name="model">xnk.warranty</field>
+    <record id="view_product_warranty_search" model="ir.ui.view">
+        <field name="name">product.warranty.search</field>
+        <field name="model">product.warranty</field>
         <field name="arch" type="xml">
             <search string="Search Warranties">
                 <field name="name" string="Warranty"
@@ -25,15 +25,15 @@
         <field name="name">Products</field>
         <field name="res_model">product.template</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('x_warranty_id', '=', active_id)]</field>
-        <field name="context">{'default_x_warranty_id': active_id}</field>
+        <field name="domain">[('warranty_id', '=', active_id)]</field>
+        <field name="context">{'default_warranty_id': active_id}</field>
     </record>
 
-    <record id="action_xnk_warranty" model="ir.actions.act_window">
+    <record id="action_product_warranty" model="ir.actions.act_window">
         <field name="name">Warranties</field>
-        <field name="res_model">xnk.warranty</field>
+        <field name="res_model">product.warranty</field>
         <field name="view_mode">list,form</field>
-        <field name="search_view_id" ref="view_xnk_warranty_search"/>
+        <field name="search_view_id" ref="view_product_warranty_search"/>
         <field name="context">{'search_default_filter_active': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first Warranty!</p>
@@ -42,9 +42,9 @@
     </record>
 
     <!-- ============== TREE/FORM VIEWS ============== -->
-    <record id="view_xnk_warranty_tree" model="ir.ui.view">
-        <field name="name">xnk.warranty.tree</field>
-        <field name="model">xnk.warranty</field>
+    <record id="view_product_warranty_tree" model="ir.ui.view">
+        <field name="name">product.warranty.tree</field>
+        <field name="model">product.warranty</field>
         <field name="arch" type="xml">
             <list string="Warranties">
                 <field name="code"/>
@@ -56,9 +56,9 @@
         </field>
     </record>
 
-    <record id="view_xnk_warranty_form" model="ir.ui.view">
-        <field name="name">xnk.warranty.form</field>
-        <field name="model">xnk.warranty</field>
+    <record id="view_product_warranty_form" model="ir.ui.view">
+        <field name="name">product.warranty.form</field>
+        <field name="model">product.warranty</field>
         <field name="arch" type="xml">
             <form string="Warranty">
                 <sheet>
@@ -67,7 +67,7 @@
                                 type="action"
                                 class="oe_stat_button"
                                 icon="fa-cubes"
-                                context="{'search_default_x_warranty_id': id}"
+                                context="{'search_default_warranty_id': id}"
                                 invisible="product_count == 0">
                             <field name="product_count" widget="statinfo" string="Products"/>
                         </button>
@@ -94,10 +94,10 @@
         </field>
     </record>
 
-    <menuitem id="menu_xnk_warranty"
+    <menuitem id="menu_product_warranty"
               name="Warranties"
-              parent="menu_xnk_master_data"
-              action="action_xnk_warranty"
+              parent="menu_product_master_data"
+              action="action_product_warranty"
               sequence="20"/>
 
 </odoo>

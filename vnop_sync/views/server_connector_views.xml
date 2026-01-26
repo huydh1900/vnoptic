@@ -38,7 +38,7 @@
     <!-- Menu -->
     <menuitem id="menu_springboot_connector"
               name="API Connector"
-              parent="vnop_sync.menu_xnk_config"
+              parent="vnop_sync.menu_product_config"
               action="action_springboot_connector"
               sequence="100"/>
 </odoo>

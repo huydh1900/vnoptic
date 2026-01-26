@@ -1,11 +1,11 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_product_sync_user,access_product_sync_user,model_product_sync,base.group_user,1,1,1,0
 access_product_sync_manager,access_product_sync_manager,model_product_sync,base.group_system,1,1,1,1
-access_xnk_brand_user,access_xnk_brand_user,model_xnk_brand,base.group_user,1,0,0,0
-access_xnk_brand_manager,access_xnk_brand_manager,model_xnk_brand,base.group_system,1,1,1,1
-access_xnk_warranty_user,access_xnk_warranty_user,model_xnk_warranty,base.group_user,1,0,0,0
-access_xnk_warranty_manager,access_xnk_warranty_manager,model_xnk_warranty,base.group_system,1,1,1,1
-access_xnk_country_user,xnk.country user,model_xnk_country,base.group_user,1,1,1,1
+access_product_brand_user,access_product_brand_user,model_product_brand,base.group_user,1,0,0,0
+access_product_brand_manager,access_product_brand_manager,model_product_brand,base.group_system,1,1,1,1
+access_product_warranty_user,access_product_warranty_user,model_product_warranty,base.group_user,1,0,0,0
+access_product_warranty_manager,access_product_warranty_manager,model_product_warranty,base.group_system,1,1,1,1
+access_product_country_user,product.country user,model_product_country,base.group_user,1,1,1,1
 access_product_lens_user,product.lens user,model_product_lens,base.group_user,1,1,1,1
 access_product_opt_user,product.opt user,model_product_opt,base.group_user,1,1,1,1
 access_product_group_user,product.group user,model_product_group,base.group_user,1,1,1,1

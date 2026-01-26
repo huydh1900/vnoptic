@@ -1,8 +1,8 @@
 from odoo import models, fields, api
 
 
-class XnkWarranty(models.Model):
-    _name = 'xnk.warranty'
+class ProductWarranty(models.Model):
+    _name = 'product.warranty'
     _description = 'Warranty (XNK)'
     _order = 'code, name'
     _rec_name = 'name'

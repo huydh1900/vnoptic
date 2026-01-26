@@ -1,0 +1,39 @@
+services:
+  vnoptic-db:
+    image: postgres:15
+    container_name: vnoptic-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - odoo-db-data:/var/lib/postgresql/data
+    networks:
+      - tumo_network
+
+  odoo:
+    image: odoo:18.0
+    container_name: vnoptic-odoo
+    depends_on:
+      - vnoptic-db
+    ports:
+      - "8069:8069"
+    volumes:
+      - odoo-web-data:/var/lib/odoo
+      - ./vnoptic:/mnt/extra-addons/vnoptic
+    environment:
+      HOST: vnoptic-db
+      PORT: 5432
+      USER: ${POSTGRES_USER}
+      PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - tumo_network
+
+volumes:
+  odoo-db-data:
+  odoo-web-data:
+
+networks:
+  tumo_network:
+    external: true

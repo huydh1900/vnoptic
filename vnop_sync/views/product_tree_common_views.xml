@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="product_template_tree_view_xnk" model="ir.ui.view">
-        <field name="name">product.template.tree.xnk</field>
+    <record id="product_template_tree_view_product" model="ir.ui.view">
+        <field name="name">product.template.tree.product</field>
         <field name="model">product.template</field>
         <field name="inherit_id" ref="product.product_template_tree_view"/>
         <field name="priority">100</field>
@@ -11,22 +11,22 @@
                 <field name="default_code" string="Mã SP"/>
                 
                 <!-- Common fields -->
-                <field name="brand_id" string="Thương hiệu" optional="show"/>
-                <field name="group_id" string="Nhóm SP" optional="show"/>
-                <field name="supplier_id" string="NCC" optional="hide"/>
-                <field name="country_id" string="Xuất xứ" optional="hide"/>
+                <field name="brand_id" optional="show"/>
+                <field name="group_id" optional="show"/>
+                <field name="supplier_id" optional="hide"/>
+                <field name="country_id" optional="hide"/>
                 
                 <!-- Price fields -->
                 <field name="list_price" string="Giá bán"/>
-                <field name="x_ws_price" string="Giá sỉ" optional="hide"/>
-                <field name="x_ct_price" string="Giá vốn" optional="hide"/>
-                <field name="status_product_id" string="Trạng thái" optional="hide"/>
+                <field name="ws_price" optional="hide"/>
+                <field name="ct_price" optional="hide"/>
+                <field name="status_product_id" optional="hide"/>
             </xpath>
         </field>
     </record>
 
-    <record id="product_template_search_view_xnk" model="ir.ui.view">
-        <field name="name">product.template.search.xnk</field>
+    <record id="product_template_search_view_product" model="ir.ui.view">
+        <field name="name">product.template.search.product</field>
         <field name="model">product.template</field>
         <field name="inherit_id" ref="product.product_template_search_view"/>
         <field name="priority">100</field>
@@ -34,37 +34,37 @@
             <!-- Add filter for product_type after filter_to_sell -->
             <xpath expr="//filter[@name='filter_to_sell']" position="after">
                 <separator/>
-                <filter string="Lens" name="filter_lens" domain="[('product_type', '=', 'lens')]"/>
+                <filter string="Tròng kính" name="filter_lens" domain="[('product_type', '=', 'lens')]"/>
                 <filter string="Gọng kính" name="filter_opt" domain="[('product_type', '=', 'opt')]"/>
                 <filter string="Phụ kiện" name="filter_accessory" domain="[('product_type', '=', 'accessory')]"/>
             </xpath>
         </field>
     </record>
 
-    <record id="product_template_search_view_xnk_purchase" model="ir.ui.view">
-        <field name="name">product.template.search.xnk.purchase</field>
+    <record id="product_template_search_view_product_purchase" model="ir.ui.view">
+        <field name="name">product.template.search.product.purchase</field>
         <field name="model">product.template</field>
         <field name="inherit_id" ref="product.product_template_search_view"/>
         <field name="arch" type="xml">
             <!-- Add filter for product_type after filter_to_purchase -->
             <xpath expr="//filter[@name='filter_to_purchase']" position="after">
                 <separator/>
-                <filter string="Lens" name="filter_lens" domain="[('product_type', '=', 'lens')]"/>
+                <filter string="Tròng kính" name="filter_lens" domain="[('product_type', '=', 'lens')]"/>
                 <filter string="Gọng kính" name="filter_opt" domain="[('product_type', '=', 'opt')]"/>
                 <filter string="Phụ kiện" name="filter_accessory" domain="[('product_type', '=', 'accessory')]"/>
             </xpath>
         </field>
     </record>
 
-    <record id="product_template_search_view_xnk_stock" model="ir.ui.view">
-        <field name="name">product.template.search.xnk.stock</field>
+    <record id="product_template_search_view_product_stock" model="ir.ui.view">
+        <field name="name">product.template.search.product.stock</field>
         <field name="model">product.template</field>
         <field name="inherit_id" ref="stock.product_template_search_form_view_stock"/>
         <field name="arch" type="xml">
             <!-- Add filter for product_type after goods -->
             <xpath expr="//filter[@name='goods']" position="after">
                 <separator/>
-                <filter string="Lens" name="filter_lens" domain="[('product_type', '=', 'lens')]"/>
+                <filter string="Tròng kính" name="filter_lens" domain="[('product_type', '=', 'lens')]"/>
                 <filter string="Gọng kính" name="filter_opt" domain="[('product_type', '=', 'opt')]"/>
                 <filter string="Phụ kiện" name="filter_accessory" domain="[('product_type', '=', 'accessory')]"/>
             </xpath>

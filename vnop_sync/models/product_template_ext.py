@@ -5,151 +5,142 @@ from odoo import models, fields, api
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
 
-    x_eng_name = fields.Char(
-        'English Name',
+    eng_name = fields.Char(
+        'Tên tiếng Anh',
         help="Product name in English"
     )
 
-    x_trade_name = fields.Char(
-        'Trade Name',
+    trade_name = fields.Char(
+        'Tên thương mại',
         help="Commercial trade name"
     )
 
-    x_note_long = fields.Text(
-        'Long Description',
+    note_long = fields.Text(
+        'Mô tả chi tiết',
         help="Detailed product description"
     )
 
-    x_uses = fields.Text(
-        'Product Uses',
+    uses = fields.Text(
+        'Công dụng',
         help="Product usage instructions"
     )
 
-    x_guide = fields.Text(
-        'Usage Guide',
+    guide = fields.Text(
+        'Hướng dẫn sử dụng',
         help="Step-by-step usage guide"
     )
 
-    x_warning = fields.Text(
-        'Warning',
+    warning = fields.Text(
+        'Cảnh báo',
         help="Safety warnings and precautions"
     )
 
-    x_preserve = fields.Text(
-        'Preservation Instructions',
+    preserve = fields.Text(
+        'Bảo quản',
         help="Storage and preservation guidelines"
     )
 
     # ==================== SUPPLIER & STATUS FIELDS ====================
 
-    x_cid_ncc = fields.Char(
-        'Supplier Code (NCC)',
+    cid_ncc = fields.Char(
+        'Mã NCC',
         help="Supplier product code"
     )
 
-    x_accessory_total = fields.Integer(
-        'Total Accessories',
+    accessory_total = fields.Integer(
+        'Tổng phụ kiện',
         default=0,
         help="Number of accessories included"
     )
 
-    x_status_name = fields.Char(
-        'Product Status',
+    status_name = fields.Char(
+        'Trạng thái sản phẩm',
         help="Current product status from API"
     )
 
 
-    x_tax_percent = fields.Float(
-        'Tax Percentage',
+    tax_percent = fields.Float(
+        'Thuế (%)',
         digits=(5, 2),
         help="Tax rate percentage"
     )
 
     # Note: Retail price uses standard Odoo field 'list_price'
 
-    x_ws_price = fields.Float(
-        'Wholesale Price',
+    ws_price = fields.Float(
+        'Giá sỉ',
         digits='Product Price',
         help="Wholesale price"
     )
 
-    x_ct_price = fields.Float(
-        'Cost Price',
+    ct_price = fields.Float(
+        'Giá vốn',
         digits='Product Price',
         help="Cost price"
     )
 
-    x_or_price = fields.Float(
-        'Original Price',
+    or_price = fields.Float(
+        'Giá gốc',
         digits='Product Price',
         help="Original price from supplier"
     )
 
-    x_ws_price_min = fields.Float(
-        'Min Wholesale Price',
+    ws_price_min = fields.Float(
+        'Giá sỉ Min',
         digits='Product Price',
         help="Minimum wholesale price"
     )
 
-    x_ws_price_max = fields.Float(
-        'Max Wholesale Price',
+    ws_price_max = fields.Float(
+        'Giá sỉ Max',
         digits='Product Price',
         help="Maximum wholesale price"
     )
 
 
-    x_currency_zone_code = fields.Char(
-        'Currency Zone Code',
+    currency_zone_code = fields.Char(
+        'Mã vùng tiền tệ',
         help="Currency zone code from API"
     )
 
-    x_currency_zone_value = fields.Float(
-        'Currency Zone Value',
+    currency_zone_value = fields.Float(
+        'Tỷ giá',
         digits=(12, 2),
         help="Currency zone exchange rate"
     )
 
 
-    x_group_type_name = fields.Char(
-        'Product Group Type',
+    group_type_name = fields.Char(
+        'Loại nhóm sản phẩm',
         help="Product group type classification"
     )
 
     # ==================== PRODUCT TYPE (for sync categorization) ====================
     product_type = fields.Selection([
-        ('lens', 'Lens'),
-        ('opt', 'Optical Product'),
-        ('accessory', 'Accessory')
-    ], string='Product Type', default='lens',
+        ('lens', 'Tròng kính'),
+        ('opt', 'Gọng kính'),
+        ('accessory', 'Phụ kiện')
+    ], string='Loại sản phẩm', default='lens',
        help="Product type for categorization (Lens/Optical/Accessory)"
     )
 
     # ==================== RELATIONAL FIELDS (for sync) ====================
     brand_id = fields.Many2one(
-        'xnk.brand', 'Brand',
+        'product.brand', 'Thương hiệu',
         index=True, tracking=True,
         help="Product brand"
     )
-    x_brand_id = fields.Many2one(
-        'xnk.brand', 'Brand (XNK)',
-        index=True,
-        help="Product brand from XNK sync"
-    )
-    x_warranty_id = fields.Many2one(
-        'xnk.warranty', 'Warranty (XNK)',
-        help="Product warranty from XNK sync"
-    )
     warranty_id = fields.Many2one(
-        'xnk.warranty', 'Warranty',
+        'product.warranty', 'Bảo hành',
         help="Product warranty"
     )
     supplier_id = fields.Many2one(
-        'res.partner', 'Supplier',
+        'res.partner', 'Nhà cung cấp',
         domain=[('supplier_rank', '>', 0)],
         help="Product supplier"
     )
     country_id = fields.Many2one(
-        'xnk.country', 'Country of Origin',
+        'product.country', 'Xuất xứ',
         help="Country of origin for the product"
     )
 
@@ -158,12 +149,12 @@ class ProductTemplateExtension(models.Model):
     opt_ids = fields.One2many('product.opt', 'product_tmpl_id', 'Optical Details')
 
     # ==================== ADDITIONAL FIELDS FOR VIEW ====================
-    group_id = fields.Many2one('product.group', string='Product Group')
-    index_id = fields.Many2one('product.lens.index', string='Lens Index', 
+    group_id = fields.Many2one('product.group', string='Nhóm SP')
+    index_id = fields.Many2one('product.lens.index', string='Chiết suất', 
                                 help='Lens index for code generation (lens products only)')
-    auto_generate_code = fields.Boolean('Auto Generate Code', default=True,
+    auto_generate_code = fields.Boolean('Tự động tạo mã', default=True,
                                          help='Automatically generate product code based on Group, Brand, and Index')
-    status_product_id = fields.Many2one('product.status', 'Status Product')
+    status_product_id = fields.Many2one('product.status', 'Trạng thái')
 
     # ==================== COMPUTED FIELDS FOR TREE VIEW ====================
     # Lens fields

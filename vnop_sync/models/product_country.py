@@ -1,8 +1,8 @@
 from odoo import models, fields, api
 
 
-class XnkCountry(models.Model):
-    _name = 'xnk.country'
+class ProductCountry(models.Model):
+    _name = 'product.country'
     _description = 'Country of Origin'
     _order = 'name'
     _rec_name = 'name'
