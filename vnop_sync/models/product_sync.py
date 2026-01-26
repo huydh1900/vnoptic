@@ -40,7 +40,26 @@ class ProductSync(models.Model):
             record.progress = (record.total_synced / total * 100) if total > 0 else 0
 
     @api.model
+    def _load_env(self):
+        env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
+        if os.path.exists(env_path):
+            try:
+                with open(env_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith('#'):
+                            continue
+                        if '=' in line:
+                            key, value = line.split('=', 1)
+                            os.environ.setdefault(key.strip(), value.strip())
+            except Exception as e:
+                _logger.warning(f"Could not load .env file: {e}")
+
+    @api.model
     def _get_api_config(self):
+        # Load .env if exists (for non-Docker)
+        self._load_env()
+        
         # Lấy cấu hình từ biến môi trường (Docker/.env)
         base_url = os.getenv('SPRING_BOOT_BASE_URL')
         username = os.getenv('SPRINGBOOT_SERVICE_USERNAME')
@@ -58,9 +77,9 @@ class ProductSync(models.Model):
         return {
             'base_url': base_url,
             'login_endpoint': os.getenv('API_LOGIN_ENDPOINT', '/api/auth/service-token'),
-            'lens_endpoint': os.getenv('API_LENS_ENDPOINT', '/api/product/lens'),
-            'opts_endpoint': os.getenv('API_OPTS_ENDPOINT', '/api/product/opts'),
-            'types_endpoint': os.getenv('API_TYPES_ENDPOINT', '/api/product/types'),
+            'lens_endpoint': os.getenv('API_LENS_ENDPOINT', '/api/xnk/lens'),
+            'opts_endpoint': os.getenv('API_OPTS_ENDPOINT', '/api/xnk/opts'),
+            'types_endpoint': os.getenv('API_TYPES_ENDPOINT', '/api/xnk/types'),
             'service_username': username,
             'service_password': password,
             'ssl_verify': os.getenv('SSL_VERIFY', 'False').lower() == 'true',
