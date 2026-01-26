@@ -9,8 +9,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - odoo-db-data:/var/lib/postgresql/data
-    networks:
-      - tumo_network
 
   odoo:
     image: odoo:18.0
@@ -27,13 +25,7 @@ services:
       PORT: 5432
       USER: ${POSTGRES_USER}
       PASSWORD: ${POSTGRES_PASSWORD}
-    networks:
-      - tumo_network
 
 volumes:
   odoo-db-data:
   odoo-web-data:
-
-networks:
-  tumo_network:
-    external: true
