@@ -5,6 +5,14 @@
         <field name="model">purchase.order</field>
         <field name="inherit_id" ref="purchase.purchase_order_view_tree"/>
         <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='amount_total']" position="replace"/>
+            <xpath expr="//field[@name='user_id']" position="replace"/>
+            <xpath expr="//field[@name='date_approve']" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </xpath>
             <xpath expr="//field[@name='activity_ids']" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </xpath>
@@ -14,11 +22,21 @@
             <xpath expr="//field[@name='priority']" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </xpath>
-            <xpath expr="//field[@name='name']" position="after">
-                <field name="approver_id"/>
-            </xpath>
             <xpath expr="//field[@name='name']" position="attributes">
                 <attribute name="string">Mã đơn hàng</attribute>
+            </xpath>
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="partner_id"/>
+                <field name="amount_total" string="Tổng giá trị"/>
+            </xpath>
+            <xpath expr="//field[@name='invoice_status']" position="after">
+                <field name="state"
+                       widget="badge"
+                       decoration-primary="state == 'draft'"
+                       decoration-info="state == 'sent'"
+                       decoration-warning="state == 'to approve'"
+                       decoration-success="state == 'purchase'"
+                       decoration-danger="state == 'cancel'"/>
             </xpath>
         </field>
     </record>
@@ -51,9 +69,6 @@
                        readonly="1"/>
             </field>
             <xpath expr="//field[@name='partner_ref']" position="after">
-                <field name="vendor_document_ids" widget="many2many_binary" readonly="state != 'draft'"/>
-            </xpath>
-            <xpath expr="//field[@name='partner_ref']" position="after">
                 <field name="contract_id" options="{'no_create': True}" readonly="state != 'draft'"/>
             </xpath>
             <xpath expr="//field[@name='partner_id']" position="attributes">
@@ -65,15 +80,27 @@
             <xpath expr="//field[@name='date_order']" position="before">
                 <field name="approver_id" readonly="state != 'draft'" options="{'no_create': True}"/>
             </xpath>
+            <xpath expr="//button[@name='action_bill_matching']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_bill_matching']" position="before">
+                <button name="action_view_delivery_schedule"
+                        type="object"
+                        string="Lịch giao hàng"
+                        invisible="state != 'purchase'"
+                        icon="fa-plane">
+                    <field name="count_delivery_schedule" widget="statinfo" string="Lịch giao hàng"/>
+                </button>
+            </xpath>
             <xpath expr="//button[@name='button_confirm']" position='replace'>
                 <button name="action_send_approve"
                         type="object"
                         string="Gửi duyệt"
                         class="btn-primary"
-                        invisible="state not in ('draft', 'need_edit')"/>
+                        invisible="state not in ('draft')"/>
             </xpath>
             <xpath expr="//button[@name='button_cancel']" position='after'>
-                <button name="button_cancel" invisible="state in ('purchase','cancel')" string="Hủy" type="object"
+                <button name="button_cancel" invisible="state in ('draft', 'cancel')" string="Hủy" type="object"
                         class="btn-danger"
                         confirm="Bạn có chăc muốn Hủy đơn mua hàng này?"/>
             </xpath>
@@ -89,11 +116,11 @@
         </field>
     </record>
 
-    <record id="purchase.purchase_rfq" model="ir.actions.act_window">
-        <field name="domain">[('state', '!=', 'purchase')]</field>
+    <record id="purchase.menu_purchase_rfq" model="ir.ui.menu">
+        <field name="active" eval="False"/>
     </record>
 
     <record id="purchase.purchase_form_action" model="ir.actions.act_window">
-        <field name="context">{'create': False}</field>
+        <field name="domain"/>
     </record>
 </odoo>

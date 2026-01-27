@@ -1,15 +1,10 @@
 from odoo import fields, models, api, _
 from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError
 
 
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
-
-    vendor_document_ids = fields.Many2many(
-        'ir.attachment',
-        string="Chứng từ NCC (Phiếu xuất/Hóa đơn)",
-        help="Upload bản mềm NCC gửi trước tại đây"
-    )
 
     approver_id = fields.Many2one('res.users', string="Người duyệt")
     contract_id = fields.Many2one(
@@ -17,18 +12,60 @@ class PurchaseOrder(models.Model):
         string="Hợp đồng",
         domain="[('vendor_id','=',partner_id), ('state','=','active')]"
     )
+    create_date_tmp = fields.Date(
+        string='Ngày tạo',
+        compute='_compute_create_date_tmp',
+    )
+    delivery_schedule_ids = fields.One2many(
+        'delivery.schedule',
+        'purchase_id',
+        string='Lịch giao hàng'
+    )
+
+    count_delivery_schedule = fields.Integer(compute='_compute_count_delivery_schedule')
+
+    @api.depends('create_date')
+    def _compute_create_date_tmp(self):
+        for rec in self:
+            rec.create_date_tmp = (
+                rec.create_date.date() if rec.create_date else False
+            )
+
+    def unlink(self):
+        for order in self:
+            if order.state == 'purchase':
+                raise UserError(
+                    _("Không thể xóa đơn mua hàng đã được xác nhận.")
+                )
+        return super(PurchaseOrder, self).unlink()
+
+    @api.depends('delivery_schedule_ids')
+    def _compute_count_delivery_schedule(self):
+        for rec in self:
+            rec.count_delivery_schedule = len(rec.delivery_schedule_ids)
 
     def button_need_edit(self):
         for order in self:
             order.state = 'draft'
 
+    def action_view_delivery_schedule(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Lịch giao hàng',
+            'res_model': 'delivery.schedule',
+            'view_mode': 'list,form',
+            'domain': [('purchase_id', '=', self.id)],
+            'context': {
+                'default_purchase_id': self.id,
+                'default_partner_id': self.partner_id.id,
+                'from_purchase': True,
+            },
+            'target': 'current',
+        }
+
     def action_send_approve(self):
         for order in self:
-            # =========================
-            # 1. Check có sản phẩm chưa
-            # =========================
-            if not order.approver_id:
-                raise ValidationError(_("Bạn phải chọn Người duyệt!"))
 
             if not order.order_line:
                 raise ValidationError(_("Đơn mua hàng phải có ít nhất 01 sản phẩm."))
@@ -55,41 +92,9 @@ class PurchaseOrder(models.Model):
                     % "\n- ".join(duplicated_products)
                 )
 
-            # =========================
-            # 3. Check file đính kèm
-            # =========================
-            attachments = order.vendor_document_ids
-
-            if len(attachments) < 2:
-                raise ValidationError(
-                    _("Phải upload ít nhất 02 file chứng từ (Phiếu xuất + Hóa đơn).")
-                )
-
-            invalid_files = attachments.filtered(
-                lambda a: a.mimetype != 'application/pdf'
-                          and not (a.name or '').lower().endswith('.pdf')
-            )
-
-            if invalid_files:
-                raise ValidationError(
-                    _("Chỉ cho phép upload file PDF.\n"
-                      "File không hợp lệ:\n- %s")
-                    % "\n- ".join(invalid_files.mapped('name'))
-                )
-
             order.state = 'to approve'
 
     @api.onchange('partner_id')
     def _onchange_partner_id_fill_partner_ref(self):
         if self.partner_id:
             self.partner_ref = self.partner_id.ref or False
-
-    # @api.onchange('partner_ref')
-    # def _onchange_partner_ref_fill_partner(self):
-    #     if self.partner_ref:
-    #         partner = self.env['res.partner'].search(
-    #             [('ref', '=', self.partner_ref)],
-    #             limit=1
-    #         )
-    #         if partner:
-    #             self.partner_id = partner

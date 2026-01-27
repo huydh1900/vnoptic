@@ -1,0 +1,120 @@
+<odoo>
+    <record id="delivery_schedule_tree_view" model="ir.ui.view">
+        <field name="name">delivery.schedule.tree</field>
+        <field name="model">delivery.schedule</field>
+        <field name="arch" type="xml">
+            <list string="Lịch giao hàng">
+                <field name="delivery_datetime"/>
+                <field name="purchase_id"/>
+                <field name="partner_id"/>
+                <field name="bill_number"/>
+                <field name="declaration_date"/>
+                <field name="declaration_number"/>
+                <field name="total_declaration_amount"/>
+                <field name="state"
+                       widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'confirmed'"
+                       decoration-success="state == 'done'"
+                       decoration-danger="state == 'cancel'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="delivery_schedule_form_view" model="ir.ui.view">
+        <field name="name">delivery.schedule.form</field>
+        <field name="model">delivery.schedule</field>
+        <field name="arch" type="xml">
+            <form string="Lịch giao hàng">
+                <header>
+                    <button name="action_confirm" string="Xác nhận" type="object" class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_po" type="object" class="oe_stat_button" icon="fa-list-alt"
+                                string="Đơn mua hàng" invisible="purchase_id == False"/>
+                    </div>
+
+                    <div class="oe_title">
+                        <label for="purchase_id" string="Đơn mua hàng"/>
+                        <h1>
+                            <field name="purchase_id"
+                                   placeholder="VD: PO0001"
+                                   options="{'no_open': True, 'no_create': True}"
+                                   domain="[('partner_id','=',partner_id)]"
+                                   readonly="partner_id == False or context.get('from_purchase')"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group name="delivery_info" string="Logistics">
+                            <field name="partner_id"
+                                   domain="[('supplier_rank','>',0)]" options="{'no_create': True}"
+                                   readonly="context.get('from_purchase')"/>
+                            <field name="delivery_datetime"/>
+                            <field name="description" placeholder="Nhập ghi chú nội bộ hoặc hướng dẫn giao hàng..."/>
+                            <field name="create_uid" readonly="1" string="Người tạo lịch" options='{"no_open": True}'/>
+                            <field name="create_date" readonly="1" string="Thời gian tạo"/>
+                        </group>
+                        <group name="customs_info" string="Thông tin Hải quan">
+                            <field name="declaration_number"/>
+                            <field name="declaration_date"/>
+                            <field name="bill_number"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <group string="Phí bổ sung">
+                            <label for="insurance_fee"/>
+                            <div class="o_row">
+                                <field name="insurance_fee"/>
+                                <span>VND</span>
+                            </div>
+                            <label for="environment_fee"/>
+                            <div class="o_row">
+                                <field name="environment_fee"/>
+                                <span>VND</span>
+                            </div>
+                        </group>
+                        <group string="Tổng kết">
+                            <field name="total_declaration_amount" class="oe_subtotal_footer_separator"
+                                   widget="monetary"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Thông tin OTK">
+                            <field name="otk_ids">
+                                <list editable="bottom">
+                                    <field name="total_qty_order"/>
+                                    <field name="total_qty_actual"/>
+                                    <field name="total_qty_ok"/>
+                                    <field name="total_qty_ng"/>
+                                    <field name="total_qty_over"/>
+                                    <field name="total_qty_lack"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_delivery_schedule" model="ir.actions.act_window">
+        <field name="name">Lịch giao hàng</field>
+        <field name="res_model">delivery.schedule</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_delivery_schedule"
+              name="Lịch giao hàng"
+              parent="purchase.menu_procurement_management"
+              action="action_delivery_schedule"
+              sequence="50"/>
+
+
+</odoo>

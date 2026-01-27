@@ -1,13 +1,15 @@
 from odoo import models, fields, api
 
+
 class PurchaseContract(models.Model):
     _name = 'purchase.contract'
     _inherit = ['mail.thread', 'mail.activity.mixin']
 
-    name = fields.Char(string="Số hợp đồng", required=True)
+    name = fields.Char(string="Tên hợp đồng", required=True)
+    code = fields.Char(string="Mã hợp đồng", required=True)
     vendor_id = fields.Many2one('res.partner', string="Nhà cung cấp", required=True)
-    start_date = fields.Date(string='Ngày bắt đầu')
-    end_date = fields.Date(string='Ngày kết thúc')
+    start_date = fields.Date(string='Ngày ký kết')
+    end_date = fields.Date(string='Ngày hết hạn')
     state = fields.Selection([
         ('draft', 'Nháp'),
         ('active', 'Hiệu lực'),
@@ -18,6 +20,11 @@ class PurchaseContract(models.Model):
         'purchase.order', 'contract_id', string="Đơn mua hàng"
     )
     order_count = fields.Integer(compute='_compute_purchase_order_count', string='Số đơn hàng')
+    description = fields.Text(string='Mô tả')
+    type_contract = fields.Selection([
+        ('domestic', 'Hợp đồng trong nước'),
+        ('foreign', 'Hợp đồng nước ngoài'),
+    ], string='Loại hợp đồng', default='foreign', required=True)
 
     approved_by = fields.Many2one('res.users')
     approved_date = fields.Datetime()
@@ -29,8 +36,6 @@ class PurchaseContract(models.Model):
 
     def action_expire(self):
         return
-
-
 
     @api.depends('order_ids')
     def _compute_purchase_order_count(self):

@@ -4,11 +4,20 @@
         <field name="model">purchase.contract</field>
         <field name="arch" type="xml">
             <list string="Hợp đồng khung">
+                <field name="code"/>
                 <field name="name"/>
                 <field name="vendor_id"/>
                 <field name="start_date"/>
                 <field name="end_date"/>
-                <field name="state"/>
+                <field name="type_contract"
+                       widget="badge"
+                       decoration-info="type_contract == 'domestic'"
+                       decoration-warning="type_contract == 'foreign'"/>
+                <field name="state"
+                       widget="badge"
+                       decoration-bf="state == 'draft'"
+                       decoration-success="state == 'active'"
+                       decoration-danger="state == 'expired'"/>
             </list>
         </field>
     </record>
@@ -35,20 +44,23 @@
                 </header>
 
                 <sheet>
-                     <div class="oe_button_box" name="button_box">
-                        <button type="object"  name="action_view_purchase_orders"
-                            class="oe_stat_button"
-                            icon="fa-pencil-square-o" invisible="order_count == 0 or state != 'active'">
+                    <div class="oe_button_box" name="button_box">
+                        <button type="object" name="action_view_purchase_orders"
+                                class="oe_stat_button"
+                                icon="fa-pencil-square-o" invisible="order_count == 0 or state != 'active'">
                             <field name="order_count" widget="statinfo" string="Đơn mua hàng"/>
                         </button>
                     </div>
                     <group>
                         <group>
+                            <field name="code"/>
                             <field name="name"/>
                             <field name="vendor_id"
-                                   domain="[('supplier_rank','>',0)]"/>
+                                   domain="[('supplier_rank','>',0)]" options="{'no_create': True}"/>
+                            <field name="description"/>
                         </group>
                         <group>
+                            <field name="type_contract"/>
                             <field name="start_date"/>
                             <field name="end_date"/>
                         </group>
@@ -57,10 +69,16 @@
                     <notebook>
                         <page string="Đơn mua hàng">
                             <field name="order_ids">
-                                <list create="0" edit="0" delete="0">
+                                <list>
                                     <field name="name"/>
-                                    <field name="amount_total"/>
-                                    <field name="state"/>
+                                    <field name="create_date_tmp"/>
+                                    <field name="amount_total" string="Tổng giá trị"/>
+                                    <field name="state"
+                                           widget="badge"
+                                           decoration-secondary="state == 'draft'"
+                                           decoration-warning="state == 'to_approve'"
+                                           decoration-success="state == 'purchase'"
+                                           decoration-danger="state == 'cancel'"/>
                                 </list>
                             </field>
                         </page>
@@ -77,20 +95,15 @@
     </record>
 
     <record id="action_purchase_contract" model="ir.actions.act_window">
-        <field name="name">Hợp đồng khung</field>
+        <field name="name">Hợp đồng</field>
         <field name="res_model">purchase.contract</field>
         <field name="view_mode">list,form</field>
     </record>
 
     <menuitem id="menu_purchase_contract_root"
               name="Hợp đồng"
-              parent="purchase.menu_purchase_root"
-              sequence="1"/>
-
-    <menuitem id="menu_purchase_contract"
-              name="Hợp đồng khung"
-              parent="menu_purchase_contract_root"
+              parent="purchase.menu_procurement_management"
               action="action_purchase_contract"
-              sequence="10"/>
+              sequence="0"/>
 
 </odoo>

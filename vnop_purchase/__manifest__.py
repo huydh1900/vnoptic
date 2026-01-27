@@ -2,7 +2,7 @@
 {
     'name': "vnop_purchase",
     # always loaded
-    'depends': ['purchase'],
+    'depends': ['purchase', 'vnop_delivery'],
     'data': [
         'security/ir.model.access.csv',
         'views/purchase_order_views.xml',
