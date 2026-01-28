@@ -19,7 +19,6 @@
     # Danh sách các file data (view, security, data...)
     'data': [
         'security/ir.model.access.csv',          # Phân quyền truy cập
-    'data/product_lens_index_data.xml',      # Thêm data chiết suất
     'views/inventory_statistic_view.xml',    # Giao diện dashboard
     ],
     
