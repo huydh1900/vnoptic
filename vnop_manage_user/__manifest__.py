@@ -1,22 +1,20 @@
 {
-    'name': 'User Change Log (VNOPTIC)',
-    'version': '1.0',
-    'summary': 'Ghi lại lịch sử thay đổi thông tin quan trọng của người dùng',
+    'name': 'User Management Enhancement (VNOPTIC)',
+    'version': '2.0',
+    'summary': 'Theo dõi lịch sử thay đổi thông tin người dùng qua Chatter',
     'description': """
-        Module ghi log khi thay đổi thông tin người dùng (res.users).
-        Các trường theo dõi:
+        Module mở rộng quản lý người dùng với tracking tự động.
+        Sử dụng chức năng Chatter/Tracking có sẵn của Odoo.
+        Các trường được theo dõi:
+        - Tên, Đăng nhập, Email, Phone, Mobile
         - Trạng thái (active)
         - Nhóm quyền (groups_id)
-        - Tên, Đăng nhập, Email
+        - Công ty (company_id, company_ids)
     """,
     'category': 'Administration',
     'author': 'Antigravity',
-    'depends': ['base'],
-    'data': [
-        'security/ir.model.access.csv',
-        'views/user_change_log_view.xml',
-        'views/res_users_view.xml',
-    ],
+    'depends': ['base', 'mail'],
+    'data': [],
     'installable': True,
     'application': False,
     'license': 'LGPL-3',

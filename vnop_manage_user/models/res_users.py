@@ -1,116 +1,81 @@
-from odoo import models, fields, api
+from odoo import models, api
 
 class ResUsers(models.Model):
     _inherit = 'res.users'
-
+    
+    # Override write để tracking TẤT CẢ thay đổi
+    @api.model_create_multi
+    def create(self, vals_list):
+        users = super(ResUsers, self).create(vals_list)
+        for user in users:
+            user.message_post(body="Tài khoản người dùng đã được tạo")
+        return users
+    
     def write(self, vals):
-        # Danh sách các field KHÔNG theo dõi (vì lý do bảo mật hoặc không cần thiết)
-        IGNORED_FIELDS = ['password', 'message_ids', 'message_follower_ids']
+        # Bỏ qua các field hệ thống không cần tracking
+        skip_fields = ['write_date', 'write_uid', 'create_date', 'create_uid', '__last_update', 
+                      'message_follower_ids', 'message_ids', 'activity_ids']
         
-        # Theo dõi tất cả các field có trong vals, trừ các field bị ignore và các field ảo
-        # Tuy nhiên, nếu có field ảo liên quan đến nhóm (sel_groups, in_group), ta CẦN theo dõi 'groups_id'
+        # Lọc các field thực sự cần tracking
+        tracking_vals = {k: v for k, v in vals.items() if k not in skip_fields and k in self._fields}
         
-        has_virtual_group_fields = any(k.startswith(('sel_groups_', 'in_group_')) for k in vals)
-        
-        fields_to_check = [
-            f for f in vals 
-            if f not in IGNORED_FIELDS 
-            and not f.startswith(('sel_groups_', 'in_group_'))
-        ]
-        
-        # Nếu có thay đổi nhóm qua giao diện (ảo), bắt buộc theo dõi groups_id
-        if has_virtual_group_fields and 'groups_id' not in fields_to_check:
-            fields_to_check.append('groups_id')
-            
-        if not fields_to_check:
-            return super(ResUsers, self).write(vals)
-
-        # 1. Lưu giá trị cũ trước khi ghi đè
-        old_values = {}
-        for user in self:
-            old_values[user.id] = {}
-            for field in fields_to_check:
-                if field == 'groups_id':
-                    # Với Many2many, lưu danh sách ID nhóm để so sánh diff
-                    old_values[user.id][field] = user.groups_id.ids
-                else:
-                    old_values[user.id][field] = user[field]
-
-        # 2. Gọi hàm gốc để thực hiện ghi dữ liệu
-        result = super(ResUsers, self).write(vals)
-
-        # 3. So sánh và ghi log
-        LogModel = self.env['user.change.log']
-        # Dùng sudo() nếu người dùng hiện tại không có quyền ghi log (tuy nhiên log do system ghi thì thường ok)
-        # Ở đây ta lấy user hiện tại (env.user)
-        current_user = self.env.user
-
-        for user in self:
-            for field in fields_to_check:
-                old_val = old_values[user.id].get(field)
-                # Xử lý riêng cho trường Many2many (groups_id)
-                if field == 'groups_id':
-                    new_group_ids = set(user.groups_id.ids)
-                    old_group_ids = set(old_values[user.id].get(field, []))
-                    added = new_group_ids - old_group_ids
-                    removed = old_group_ids - new_group_ids
-
-                    Group = self.env['res.groups']
-                    # Log từng nhóm được thêm
-                    for gid in added:
-                        group_name = Group.browse(gid).display_name
-                        LogModel.create({
-                            'user_id': user.id,
-                            'changed_by': current_user.id,
-                            'field_name': 'Groups',
-                            'old_value': '',
-                            'new_value': f'Thêm: {group_name}',
-                        })
-                    # Log từng nhóm bị bỏ
-                    for gid in removed:
-                        group_name = Group.browse(gid).display_name
-                        LogModel.create({
-                            'user_id': user.id,
-                            'changed_by': current_user.id,
-                            'field_name': 'Groups',
-                            'old_value': '',
-                            'new_value': f'Bỏ: {group_name}',
-                        })
-                    # Không cần xử lý new_val cho trường này nữa
-                    continue
-                # Các field cơ bản và relation khác
-                new_val_raw = user[field]
-                if old_val != new_val_raw:
-                    def format_val(val, field_name):
-                        if not val:
-                            return ""
-                        ftype = self._fields[field_name].type
-                        if ftype == 'many2one':
-                            return val.display_name or ''
-                        elif ftype in ['many2many', 'one2many']:
-                            return ', '.join(val.mapped('display_name'))
-                        elif ftype == 'boolean':
-                            return 'True' if val else 'False'
-                        elif ftype == 'selection':
-                            return dict(self._fields[field_name].selection).get(val, val)
+        if tracking_vals:
+            for user in self:
+                # Lưu giá trị cũ
+                old_values = {}
+                for field_name in tracking_vals.keys():
+                    try:
+                        old_values[field_name] = getattr(user, field_name)
+                    except:
+                        old_values[field_name] = None
+                
+                # Thực hiện update
+                result = super(ResUsers, user).write(vals)
+                
+                # Tạo message tracking cho từng field thay đổi
+                changes = []
+                for field_name, new_value in tracking_vals.items():
+                    old_value = old_values.get(field_name)
+                    field_obj = self._fields.get(field_name)
+                    if not field_obj:
+                        continue
+                    
+                    # Format giá trị hiển thị
+                    try:
+                        if field_obj.type == 'many2one':
+                            old_display = old_value.display_name if old_value else 'Không có'
+                            new_obj = self.env[field_obj.comodel_name].browse(new_value) if new_value else None
+                            new_display = new_obj.display_name if new_obj else 'Không có'
+                        elif field_obj.type == 'many2many':
+                            old_display = ', '.join(old_value.mapped('display_name')) if old_value else 'Không có'
+                            if new_value and isinstance(new_value, list) and len(new_value) > 0:
+                                if new_value[0][0] == 6:  # (6, 0, [ids])
+                                    new_ids = new_value[0][2]
+                                    new_objs = self.env[field_obj.comodel_name].browse(new_ids)
+                                    new_display = ', '.join(new_objs.mapped('display_name'))
+                                else:
+                                    new_display = str(new_value)
+                            else:
+                                new_display = 'Không có'
+                        elif field_obj.type == 'boolean':
+                            old_display = 'Có' if old_value else 'Không'
+                            new_display = 'Có' if new_value else 'Không'
                         else:
-                            return str(val)
+                            old_display = str(old_value) if old_value is not None else 'Không có'
+                            new_display = str(new_value) if new_value is not None else 'Không có'
+                        
+                        if old_display != new_display:
+                            changes.append(f"<li><b>{field_obj.string}</b>: {old_display} → {new_display}</li>")
+                    except Exception as e:
+                        continue
+                
+                if changes:
+                    user.message_post(
+                        body=f"<ul>{''.join(changes)}</ul>",
+                        subject="Cập nhật thông tin người dùng"
+                    )
+                
+                return result
+        
+        return super(ResUsers, self).write(vals)
 
-                    old_val_str = format_val(old_val, field)
-                    new_val = format_val(new_val_raw, field)
-                    if old_val_str == new_val:
-                        continue  # Không log nếu giống nhau sau format
-                    # Xử lý hiển thị active True/False cho đẹp (tuỳ chọn)
-                    if field == 'active':
-                        old_val_str = 'Active' if old_val_str == 'True' else 'Archived'
-                        new_val = 'Active' if new_val == 'True' else 'Archived'
-                    field_label = self._fields[field].string or field
-                    LogModel.create({
-                        'user_id': user.id,
-                        'changed_by': current_user.id,
-                        'field_name': field_label,
-                        'old_value': old_val_str or '',
-                        'new_value': new_val or '',
-                    })
-
-        return result
