@@ -79,22 +79,12 @@ class InventoryStatistic(models.TransientModel):
 
     def action_generate_matrix(self):
         """
-<<<<<<< Updated upstream
-        Hàm chính được gọi khi nhấn nút 'Thống kê'
-        1. Tìm các Location thuộc Kho Đạt và Kho Lỗi.
-        2. Sinh danh sách dải số SPH và CYL.
-        3. Query trực tiếp SQL để lấy tồn kho.
-        4. Xây dựng bảng HTML và gán vào field html_matrix.
-=======
-        ... (giữ nguyên logic gốc)
->>>>>>> Stashed changes
+    ... (giữ nguyên logic gốc)
         """
         self.ensure_one()
         # Xóa nội dung HTML cũ để tránh nhân bản bảng khi người dùng bấm nhiều lần
         self.write({'html_matrix': False})
         
-<<<<<<< Updated upstream
-=======
         # --- BƯỚC Debug: Log số lượng Brand và Chiết suất đang có trong DB ---
         brands = self.env['product.brand'].search_count([])
         indexes = self.env['product.lens.index'].search_count([])
@@ -102,8 +92,6 @@ class InventoryStatistic(models.TransientModel):
         if brands == 0:
             _logger.warning("⚠️ CẢNH BÁO: Không tìm thấy Thương hiệu nào! Vui lòng kiểm tra lại quá trình Sync.")
         # -------------------------------------------------------------
-        
->>>>>>> Stashed changes
         #  BƯỚC 1: LẤY DANH SÁCH LOCATIONS (ĐẠT / LỖI) 
         # Logic: Dựa vào field warehouse_type (hoặc x_warehouse_type) trong stock.warehouse
         # 1 = Đạt, 2 = Lỗi
@@ -172,11 +160,7 @@ class InventoryStatistic(models.TransientModel):
             FROM stock_quant sq
             JOIN product_product pp ON sq.product_id = pp.id
             JOIN product_template pt ON pp.product_tmpl_id = pt.id
-<<<<<<< Updated upstream
-            JOIN product_lens pl ON pl.product_id = pp.id
-=======
             JOIN product_lens pl ON pl.product_tmpl_id = pt.id
->>>>>>> Stashed changes
             {where_clause}
             GROUP BY 1, 2, 3
         """
@@ -346,24 +330,6 @@ class InventoryStatistic(models.TransientModel):
             for cyl in cyl_cols:
                 key = (sph, cyl)
                 val_data = data_map.get(key, {'good': 0, 'defect': 0})
-<<<<<<< Updated upstream
-                good = val_data['good']
-                defect = val_data['defect']
-                bg_style = ""
-                cell_content = ""
-                if good > 0:
-                    bg_style = "background-color: #e6f4ea;"
-                    cell_content += f"<span style='color: #28a745; font-weight: bold;'>{int(good)}</span>"
-                if defect > 0:
-                    if cell_content: cell_content += " | "
-                    cell_content += f"<span style='color: #dc3545; font-weight: bold;'>{int(defect)}</span>"
-                if not cell_content:
-                    cell_content = "<span style='color: #ddd;'>-</span>"
-                body_rows += (
-                    f"<td style='min-width: 70px; width: 70px; max-width: 70px; white-space: nowrap; "
-                    f"text-align: center; border: 1px solid #ddd; padding: 8px; {bg_style}'>"
-                    f"{cell_content}</td>"
-=======
                 good = int(val_data['good'])
                 defect = int(val_data['defect'])
                 total = good + defect
@@ -380,7 +346,6 @@ class InventoryStatistic(models.TransientModel):
                     f"<td style='min-width: 70px; width: 70px; max-width: 70px; white-space: nowrap; "
                     f"text-align: center; border: 1px solid #ddd; padding: 8px; {bg_style}' title='{tooltip}'>"
                     f"<span>{cell_content}</span></td>"
->>>>>>> Stashed changes
                 )
             body_rows += "</tr>"
 

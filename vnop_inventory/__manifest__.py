@@ -14,10 +14,6 @@
         'stock',              # Để tích hợp vào menu Kho
         'product',            # Product views
         'vnop_sync',    # Lấy thông tin Brand, product_type, computed fields
-<<<<<<< Updated upstream
-        # 'vnoptic_product',    # Lấy thông tin SPH/CYL, Index (lens_ids, opt_ids)
-=======
->>>>>>> Stashed changes
     ],
     
     # Danh sách các file data (view, security, data...)
