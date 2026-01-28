@@ -14,7 +14,9 @@
     'category': 'Administration',
     'author': 'Antigravity',
     'depends': ['base', 'mail'],
-    'data': [],
+    'data': [
+        'views/res_users_view.xml',
+    ],
     'installable': True,
     'application': False,
     'license': 'LGPL-3',

@@ -1,7 +1,8 @@
 from odoo import models, api
 
 class ResUsers(models.Model):
-    _inherit = 'res.users'
+    _name = 'res.users'
+    _inherit = ['res.users', 'mail.thread']
     
     # Override write để tracking TẤT CẢ thay đổi
     @api.model_create_multi
