@@ -35,7 +35,7 @@
                        decoration-primary="state == 'draft'"
                        decoration-info="state == 'sent'"
                        decoration-warning="state == 'to approve'"
-                       decoration-success="state == 'purchase'"
+                       decoration-success="state == 'approved'"
                        decoration-danger="state == 'cancel'"/>
             </xpath>
         </field>
@@ -65,7 +65,7 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
             <field name="state" position="replace">
-                <field name="state" widget="statusbar" statusbar_visible="draft,to approve,,purchase,cancel"
+                <field name="state" widget="statusbar" statusbar_visible="draft,to approve,,approved,cancel"
                        readonly="1"/>
             </field>
             <xpath expr="//field[@name='partner_ref']" position="after">
@@ -87,7 +87,7 @@
                 <button name="action_view_delivery_schedule"
                         type="object"
                         string="Lịch giao hàng"
-                        invisible="state != 'purchase'"
+                        invisible="state != 'approved'"
                         icon="fa-plane">
                     <field name="count_delivery_schedule" widget="statinfo" string="Lịch giao hàng"/>
                 </button>
@@ -104,11 +104,21 @@
                         class="btn-danger"
                         confirm="Bạn có chăc muốn Hủy đơn mua hàng này?"/>
             </xpath>
+            <xpath expr="//button[@name='button_approve']" position='attributes'>
+                <attribute name="invisible">1</attribute>
+            </xpath>
             <xpath expr="//button[@name='button_approve']" position='before'>
-                <button name="button_need_edit" invisible="state != 'to approve'" string="Cần chỉnh sửa" type="object"
+                <button name="button_approved" type="object" invisible="state != 'to approve'"
+                        string="Phê duyệt đơn mua"
+                        class="oe_highlight" groups="purchase.group_purchase_manager" data-hotkey="z"/>
+            </xpath>
+            <xpath expr="//button[@name='button_approve']" position='before'>
+                <button name="button_approve" invisible="state not in ('to approve','approved')" string="Cần chỉnh sửa"
+                        type="object"
                         class="btn-warning"
                         confirm="Bạn có chăc muốn Chỉnh sửa đơn mua hàng này?"/>
             </xpath>
+
             <field name="partner_id" position="attributes">
                 <attribute name="domain">[('supplier_rank', '>', 0)]</attribute>
                 <attribute name="options">{'no_quick_create': True}</attribute>

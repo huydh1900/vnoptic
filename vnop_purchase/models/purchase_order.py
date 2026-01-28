@@ -6,6 +6,11 @@ from odoo.exceptions import UserError
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
+    state = fields.Selection(
+        selection_add=[
+            ('approved', 'Đã phê duyệt'),
+        ]
+    )
     approver_id = fields.Many2one('res.users', string="Người duyệt")
     contract_id = fields.Many2one(
         'purchase.contract',
@@ -30,6 +35,9 @@ class PurchaseOrder(models.Model):
             rec.create_date_tmp = (
                 rec.create_date.date() if rec.create_date else False
             )
+
+    def button_approved(self):
+        self.state = 'approved'
 
     def unlink(self):
         for order in self:

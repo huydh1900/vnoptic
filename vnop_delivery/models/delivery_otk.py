@@ -1,9 +1,11 @@
 from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 
 class DeliveryOTK(models.Model):
     _name = 'delivery.otk'
     _description = 'Lần OTK'
+    _order = 'id desc'
 
     schedule_id = fields.Many2one(
         'delivery.schedule',
@@ -12,41 +14,41 @@ class DeliveryOTK(models.Model):
         ondelete='cascade'
     )
 
+    picking_id = fields.Many2one(
+        'stock.picking',
+        string='Phiếu nhập kho',
+        readonly=True
+    )
+
     total_qty_order = fields.Integer(
-        string='Tổng số lượng đặt',
-        compute='_compute_totals', readonly=False,
+        string='Số lượng đặt hàng',
+        compute='_compute_totals',
         store=True
     )
     total_qty_actual = fields.Integer(
-        string='Tổng số lượng thực tế',
-        compute='_compute_totals', readonly=False,
+        string='Tổng SL thực tế',
+        compute='_compute_totals',
         store=True
     )
     total_qty_ok = fields.Integer(
-        string='Tổng số lượng đạt',
-        compute='_compute_totals', readonly=False,
+        string='SL đạt',
+        compute='_compute_totals',
         store=True
     )
     total_qty_ng = fields.Integer(
-        string='Tổng số lượng không đạt', readonly=False,
+        string='SL không đạt',
         compute='_compute_totals',
         store=True
     )
     total_qty_over = fields.Integer(
-        string='Tổng số lượng thừa', readonly=False,
+        string='SL thừa',
         compute='_compute_totals',
         store=True
     )
     total_qty_lack = fields.Integer(
-        string='Tổng số lượng thiếu', readonly=False,
+        string='SL thiếu',
         compute='_compute_totals',
         store=True
-    )
-
-    line_ids = fields.One2many(
-        'delivery.otk.line',
-        'otk_id', readonly=False,
-        string='Chi tiết OTK'
     )
 
     @api.depends(
@@ -54,8 +56,6 @@ class DeliveryOTK(models.Model):
         'line_ids.qty_actual',
         'line_ids.qty_ok',
         'line_ids.qty_ng',
-        'line_ids.qty_over',
-        'line_ids.qty_lack',
     )
     def _compute_totals(self):
         for rec in self:
@@ -63,9 +63,13 @@ class DeliveryOTK(models.Model):
             rec.total_qty_actual = sum(rec.line_ids.mapped('qty_actual'))
             rec.total_qty_ok = sum(rec.line_ids.mapped('qty_ok'))
             rec.total_qty_ng = sum(rec.line_ids.mapped('qty_ng'))
-            rec.total_qty_over = sum(rec.line_ids.mapped('qty_over'))
-            rec.total_qty_lack = sum(rec.line_ids.mapped('qty_lack'))
 
+            rec.total_qty_over = max(
+                rec.total_qty_actual - rec.total_qty_order, 0
+            )
+            rec.total_qty_lack = max(
+                rec.total_qty_order - rec.total_qty_actual, 0
+            )
 
 class DeliveryOTKLine(models.Model):
     _name = 'delivery.otk.line'
@@ -74,8 +78,8 @@ class DeliveryOTKLine(models.Model):
     otk_id = fields.Many2one(
         'delivery.otk',
         string='OTK',
-        ondelete='cascade',
-        required=True
+        required=True,
+        ondelete='cascade'
     )
 
     product_id = fields.Many2one(
@@ -92,34 +96,48 @@ class DeliveryOTKLine(models.Model):
 
     image_1920 = fields.Image(
         related='product_id.image_1920',
-        string='Hình ảnh'
+        readonly=True
     )
 
     group_id = fields.Many2one(
-        'product.category',
-        string='Nhóm'
+        related='product_id.categ_id',
+        string='Nhóm',
+        store=True
     )
 
     sph = fields.Char(string='SPH')
     cyl = fields.Char(string='CYL')
     add = fields.Char(string='ADD')
 
+    qty_order = fields.Integer(string='Số lượng đặt', required=True)
+    qty_actual = fields.Integer(string='SL thực tế', required=True)
+
+    qty_ok = fields.Integer(string='Đạt')
+    qty_ng = fields.Integer(string='Không đạt')
+
+    note = fields.Char(string='Ghi chú')
+
     state = fields.Selection(
         [
             ('ok', 'Đạt'),
             ('ng', 'Không đạt'),
         ],
-        string='Tình trạng'
+        compute='_compute_state',
+        store=True
     )
 
-    qty_order = fields.Integer(string='Số lượng đặt')
-    qty_actual = fields.Integer(string='SL thực tế')
+    @api.depends('qty_ok', 'qty_ng')
+    def _compute_state(self):
+        for line in self:
+            if line.qty_ng > 0:
+                line.state = 'ng'
+            else:
+                line.state = 'ok'
 
-    qty_ok = fields.Integer(string='Đạt')
-    qty_ng = fields.Integer(string='Không đạt')
-    qty_over = fields.Integer(string='Thừa')
-    qty_lack = fields.Integer(string='Thiếu')
-
-    note = fields.Char(string='Ghi chú')
-
-    write_date = fields.Datetime(string='Thời gian cập nhật')
+    @api.constrains('qty_actual', 'qty_ok', 'qty_ng')
+    def _check_qty(self):
+        for line in self:
+            if line.qty_ok + line.qty_ng != line.qty_actual:
+                raise ValidationError(
+                    'SL Đạt + SL Không đạt phải bằng SL thực tế'
+                )

@@ -27,9 +27,12 @@
         <field name="arch" type="xml">
             <form string="Lịch giao hàng">
                 <header>
-                    <button name="action_confirm" string="Xác nhận" type="object" class="oe_highlight"
-                            invisible="state != 'draft'"/>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,done"/>
+                    <button name="action_confirm"
+                            string="Khai báo hàng về"
+                            type="object"
+                            class="btn-primary"
+                           />
+                    <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -62,6 +65,7 @@
                             <field name="declaration_number"/>
                             <field name="declaration_date"/>
                             <field name="bill_number"/>
+                            <field name="picking_id"/>
                         </group>
                     </group>
 
@@ -84,20 +88,6 @@
                         </group>
                     </group>
 
-                    <notebook>
-                        <page string="Thông tin OTK">
-                            <field name="otk_ids">
-                                <list editable="bottom">
-                                    <field name="total_qty_order"/>
-                                    <field name="total_qty_actual"/>
-                                    <field name="total_qty_ok"/>
-                                    <field name="total_qty_ng"/>
-                                    <field name="total_qty_over"/>
-                                    <field name="total_qty_lack"/>
-                                </list>
-                            </field>
-                        </page>
-                    </notebook>
                 </sheet>
                 <chatter/>
             </form>
