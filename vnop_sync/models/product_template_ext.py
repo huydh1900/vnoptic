@@ -5,60 +5,60 @@ from odoo import models, fields, api
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
 
-    eng_name = fields.Char(
+    x_eng_name = fields.Char(
         'Tên tiếng Anh',
         help="Product name in English"
     )
 
-    trade_name = fields.Char(
+    x_trade_name = fields.Char(
         'Tên thương mại',
         help="Commercial trade name"
     )
 
-    note_long = fields.Text(
+    x_note_long = fields.Text(
         'Mô tả chi tiết',
         help="Detailed product description"
     )
 
-    uses = fields.Text(
+    x_uses = fields.Text(
         'Công dụng',
         help="Product usage instructions"
     )
 
-    guide = fields.Text(
+    x_guide = fields.Text(
         'Hướng dẫn sử dụng',
         help="Step-by-step usage guide"
     )
 
-    warning = fields.Text(
+    x_warning = fields.Text(
         'Cảnh báo',
         help="Safety warnings and precautions"
     )
 
-    preserve = fields.Text(
+    x_preserve = fields.Text(
         'Bảo quản',
         help="Storage and preservation guidelines"
     )
 
 
-    cid_ncc = fields.Char(
+    x_cid_ncc = fields.Char(
         'Mã NCC',
         help="Supplier product code"
     )
 
-    accessory_total = fields.Integer(
+    x_accessory_total = fields.Integer(
         'Tổng phụ kiện',
         default=0,
         help="Number of accessories included"
     )
 
-    status_name = fields.Char(
+    x_status_name = fields.Char(
         'Trạng thái sản phẩm',
         help="Current product status from API"
     )
 
 
-    tax_percent = fields.Float(
+    x_tax_percent = fields.Float(
         'Thuế (%)',
         digits=(5, 2),
         help="Tax rate percentage"
@@ -66,50 +66,50 @@ class ProductTemplateExtension(models.Model):
 
     # Note: Retail price uses standard Odoo field 'list_price'
 
-    ws_price = fields.Float(
+    x_ws_price = fields.Float(
         'Giá sỉ',
         digits='Product Price',
         help="Wholesale price"
     )
 
-    ct_price = fields.Float(
+    x_ct_price = fields.Float(
         'Giá vốn',
         digits='Product Price',
         help="Cost price"
     )
 
-    or_price = fields.Float(
+    x_or_price = fields.Float(
         'Giá gốc',
         digits='Product Price',
         help="Original price from supplier"
     )
 
-    ws_price_min = fields.Float(
+    x_ws_price_min = fields.Float(
         'Giá sỉ Min',
         digits='Product Price',
         help="Minimum wholesale price"
     )
 
-    ws_price_max = fields.Float(
+    x_ws_price_max = fields.Float(
         'Giá sỉ Max',
         digits='Product Price',
         help="Maximum wholesale price"
     )
 
 
-    currency_zone_code = fields.Char(
+    x_currency_zone_code = fields.Char(
         'Mã vùng tiền tệ',
         help="Currency zone code from API"
     )
 
-    currency_zone_value = fields.Float(
+    x_currency_zone_value = fields.Float(
         'Tỷ giá',
         digits=(12, 2),
         help="Currency zone exchange rate"
     )
 
 
-    group_type_name = fields.Char(
+    x_group_type_name = fields.Char(
         'Loại nhóm sản phẩm',
         help="Product group type classification"
     )

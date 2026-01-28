@@ -57,10 +57,8 @@ class ProductSync(models.Model):
 
     @api.model
     def _get_api_config(self):
-        # Load .env if exists (for non-Docker)
         self._load_env()
         
-        # Lấy cấu hình từ biến môi trường (Docker/.env)
         base_url = os.getenv('SPRING_BOOT_BASE_URL')
         username = os.getenv('SPRINGBOOT_SERVICE_USERNAME')
         password = os.getenv('SPRINGBOOT_SERVICE_PASSWORD')
@@ -72,7 +70,7 @@ class ProductSync(models.Model):
             if not username: missing.append('SPRINGBOOT_SERVICE_USERNAME')
             if not password: missing.append('SPRINGBOOT_SERVICE_PASSWORD')
             raise UserError(_("Thiếu cấu hình môi trường bắt buộc: %s. "
-                              "Vui lòng kiểm tra file .env hoặc cấu hình Docker.") % ", ".join(missing))
+                              "Vui lòng kiểm tra file .env") % ", ".join(missing))
 
         return {
             'base_url': base_url,
@@ -218,25 +216,7 @@ class ProductSync(models.Model):
         # Create
         try:
             vals = {'name': name or cid, 'code': cid}
-            # Handle model-specific fields if any (assuming name/code are standard)
-            # Check models to be sure: product.brand has 'code', product.country has 'code', product.warranty has 'code'
-            # Assuming 'name' is always there.
-            
-            # Map 'code' to 'cid' if model uses 'cid' instead (based on master data file check they use 'cid' not 'code'?)
-            # Wait, I checked xnk_brand.py in file list but didn't read content. 
-            # I should be safe and read creating... or just use 'code' and 'name' if standard.
-            # Let's check xnk_brand content to be 100% sure about field names.
-            # But let's look at _preload_all_data:
-            # ('brands', 'product.brand', 'code'),
-            # ('brands', 'product.brand', 'name'),
-            # It implies 'code' field exists.
-            
-            # Additional check: Model definitions in product_master_data.py showed 'cid' for many.
-            # But xnk_brand was separate. Let's assume 'code' based on preload.
-            
-            # Actually, to be safe, I should just read xnk_brand.py.
-            # But I can't in this tool call.
-            # I will use a generic create that handles differences or just assume 'code' based on preload usage.
+           
             
             rec = self.env[model_name].create(vals)
             new_id = rec.id
@@ -248,7 +228,7 @@ class ProductSync(models.Model):
 
     def _prepare_base_vals(self, item, cache, product_type):
         dto = item.get('productdto') or {}
-        cid = dto.get('cid', '').strip()
+        cid = (dto.get('cid') or '').strip()
         if not cid: raise ValueError("Missing CID")
         
         # Category Logic
@@ -281,7 +261,10 @@ class ProductSync(models.Model):
         # Group Logic
         grp_id = False
         if 'product.group' in self.env:
-            g_id, g_cid, g_name = grp_dto.get('id'), grp_dto.get('cid', '').strip().upper(), grp_dto.get('name', '').strip()
+            g_id = grp_dto.get('id')
+            g_cid = (grp_dto.get('cid') or '').strip().upper()
+            g_name = (grp_dto.get('name') or '').strip()
+            
             if g_id and g_id in cache['groups_by_id']: grp_id = g_id
             elif g_cid and g_cid in cache['groups']: grp_id = cache['groups'][g_cid]
             elif g_name and g_name.upper() in cache['groups']: grp_id = cache['groups'][g_name.upper()]
@@ -349,24 +332,24 @@ class ProductSync(models.Model):
             'country_id': self._get_or_create(cache, 'countries', 'product.country', dto.get('codto')),
             'warranty_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantydto')),
             'group_id': grp_id,
-            # Custom Fields
-            'eng_name': dto.get('engName', ''),
-            'trade_name': dto.get('tradeName', ''),
-            'note_long': dto.get('note', ''),
-            'uses': dto.get('uses', ''),
-            'guide': dto.get('guide', ''),
-            'warning': dto.get('warning', ''),
-            'preserve': dto.get('preserve', ''),
-            'cid_ncc': dto.get('cidNcc', ''),
-            'accessory_total': int(dto.get('accessoryTotal') or 0),
-            'status_name': (dto.get('statusProductdto') or {}).get('name', ''),
-            'tax_percent': tax_pct,
-            'currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
-            'currency_zone_value': float((dto.get('currencyZoneDTO') or {}).get('value') or 0),
-            'ws_price': float(dto.get('wsPrice') or 0),
-            'ct_price': float(dto.get('ctPrice') or 0),
-            'or_price': float(dto.get('orPrice') or 0),
-            'group_type_name': grp_type_name,
+            # Custom Fields (prefixed with x_)
+            'x_eng_name': dto.get('engName', ''),
+            'x_trade_name': dto.get('tradeName', ''),
+            'x_note_long': dto.get('note', ''),
+            'x_uses': dto.get('uses', ''),
+            'x_guide': dto.get('guide', ''),
+            'x_warning': dto.get('warning', ''),
+            'x_preserve': dto.get('preserve', ''),
+            'x_cid_ncc': dto.get('cidNcc', ''),
+            'x_accessory_total': int(dto.get('accessoryTotal') or 0),
+            'x_status_name': (dto.get('statusProductdto') or {}).get('name', ''),
+            'x_tax_percent': tax_pct,
+            'x_currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
+            'x_currency_zone_value': float((dto.get('currencyZoneDTO') or {}).get('value') or 0),
+            'x_ws_price': float(dto.get('wsPrice') or 0),
+            'x_ct_price': float(dto.get('ctPrice') or 0),
+            'x_or_price': float(dto.get('orPrice') or 0),
+            'x_group_type_name': grp_type_name,
         }
         return vals, cache['products'].get(cid)
 

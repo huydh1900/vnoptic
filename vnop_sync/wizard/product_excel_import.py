@@ -540,8 +540,8 @@ class ProductExcelImport(models.TransientModel):
         """
         product_vals = {
             'name': row_data.get('FullName'),
-            'eng_name': row_data.get('EngName'),
-            'trade_name': row_data.get('TradeName'),
+            'x_eng_name': row_data.get('EngName'),
+            'x_trade_name': row_data.get('TradeName'),
             'product_type': product_type,
             'type': 'product',  # Stockable product
         }
@@ -589,13 +589,13 @@ class ProductExcelImport(models.TransientModel):
         if row_data.get('Unit'):
             product_vals['unit'] = row_data['Unit']
         if row_data.get('Use'):
-            product_vals['uses'] = row_data['Use']
+            product_vals['x_uses'] = row_data['Use']
         if row_data.get('Guide'):
-            product_vals['guide'] = row_data['Guide']
+            product_vals['x_guide'] = row_data['Guide']
         if row_data.get('Warning'):
-            product_vals['warning'] = row_data['Warning']
+            product_vals['x_warning'] = row_data['Warning']
         if row_data.get('Preserve'):
-            product_vals['preserve'] = row_data['Preserve']
+            product_vals['x_preserve'] = row_data['Preserve']
         if row_data.get('Description'):
             product_vals['description'] = row_data['Description']
         if row_data.get('Note'):
@@ -621,8 +621,8 @@ class ProductExcelImport(models.TransientModel):
 
         product_vals = {
             'name': row_data.get('FullName'),
-            'eng_name': row_data.get('EngName'),
-            'trade_name': row_data.get('TradeName'),
+            'x_eng_name': row_data.get('EngName'),
+            'x_trade_name': row_data.get('TradeName'),
             'product_type': product_type,
             'type': 'product',  # Stockable product
         }
@@ -670,13 +670,13 @@ class ProductExcelImport(models.TransientModel):
         if row_data.get('Unit'):
             product_vals['unit'] = row_data['Unit']
         if row_data.get('Use'):
-            product_vals['uses'] = row_data['Use']
+            product_vals['x_uses'] = row_data['Use']
         if row_data.get('Guide'):
-            product_vals['guide'] = row_data['Guide']
+            product_vals['x_guide'] = row_data['Guide']
         if row_data.get('Warning'):
-            product_vals['warning'] = row_data['Warning']
+            product_vals['x_warning'] = row_data['Warning']
         if row_data.get('Preserve'):
-            product_vals['preserve'] = row_data['Preserve']
+            product_vals['x_preserve'] = row_data['Preserve']
         if row_data.get('Description'):
             product_vals['description'] = row_data['Description']
         if row_data.get('Note'):

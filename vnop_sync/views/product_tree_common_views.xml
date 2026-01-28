@@ -18,8 +18,8 @@
                 
                 <!-- Price fields -->
                 <field name="list_price" string="Giá bán"/>
-                <field name="ws_price" optional="hide"/>
-                <field name="ct_price" optional="hide"/>
+                <field name="x_ws_price" optional="hide"/>
+                <field name="x_ct_price" optional="hide"/>
                 <field name="status_product_id" optional="hide"/>
             </xpath>
         </field>
