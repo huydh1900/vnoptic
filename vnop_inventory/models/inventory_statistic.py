@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
-<<<<<<< Updated upstream
-=======
 import logging
 
 _logger = logging.getLogger(__name__)
->>>>>>> Stashed changes
 
 class InventoryStatistic(models.TransientModel):
     _name = 'vnoptic.inventory.statistic'
@@ -30,20 +27,11 @@ class InventoryStatistic(models.TransientModel):
     ], string='Phạm vi SPH', default='negative', required=True)
 
     # --- Liên kết (Relational Fields) ---
-<<<<<<< Updated upstream
-    brand_id = fields.Many2one('xnk.brand', string='Thương hiệu')
-    index_id = fields.Many2one('product.lens.index', string='Chiết suất mắt kính')
-
-    # --- Kết quả hiển thị (Result Fields) ---
-    html_matrix = fields.Text(string='Matrix Data', readonly=True, sanitize=False,
-                             help="Chứa mã HTML của bảng ma trận được sinh ra từ Python")
-=======
     brand_id = fields.Many2one('product.brand', string='Thương hiệu')
     index_id = fields.Many2one('product.lens.index', string='Chiết suất mắt kính')
 
     # --- Kết quả hiển thị (Result Fields) ---
     html_matrix = fields.Html(string='Matrix Data', readonly=True, sanitize=False)
->>>>>>> Stashed changes
     
     total_qty = fields.Integer(string='Tổng Tồn Kho', readonly=True)
     good_qty = fields.Integer(string='Kho Đạt', readonly=True)

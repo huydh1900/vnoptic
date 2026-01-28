@@ -48,10 +48,7 @@
                         </group>
                     </group>
 
-<<<<<<< Updated upstream
-=======
                     <separator string="Bảng phân bổ tồn kho theo SPH &amp; CYL" colspan="2"/>
->>>>>>> Stashed changes
                     <field name="html_matrix" nolabel="1" colspan="2" widget="html"/>
                 </sheet>
             </form>
@@ -79,8 +76,6 @@
               parent="stock.menu_stock_root"
               action="action_vnoptic_inventory_statistic"
               sequence="50"/> <!-- Sequence cao để nằm sau các menu Overview, Operations -->
-<<<<<<< Updated upstream
-=======
     <!-- Kế thừa view kho để thêm trường phân loại kho (warehouse_type) -->
     <record id="view_stock_warehouse_form_inherit_type" model="ir.ui.view">
         <field name="name">stock.warehouse.form.inherit.type</field>
@@ -94,5 +89,4 @@
             </group>
         </field>
     </record>
->>>>>>> Stashed changes
 </odoo>
