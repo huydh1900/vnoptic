@@ -48,9 +48,9 @@
                             type="object"
                             class="oe_highlight"
                             invisible="id == False"
-                            confirm="Sync toàn bộ 11k+ sản phẩm? Có thể mất nhiều thời gian."/>
+                            confirm="Sync toàn bộ sản phẩm? Có thể mất nhiều thời gian."/>
                     <button name="sync_products_limited"
-                            string="🧪 Đồng bộ 200 Test"
+                            string="Đồng bộ 200 Test"
                             type="object"
                             invisible="id == False"/>
                     <button name="test_api_connection"

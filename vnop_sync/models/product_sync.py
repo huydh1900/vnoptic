@@ -118,18 +118,37 @@ class ProductSync(models.Model):
     def _fetch_all_items(self, endpoint, token, label, limit=None):
         items = []
         page = 0
+        total_elements = 0
+        config = self._get_api_config()
+        
+        _logger.info(f"🔍 [DEBUG] Bắt đầu lấy dữ liệu {label} từ: {config['base_url']}{endpoint}")
+        
         while True:
             res = self._fetch_paged_api(endpoint, token, page, 100)
+            
+            # Log metadata của trang đầu tiên để debug
+            if page == 0:
+                debug_res = {k: v for k, v in res.items() if k != 'content'}
+                _logger.info(f"🔍 [DEBUG] Metadata API {label} (Trang 0): {debug_res}")
+            
             content = res.get('content', [])
             if not content: break
             items.extend(content)
             
-            _logger.info(f"📦 {label}: Page {page + 1}/{res.get('totalPages')}, Got {len(content)} (Total: {len(items)})")
+            total_elements = res.get('totalElements', 0)
+            total_pages = res.get('totalPages', 1)
+            
+            _logger.info(f"📦 {label}: Trang {page + 1}/{total_pages}, Lấy được {len(content)} bản ghi (Tổng đã lấy: {len(items)}/{total_elements})")
+            
             if limit and len(items) >= limit:
                 return items[:limit]
             
             page += 1
-            if page >= res.get('totalPages', 1): break
+            if page >= total_pages: break
+            
+        if total_elements > len(items) and not limit:
+            _logger.warning(f"⚠️ Chú ý: API báo có {total_elements} bản ghi {label} nhưng chỉ lấy được {len(items)}. Kiểm tra lại tham số size hoặc server-side pagination.")
+            
         return items
 
     def _preload_all_data(self):
@@ -297,7 +316,7 @@ class ProductSync(models.Model):
                      sup_id = cache['suppliers'][s_cid.upper()]
                 else:
                     sup = self.env['res.partner'].create({
-                        'name': s_name, 'ref': s_cid, 'supplier_rank': 1, 'is_company': True,
+                        'name': s_name, 'ref': s_cid, 'is_company': True,
                         'phone': s_det.get('phone', ''), 'email': s_det.get('mail', ''), 'street': s_det.get('address', '')
                     })
                     sup_id = sup.id
@@ -429,15 +448,16 @@ class ProductSync(models.Model):
                 b_vals = to_create[i:i+batch_size]
                 b_child_refs = new_child_data[i:i+batch_size] if has_child else []
                 try:
-                    recs = self.env['product.template'].with_context(tracking_disable=True).create(b_vals)
-                    for j, rec in enumerate(recs):
-                        cache['products'][rec.default_code] = rec.id
-                        if has_child:
-                            _, cv = b_child_refs[j]
-                            cv['product_tmpl_id'] = rec.id
-                            self.env[child_model].create(cv)
-                            # Update cache for child if needed (omitted for speed)
-                    success += len(recs)
+                    with self.env.cr.savepoint():
+                        recs = self.env['product.template'].with_context(tracking_disable=True).create(b_vals)
+                        for j, rec in enumerate(recs):
+                            cache['products'][rec.default_code] = rec.id
+                            if has_child:
+                                _, cv = b_child_refs[j]
+                                cv['product_tmpl_id'] = rec.id
+                                self.env[child_model].create(cv)
+                                # Update cache for child if needed (omitted for speed)
+                        success += len(recs)
                 except Exception as e:
                     failed += len(b_vals)
                     _logger.error(f"Batch Create Error: {e}")
@@ -445,20 +465,21 @@ class ProductSync(models.Model):
         # Batch Update
         for pid, vals in to_update:
             try:
-                self.env['product.template'].browse(pid).with_context(tracking_disable=True).write(vals)
-                if has_child and pid in child_vals_map:
-                    c_vals = child_vals_map[pid]
-                    cmap = cache['lens_records'] if product_type == 'lens' else cache['opt_records']
-                    if pid in cmap:
-                        self.env[child_model].browse(cmap[pid]).write(c_vals)
-                    else:
-                        c_vals['product_tmpl_id'] = pid
-                        cid = self.env[child_model].create(c_vals).id
-                        cmap[pid] = cid
-                success += 1
+                with self.env.cr.savepoint():
+                    self.env['product.template'].browse(pid).with_context(tracking_disable=True).write(vals)
+                    if has_child and pid in child_vals_map:
+                        c_vals = child_vals_map[pid]
+                        cmap = cache['lens_records'] if product_type == 'lens' else cache['opt_records']
+                        if pid in cmap:
+                            self.env[child_model].browse(cmap[pid]).write(c_vals)
+                        else:
+                            c_vals['product_tmpl_id'] = pid
+                            cid = self.env[child_model].create(c_vals).id
+                            cmap[pid] = cid
+                    success += 1
             except Exception as e:
                 failed += 1
-                _logger.error(f"Update Error: {e}")
+                _logger.error(f"Update Error at product {pid}: {e}")
                 
         return success, failed
 
