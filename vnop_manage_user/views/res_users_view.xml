@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Kế thừa view form của res.users -->
+    <record id="view_users_form_inherit_log" model="ir.ui.view">
+        <field name="name">res.users.form.inherit.log</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <!-- Thêm Smart button -->
+            <div name="button_box" position="inside">
+                <button class="oe_stat_button" 
+                        type="action" 
+                        name="%(action_view_user_change_log)d" 
+                        icon="fa-history"
+                        help="Xem lịch sử thay đổi thông tin người dùng này">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Lịch sử</span>
+                        <span class="o_stat_text">Thay đổi</span>
+                    </div>
+                </button>
+            </div>
+        </field>
+    </record>
+</odoo>

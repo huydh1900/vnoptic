@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
+<<<<<<< Updated upstream
+=======
+import logging
+
+_logger = logging.getLogger(__name__)
+>>>>>>> Stashed changes
 
 class InventoryStatistic(models.TransientModel):
     _name = 'vnoptic.inventory.statistic'
@@ -24,12 +30,20 @@ class InventoryStatistic(models.TransientModel):
     ], string='Phạm vi SPH', default='negative', required=True)
 
     # --- Liên kết (Relational Fields) ---
+<<<<<<< Updated upstream
     brand_id = fields.Many2one('xnk.brand', string='Thương hiệu')
     index_id = fields.Many2one('product.lens.index', string='Chiết suất mắt kính')
 
     # --- Kết quả hiển thị (Result Fields) ---
     html_matrix = fields.Text(string='Matrix Data', readonly=True, sanitize=False,
                              help="Chứa mã HTML của bảng ma trận được sinh ra từ Python")
+=======
+    brand_id = fields.Many2one('product.brand', string='Thương hiệu')
+    index_id = fields.Many2one('product.lens.index', string='Chiết suất mắt kính')
+
+    # --- Kết quả hiển thị (Result Fields) ---
+    html_matrix = fields.Html(string='Matrix Data', readonly=True, sanitize=False)
+>>>>>>> Stashed changes
     
     total_qty = fields.Integer(string='Tổng Tồn Kho', readonly=True)
     good_qty = fields.Integer(string='Kho Đạt', readonly=True)
@@ -77,16 +91,31 @@ class InventoryStatistic(models.TransientModel):
 
     def action_generate_matrix(self):
         """
+<<<<<<< Updated upstream
         Hàm chính được gọi khi nhấn nút 'Thống kê'
         1. Tìm các Location thuộc Kho Đạt và Kho Lỗi.
         2. Sinh danh sách dải số SPH và CYL.
         3. Query trực tiếp SQL để lấy tồn kho.
         4. Xây dựng bảng HTML và gán vào field html_matrix.
+=======
+        ... (giữ nguyên logic gốc)
+>>>>>>> Stashed changes
         """
         self.ensure_one()
         # Xóa nội dung HTML cũ để tránh nhân bản bảng khi người dùng bấm nhiều lần
         self.write({'html_matrix': False})
         
+<<<<<<< Updated upstream
+=======
+        # --- BƯỚC Debug: Log số lượng Brand và Chiết suất đang có trong DB ---
+        brands = self.env['product.brand'].search_count([])
+        indexes = self.env['product.lens.index'].search_count([])
+        _logger.info(f"🔍 DEBUG VNOPTIC: Thấy {brands} Brands và {indexes} Chiết suất trong Database.")
+        if brands == 0:
+            _logger.warning("⚠️ CẢNH BÁO: Không tìm thấy Thương hiệu nào! Vui lòng kiểm tra lại quá trình Sync.")
+        # -------------------------------------------------------------
+        
+>>>>>>> Stashed changes
         #  BƯỚC 1: LẤY DANH SÁCH LOCATIONS (ĐẠT / LỖI) 
         # Logic: Dựa vào field warehouse_type (hoặc x_warehouse_type) trong stock.warehouse
         # 1 = Đạt, 2 = Lỗi
@@ -155,7 +184,11 @@ class InventoryStatistic(models.TransientModel):
             FROM stock_quant sq
             JOIN product_product pp ON sq.product_id = pp.id
             JOIN product_template pt ON pp.product_tmpl_id = pt.id
+<<<<<<< Updated upstream
             JOIN product_lens pl ON pl.product_id = pp.id
+=======
+            JOIN product_lens pl ON pl.product_tmpl_id = pt.id
+>>>>>>> Stashed changes
             {where_clause}
             GROUP BY 1, 2, 3
         """
@@ -325,6 +358,7 @@ class InventoryStatistic(models.TransientModel):
             for cyl in cyl_cols:
                 key = (sph, cyl)
                 val_data = data_map.get(key, {'good': 0, 'defect': 0})
+<<<<<<< Updated upstream
                 good = val_data['good']
                 defect = val_data['defect']
                 bg_style = ""
@@ -341,6 +375,24 @@ class InventoryStatistic(models.TransientModel):
                     f"<td style='min-width: 70px; width: 70px; max-width: 70px; white-space: nowrap; "
                     f"text-align: center; border: 1px solid #ddd; padding: 8px; {bg_style}'>"
                     f"{cell_content}</td>"
+=======
+                good = int(val_data['good'])
+                defect = int(val_data['defect'])
+                total = good + defect
+                bg_style = ""
+                if total > 0:
+                    bg_style = "background-color: #e6f4ea;"
+                # Nội dung hiển thị số tổng tồn kho
+                cell_content = f"<span style='font-weight:bold;'>{total}</span>"
+                # Tooltip chi tiết khi hover
+                tooltip = (
+                    f"CYL: {cyl}, SPH: {sph}\nTồn kho: {total}\nĐạt: {good}\nLỗi: {defect}"
+                )
+                body_rows += (
+                    f"<td style='min-width: 70px; width: 70px; max-width: 70px; white-space: nowrap; "
+                    f"text-align: center; border: 1px solid #ddd; padding: 8px; {bg_style}' title='{tooltip}'>"
+                    f"<span>{cell_content}</span></td>"
+>>>>>>> Stashed changes
                 )
             body_rows += "</tr>"
 
