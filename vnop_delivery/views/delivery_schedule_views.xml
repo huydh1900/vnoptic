@@ -5,7 +5,7 @@
         <field name="arch" type="xml">
             <list string="Lịch giao hàng">
                 <field name="delivery_datetime"/>
-                <field name="purchase_id"/>
+                <field name="purchase_ids" widget="many2many_tags"/>
                 <field name="partner_id"/>
                 <field name="bill_number"/>
                 <field name="declaration_date"/>
@@ -27,27 +27,28 @@
         <field name="arch" type="xml">
             <form string="Lịch giao hàng">
                 <header>
-                    <button name="action_confirm"
-                            string="Khai báo hàng về"
+                    <button name="action_confirm_arrival"
                             type="object"
-                            class="btn-primary"
-                           />
+                            string="Xác nhận hàng về"
+                            class="oe_highlight"/>
+
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_po" type="object" class="oe_stat_button" icon="fa-list-alt"
-                                string="Đơn mua hàng" invisible="purchase_id == False"/>
+                        <button name="action_view_purchase_orders" type="object"
+                                icon="fa-list-alt"
+                                string="Đơn mua hàng" invisible="not purchase_ids"/>
+                        <button name="action_view_pickings" type="object"
+                                icon="fa-list-alt"
+                                string="Phiếu nhập kho" invisible="not purchase_ids"/>
                     </div>
 
+
                     <div class="oe_title">
-                        <label for="purchase_id" string="Đơn mua hàng"/>
+                        <label for="bill_number" string="Số vận đơn"/>
                         <h1>
-                            <field name="purchase_id"
-                                   placeholder="VD: PO0001"
-                                   options="{'no_open': True, 'no_create': True}"
-                                   domain="[('partner_id','=',partner_id)]"
-                                   readonly="partner_id == False or context.get('from_purchase')"/>
+                            <field name="bill_number"/>
                         </h1>
                     </div>
 
@@ -56,16 +57,21 @@
                             <field name="partner_id"
                                    domain="[('supplier_rank','>',0)]" options="{'no_create': True}"
                                    readonly="context.get('from_purchase')"/>
+                            <field name="purchase_ids"
+                                   placeholder="VD: PO0001, PO0002"
+                                   widget="many2many_tags"
+                                   options="{'no_open': True, 'no_create': True}"
+                                   domain="[('partner_id','=',partner_id)]"
+                                   readonly="partner_id == False or context.get('from_purchase')"/>
                             <field name="delivery_datetime"/>
                             <field name="description" placeholder="Nhập ghi chú nội bộ hoặc hướng dẫn giao hàng..."/>
-                            <field name="create_uid" readonly="1" string="Người tạo lịch" options='{"no_open": True}'/>
+                            <field name="create_uid" readonly="1" string="Người tạo" options='{"no_open": True}'/>
                             <field name="create_date" readonly="1" string="Thời gian tạo"/>
                         </group>
                         <group name="customs_info" string="Thông tin Hải quan">
                             <field name="declaration_number"/>
                             <field name="declaration_date"/>
-                            <field name="bill_number"/>
-                            <field name="picking_id"/>
+                            <!--                            <field name="picking_id"/>-->
                         </group>
                     </group>
 

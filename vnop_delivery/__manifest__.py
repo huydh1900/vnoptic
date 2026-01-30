@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': "vnop_delivery",
-    'depends': ['purchase'],
+    'depends': ['purchase', 'stock'],
 
     # always loaded
     'data': [

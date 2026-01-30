@@ -6,28 +6,44 @@ from odoo.exceptions import UserError
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
-    state = fields.Selection(
-        selection_add=[
-            ('approved', 'Đã phê duyệt'),
-        ]
-    )
     approver_id = fields.Many2one('res.users', string="Người duyệt")
-    contract_id = fields.Many2one(
-        'purchase.contract',
-        string="Hợp đồng",
-        domain="[('vendor_id','=',partner_id), ('state','=','active')]"
-    )
+
     create_date_tmp = fields.Date(
         string='Ngày tạo',
         compute='_compute_create_date_tmp',
     )
-    delivery_schedule_ids = fields.One2many(
+    delivery_schedule_ids = fields.Many2many(
         'delivery.schedule',
-        'purchase_id',
         string='Lịch giao hàng'
     )
 
     count_delivery_schedule = fields.Integer(compute='_compute_count_delivery_schedule')
+
+    def action_rfq_send(self):
+        for order in self:
+
+            if not order.order_line:
+                raise ValidationError(_("Đơn mua hàng phải có ít nhất 01 sản phẩm."))
+
+            product_lines = order.order_line.filtered(lambda l: l.product_id)
+
+            product_count = {}
+            for line in product_lines:
+                product_count.setdefault(line.product_id, 0)
+                product_count[line.product_id] += 1
+
+            duplicated_products = [
+                product.display_name
+                for product, count in product_count.items()
+                if count > 1
+            ]
+
+            if duplicated_products:
+                raise ValidationError(
+                    _("Sản phẩm bị trùng trong đơn mua hàng:\n- %s")
+                    % "\n- ".join(duplicated_products)
+                )
+        self.write({'state': 'sent'})
 
     @api.depends('create_date')
     def _compute_create_date_tmp(self):
@@ -36,8 +52,20 @@ class PurchaseOrder(models.Model):
                 rec.create_date.date() if rec.create_date else False
             )
 
-    def button_approved(self):
-        self.state = 'approved'
+    def button_confirm(self):
+        for order in self:
+            if order.state not in ['draft', 'sent', 'to approve']:
+                continue
+            order.order_line._validate_analytic_distribution()
+            order._add_supplier_to_product()
+            # Deal with double validation process
+            if order._approval_allowed():
+                order.button_approve()
+            else:
+                order.write({'state': 'to approve'})
+            if order.partner_id not in order.message_partner_ids:
+                order.message_subscribe([order.partner_id.id])
+        return True
 
     def unlink(self):
         for order in self:
@@ -60,47 +88,17 @@ class PurchaseOrder(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': 'Lịch giao hàng',
+            'name': _('Lịch giao hàng'),
             'res_model': 'delivery.schedule',
             'view_mode': 'list,form',
-            'domain': [('purchase_id', '=', self.id)],
+            'domain': [('id', 'in', self.delivery_schedule_ids.ids)],
             'context': {
-                'default_purchase_id': self.id,
                 'default_partner_id': self.partner_id.id,
+                'default_purchase_ids': [(6, 0, [self.id])],
                 'from_purchase': True,
             },
             'target': 'current',
         }
-
-    def action_send_approve(self):
-        for order in self:
-
-            if not order.order_line:
-                raise ValidationError(_("Đơn mua hàng phải có ít nhất 01 sản phẩm."))
-
-            # =========================
-            # 2. Check trùng sản phẩm
-            # =========================
-            product_lines = order.order_line.filtered(lambda l: l.product_id)
-
-            product_count = {}
-            for line in product_lines:
-                product_count.setdefault(line.product_id, 0)
-                product_count[line.product_id] += 1
-
-            duplicated_products = [
-                product.display_name
-                for product, count in product_count.items()
-                if count > 1
-            ]
-
-            if duplicated_products:
-                raise ValidationError(
-                    _("Sản phẩm bị trùng trong đơn mua hàng:\n- %s")
-                    % "\n- ".join(duplicated_products)
-                )
-
-            order.state = 'to approve'
 
     @api.onchange('partner_id')
     def _onchange_partner_id_fill_partner_ref(self):

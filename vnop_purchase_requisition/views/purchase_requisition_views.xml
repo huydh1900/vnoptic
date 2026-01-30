@@ -1,0 +1,31 @@
+<odoo>
+
+    <record id="vnop_view_purchase_requisition_form" model="ir.ui.view">
+        <field name="name">vnop.view.purchase.requisition.form</field>
+        <field name="model">purchase.requisition</field>
+        <field name="inherit_id" ref="purchase_requisition.view_purchase_requisition_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='user_id']" position="attributes">
+                <attribute name="readonly">1</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_cancel']" position="attributes">
+                <attribute name="class">btn-danger</attribute>
+                <attribute name="confirm">Bạn có chăc muốn Hủy hợp đồng mua hàng này?</attribute>
+            </xpath>
+            <xpath expr="//field[@name='vendor_id']" position="attributes">
+                <attribute name="domain">[('supplier_rank','>',0), ('parent_id','=',False)]</attribute>
+            </xpath>
+            <xpath expr="//form/sheet/group/group[2]/field[@name='company_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='requisition_type']" position="after">
+                <field name="purchase_region" readonly="state != 'draft'"/>
+                <field name="note" readonly="state != 'draft'"/>
+            </xpath>
+            <xpath expr="//field[@name='reference']" position="after">
+                <field name="approved_by" readonly="state != 'draft'"/>
+                <field name="approved_date" readonly="state != 'draft'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

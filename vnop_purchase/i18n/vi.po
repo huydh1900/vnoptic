@@ -11,9 +11,21 @@ msgid "RFQ"
 msgstr "Dự thảo"
 
 #. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order__state__sent
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_report__state__sent
+#: model:mail.message.subtype,name:purchase.mt_rfq_sent
+msgid "RFQ Sent"
+msgstr "Chờ duyệt"
+
+#. module: purchase
 #: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
 msgid "Approve Order"
 msgstr "Phê duyệt đơn mua"
+
+#. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
+msgid "Send by Email"
+msgstr "Gửi duyệt"
 
 #. module: purchase
 #: model:ir.model.fields,field_description:purchase.field_purchase_order__date_approve

@@ -9,24 +9,32 @@
             <xpath expr="//button[@name='do_print_picking']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
-            <xpath expr="//field[@name='move_ids_without_package']" position="before">
-                <div class="alert alert-info o_form_label">
-                    <strong>Hướng dẫn tính SL:</strong>
-                    <ul>
-                        <li>SL thực tế = SL đặt + SL thừa - SL thiếu</li>
-                        <li>SL đạt = SL thực tế - SL không đạt + SL đạt của SL thừa (nếu
-                            có)
-                        </li>
-                        <li>SL không đạt = SL thực tế - SL đạt + SL không đạt của SL thừa
-                            (nếu có)
-                        </li>
-                        <li>SL đạt sẽ được nhập kho <b>Tổng</b> sau khi duyệt
-                        </li>
-                        <li>SL lỗi sẽ được nhập kho <b>Lỗi</b> sau khi duyệt
-                        </li>
-                    </ul>
-                </div>
+            <xpath expr="//header" position="inside">
+                <button name="action_open_otk_wizard"
+                        type="object"
+                        string="OTK / QC"
+                        class="oe_highlight"
+                        invisible="not (picking_type_code == 'incoming' and state == 'done' and qc_state == 'none')"/>
             </xpath>
+
+<!--            <xpath expr="//field[@name='move_ids_without_package']" position="before">-->
+<!--                <div class="alert alert-info o_form_label">-->
+<!--                    <strong>Hướng dẫn tính SL:</strong>-->
+<!--                    <ul>-->
+<!--                        <li>SL thực tế = SL đặt + SL thừa - SL thiếu</li>-->
+<!--                        <li>SL đạt = SL thực tế - SL không đạt + SL đạt của SL thừa (nếu-->
+<!--                            có)-->
+<!--                        </li>-->
+<!--                        <li>SL không đạt = SL thực tế - SL đạt + SL không đạt của SL thừa-->
+<!--                            (nếu có)-->
+<!--                        </li>-->
+<!--                        <li>SL đạt sẽ được nhập kho <b>Tổng</b> sau khi duyệt-->
+<!--                        </li>-->
+<!--                        <li>SL lỗi sẽ được nhập kho <b>Lỗi</b> sau khi duyệt-->
+<!--                        </li>-->
+<!--                    </ul>-->
+<!--                </div>-->
+<!--            </xpath>-->
 
             <xpath expr="//list/button[1]"
                    position="attributes">

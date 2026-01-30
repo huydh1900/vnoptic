@@ -3,7 +3,7 @@
     'name': "vnop_stock",
     'category': 'Uncategorized',
     'version': '0.1',
-    'depends': ['stock'],
+    'depends': ['vnop_delivery', 'stock'],
 
     # always loaded
     'data': [
@@ -12,4 +12,3 @@
     ],
 
 }
-

@@ -1,2 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_delivery_schedule,vnop_delivery.delivery_schedule,model_delivery_schedule,base.group_user,1,1,1,1
+access_otk_receipt_wizard,vnop_delivery.otk_receipt_wizard,model_otk_receipt_wizard,base.group_user,1,1,1,1
+access_otk_receipt_wizard_line,vnop_delivery.otk_receipt_wizard_line,model_otk_receipt_wizard_line,base.group_user,1,1,1,1

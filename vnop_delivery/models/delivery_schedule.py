@@ -1,25 +1,24 @@
 from odoo import models, fields, api
 from odoo.exceptions import UserError
+from collections import defaultdict
 
 
 class DeliverySchedule(models.Model):
     _name = 'delivery.schedule'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'delivery_datetime desc'
-    _rec_name = 'purchase_id'
+    _rec_name = 'bill_number'
     _description = 'Lịch giao hàng'
 
+    name = fields.Char(string='Đợt giao')
     delivery_datetime = fields.Datetime(
         string='Thời gian giao hàng',
-        required=True
+        required=True,
+        tracking=True
     )
 
     declaration_date = fields.Date(
         string='Ngày tờ khai'
-    )
-
-    description = fields.Text(
-        string='Mô tả'
     )
 
     declaration_number = fields.Char(
@@ -27,7 +26,35 @@ class DeliverySchedule(models.Model):
     )
 
     bill_number = fields.Char(
-        string='Số vận đơn'
+        string='Mã vận đơn', required=True
+    )
+
+    description = fields.Text(
+        string='Mô tả'
+    )
+
+    partner_id = fields.Many2one(
+        'res.partner',
+        string='Nhà cung cấp',
+        required=True,
+        tracking=True
+    )
+
+    purchase_ids = fields.Many2many(
+        'purchase.order',
+        string='Đơn mua hàng'
+    )
+
+    picking_ids = fields.One2many(
+        'stock.picking',
+        'delivery_schedule_id',
+        string='Phiếu nhập kho',
+        readonly=True
+    )
+
+    currency_id = fields.Many2one(
+        'res.currency',
+        default=lambda self: self.env.company.currency_id
     )
 
     insurance_fee = fields.Monetary(
@@ -48,111 +75,138 @@ class DeliverySchedule(models.Model):
         default=0
     )
 
-    partner_id = fields.Many2one(
-        'res.partner',
-        string='Nhà cung cấp',
-        required=True
-    )
-
-    purchase_id = fields.Many2one(
-        'purchase.order',
-        string='Mã đơn hàng',
-        required=True
-    )
-
-    currency_id = fields.Many2one(
-        'res.currency',
-        default=lambda self: self.env.company.currency_id
-    )
-
-    # otk_ids = fields.One2many(
-    #     'delivery.otk',
-    #     'schedule_id',
-    #     string='Các lần OTK'
-    # )
-    picking_id = fields.Many2one(
-        'stock.picking',
-        string='Phiếu nhập kho',
-        readonly=True
-    )
-
-    product_id = fields.Many2one(
-        'product.product',
-        string='Phiếu nhập kho',
-        readonly=True
-    )
-
     state = fields.Selection([
         ('draft', 'Dự kiến giao'),
         ('confirmed', 'Xác nhận hàng về'),
-        ('partial', 'Đã giao 1 phần'),
-        ('done', 'Đã giao hết'),
+        ('partial', 'Đã giao một phần'),
+        ('done', 'Đã giao đủ'),
         ('cancel', 'Huỷ'),
-    ], string='Trạng thái giao hàng', default='draft', tracking=True)
+    ], default='draft', tracking=True)
 
-    def action_view_po(self):
+    input_location_id = fields.Many2one(
+        'stock.location', string='Kho tạm (Input)', required=True
+    )
+    stock_location_id = fields.Many2one(
+        'stock.location', string='Kho chính (Stock)', required=True
+    )
+    defect_location_id = fields.Many2one(
+        'stock.location', string='Kho lỗi (Defect)', required=True
+    )
+    internal_picking_type_id = fields.Many2one(
+        'stock.picking.type',
+        string='Loại phiếu điều chuyển',
+        domain="[('code','=','internal')]",
+        required=True
+    )
+
+    ok_transfer_id = fields.Many2one('stock.picking', string='Phiếu chuyển OK', readonly=True)
+    defect_transfer_id = fields.Many2one('stock.picking', string='Phiếu chuyển Lỗi', readonly=True)
+
+    def action_view_purchase_orders(self):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
             'name': 'Đơn mua hàng',
             'res_model': 'purchase.order',
-            'view_mode': 'form',
-            'res_id': self.purchase_id.id,
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', self.purchase_ids.ids)],
             'target': 'current',
         }
 
-    def action_confirm(self):
-        for rec in self:
-            if rec.picking_id:
-                continue
+    def action_view_pickings(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Phiếu nhập kho',
+            'res_model': 'stock.picking',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', self.picking_ids.ids)],
+            'target': 'current',
+        }
 
-            po = rec.purchase_id
-            if not po:
-                raise UserError('Chưa chọn đơn mua hàng')
+    def action_confirm_arrival(self):
+        self.ensure_one()
+        if not self.purchase_ids:
+            raise UserError('Vui lòng chọn ít nhất một PO.')
 
-            picking = self.env['stock.picking'].create({
-                'picking_type_id': po.picking_type_id.id,
-                'partner_id': po.partner_id.id,
-                'origin': f'{po.name} - Schedule {rec.id}',
-                'location_id': po.picking_type_id.default_location_src_id.id,
-                'location_dest_id': po.picking_type_id.default_location_dest_id.id,
-            })
+        receipts = self.purchase_ids.mapped('picking_ids').filtered(
+            lambda p: p.picking_type_id.code == 'incoming' and p.state not in ('done', 'cancel')
+        )
+        if not receipts:
+            raise UserError('Không tìm thấy phiếu nhập (Receipt) hợp lệ từ các PO đã chọn.')
 
-            for line in po.order_line:
-                if line.product_qty <= 0:
-                    continue
+        # gắn schedule vào receipt
+        receipts.write({'delivery_schedule_id': self.id})
 
-                self.env['stock.move'].create({
-                    'name': line.name,
-                    'product_id': line.product_id.id,
-                    'product_uom_qty': line.product_qty,
-                    'product_uom': line.product_uom.id,
-                    'picking_id': picking.id,
-                    'location_id': picking.location_id.id,
-                    'location_dest_id': picking.location_dest_id.id,
-                    'purchase_line_id': line.id,
-                    'date': rec.delivery_datetime,
-                })
+        # cập nhật trạng thái schedule
+        self.state = 'confirmed'
 
-            picking.action_confirm()
-            picking.action_assign()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Phiếu nhập kho theo đợt',
+            'res_model': 'stock.picking',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', receipts.ids)],
+            'target': 'current',
+        }
 
-            rec.picking_id = picking.id
-            rec.state = 'confirmed'
+    def action_qc_create_transfers(self):
+        self.ensure_one()
 
-    @api.model
-    def create(self, vals):
-        purchase_id = vals.get('purchase_id')
-        if purchase_id:
-            existed_done = self.search([
-                ('purchase_id', '=', purchase_id),
-                ('state', '=', 'done')
-            ], limit=1)
+        if self.state not in ('confirmed', 'partial'):
+            raise UserError(_('Chỉ QC khi đợt đang "Xác nhận hàng về" hoặc "Đã giao một phần".'))
 
-            if existed_done:
-                raise UserError(
-                    'Đơn mua hàng này đã có lịch giao hàng ĐÃ GIAO HẾT, không thể tạo lịch mới.'
-                )
+        if not self.picking_ids:
+            raise UserError(_('Đợt này chưa có phiếu nhập kho.'))
 
-        return super(DeliverySchedule, self).create(vals)
+        if not (
+                self.input_location_id and self.stock_location_id and self.defect_location_id and self.internal_picking_type_id):
+            raise UserError(_('Vui lòng cấu hình Kho tạm/Kho chính/Kho lỗi/Loại điều chuyển.'))
 
+        # Tổng hợp số lượng thực nhận (qty_done) theo sản phẩm từ tất cả receipt trong đợt
+        qty_by_product = defaultdict(float)
+        for picking in self.picking_ids.filtered(lambda p: p.state not in ('done', 'cancel')):
+            # lấy dòng chi tiết done (move lines)
+            for ml in picking.move_line_ids.filtered(lambda x: x.product_id and x.qty_done > 0):
+                qty_by_product[(ml.product_id.id, ml.product_uom_id.id)] += ml.qty_done
+
+        if not qty_by_product:
+            raise UserError(
+                _('Chưa có số lượng thực nhận (qty_done). Vui lòng nhập số lượng nhận trên Receipt trước.'))
+
+        # (MVP) Toàn bộ qty_done coi như OK chuyển về kho chính
+        # Nếu bạn muốn tách OK/Lỗi thì cần wizard nhập qty_defect.
+        ok_picking = self.env['stock.picking'].create({
+            'picking_type_id': self.internal_picking_type_id.id,
+            'location_id': self.input_location_id.id,
+            'location_dest_id': self.stock_location_id.id,
+            'origin': self.bill_number or self.display_name,
+            'delivery_schedule_id': self.id,  # nếu bạn cũng muốn link ngược
+        })
+
+        move_vals = []
+        for (product_id, uom_id), qty in qty_by_product.items():
+            move_vals.append((0, 0, {
+                'name': self.env['product.product'].browse(product_id).display_name,
+                'product_id': product_id,
+                'product_uom': uom_id,
+                'product_uom_qty': qty,
+                'location_id': self.input_location_id.id,
+                'location_dest_id': self.stock_location_id.id,
+                'picking_id': ok_picking.id,
+            }))
+        ok_picking.write({'move_ids_without_package': move_vals})
+        ok_picking.action_confirm()
+        ok_picking.action_assign()
+
+        self.ok_transfer_id = ok_picking.id
+        self.state = 'partial'  # hoặc done tuỳ rule
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Phiếu điều chuyển OK'),
+            'res_model': 'stock.picking',
+            'view_mode': 'form',
+            'res_id': ok_picking.id,
+            'target': 'current',
+        }
