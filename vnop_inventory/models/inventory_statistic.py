@@ -71,90 +71,47 @@ class InventoryStatistic(models.TransientModel):
 
     @api.model
     def create(self, vals):
-        """Override create để tự động generate ma trận 4×4 mặc định khi mở dashboard"""
+        """Override create - không auto-generate để tránh ValidationError khi chưa chọn filter"""
         record = super(InventoryStatistic, self).create(vals)
-        # Tự động generate ma trận với giá trị mặc định
-        record.action_generate_matrix()
+        # Không tự động generate, user phải bấm nút "Thống kê"
         return record
 
     def action_generate_matrix(self):
         """
-    ... (giữ nguyên logic gốc)
+        Thống kê: Bắt buộc phải chọn đủ filter (brand, index, sph_max, cyl_max, sph_mode). CYL luôn là âm (0 đến -max). Tổng tồn kho chỉ tính trong phạm vi filter.
         """
         self.ensure_one()
-        # Xóa nội dung HTML cũ để tránh nhân bản bảng khi người dùng bấm nhiều lần
+        # Validate bắt buộc chọn đủ filter
+        if not self.brand_id or not self.index_id or not self.sph_max or not self.cyl_max or not self.sph_mode:
+            raise models.ValidationError(_("Bạn phải chọn đầy đủ Thương hiệu, Chiết suất, SPH (4-20), CYL (4-20), Phạm vi SPH thì mới thống kê!"))
         self.write({'html_matrix': False})
-        
-        # --- BƯỚC Debug: Log số lượng Brand và Chiết suất đang có trong DB ---
-        brands = self.env['product.brand'].search_count([])
-        indexes = self.env['product.lens.index'].search_count([])
-        _logger.info(f"🔍 DEBUG VNOPTIC: Thấy {brands} Brands và {indexes} Chiết suất trong Database.")
-        if brands == 0:
-            _logger.warning("⚠️ CẢNH BÁO: Không tìm thấy Thương hiệu nào! Vui lòng kiểm tra lại quá trình Sync.")
-        # -------------------------------------------------------------
-        #  BƯỚC 1: LẤY DANH SÁCH LOCATIONS (ĐẠT / LỖI) 
-        # Logic: Dựa vào field warehouse_type (hoặc x_warehouse_type) trong stock.warehouse
-        # 1 = Đạt, 2 = Lỗi
-        
+
+        # --- BƯỚC 1: LẤY DANH SÁCH LOCATIONS (ĐẠT / LỖI) ---
         Warehouse = self.env['stock.warehouse']
         field_wh_type = 'warehouse_type'
-        
-        # Kiểm tra xem field có tồn tại không (đề phòng trường hợp chưa tạo hoặc sai tên)
-        # Ưu tiên 'warehouse_type', nếu không có thì thử 'x_warehouse_type'
         if not hasattr(Warehouse, field_wh_type) and hasattr(Warehouse, 'x_warehouse_type'):
             field_wh_type = 'x_warehouse_type'
-            
-        # Tìm danh sách Warehouse ID
-        # Lưu ý: search trả về recordset, .ids trả về list id
-        good_wh_ids = []
-        defect_wh_ids = []
-        
-        if hasattr(Warehouse, field_wh_type):
-            good_wh_ids = Warehouse.search([(field_wh_type, 'in', [1, '1'])]).ids
-            defect_wh_ids = Warehouse.search([(field_wh_type, 'in', [2, '2'])]).ids
-        
-        # Tìm tất cả Internal Location (usage='internal') thuộc các warehouse trên
+        good_wh_ids = Warehouse.search([(field_wh_type, 'in', [1, '1'])]).ids if hasattr(Warehouse, field_wh_type) else []
+        defect_wh_ids = Warehouse.search([(field_wh_type, 'in', [2, '2'])]).ids if hasattr(Warehouse, field_wh_type) else []
         Location = self.env['stock.location']
         good_locs = Location.search([('warehouse_id', 'in', good_wh_ids), ('usage', '=', 'internal')])
         defect_locs = Location.search([('warehouse_id', 'in', defect_wh_ids), ('usage', '=', 'internal')])
-
-        # Chuyển sang tuple để dùng trong câu lệnh SQL IN (...)
-        # Nếu list rỗng thì gán (-1) để SQL không lỗi cú pháp
-        t_good_ids = tuple(good_locs.ids) if good_locs else (-1,)
-        t_defect_ids = tuple(defect_locs.ids) if defect_locs else (-1,)
         t_all_ids = tuple(good_locs.ids + defect_locs.ids) if (good_locs or defect_locs) else (-1,)
+        _logger.info(f"� Thống kê tồn kho: Thương hiệu '{self.brand_id.name}', Chiết suất '{self.index_id.name}', SPH={self.sph_max} ({self.sph_mode}), CYL={self.cyl_max}")
 
-        # --- BƯỚC 2: SINH DẢI SỐ SPH VÀ CYL ---
-        sph_rows = self._generate_range_sph(self.sph_max, self.sph_mode)
-        cyl_cols = self._generate_range_cyl(self.cyl_max, self.sph_mode)
-
-        # --- BƯỚC 3: QUERY DỮ LIỆU TỒN KHO TỪ DATABASE ---
-        # Ta dùng SQL Query trực tiếp vì:
-        # 1. Performance nhanh hơn ORM.
-        # 2. Cần ép kiểu (CAST) trường SPH/CYL từ text sang số để group chính xác.
-        
-        # Chuẩn bị tham số cho query
+        # --- BƯỚC 2: QUERY DỮ LIỆU TỒN KHO ---
         params = {
             'brand_id': self.brand_id.id,
             'index_id': self.index_id.id,
             'loc_ids': t_all_ids
         }
-        
-        # Xây dựng điều kiện WHERE động
         where_clause = "WHERE sq.location_id IN %(loc_ids)s"
-        if self.brand_id:
-            where_clause += " AND pt.brand_id = %(brand_id)s" # Brand nằm ở product.template
-        if self.index_id:
-            where_clause += " AND pl.index_id = %(index_id)s" # Index nằm ở product.lens
-
-        # Câu lệnh SQL
-        # Regex '^-?[0-9]+(\.[0-9]+)?$' dùng để check xem chuỗi có phải là số không
-        # Nếu là số -> CAST sang NUMERIC
-        # Nếu không -> Trả về 0
+        where_clause += " AND pt.brand_id = %(brand_id)s"
+        where_clause += " AND pt.index_id = %(index_id)s"
         sql_query = f"""
             SELECT 
-                CASE WHEN pl.sph ~ '^-?[0-9]+(\.[0-9]+)?$' THEN CAST(pl.sph AS NUMERIC) ELSE 0 END as sph_val,
-                CASE WHEN pl.cyl ~ '^-?[0-9]+(\.[0-9]+)?$' THEN CAST(pl.cyl AS NUMERIC) ELSE 0 END as cyl_val,
+                CASE WHEN pl.sph ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN CAST(pl.sph AS NUMERIC) ELSE 0 END as sph_val,
+                CASE WHEN pl.cyl ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN CAST(pl.cyl AS NUMERIC) ELSE 0 END as cyl_val,
                 sq.location_id,
                 SUM(sq.quantity) as qty
             FROM stock_quant sq
@@ -164,66 +121,76 @@ class InventoryStatistic(models.TransientModel):
             {where_clause}
             GROUP BY 1, 2, 3
         """
-        
         self.env.cr.execute(sql_query, params)
         query_results = self.env.cr.fetchall()
+        
+        if not query_results:
+            _logger.warning(f"⚠️ Không tìm thấy dữ liệu tồn kho phù hợp với bộ lọc (Brand: {self.brand_id.name}, Index: {self.index_id.name})")
 
-        # --- BƯỚC 4: XỬ LÝ DỮ LIỆU VÀ TẠO DATA MAP ---
-        # Data Map: Key=(sph, cyl), Value={'good': 0, 'defect': 0}
+        # --- BƯỚC 3: XỬ LÝ DỮ LIỆU VÀ TẠO DATA MAP ---
         data_map = {}
         total_good = 0
         total_defect = 0
-
         for row in query_results:
-            r_sph = float(row[0])
-            r_cyl = float(row[1])
+            r_sph = round(float(row[0]), 2)
+            r_cyl = round(float(row[1]), 2)
             r_loc_id = row[2]
             r_qty = row[3]
-            
-            # Key để truy xuất: (SPH, CYL)
+            # Chỉ lấy các giá trị đúng phạm vi filter
+            sph_min = -float(self.sph_max) if self.sph_mode in ('negative', 'both') else 0.0
+            sph_max = float(self.sph_max) if self.sph_mode in ('positive', 'both') else 0.0
+            cyl_min = -float(self.cyl_max)
+            cyl_max = 0.0
+            if not (sph_min <= r_sph <= sph_max):
+                continue
+            if not (cyl_min <= r_cyl <= cyl_max):
+                continue
             key = (r_sph, r_cyl)
-            
             if key not in data_map:
                 data_map[key] = {'good': 0, 'defect': 0}
-            
-            # Phân loại vào Đạt hay Lỗi dựa trên Location ID
             if r_loc_id in good_locs.ids:
                 data_map[key]['good'] += r_qty
                 total_good += r_qty
             elif r_loc_id in defect_locs.ids:
                 data_map[key]['defect'] += r_qty
                 total_defect += r_qty
-                
+
+        # --- BƯỚC 4: LUÔN SINH DẢI SỐ SPH THEO MODE, CYL LUÔN ÂM ---
+        sph_rows = self._generate_range_sph(self.sph_max, self.sph_mode)
+        cyl_cols = self._generate_range_cyl(self.cyl_max, 'negative')
+
         # --- BƯỚC 5: SINH HTML MA TRẬN ---
         html_content = self._build_html_matrix(sph_rows, cyl_cols, data_map)
-        
-        # --- BƯỚC 6: LƯU KẾT QUẢ VÀO DATABASE ---
-        # Note: Vì là TransientModel nên dữ liệu này chỉ tạm thời,
-        # nhưng cần write để view tự cập nhật lại.
+        _logger.info(f"✅ Hoàn tất thống kế: Tổng tồn kho = {total_good + total_defect} (Đạt: {total_good}, Lỗi: {total_defect})")
         self.write({
             'html_matrix': html_content,
             'total_qty': total_good + total_defect,
             'good_qty': total_good,
             'defect_qty': total_defect
         })
-
-        # Button type="object" tự reload record, không cần trả về action (tránh sinh thêm view)
         return True
 
     def action_reset_filter(self):
-        """Reset tất cả bộ lọc về giá trị mặc định và tự động generate lại bảng 4x4"""
+        """Reset tất cả bộ lọc về giá trị mặc định và tự động generate lại bảng 4x4 với số liệu = 0"""
         self.ensure_one()
+        # Reset filter fields
         self.write({
             'sph_max': 4,
             'cyl_max': 4,
             'sph_mode': 'negative',
             'brand_id': False,
-            'index_id': False,
+            'index_id': False
+        })
+        # Sinh lại bảng 4x4 toàn 0
+        sph_rows = self._generate_range_sph(4, 'negative')
+        cyl_cols = self._generate_range_cyl(4, 'negative')
+        html_content = self._build_html_matrix(sph_rows, cyl_cols, {})
+        self.write({
+            'html_matrix': html_content,
             'total_qty': 0,
             'good_qty': 0,
-            'defect_qty': 0,
+            'defect_qty': 0
         })
-        self.action_generate_matrix()
         return True
     
     # 3. CÁC HÀM TIỆN ÍCH (UTILS / HELPERS)
@@ -261,46 +228,36 @@ class InventoryStatistic(models.TransientModel):
 
     def _generate_range_cyl(self, limit, mode):
         """
-        Sinh danh sách CYL step 0.25
-        Cập nhật logic: CYL chạy theo Mode giống SPH (Âm thì ra Âm, Dương ra Dương)
-        Sort ASC (Từ trái qua phải, nhỏ đến lớn hoặc 0 -> max)
+        Sinh danh sách CYL step 0.25, luôn từ 0 đến -limit (chỉ âm, không dương)
+        Sort ASC (0, -0.25, -0.5, ...)
         """
         step = 0.25
         res = []
         limit = float(limit)
-        
-        # Logic CYL theo yêu cầu mới
-        if mode == 'negative':
-            # Từ 0 xuống -limit (Ví dụ: 0, -0.25, ..., -4)
-            # Trục ngang: thường hiển thị từ 0 sang trái hoặc sang phải.
-            # Ta cứ list ra: [0, -0.25, -0.5 ...]
-            curr = 0.0
-            while curr >= -limit:
-                res.append(curr)
-                curr -= step
-            # Với số âm, ta sort Desc (về mặt trị tuyệt đối thì tăng dần, nhưng giá trị toán học giảm dần)
-            # Ví dụ hiển thị: 0 | -0.25 | -0.5 ...
-            return [round(x, 2) for x in res] # [0, -0.25, -0.5...]
-            
-        elif mode == 'positive':
-            # Từ 0 lên +limit
-            curr = 0.0
-            while curr <= limit:
-                res.append(curr)
-                curr += step
-            return [round(x, 2) for x in res] # [0, 0.25, 0.5...]
-            
-        else: # both
-            # Với CYL mà chọn Both thì sao?
-            # Thường CYL ít khi vừa âm vừa dương trên 1 bảng. 
-            # Giả sử theo logic: chạy từ 0 -> +Mask (Mặc định dương nếu both?)
-            # Hoặc chạy cả 2? "CYL: vẫn theo phạm vi nhập" -> Giả sử 0 -> +Max
-            # Tạm thời để 0 -> +Max nếu chọn Both.
-            curr = 0.0
-            while curr <= limit:
-                res.append(curr)
-                curr += step
-            return [round(x, 2) for x in res]
+        curr = 0.0
+        while curr >= -limit:
+            res.append(curr)
+            curr -= step
+        return [round(x, 2) for x in res]
+
+    def _get_cell_color(self, qty):
+        """
+        Trả về màu nền theo số lượng tồn kho (gradient từ trắng → hồng → xanh lá nhạt → xanh lá đậm)
+        """
+        if qty == 0:
+            return "#ffffff"  # Trắng
+        elif qty <= 9:
+            return "#ffe6f0"  # Hồng rất nhạt
+        elif qty <= 100:
+            return "#ffc9e0"  # Hồng nhạt
+        elif qty <= 1000:
+            return "#d4edda"  # Xanh lá rất nhạt
+        elif qty <= 10000:
+            return "#a3d9a5"  # Xanh lá nhạt
+        elif qty <= 100000:
+            return "#72c97d"  # Xanh lá vừa
+        else:
+            return "#4caf50"  # Xanh lá đậm (Material Green 500)
 
     def _build_html_matrix(self, sph_rows, cyl_cols, data_map):
         """
@@ -333,11 +290,15 @@ class InventoryStatistic(models.TransientModel):
                 good = int(val_data['good'])
                 defect = int(val_data['defect'])
                 total = good + defect
-                bg_style = ""
-                if total > 0:
-                    bg_style = "background-color: #e6f4ea;"
-                # Nội dung hiển thị số tổng tồn kho
-                cell_content = f"<span style='font-weight:bold;'>{total}</span>"
+                # Màu nền theo số lượng (gradient)
+                bg_color = self._get_cell_color(total)
+                bg_style = f"background-color: {bg_color};"
+                # Nội dung hiển thị số tổng tồn kho (nếu > 999999 thì rút gọn ...)
+                if total > 999999:
+                    display_val = f"{str(total)[:6]}..."
+                else:
+                    display_val = str(total)
+                cell_content = f"<span style='font-weight:bold;'>{display_val}</span>"
                 # Tooltip chi tiết khi hover
                 tooltip = (
                     f"CYL: {cyl}, SPH: {sph}\nTồn kho: {total}\nĐạt: {good}\nLỗi: {defect}"
