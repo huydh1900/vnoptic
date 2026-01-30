@@ -71,19 +71,19 @@ class InventoryStatistic(models.TransientModel):
 
     @api.model
     def create(self, vals):
-        """Override create để tự động generate ma trận 4×4 mặc định khi mở dashboard"""
+        """Override create - không auto-generate để tránh ValidationError khi chưa chọn filter"""
         record = super(InventoryStatistic, self).create(vals)
-        # Tự động generate ma trận với giá trị mặc định
-        record.action_generate_matrix()
+        # Không tự động generate, user phải bấm nút "Thống kê"
         return record
 
     def action_generate_matrix(self):
         """
-        Khi người dùng bấm 'Thống kê', sinh bảng động theo các giá trị SPH/CYL thực tế trong kho,
-        nhưng chỉ lấy các giá trị nằm trong phạm vi filter (4–20).
-        Giao diện mặc định và reset vẫn giữ bảng 4x4 như cũ.
+        Thống kê: Bắt buộc phải chọn đủ filter (brand, index, sph_max, cyl_max, sph_mode). CYL luôn là âm (0 đến -max). Tổng tồn kho chỉ tính trong phạm vi filter.
         """
         self.ensure_one()
+        # Validate bắt buộc chọn đủ filter
+        if not self.brand_id or not self.index_id or not self.sph_max or not self.cyl_max or not self.sph_mode:
+            raise models.ValidationError(_("Bạn phải chọn đầy đủ Thương hiệu, Chiết suất, SPH (4-20), CYL (4-20), Phạm vi SPH thì mới thống kê!"))
         self.write({'html_matrix': False})
 
         # --- BƯỚC 1: LẤY DANH SÁCH LOCATIONS (ĐẠT / LỖI) ---
@@ -97,6 +97,7 @@ class InventoryStatistic(models.TransientModel):
         good_locs = Location.search([('warehouse_id', 'in', good_wh_ids), ('usage', '=', 'internal')])
         defect_locs = Location.search([('warehouse_id', 'in', defect_wh_ids), ('usage', '=', 'internal')])
         t_all_ids = tuple(good_locs.ids + defect_locs.ids) if (good_locs or defect_locs) else (-1,)
+        _logger.info(f"🔍 DEBUG: good_locs={len(good_locs)}, defect_locs={len(defect_locs)}, t_all_ids={t_all_ids[:5] if len(t_all_ids) > 1 else t_all_ids}")
 
         # --- BƯỚC 2: QUERY DỮ LIỆU TỒN KHO ---
         params = {
@@ -105,14 +106,12 @@ class InventoryStatistic(models.TransientModel):
             'loc_ids': t_all_ids
         }
         where_clause = "WHERE sq.location_id IN %(loc_ids)s"
-        if self.brand_id:
-            where_clause += " AND pt.brand_id = %(brand_id)s"
-        if self.index_id:
-            where_clause += " AND pl.index_id = %(index_id)s"
+        where_clause += " AND pt.brand_id = %(brand_id)s"
+        where_clause += " AND pt.index_id = %(index_id)s"
         sql_query = f"""
             SELECT 
-                CASE WHEN pl.sph ~ '^-?[0-9]+(\.[0-9]+)?$' THEN CAST(pl.sph AS NUMERIC) ELSE 0 END as sph_val,
-                CASE WHEN pl.cyl ~ '^-?[0-9]+(\.[0-9]+)?$' THEN CAST(pl.cyl AS NUMERIC) ELSE 0 END as cyl_val,
+                CASE WHEN pl.sph ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN CAST(pl.sph AS NUMERIC) ELSE 0 END as sph_val,
+                CASE WHEN pl.cyl ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN CAST(pl.cyl AS NUMERIC) ELSE 0 END as cyl_val,
                 sq.location_id,
                 SUM(sq.quantity) as qty
             FROM stock_quant sq
@@ -124,17 +123,40 @@ class InventoryStatistic(models.TransientModel):
         """
         self.env.cr.execute(sql_query, params)
         query_results = self.env.cr.fetchall()
+        _logger.info(f"🔍 DEBUG: Query trả về {len(query_results)} rows. Brand: {self.brand_id.name}, Index: {self.index_id.name}")
+        _logger.info(f"🔍 DEBUG: SQL = {sql_query % params}")
+        if query_results:
+            _logger.info(f"🔍 DEBUG: Sample data: {query_results[:3]}")
+        else:
+            # Debug: Thử query không JOIN product_lens để xem có dữ liệu stock không
+            test_query = f"SELECT COUNT(*) FROM stock_quant sq WHERE sq.location_id IN %(loc_ids)s"
+            self.env.cr.execute(test_query, {'loc_ids': t_all_ids})
+            stock_count = self.env.cr.fetchone()[0]
+            _logger.warning(f"⚠️ DEBUG: Không có dữ liệu từ query chính. Test query: có {stock_count} stock_quant records trong locations.")
+            # Test xem có product_lens records không
+            test_lens = f"SELECT COUNT(*) FROM product_lens pl JOIN product_template pt ON pl.product_tmpl_id = pt.id WHERE pt.brand_id = %(brand_id)s AND pl.index_id = %(index_id)s"
+            self.env.cr.execute(test_lens, params)
+            lens_count = self.env.cr.fetchone()[0]
+            _logger.warning(f"⚠️ DEBUG: Có {lens_count} product_lens records với brand={self.brand_id.name}, index={self.index_id.name}")
 
         # --- BƯỚC 3: XỬ LÝ DỮ LIỆU VÀ TẠO DATA MAP ---
         data_map = {}
         total_good = 0
         total_defect = 0
         for row in query_results:
-            # Luôn round về 2 số thập phân để key khớp với dải số sinh bảng
             r_sph = round(float(row[0]), 2)
             r_cyl = round(float(row[1]), 2)
             r_loc_id = row[2]
             r_qty = row[3]
+            # Chỉ lấy các giá trị đúng phạm vi filter
+            sph_min = -float(self.sph_max) if self.sph_mode in ('negative', 'both') else 0.0
+            sph_max = float(self.sph_max) if self.sph_mode in ('positive', 'both') else 0.0
+            cyl_min = -float(self.cyl_max)
+            cyl_max = 0.0
+            if not (sph_min <= r_sph <= sph_max):
+                continue
+            if not (cyl_min <= r_cyl <= cyl_max):
+                continue
             key = (r_sph, r_cyl)
             if key not in data_map:
                 data_map[key] = {'good': 0, 'defect': 0}
@@ -145,9 +167,9 @@ class InventoryStatistic(models.TransientModel):
                 data_map[key]['defect'] += r_qty
                 total_defect += r_qty
 
-        # --- BƯỚC 4: LUÔN SINH DẢI SỐ SPH/CYL TỪ 0 HOẶC -MAX ĐẾN MAX THEO FILTER ---
+        # --- BƯỚC 4: LUÔN SINH DẢI SỐ SPH THEO MODE, CYL LUÔN ÂM ---
         sph_rows = self._generate_range_sph(self.sph_max, self.sph_mode)
-        cyl_cols = self._generate_range_cyl(self.cyl_max, self.sph_mode)
+        cyl_cols = self._generate_range_cyl(self.cyl_max, 'negative')
 
         # --- BƯỚC 5: SINH HTML MA TRẬN ---
         html_content = self._build_html_matrix(sph_rows, cyl_cols, data_map)
@@ -217,46 +239,17 @@ class InventoryStatistic(models.TransientModel):
 
     def _generate_range_cyl(self, limit, mode):
         """
-        Sinh danh sách CYL step 0.25
-        Cập nhật logic: CYL chạy theo Mode giống SPH (Âm thì ra Âm, Dương ra Dương)
-        Sort ASC (Từ trái qua phải, nhỏ đến lớn hoặc 0 -> max)
+        Sinh danh sách CYL step 0.25, luôn từ 0 đến -limit (chỉ âm, không dương)
+        Sort ASC (0, -0.25, -0.5, ...)
         """
         step = 0.25
         res = []
         limit = float(limit)
-        
-        # Logic CYL theo yêu cầu mới
-        if mode == 'negative':
-            # Từ 0 xuống -limit (Ví dụ: 0, -0.25, ..., -4)
-            # Trục ngang: thường hiển thị từ 0 sang trái hoặc sang phải.
-            # Ta cứ list ra: [0, -0.25, -0.5 ...]
-            curr = 0.0
-            while curr >= -limit:
-                res.append(curr)
-                curr -= step
-            # Với số âm, ta sort Desc (về mặt trị tuyệt đối thì tăng dần, nhưng giá trị toán học giảm dần)
-            # Ví dụ hiển thị: 0 | -0.25 | -0.5 ...
-            return [round(x, 2) for x in res] # [0, -0.25, -0.5...]
-            
-        elif mode == 'positive':
-            # Từ 0 lên +limit
-            curr = 0.0
-            while curr <= limit:
-                res.append(curr)
-                curr += step
-            return [round(x, 2) for x in res] # [0, 0.25, 0.5...]
-            
-        else: # both
-            # Với CYL mà chọn Both thì sao?
-            # Thường CYL ít khi vừa âm vừa dương trên 1 bảng. 
-            # Giả sử theo logic: chạy từ 0 -> +Mask (Mặc định dương nếu both?)
-            # Hoặc chạy cả 2? "CYL: vẫn theo phạm vi nhập" -> Giả sử 0 -> +Max
-            # Tạm thời để 0 -> +Max nếu chọn Both.
-            curr = 0.0
-            while curr <= limit:
-                res.append(curr)
-                curr += step
-            return [round(x, 2) for x in res]
+        curr = 0.0
+        while curr >= -limit:
+            res.append(curr)
+            curr -= step
+        return [round(x, 2) for x in res]
 
     def _build_html_matrix(self, sph_rows, cyl_cols, data_map):
         """
