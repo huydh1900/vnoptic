@@ -97,7 +97,7 @@ class InventoryStatistic(models.TransientModel):
         good_locs = Location.search([('warehouse_id', 'in', good_wh_ids), ('usage', '=', 'internal')])
         defect_locs = Location.search([('warehouse_id', 'in', defect_wh_ids), ('usage', '=', 'internal')])
         t_all_ids = tuple(good_locs.ids + defect_locs.ids) if (good_locs or defect_locs) else (-1,)
-        _logger.info(f"🔍 DEBUG: good_locs={len(good_locs)}, defect_locs={len(defect_locs)}, t_all_ids={t_all_ids[:5] if len(t_all_ids) > 1 else t_all_ids}")
+        _logger.info(f"� Thống kê tồn kho: Thương hiệu '{self.brand_id.name}', Chiết suất '{self.index_id.name}', SPH={self.sph_max} ({self.sph_mode}), CYL={self.cyl_max}")
 
         # --- BƯỚC 2: QUERY DỮ LIỆU TỒN KHO ---
         params = {
@@ -123,21 +123,9 @@ class InventoryStatistic(models.TransientModel):
         """
         self.env.cr.execute(sql_query, params)
         query_results = self.env.cr.fetchall()
-        _logger.info(f"🔍 DEBUG: Query trả về {len(query_results)} rows. Brand: {self.brand_id.name}, Index: {self.index_id.name}")
-        _logger.info(f"🔍 DEBUG: SQL = {sql_query % params}")
-        if query_results:
-            _logger.info(f"🔍 DEBUG: Sample data: {query_results[:3]}")
-        else:
-            # Debug: Thử query không JOIN product_lens để xem có dữ liệu stock không
-            test_query = f"SELECT COUNT(*) FROM stock_quant sq WHERE sq.location_id IN %(loc_ids)s"
-            self.env.cr.execute(test_query, {'loc_ids': t_all_ids})
-            stock_count = self.env.cr.fetchone()[0]
-            _logger.warning(f"⚠️ DEBUG: Không có dữ liệu từ query chính. Test query: có {stock_count} stock_quant records trong locations.")
-            # Test xem có product_lens records không
-            test_lens = f"SELECT COUNT(*) FROM product_lens pl JOIN product_template pt ON pl.product_tmpl_id = pt.id WHERE pt.brand_id = %(brand_id)s AND pl.index_id = %(index_id)s"
-            self.env.cr.execute(test_lens, params)
-            lens_count = self.env.cr.fetchone()[0]
-            _logger.warning(f"⚠️ DEBUG: Có {lens_count} product_lens records với brand={self.brand_id.name}, index={self.index_id.name}")
+        
+        if not query_results:
+            _logger.warning(f"⚠️ Không tìm thấy dữ liệu tồn kho phù hợp với bộ lọc (Brand: {self.brand_id.name}, Index: {self.index_id.name})")
 
         # --- BƯỚC 3: XỬ LÝ DỮ LIỆU VÀ TẠO DATA MAP ---
         data_map = {}
@@ -173,6 +161,7 @@ class InventoryStatistic(models.TransientModel):
 
         # --- BƯỚC 5: SINH HTML MA TRẬN ---
         html_content = self._build_html_matrix(sph_rows, cyl_cols, data_map)
+        _logger.info(f"✅ Hoàn tất thống kế: Tổng tồn kho = {total_good + total_defect} (Đạt: {total_good}, Lỗi: {total_defect})")
         self.write({
             'html_matrix': html_content,
             'total_qty': total_good + total_defect,
@@ -251,6 +240,25 @@ class InventoryStatistic(models.TransientModel):
             curr -= step
         return [round(x, 2) for x in res]
 
+    def _get_cell_color(self, qty):
+        """
+        Trả về màu nền theo số lượng tồn kho (gradient từ trắng → hồng → xanh lá nhạt → xanh lá đậm)
+        """
+        if qty == 0:
+            return "#ffffff"  # Trắng
+        elif qty <= 9:
+            return "#ffe6f0"  # Hồng rất nhạt
+        elif qty <= 100:
+            return "#ffc9e0"  # Hồng nhạt
+        elif qty <= 1000:
+            return "#d4edda"  # Xanh lá rất nhạt
+        elif qty <= 10000:
+            return "#a3d9a5"  # Xanh lá nhạt
+        elif qty <= 100000:
+            return "#72c97d"  # Xanh lá vừa
+        else:
+            return "#4caf50"  # Xanh lá đậm (Material Green 500)
+
     def _build_html_matrix(self, sph_rows, cyl_cols, data_map):
         """
         Luôn trả về bảng HTML, kể cả khi không có dữ liệu (không để False/None)
@@ -282,11 +290,15 @@ class InventoryStatistic(models.TransientModel):
                 good = int(val_data['good'])
                 defect = int(val_data['defect'])
                 total = good + defect
-                bg_style = ""
-                if total > 0:
-                    bg_style = "background-color: #e6f4ea;"
-                # Nội dung hiển thị số tổng tồn kho
-                cell_content = f"<span style='font-weight:bold;'>{total}</span>"
+                # Màu nền theo số lượng (gradient)
+                bg_color = self._get_cell_color(total)
+                bg_style = f"background-color: {bg_color};"
+                # Nội dung hiển thị số tổng tồn kho (nếu > 999999 thì rút gọn ...)
+                if total > 999999:
+                    display_val = f"{str(total)[:6]}..."
+                else:
+                    display_val = str(total)
+                cell_content = f"<span style='font-weight:bold;'>{display_val}</span>"
                 # Tooltip chi tiết khi hover
                 tooltip = (
                     f"CYL: {cyl}, SPH: {sph}\nTồn kho: {total}\nĐạt: {good}\nLỗi: {defect}"
