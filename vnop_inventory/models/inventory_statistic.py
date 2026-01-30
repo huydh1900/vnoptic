@@ -79,78 +79,36 @@ class InventoryStatistic(models.TransientModel):
 
     def action_generate_matrix(self):
         """
-    ... (giữ nguyên logic gốc)
+        Khi người dùng bấm 'Thống kê', sinh bảng động theo các giá trị SPH/CYL thực tế trong kho,
+        nhưng chỉ lấy các giá trị nằm trong phạm vi filter (4–20).
+        Giao diện mặc định và reset vẫn giữ bảng 4x4 như cũ.
         """
         self.ensure_one()
-        # Xóa nội dung HTML cũ để tránh nhân bản bảng khi người dùng bấm nhiều lần
         self.write({'html_matrix': False})
-        
-        # --- BƯỚC Debug: Log số lượng Brand và Chiết suất đang có trong DB ---
-        brands = self.env['product.brand'].search_count([])
-        indexes = self.env['product.lens.index'].search_count([])
-        _logger.info(f"🔍 DEBUG VNOPTIC: Thấy {brands} Brands và {indexes} Chiết suất trong Database.")
-        if brands == 0:
-            _logger.warning("⚠️ CẢNH BÁO: Không tìm thấy Thương hiệu nào! Vui lòng kiểm tra lại quá trình Sync.")
-        # -------------------------------------------------------------
-        #  BƯỚC 1: LẤY DANH SÁCH LOCATIONS (ĐẠT / LỖI) 
-        # Logic: Dựa vào field warehouse_type (hoặc x_warehouse_type) trong stock.warehouse
-        # 1 = Đạt, 2 = Lỗi
-        
+
+        # --- BƯỚC 1: LẤY DANH SÁCH LOCATIONS (ĐẠT / LỖI) ---
         Warehouse = self.env['stock.warehouse']
         field_wh_type = 'warehouse_type'
-        
-        # Kiểm tra xem field có tồn tại không (đề phòng trường hợp chưa tạo hoặc sai tên)
-        # Ưu tiên 'warehouse_type', nếu không có thì thử 'x_warehouse_type'
         if not hasattr(Warehouse, field_wh_type) and hasattr(Warehouse, 'x_warehouse_type'):
             field_wh_type = 'x_warehouse_type'
-            
-        # Tìm danh sách Warehouse ID
-        # Lưu ý: search trả về recordset, .ids trả về list id
-        good_wh_ids = []
-        defect_wh_ids = []
-        
-        if hasattr(Warehouse, field_wh_type):
-            good_wh_ids = Warehouse.search([(field_wh_type, 'in', [1, '1'])]).ids
-            defect_wh_ids = Warehouse.search([(field_wh_type, 'in', [2, '2'])]).ids
-        
-        # Tìm tất cả Internal Location (usage='internal') thuộc các warehouse trên
+        good_wh_ids = Warehouse.search([(field_wh_type, 'in', [1, '1'])]).ids if hasattr(Warehouse, field_wh_type) else []
+        defect_wh_ids = Warehouse.search([(field_wh_type, 'in', [2, '2'])]).ids if hasattr(Warehouse, field_wh_type) else []
         Location = self.env['stock.location']
         good_locs = Location.search([('warehouse_id', 'in', good_wh_ids), ('usage', '=', 'internal')])
         defect_locs = Location.search([('warehouse_id', 'in', defect_wh_ids), ('usage', '=', 'internal')])
-
-        # Chuyển sang tuple để dùng trong câu lệnh SQL IN (...)
-        # Nếu list rỗng thì gán (-1) để SQL không lỗi cú pháp
-        t_good_ids = tuple(good_locs.ids) if good_locs else (-1,)
-        t_defect_ids = tuple(defect_locs.ids) if defect_locs else (-1,)
         t_all_ids = tuple(good_locs.ids + defect_locs.ids) if (good_locs or defect_locs) else (-1,)
 
-        # --- BƯỚC 2: SINH DẢI SỐ SPH VÀ CYL ---
-        sph_rows = self._generate_range_sph(self.sph_max, self.sph_mode)
-        cyl_cols = self._generate_range_cyl(self.cyl_max, self.sph_mode)
-
-        # --- BƯỚC 3: QUERY DỮ LIỆU TỒN KHO TỪ DATABASE ---
-        # Ta dùng SQL Query trực tiếp vì:
-        # 1. Performance nhanh hơn ORM.
-        # 2. Cần ép kiểu (CAST) trường SPH/CYL từ text sang số để group chính xác.
-        
-        # Chuẩn bị tham số cho query
+        # --- BƯỚC 2: QUERY DỮ LIỆU TỒN KHO ---
         params = {
             'brand_id': self.brand_id.id,
             'index_id': self.index_id.id,
             'loc_ids': t_all_ids
         }
-        
-        # Xây dựng điều kiện WHERE động
         where_clause = "WHERE sq.location_id IN %(loc_ids)s"
         if self.brand_id:
-            where_clause += " AND pt.brand_id = %(brand_id)s" # Brand nằm ở product.template
+            where_clause += " AND pt.brand_id = %(brand_id)s"
         if self.index_id:
-            where_clause += " AND pl.index_id = %(index_id)s" # Index nằm ở product.lens
-
-        # Câu lệnh SQL
-        # Regex '^-?[0-9]+(\.[0-9]+)?$' dùng để check xem chuỗi có phải là số không
-        # Nếu là số -> CAST sang NUMERIC
-        # Nếu không -> Trả về 0
+            where_clause += " AND pl.index_id = %(index_id)s"
         sql_query = f"""
             SELECT 
                 CASE WHEN pl.sph ~ '^-?[0-9]+(\.[0-9]+)?$' THEN CAST(pl.sph AS NUMERIC) ELSE 0 END as sph_val,
@@ -164,66 +122,64 @@ class InventoryStatistic(models.TransientModel):
             {where_clause}
             GROUP BY 1, 2, 3
         """
-        
         self.env.cr.execute(sql_query, params)
         query_results = self.env.cr.fetchall()
 
-        # --- BƯỚC 4: XỬ LÝ DỮ LIỆU VÀ TẠO DATA MAP ---
-        # Data Map: Key=(sph, cyl), Value={'good': 0, 'defect': 0}
+        # --- BƯỚC 3: XỬ LÝ DỮ LIỆU VÀ TẠO DATA MAP ---
         data_map = {}
         total_good = 0
         total_defect = 0
-
         for row in query_results:
-            r_sph = float(row[0])
-            r_cyl = float(row[1])
+            # Luôn round về 2 số thập phân để key khớp với dải số sinh bảng
+            r_sph = round(float(row[0]), 2)
+            r_cyl = round(float(row[1]), 2)
             r_loc_id = row[2]
             r_qty = row[3]
-            
-            # Key để truy xuất: (SPH, CYL)
             key = (r_sph, r_cyl)
-            
             if key not in data_map:
                 data_map[key] = {'good': 0, 'defect': 0}
-            
-            # Phân loại vào Đạt hay Lỗi dựa trên Location ID
             if r_loc_id in good_locs.ids:
                 data_map[key]['good'] += r_qty
                 total_good += r_qty
             elif r_loc_id in defect_locs.ids:
                 data_map[key]['defect'] += r_qty
                 total_defect += r_qty
-                
+
+        # --- BƯỚC 4: LUÔN SINH DẢI SỐ SPH/CYL TỪ 0 HOẶC -MAX ĐẾN MAX THEO FILTER ---
+        sph_rows = self._generate_range_sph(self.sph_max, self.sph_mode)
+        cyl_cols = self._generate_range_cyl(self.cyl_max, self.sph_mode)
+
         # --- BƯỚC 5: SINH HTML MA TRẬN ---
         html_content = self._build_html_matrix(sph_rows, cyl_cols, data_map)
-        
-        # --- BƯỚC 6: LƯU KẾT QUẢ VÀO DATABASE ---
-        # Note: Vì là TransientModel nên dữ liệu này chỉ tạm thời,
-        # nhưng cần write để view tự cập nhật lại.
         self.write({
             'html_matrix': html_content,
             'total_qty': total_good + total_defect,
             'good_qty': total_good,
             'defect_qty': total_defect
         })
-
-        # Button type="object" tự reload record, không cần trả về action (tránh sinh thêm view)
         return True
 
     def action_reset_filter(self):
-        """Reset tất cả bộ lọc về giá trị mặc định và tự động generate lại bảng 4x4"""
+        """Reset tất cả bộ lọc về giá trị mặc định và tự động generate lại bảng 4x4 với số liệu = 0"""
         self.ensure_one()
+        # Reset filter fields
         self.write({
             'sph_max': 4,
             'cyl_max': 4,
             'sph_mode': 'negative',
             'brand_id': False,
-            'index_id': False,
+            'index_id': False
+        })
+        # Sinh lại bảng 4x4 toàn 0
+        sph_rows = self._generate_range_sph(4, 'negative')
+        cyl_cols = self._generate_range_cyl(4, 'negative')
+        html_content = self._build_html_matrix(sph_rows, cyl_cols, {})
+        self.write({
+            'html_matrix': html_content,
             'total_qty': 0,
             'good_qty': 0,
-            'defect_qty': 0,
+            'defect_qty': 0
         })
-        self.action_generate_matrix()
         return True
     
     # 3. CÁC HÀM TIỆN ÍCH (UTILS / HELPERS)
