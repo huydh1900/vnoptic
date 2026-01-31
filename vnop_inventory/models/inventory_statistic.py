@@ -108,16 +108,42 @@ class InventoryStatistic(models.TransientModel):
         where_clause = "WHERE sq.location_id IN %(loc_ids)s"
         where_clause += " AND pt.brand_id = %(brand_id)s"
         where_clause += " AND pt.index_id = %(index_id)s"
+        # Lấy id thuộc tính SPH/CYL (có thể phải chỉnh lại tên cho đúng hệ thống)
+        attr_obj = self.env['product.attribute']
+        sph_attr = attr_obj.search([('name', 'ilike', 'SPH')], limit=1)
+        cyl_attr = attr_obj.search([('name', 'ilike', 'CYL')], limit=1)
+        if not sph_attr or not cyl_attr:
+            all_attrs = attr_obj.search([])
+            _logger.error("DANH SÁCH THUỘC TÍNH PRODUCT.ATTRIBUTE:")
+            for attr in all_attrs:
+                _logger.error(f"ATTRIBUTE: id={attr.id}, name={attr.name}")
+            raise models.ValidationError(_("Không tìm thấy thuộc tính SPH hoặc CYL trong hệ thống! Vui lòng kiểm tra log để biết tên thuộc tính thực tế."))
+
         sql_query = f"""
-            SELECT 
-                CASE WHEN pl.sph ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN CAST(pl.sph AS NUMERIC) ELSE 0 END as sph_val,
-                CASE WHEN pl.cyl ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN CAST(pl.cyl AS NUMERIC) ELSE 0 END as cyl_val,
+            SELECT
+                sph_val::numeric as sph_val,
+                cyl_val::numeric as cyl_val,
                 sq.location_id,
                 SUM(sq.quantity) as qty
             FROM stock_quant sq
             JOIN product_product pp ON sq.product_id = pp.id
             JOIN product_template pt ON pp.product_tmpl_id = pt.id
-            JOIN product_lens pl ON pl.product_tmpl_id = pt.id
+            -- Lấy giá trị thuộc tính SPH
+            LEFT JOIN (
+                SELECT pvc.product_id, pav.value_float as sph_val
+                FROM product_variant_combination pvc
+                JOIN product_template_attribute_value ptav ON pvc.product_template_attribute_value_id = ptav.id
+                JOIN product_attribute_value pav ON ptav.product_attribute_value_id = pav.id
+                WHERE pav.attribute_id = {sph_attr.id}
+            ) sph ON sph.product_id = pp.id
+            -- Lấy giá trị thuộc tính CYL
+            LEFT JOIN (
+                SELECT pvc.product_id, pav.value_float as cyl_val
+                FROM product_variant_combination pvc
+                JOIN product_template_attribute_value ptav ON pvc.product_template_attribute_value_id = ptav.id
+                JOIN product_attribute_value pav ON ptav.product_attribute_value_id = pav.id
+                WHERE pav.attribute_id = {cyl_attr.id}
+            ) cyl ON cyl.product_id = pp.id
             {where_clause}
             GROUP BY 1, 2, 3
         """
