@@ -21,7 +21,7 @@ COMMON_FIELD_MAP = {
     'Accessory': 'accessory_ids',
     'Origin_Price': 'x_or_price',
     'Currency': 'currency_zone_id',
-    'Cost_Price': 'x_ct_price',
+    'Cost_Price': 'standard_price',
     'Retail_Price': 'list_price',
     'Wholesale_Price': 'x_ws_price',
     'Wholesale_Price_Max': 'x_ws_price_max',

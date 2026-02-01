@@ -579,7 +579,7 @@ class ProductExcelImport(models.TransientModel):
         
         # Prices
         product_vals['x_or_price'] = float(row_data.get('Origin_Price', 0) or 0)
-        product_vals['x_ct_price'] = float(row_data.get('Cost_Price', 0) or 0)
+        product_vals['standard_price'] = float(row_data.get('Cost_Price', 0) or 0)
         product_vals['list_price'] = float(row_data.get('Retail_Price', 0) or 0)
         product_vals['x_ws_price'] = float(row_data.get('Wholesale_Price', 0) or 0)
         product_vals['x_ws_price_max'] = float(row_data.get('Wholesale_Price_Max', 0) or 0)
@@ -660,7 +660,7 @@ class ProductExcelImport(models.TransientModel):
         
         # Prices
         product_vals['x_or_price'] = float(row_data.get('Origin_Price', 0) or 0)
-        product_vals['x_ct_price'] = float(row_data.get('Cost_Price', 0) or 0)
+        product_vals['standard_price'] = float(row_data.get('Cost_Price', 0) or 0)
         product_vals['list_price'] = float(row_data.get('Retail_Price', 0) or 0)
         product_vals['x_ws_price'] = float(row_data.get('Wholesale_Price', 0) or 0)
         product_vals['x_ws_price_max'] = float(row_data.get('Wholesale_Price_Max', 0) or 0)

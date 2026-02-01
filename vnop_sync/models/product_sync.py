@@ -366,7 +366,6 @@ class ProductSync(models.Model):
             'x_currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
             'x_currency_zone_value': float((dto.get('currencyZoneDTO') or {}).get('value') or 0),
             'x_ws_price': float(dto.get('wsPrice') or 0),
-            'x_ct_price': float(dto.get('ctPrice') or 0),
             'x_or_price': float(dto.get('orPrice') or 0),
             'x_group_type_name': grp_type_name,
         }

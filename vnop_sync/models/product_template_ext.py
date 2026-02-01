@@ -65,17 +65,12 @@ class ProductTemplateExtension(models.Model):
     )
 
     # Note: Retail price uses standard Odoo field 'list_price'
+    # Note: Cost price (Giá vốn) uses standard Odoo field 'standard_price'
 
     x_ws_price = fields.Float(
         'Giá sỉ',
         digits='Product Price',
         help="Wholesale price"
-    )
-
-    x_ct_price = fields.Float(
-        'Giá vốn',
-        digits='Product Price',
-        help="Cost price"
     )
 
     x_or_price = fields.Float(
