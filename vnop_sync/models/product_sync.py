@@ -300,7 +300,7 @@ class ProductSync(models.Model):
                     if not gt: gt = self.env['product.group.type'].create({'name': grp_type_name})
                     g_type_id = gt.id
                 
-                ng = self.env['product.group'].create({'name': g_name, 'cid': g_cid or '', 'group_type_id': g_type_id})
+                ng = self.env['product.group'].create({'name': g_name, 'cid': g_cid or '', 'group_type_id': g_type_id, 'product_type': product_type})
                 grp_id = ng.id
                 if g_cid: cache['groups'][g_cid] = grp_id
                 cache['groups'][g_name.upper()] = grp_id

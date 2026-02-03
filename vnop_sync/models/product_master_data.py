@@ -12,6 +12,11 @@ class ProductGroup(models.Model):
     activated = fields.Boolean('Kích hoạt', default=True)
     cid = fields.Char("Mã nhóm", required=True)
     group_type_id = fields.Many2one('product.group.type', string='Loại nhóm')
+    product_type = fields.Selection([
+        ('lens', 'Tròng kính'),
+        ('opt', 'Gọng kính'),
+        ('accessory', 'Phụ kiện')
+    ], string='Phân loại nghiệp vụ', help='Nhóm này áp dụng cho loại sản phẩm nào')
 
 
 class ProductGroupType(models.Model):

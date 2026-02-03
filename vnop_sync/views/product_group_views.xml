@@ -8,6 +8,10 @@
             <list string="Nhóm sản phẩm">
                 <field name="cid"/>
                 <field name="name"/>
+                <field name="product_type" widget="badge" 
+                       decoration-info="product_type == 'lens'"
+                       decoration-success="product_type == 'opt'"
+                       decoration-warning="product_type == 'accessory'"/>
                 <field name="group_type_id"/>
                 <field name="activated"/>
             </list>
@@ -25,6 +29,7 @@
                         <group>
                             <field name="name"/>
                             <field name="cid"/>
+                            <field name="product_type" widget="radio" options="{'horizontal': true}"/>
                         </group>
                         <group>
                             <field name="group_type_id"/>
