@@ -15,10 +15,6 @@ class ProductTemplateExtension(models.Model):
         help="Commercial trade name"
     )
 
-    x_note_long = fields.Text(
-        'Mô tả chi tiết',
-        help="Detailed product description"
-    )
 
     x_uses = fields.Text(
         'Công dụng',

@@ -354,7 +354,7 @@ class ProductSync(models.Model):
             # Custom Fields (prefixed with x_)
             'x_eng_name': dto.get('engName', ''),
             'x_trade_name': dto.get('tradeName', ''),
-            'x_note_long': dto.get('note', ''),
+            'description': dto.get('note', ''),
             'x_uses': dto.get('uses', ''),
             'x_guide': dto.get('guide', ''),
             'x_warning': dto.get('warning', ''),
