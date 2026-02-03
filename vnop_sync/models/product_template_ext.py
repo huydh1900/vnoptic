@@ -89,8 +89,8 @@ class ProductTemplateExtension(models.Model):
 
 
     x_group_type_name = fields.Char(
-        'Loại nhóm sản phẩm',
-        help="Product group type classification"
+        'Loại nhóm (từ API)',
+        help="Product group type from API - for reference only"
     )
 
     # ==================== PRODUCT TYPE (for sync categorization) ====================
@@ -98,8 +98,8 @@ class ProductTemplateExtension(models.Model):
         ('lens', 'Tròng kính'),
         ('opt', 'Gọng kính'),
         ('accessory', 'Phụ kiện')
-    ], string='Loại sản phẩm', default='lens',
-       help="Product type for categorization (Lens/Optical/Accessory)"
+    ], string='Phân loại nghiệp vụ', default='lens',
+       help="Phân loại sản phẩm: Tròng kính / Gọng kính / Phụ kiện"
     )
 
     # ==================== RELATIONAL FIELDS (for sync) ====================
@@ -127,7 +127,8 @@ class ProductTemplateExtension(models.Model):
     opt_ids = fields.One2many('product.opt', 'product_tmpl_id', 'Optical Details')
 
     # ==================== ADDITIONAL FIELDS FOR VIEW ====================
-    group_id = fields.Many2one('product.group', string='Nhóm SP')
+    group_id = fields.Many2one('product.group', string='Nhóm sản phẩm (theo loại)',
+                                help='Nhóm sản phẩm - tự động lọc theo phân loại nghiệp vụ')
     index_id = fields.Many2one('product.lens.index', string='Chiết suất', 
                                 help='Lens index for code generation (lens products only)')
     auto_generate_code = fields.Boolean('Tự động tạo mã', default=True,
