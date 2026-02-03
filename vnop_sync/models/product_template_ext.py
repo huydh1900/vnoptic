@@ -48,12 +48,6 @@ class ProductTemplateExtension(models.Model):
         help="Number of accessories included"
     )
 
-    x_status_name = fields.Char(
-        'Trạng thái sản phẩm',
-        help="Current product status from API"
-    )
-
-
     x_tax_percent = fields.Float(
         'Thuế (%)',
         digits=(5, 2),

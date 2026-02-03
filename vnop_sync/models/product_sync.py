@@ -153,7 +153,7 @@ class ProductSync(models.Model):
 
     def _preload_all_data(self):
         _logger.info("📦 Pre-loading existing data...")
-        cache = {'products': {}, 'categories': {}, 'suppliers': {}, 'taxes': {}, 'groups': {}, 'groups_by_id': {}}
+        cache = {'products': {}, 'categories': {}, 'suppliers': {}, 'taxes': {}, 'groups': {}, 'groups_by_id': {}, 'statuses': {}}
         
         # Products
         for p in self.env['product.template'].search_read([('default_code', '!=', False)], ['id', 'default_code']):
@@ -171,6 +171,11 @@ class ProductSync(models.Model):
         # Taxes
         for t in self.env['account.tax'].search_read([('type_tax_use', '=', 'sale')], ['id', 'name']):
             cache['taxes'][t['name']] = t['id']
+
+        # Statuses
+        if 'product.status' in self.env:
+            for s in self.env['product.status'].search_read([], ['id', 'name']):
+                cache['statuses'][s['name'].upper()] = s['id']
 
         # Master Data Config
         MODELS = [
@@ -334,6 +339,20 @@ class ProductSync(models.Model):
                 tax_id = nt.id
                 cache['taxes'][t_name] = tax_id
 
+        # Status
+        status_id = False
+        if 'product.status' in self.env:
+            status_name = (dto.get('statusProductdto') or {}).get('name', '')
+            if status_name:
+                status_key = status_name.upper()
+                if status_key in cache['statuses']:
+                    status_id = cache['statuses'][status_key]
+                else:
+                    # Create new status if not exists
+                    ns = self.env['product.status'].create({'name': status_name})
+                    status_id = ns.id
+                    cache['statuses'][status_key] = status_id
+
         # Basic Vals
         vals = {
             'name': dto.get('fullname') or 'Unknown',
@@ -361,7 +380,7 @@ class ProductSync(models.Model):
             'x_preserve': dto.get('preserve', ''),
             'x_cid_ncc': dto.get('cidNcc', ''),
             'x_accessory_total': int(dto.get('accessoryTotal') or 0),
-            'x_status_name': (dto.get('statusProductdto') or {}).get('name', ''),
+            'status_product_id': status_id,
             'x_tax_percent': tax_pct,
             'x_currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
             'x_currency_zone_value': float((dto.get('currencyZoneDTO') or {}).get('value') or 0),

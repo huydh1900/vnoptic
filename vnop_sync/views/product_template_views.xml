@@ -28,7 +28,7 @@
                     <group>
                         <field name="x_eng_name"/>
                         <field name="x_trade_name"/>
-                        <field name="x_status_name"/>
+                        <field name="status_product_id" options="{'no_create': True}"/>
                         <field name="auto_generate_code"/>
                         <field name="default_code" readonly="auto_generate_code == True"/>
                     </group>
