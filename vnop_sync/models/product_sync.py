@@ -168,8 +168,8 @@ class ProductSync(models.Model):
         for s in self.env['res.partner'].search_read([('ref', '!=', False)], ['id', 'ref']):
             cache['suppliers'][s['ref'].upper()] = s['id']
             
-        # Taxes
-        for t in self.env['account.tax'].search_read([('type_tax_use', '=', 'sale')], ['id', 'name']):
+        # Taxes (Purchase taxes only)
+        for t in self.env['account.tax'].search_read([('type_tax_use', '=', 'purchase')], ['id', 'name']):
             cache['taxes'][t['name']] = t['id']
 
         # Statuses
@@ -327,15 +327,20 @@ class ProductSync(models.Model):
                     sup_id = sup.id
                     cache['suppliers'][s_cid.upper()] = sup_id
 
-        # Tax
+        # Tax (Purchase tax for suppliers)
         tax_pct = float(dto.get('tax') or 0)
         tax_id = False
         if tax_pct > 0:
-            t_name = f"Tax {tax_pct}%"
+            t_name = f"Thuế mua hàng {tax_pct}%"
             if t_name in cache['taxes']:
                 tax_id = cache['taxes'][t_name]
             else:
-                nt = self.env['account.tax'].create({'name': t_name, 'amount': tax_pct, 'amount_type': 'percent', 'type_tax_use': 'sale'})
+                nt = self.env['account.tax'].create({
+                    'name': t_name, 
+                    'amount': tax_pct, 
+                    'amount_type': 'percent', 
+                    'type_tax_use': 'purchase'
+                })
                 tax_id = nt.id
                 cache['taxes'][t_name] = tax_id
 
@@ -363,7 +368,7 @@ class ProductSync(models.Model):
             'uom_po_id': self.env.ref('uom.product_uom_unit').id,
             'list_price': float(dto.get('rtPrice') or 0),
             'standard_price': float(dto.get('orPrice') or 0),
-            'taxes_id': [(6, 0, [tax_id])] if tax_id else False,
+            'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else False,
             'product_type': product_type,
             'brand_id': self._get_or_create(cache, 'brands', 'product.brand', dto.get('tmdto')),
             'supplier_id': sup_id,
@@ -381,7 +386,6 @@ class ProductSync(models.Model):
             'x_cid_ncc': dto.get('cidNcc', ''),
             'x_accessory_total': int(dto.get('accessoryTotal') or 0),
             'status_product_id': status_id,
-            'x_tax_percent': tax_pct,
             'x_currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
             'x_currency_zone_value': float((dto.get('currencyZoneDTO') or {}).get('value') or 0),
             'x_ws_price': float(dto.get('wsPrice') or 0),

@@ -48,12 +48,6 @@ class ProductTemplateExtension(models.Model):
         help="Number of accessories included"
     )
 
-    x_tax_percent = fields.Float(
-        'Thuế (%)',
-        digits=(5, 2),
-        help="Tax rate percentage"
-    )
-
     # Note: Retail price uses standard Odoo field 'list_price'
     # Note: Cost price (Giá vốn) uses standard Odoo field 'standard_price'
 
