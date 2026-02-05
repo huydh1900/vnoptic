@@ -13,7 +13,7 @@ COMMON_FIELD_MAP = {
     'TradeName': 'x_trade_name',
     'Unit': 'unit',
     'TradeMark': 'brand_id',
-    'Supplier': 'supplier_id',
+    # Note: 'Supplier' will be handled via seller_ids (Odoo standard) in import logic
     'Country': 'country_id',
     'Supplier_Warranty': 'supplier_warranty_id',
     'Warranty': 'warranty_id',

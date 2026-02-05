@@ -112,11 +112,8 @@ class ProductTemplateExtension(models.Model):
         'product.warranty', 'Bảo hành',
         help="Product warranty"
     )
-    supplier_id = fields.Many2one(
-        'res.partner', 'Nhà cung cấp',
-        domain=[('supplier_rank', '>', 0)],
-        help="Product supplier"
-    )
+    # Note: Supplier management uses standard Odoo field 'seller_ids' (One2many to product.supplierinfo)
+    # This allows managing multiple suppliers with prices and conditions per supplier
     country_id = fields.Many2one(
         'product.country', 'Xuất xứ',
         help="Country of origin for the product"
@@ -177,6 +174,19 @@ class ProductTemplateExtension(models.Model):
                 record.opt_color = ''
                 record.opt_frame_type = ''
                 record.opt_shape = ''
+
+    # ==================== COMPUTED FIELD FOR PRIMARY SUPPLIER ====================
+    primary_supplier_id = fields.Many2one('res.partner', string='Nhà cung cấp chính', 
+                                           compute='_compute_primary_supplier', store=False, readonly=True,
+                                           help='Nhà cung cấp chính (lấy từ seller_ids đầu tiên)')
+    
+    @api.depends('seller_ids', 'seller_ids.partner_id')
+    def _compute_primary_supplier(self):
+        for record in self:
+            if record.seller_ids:
+                record.primary_supplier_id = record.seller_ids[0].partner_id
+            else:
+                record.primary_supplier_id = False
 
     # ==================== PRODUCT CREATION LOGIC ====================
     @api.model

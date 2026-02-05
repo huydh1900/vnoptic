@@ -557,10 +557,16 @@ class ProductExcelImport(models.TransientModel):
             product_vals['brand_id'] = brand.id
         
         # Optional foreign keys
+        # Supplier - use seller_ids (Odoo standard)
         if row_data.get('Supplier'):
             supplier = cache.get_supplier(row_data['Supplier'])
             if supplier:
-                product_vals['supplier_id'] = supplier.id
+                product_vals['seller_ids'] = [(0, 0, {
+                    'partner_id': supplier.id,
+                    'price': float(row_data.get('Origin_Price', 0) or 0),
+                    'min_qty': 1.0,
+                    'delay': 1,
+                })]
         
         if row_data.get('Country'):
             country = cache.get_country(row_data['Country'])

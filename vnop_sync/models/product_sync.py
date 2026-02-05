@@ -306,26 +306,33 @@ class ProductSync(models.Model):
                 cache['groups'][g_name.upper()] = grp_id
                 cache['groups_by_id'][grp_id] = grp_id
 
-        # Supplier Logic
-        sup_id = False
-        s_details = dto.get('supplierdtos', {}).get('supplierDetailDTOS', [])
-        # Fix: dto.get('supplierdtos') might be wrong key based on prev code 'supplierdto'
-        # Previous code: supplierdto = productdto.get('supplierdto')
+        # Supplier Logic - Using seller_ids (Odoo standard)
+        seller_vals = []
         s_dto = dto.get('supplierdto') or {}
         s_details = s_dto.get('supplierDetailDTOS', [])
         if s_details:
             s_det = s_details[0]
             s_cid, s_name = s_det.get('cid'), s_det.get('name')
             if s_cid and s_name:
+                sup_id = False
                 if s_cid.upper() in cache['suppliers']:
                      sup_id = cache['suppliers'][s_cid.upper()]
                 else:
                     sup = self.env['res.partner'].create({
-                        'name': s_name, 'ref': s_cid, 'is_company': True,
+                        'name': s_name, 'ref': s_cid, 'is_company': True, 'supplier_rank': 1,
                         'phone': s_det.get('phone', ''), 'email': s_det.get('mail', ''), 'street': s_det.get('address', '')
                     })
                     sup_id = sup.id
                     cache['suppliers'][s_cid.upper()] = sup_id
+                
+                # Prepare seller_ids values (will be added to product)
+                if sup_id:
+                    seller_vals.append((0, 0, {
+                        'partner_id': sup_id,
+                        'price': float(dto.get('orPrice') or 0),  # Supplier price
+                        'min_qty': 1.0,
+                        'delay': 1,
+                    }))
 
         # Tax (Purchase tax for suppliers)
         tax_pct = float(dto.get('tax') or 0)
@@ -369,9 +376,9 @@ class ProductSync(models.Model):
             'list_price': float(dto.get('rtPrice') or 0),
             'standard_price': float(dto.get('orPrice') or 0),
             'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else False,
+            'seller_ids': seller_vals if seller_vals else False,
             'product_type': product_type,
             'brand_id': self._get_or_create(cache, 'brands', 'product.brand', dto.get('tmdto')),
-            'supplier_id': sup_id,
             'country_id': self._get_or_create(cache, 'countries', 'product.country', dto.get('codto')),
             'warranty_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantydto')),
             'group_id': grp_id,
