@@ -13,7 +13,7 @@
                 <!-- Common fields -->
                 <field name="brand_id" optional="show"/>
                 <field name="group_id" optional="show"/>
-                <field name="supplier_id" optional="hide"/>
+                <field name="primary_supplier_id" optional="hide"/>
                 <field name="country_id" optional="hide"/>
                 
                 <!-- Price fields -->
