@@ -4,10 +4,11 @@
         <field name="model">delivery.schedule</field>
         <field name="arch" type="xml">
             <list string="Lịch giao hàng">
+                <field name="bill_number"/>
+                <field name="contract_id"/>
+                <field name="partner_id"/>
                 <field name="delivery_datetime"/>
                 <field name="purchase_ids" widget="many2many_tags"/>
-                <field name="partner_id"/>
-                <field name="bill_number"/>
                 <field name="declaration_date"/>
                 <field name="declaration_number"/>
                 <field name="total_declaration_amount"/>
@@ -27,23 +28,31 @@
         <field name="arch" type="xml">
             <form string="Lịch giao hàng">
                 <header>
-                    <button name="action_confirm_arrival"
+                    <button name="action_confirmed"
                             type="object"
                             string="Xác nhận hàng về"
+                            invisible="state != 'draft'"
                             class="oe_highlight"/>
+                    <button name="action_create_receipt"
+                            type="object"
+                            string="Tạo phiếu nhập kho tạm"
+                            invisible="state != 'confirmed' or picking_ids"
+                            class="oe_highlight"
+                            icon="fa-sign-in"/>
 
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_purchase_orders" type="object"
-                                icon="fa-list-alt"
-                                string="Đơn mua hàng" invisible="not purchase_ids"/>
+                        <button name="action_view_contract" type="object"
+                                icon="fa-file-text-o"
+                                string="Hợp đồng" invisible="not contract_id"/>
                         <button name="action_view_pickings" type="object"
-                                icon="fa-list-alt"
-                                string="Phiếu nhập kho" invisible="not purchase_ids"/>
+                                icon="fa-truck"
+                                invisible="not purchase_ids or state == 'draft'">
+                            <field name="picking_count" widget="statinfo" string="Phiếu nhập kho"/>
+                        </button>
                     </div>
-
 
                     <div class="oe_title">
                         <label for="bill_number" string="Số vận đơn"/>
@@ -57,12 +66,12 @@
                             <field name="partner_id"
                                    domain="[('supplier_rank','>',0)]" options="{'no_create': True}"
                                    readonly="context.get('from_purchase')"/>
+                            <field name="partner_ref"/>
+                            <field name="contract_id"
+                                   domain="[('partner_id', '=', partner_id), ('state', '=', 'approved')]"
+                                   options="{'no_create': True}"/>
                             <field name="purchase_ids"
-                                   placeholder="VD: PO0001, PO0002"
-                                   widget="many2many_tags"
-                                   options="{'no_open': True, 'no_create': True}"
-                                   domain="[('partner_id','=',partner_id)]"
-                                   readonly="partner_id == False or context.get('from_purchase')"/>
+                                   widget="many2many_tags"/>
                             <field name="delivery_datetime"/>
                             <field name="description" placeholder="Nhập ghi chú nội bộ hoặc hướng dẫn giao hàng..."/>
                             <field name="create_uid" readonly="1" string="Người tạo" options='{"no_open": True}'/>
@@ -100,10 +109,22 @@
         </field>
     </record>
 
+    <record id="delivery_schedule_view_calendar" model="ir.ui.view">
+        <field name="name">delivery.schedule.view.calendar</field>
+        <field name="model">delivery.schedule</field>
+        <field name="arch" type="xml">
+            <calendar date_start="delivery_datetime" color="state">
+                <field name="bill_number"/>
+                <field name="partner_id"/>
+            </calendar>
+        </field>
+    </record>
+
+
     <record id="action_delivery_schedule" model="ir.actions.act_window">
         <field name="name">Lịch giao hàng</field>
         <field name="res_model">delivery.schedule</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">list,form,calendar</field>
     </record>
 
     <menuitem id="menu_delivery_schedule"

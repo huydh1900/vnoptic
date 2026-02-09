@@ -1,0 +1,6 @@
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_move__product_uom_qty
+#: model_terms:ir.ui.view,arch_db:stock.view_picking_form
+#: model_terms:ir.ui.view,arch_db:stock.view_picking_move_tree
+msgid "Demand"
+msgstr "SL hợp đồng"

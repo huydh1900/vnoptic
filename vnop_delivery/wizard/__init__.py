@@ -1,3 +1,3 @@
 # -*- coding: utf-8 -*-
 
-from . import otk_receipt_wizard
+from . import otk_wizard

@@ -81,15 +81,6 @@
             <xpath expr="//field[@name='date_order']" position="before">
                 <field name="approver_id" readonly="state != 'draft'" options="{'no_create': True}"/>
             </xpath>
-            <xpath expr="//button[@name='action_bill_matching']" position="before">
-                <button name="action_view_delivery_schedule"
-                        type="object"
-                        string="Lịch giao hàng"
-                        invisible="state != 'purchase'"
-                        icon="fa-plane">
-                    <field name="count_delivery_schedule" widget="statinfo" string="Lịch giao hàng"/>
-                </button>
-            </xpath>
             <!--            <xpath expr="//button[@name='button_done']" position="attributes">-->
             <!--                <attribute name="invisible">1</attribute>-->
             <!--            </xpath>-->

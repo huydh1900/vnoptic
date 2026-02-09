@@ -1,0 +1,17 @@
+<odoo>
+    <record id="stock_picking_form_inherit_otk" model="ir.ui.view">
+        <field name="name">stock.picking.form.otk</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form/header" position="inside">
+                <button name="action_otk"
+                        type="object"
+                        string="Thực hiện OTK"
+                        class="btn-primary"
+                        invisible="state != 'done'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
+        <!--or picking_type_id.name != 'Phiếu nhập kho tạm'-->

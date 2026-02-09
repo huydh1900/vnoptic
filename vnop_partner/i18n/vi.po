@@ -4,4 +4,4 @@
 #: model:ir.model.fields,field_description:base.field_res_users__ref
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 msgid "Reference"
-msgstr "Mã khách hàng"
+msgstr "Mã NCC"
