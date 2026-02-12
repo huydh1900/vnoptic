@@ -24,7 +24,6 @@ class PurchaseOrder(models.Model):
 
     count_delivery_schedule = fields.Integer(compute='_compute_count_delivery_schedule')
 
-    import_contract_id = fields.Many2one('import.contract', string='Hợp đồng nhập khẩu')
 
     def action_rfq_send(self):
         for order in self:

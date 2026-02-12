@@ -71,7 +71,8 @@
                             invisible="state == 'cancel'"
                             confirm="Bạn có chắc chắn muốn hủy hợp đồng này không?"/>
 
-                    <field name="state" widget="statusbar" statusbar_visible="draft,waiting,approved,revision_requested,cancel"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,waiting,approved,revision_requested,cancel"/>
                 </header>
 
                 <sheet>
@@ -130,29 +131,35 @@
                     </group>
 
                     <notebook>
-                        <page string="Sản phẩm">
-                            <field name="line_ids" readonly="state in ('approved','revision_requested','cancel')">
-                                <list editable="bottom">
-                                    <field name="product_id"/>
-                                    <field name="product_qty"/>
-                                    <field name="qty_contract"/>
-                                    <field name="uom_id"/>
-                                    <field name="price_unit"/>
-                                    <field name="amount_total" widget="monetary"/>
-                                    <field name="currency_id" column_invisible="1"/>
-                                    <!--                                    <field name="price_subtotal"/>-->
-                                </list>
-                            </field>
-                        </page>
-
                         <page string="Đơn mua hàng">
-                            <field name="purchase_order_ids" readonly="state in ('approved','revision_requested','cancel')">
+                            <field name="purchase_order_ids" domain="[('state', '=', 'purchase')]"
+                                   readonly="state in ('approved','revision_requested','cancel')">
                                 <list delete="0" create="0">
                                     <field name="name" readonly="1"/>
-                                    <field name="date_order" readonly="1"/>
+                                    <field name="date_order" readonly="1" string="Ngày hàng về dự kiến"/>
                                     <field name="state" readonly="1"/>
                                     <field name="currency_id" column_invisible="1"/>
                                     <field name="amount_total" sum="Total amount" widget="monetary"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Sản phẩm">
+                            <field name="line_ids" readonly="state in ('approved','revision_requested','cancel')">
+                                <list editable="bottom" delete="0" create="0">
+                                    <field name="purchase_id" readonly="1" force_save="1"/>
+                                    <field name="product_id" readonly="1" force_save="1"/>
+                                    <field name="product_qty" readonly="1" force_save="1" sum="Tổng SL đặt hàng"/>
+                                    <field name="qty_contract"
+                                           sum="Tổng SL theo hợp đồng"
+                                           decoration-danger="product_qty > qty_contract"
+                                           decoration-success="qty_contract == product_qty"/>
+                                    <field name="qty_remaining" force_save="1" readonly="1"
+                                           decoration-danger="qty_remaining > 0"
+                                           sum="Tổng SL còn lại"/>
+                                    <field name="price_unit" force_save="1" readonly="1"/>
+                                    <field name="amount_total" widget="monetary" readonly="1" force_save="1"
+                                           sum="Tổng giá trị"/>
+                                    <field name="currency_id" column_invisible="1"/>
                                 </list>
                             </field>
                         </page>

@@ -10,7 +10,7 @@ class DeliverySchedule(models.Model):
     _description = 'Lịch giao hàng'
 
     name = fields.Char(string='Đợt giao')
-    delivery_datetime = fields.Datetime(
+    delivery_datetime = fields.Date(
         string='Thời gian giao hàng',
         required=True,
         tracking=True

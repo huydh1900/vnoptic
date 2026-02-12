@@ -27,8 +27,8 @@ class Contract(models.Model):
         [
             ("draft", "Nháp"),
             ("waiting", "Chờ duyệt"),
-            ("approved", "Đã duyệt"),
             ("revision_requested", "Yêu cầu chỉnh sửa"),
+            ("approved", "Đã duyệt"),
             ("cancel", "Hủy"),
         ],
         string="Trạng thái",
