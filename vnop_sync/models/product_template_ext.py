@@ -167,18 +167,25 @@ class ProductTemplateExtension(models.Model):
     opt_frame_type = fields.Char('Frame Type', compute='_compute_opt_info', store=False, readonly=True)
     opt_shape = fields.Char('Shape', compute='_compute_opt_info', store=False, readonly=True)
     
-    @api.depends('lens_ids', 'lens_ids.sph', 'lens_ids.cyl', 'lens_ids.index_id', 'lens_ids.len_add', 'product_type')
+    @api.depends('lens_ids', 'lens_ids.sph_id', 'lens_ids.cyl_id', 'lens_ids.index_id', 'lens_ids.lens_add', 'product_type')
     def _compute_lens_info(self):
         for record in self:
-            if record.product_type == 'lens' and record.lens_ids:
+            sph = ""
+            cyl = ""
+            if record.lens_ids:
                 lens = record.lens_ids[0]
-                record.lens_sph = lens.sph or ''
-                record.lens_cyl = lens.cyl or ''
+                if lens.sph_id:
+                    sph = lens.sph_id.name
+                if lens.cyl_id:
+                    cyl = lens.cyl_id.name
+            record.lens_sph = sph
+            record.lens_cyl = cyl
+            # The following fields are not updated in the provided snippet, retaining original logic for them
+            if record.product_type == 'lens' and record.lens_ids:
+                lens = record.lens_ids[0] # Re-assign lens for index_id and len_add
                 record.lens_index_name = lens.index_id.name if lens.index_id else ''
-                record.lens_add = lens.len_add or ''
+                record.lens_add = lens.lens_add or ''
             else:
-                record.lens_sph = ''
-                record.lens_cyl = ''
                 record.lens_index_name = ''
                 record.lens_add = ''
     
