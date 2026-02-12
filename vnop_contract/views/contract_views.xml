@@ -51,6 +51,18 @@
                             class="btn-primary"
                             invisible="state != 'draft'"/>
 
+                    <button name="action_request_revision"
+                            type="object"
+                            string="Yêu cầu chỉnh sửa"
+                            class="btn-secondary"
+                            invisible="state != 'approved'"/>
+
+                    <button name="action_allow_revision"
+                            type="object"
+                            string="Cho phép chỉnh sửa"
+                            class="oe_highlight"
+                            invisible="state != 'revision_requested'"/>
+
 
                     <button name="action_cancel"
                             type="object"
@@ -59,7 +71,7 @@
                             invisible="state == 'cancel'"
                             confirm="Bạn có chắc chắn muốn hủy hợp đồng này không?"/>
 
-                    <field name="state" widget="statusbar" statusbar_visible="draft,waiting,approved,cancel"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,waiting,approved,revision_requested,cancel"/>
                 </header>
 
                 <sheet>
@@ -119,7 +131,7 @@
 
                     <notebook>
                         <page string="Sản phẩm">
-                            <field name="line_ids" readonly="state in ('approved','cancel')">
+                            <field name="line_ids" readonly="state in ('approved','revision_requested','cancel')">
                                 <list editable="bottom">
                                     <field name="product_id"/>
                                     <field name="product_qty"/>
@@ -134,7 +146,7 @@
                         </page>
 
                         <page string="Đơn mua hàng">
-                            <field name="purchase_order_ids" readonly="state in ('approved','cancel')">
+                            <field name="purchase_order_ids" readonly="state in ('approved','revision_requested','cancel')">
                                 <list delete="0" create="0">
                                     <field name="name" readonly="1"/>
                                     <field name="date_order" readonly="1"/>

@@ -28,6 +28,7 @@ class Contract(models.Model):
             ("draft", "Nháp"),
             ("waiting", "Chờ duyệt"),
             ("approved", "Đã duyệt"),
+            ("revision_requested", "Yêu cầu chỉnh sửa"),
             ("cancel", "Hủy"),
         ],
         string="Trạng thái",
@@ -192,6 +193,18 @@ class Contract(models.Model):
         for rec in self:
             rec.write({"state": "cancel"})
 
+    def action_request_revision(self):
+        for rec in self:
+            if rec.state != 'approved':
+                continue
+            rec.write({'state': 'revision_requested'})
+
+    def action_allow_revision(self):
+        for rec in self:
+            if rec.state != 'revision_requested':
+                continue
+            rec.write({'state': 'draft'})
+
 
     def action_submit(self):
         for rec in self:
@@ -205,33 +218,26 @@ class Contract(models.Model):
         self.purchase_order_ids = [(5, 0, 0)]
         self.line_ids = [(5, 0, 0)]
 
-    # @api.onchange("purchase_order_ids")
-    # def _onchange_purchase_order_ids_build_product_lines(self):
-    #     """
-    #     Chọn PO A -> đổ line của PO A (1-1 theo từng order_line)
-    #     Thêm PO B -> append thêm line, KHÔNG cộng dồn
-    #     Bỏ PO -> rebuild lại theo danh sách PO hiện tại
-    #     """
-    #     for contract in self:
-    #         commands = [(5, 0, 0)]  # clear
-    #
-    #         for po in contract.purchase_order_ids:
-    #             for line in po.order_line:
-    #                 if not line.product_id or line.display_type:
-    #                     continue
-    #
-    #                 qty = line.product_qty
-    #                 price_unit = line.price_unit
-    #                 subtotal = line.price_subtotal
-    #
-    #                 commands.append((0, 0, {
-    #                     "product_id": line.product_id.id,
-    #                     "product_uom": line.product_uom.id,
-    #                     "product_qty": qty,
-    #                     "price_unit": price_unit,
-    #                     "amount_total": subtotal,
-    #                     'purchase_id': po.id,
-    #
-    #                 }))
-    #
-    #         contract.line_ids = commands
+    @api.onchange("purchase_order_ids")
+    def _onchange_purchase_order_ids_build_product_lines(self):
+        """Tự động nạp dòng sản phẩm từ PO đã chọn vào hợp đồng."""
+        for contract in self:
+            line_commands = [(5, 0, 0)]
+
+            for po in contract.purchase_order_ids:
+                for line in po.order_line:
+                    if not line.product_id or line.display_type:
+                        continue
+
+                    line_commands.append((0, 0, {
+                        "product_id": line.product_id.id,
+                        "uom_id": line.product_uom.id,
+                        "currency_id": po.currency_id.id,
+                        "product_qty": line.product_qty,
+                        "qty_contract": line.product_qty,
+                        "price_unit": line.price_unit,
+                        "amount_total": line.price_subtotal,
+                        "purchase_id": po.id,
+                    }))
+
+            contract.line_ids = line_commands

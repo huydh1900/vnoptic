@@ -1,5 +1,4 @@
 from odoo import models, fields, api
-from odoo.exceptions import UserError
 from odoo.exceptions import ValidationError
 
 
@@ -17,10 +16,11 @@ class OTKWizard(models.TransientModel):
 
         lines = []
         for move in picking.move_ids_without_package:
-            qty_done = sum(move.move_line_ids.mapped('quantity'))
             lines.append((0, 0, {
                 'product_id': move.product_id.id,
-                'qty_contract': qty_done,
+                'qty_contract': move.product_uom_qty,
+                'qty_received': move.quantity,
+                'qty_ok': move.quantity,
             }))
 
         res['line_ids'] = lines
@@ -28,6 +28,8 @@ class OTKWizard(models.TransientModel):
 
     def action_confirm_otk(self):
         self.ensure_one()
+
+        self._mark_po_need_revision()
 
         kho_chinh = self.env['stock.location'].search([('name', '=', 'Kho chính')], limit=1)
         kho_loi = self.env['stock.location'].search([('name', '=', 'Kho lỗi')], limit=1)
@@ -38,6 +40,41 @@ class OTKWizard(models.TransientModel):
 
             if line.qty_ng > 0:
                 self._create_transfer(line.product_id, line.qty_ng, kho_loi)
+
+    def _mark_po_need_revision(self):
+        """Đánh dấu PO cần chỉnh sửa khi OTK lệch so với kế hoạch nhận."""
+        self.ensure_one()
+
+        expected_qty = {
+            move.product_id.id: move.product_uom_qty
+            for move in self.picking_id.move_ids_without_package
+            if move.product_id
+        }
+
+        has_mismatch = False
+        for line in self.line_ids:
+            planned_qty = expected_qty.get(line.product_id.id, 0)
+            if line.product_id.id not in expected_qty or line.qty_received != planned_qty:
+                has_mismatch = True
+                break
+
+        if not has_mismatch:
+            return
+
+        purchase_orders = self.picking_id.delivery_schedule_id.contract_id.purchase_order_ids
+        if not purchase_orders:
+            return
+
+        if hasattr(purchase_orders, 'action_need_revision'):
+            purchase_orders.action_need_revision()
+        else:
+            purchase_orders.write({'state': 'need_revision'})
+
+        for order in purchase_orders:
+            order.message_post(body=(
+                "OTK phát hiện lệch số lượng/chủng loại so với kế hoạch nhận hàng. "
+                "Vui lòng chỉnh sửa đơn mua hàng và gửi duyệt lại."
+            ))
 
     def _create_transfer(self, product, qty, dest):
         picking = self.env['stock.picking'].create({
