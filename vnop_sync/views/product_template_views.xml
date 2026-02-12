@@ -44,18 +44,17 @@
                       invisible="not is_lens">
                     <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}">
                         <list editable="bottom" create="1" delete="1">
-                            <field name="sph_id" options="{'no_create': True}" optional="show"/>
-                            <field name="cyl_id" options="{'no_create': True}" optional="show"/>
-                            <field name="axis" optional="show"/>
-                            <field name="lens_add" optional="show"/>
-                            <field name="diameter" optional="show"/>
-                            <field name="base_curve" optional="hide"/>
-                            <field name="design_id" options="{'no_create': True}" optional="show"/>
-                            <field name="index_id" options="{'no_create': True}" optional="show"/>
-                            <field name="material_id" options="{'no_create': True}" optional="show"/>
-                            <field name="feature_ids" widget="many2many_tags" options="{'no_create': True}" optional="show"/>
-                            
-                            <field name="prism" optional="hide"/>
+                            <field name="sph_id" string="SPH" options="{'no_create': True}" optional="show"/>
+                            <field name="cyl_id" string="CYL" options="{'no_create': True}" optional="show"/>
+                            <field name="axis" string="Axis" optional="show"/>
+                            <field name="lens_add" string="Lens Add" optional="show"/>
+                            <field name="diameter" string="Diameter" optional="show"/>
+                            <field name="base_curve" string="Base" optional="hide"/>
+                            <field name="design_id" string="Thiết kế" options="{'no_create': True}" optional="show"/>
+                            <field name="index_id" string="Chiết suất" options="{'no_create': True}" optional="show"/>
+                            <field name="material_id" string="Chất liệu" options="{'no_create': True}" optional="show"/>
+                            <field name="feature_ids" string="Tích hợp/Coating" widget="many2many_tags" options="{'no_create': True}" optional="show"/>
+                            <field name="prism" string="Prism" optional="hide"/>
                         </list>
                         <form>
                             <sheet>
@@ -70,10 +69,10 @@
                                         <field name="prism"/>
                                     </group>
                                     <group string="Thiết kế, Chiết suất &amp; Chất liệu">
-                                        <field name="design_id" options="{'no_create': True}"/>
-                                        <field name="index_id" options="{'no_create': True}"/>
-                                        <field name="material_id" options="{'no_create': True}"/>
-                                        <field name="feature_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                                        <field name="design_id" string="Thiết kế" options="{'no_create': True}"/>
+                                        <field name="index_id" string="Chiết suất" options="{'no_create': True}"/>
+                                        <field name="material_id" string="Chất liệu" options="{'no_create': True}"/>
+                                        <field name="feature_ids" string="Tích hợp/Coating" widget="many2many_tags" options="{'no_create': True}"/>
                                     </group>
                                 </group>
                             </sheet>
