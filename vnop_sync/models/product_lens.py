@@ -36,6 +36,9 @@ class ProductLens(models.Model):
         'product.lens.feature', 'lens_feature_rel', 
         'lens_id', 'feature_id', string='Features & Coatings'
     )
+
+    # 9. Lens Index (Chiết suất)
+    index_id = fields.Many2one('product.lens.index', string='Chiết suất')
     
     # Helper fields for display/search if needed
     corridor = fields.Char('Corridor', size=50) # Keep specialized params
