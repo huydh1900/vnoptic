@@ -78,14 +78,6 @@
                         </form>
                     </field>
                 </page>
-                            <field name="cl_hmc_id" options="{'no_create': True}"/>
-                            <field name="cl_tint_id" options="{'no_create': True}"/>
-                            <field name="color_int"/>
-                            <field name="mir_coating"/>
-                            <field name="coating_ids" widget="many2many_tags" options="{'no_create': True}"/>
-                        </list>
-                    </field>
-                </page>
                 
                 <!-- Tab: Optical Info (only visible when product_type = opt) -->
                 <page string="Thông tin Gọng" name="product_opt_info"
