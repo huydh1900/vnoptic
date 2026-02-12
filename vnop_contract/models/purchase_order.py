@@ -7,7 +7,7 @@ class PurchaseOrder(models.Model):
 
     contract_id = fields.Many2one(
         "contract",
-        string="Framework Contract",
+        string="Hợp đồng khung",
         copy=False,
         index=True,
     )
@@ -37,4 +37,3 @@ class PurchaseOrder(models.Model):
             "res_id": self.id,
             "target": "current",
         }
-

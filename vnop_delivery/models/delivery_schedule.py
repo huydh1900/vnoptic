@@ -87,7 +87,7 @@ class DeliverySchedule(models.Model):
 
     picking_count = fields.Integer(compute='_compute_picking_count')
 
-    color = fields.Integer(string="Color", compute="_compute_color", store=True)
+    color = fields.Integer(string="Màu", compute="_compute_color", store=True)
 
     _sql_constraints = [
         (
