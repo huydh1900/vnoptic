@@ -20,9 +20,7 @@
                 <group string="Phân loại sản phẩm">
                     <group>
                         <field name="categ_id" string="Danh mục sản phẩm" options="{'no_create': True}"/>
-                        <field name="group_id" options="{'no_create': True}" 
-                               domain="[('product_type', '=', product_type)]" 
-                               context="{'default_product_type': product_type}"/>
+                        <field name="group_id" invisible="1"/>
                         <field name="brand_id"/>
                         <field name="warranty_id" options="{'no_create': True}"/>
                         <field name="index_id" options="{'no_create': True}" 

@@ -2,6 +2,14 @@
 from odoo import models, fields, api
 
 
+class ProductCategory(models.Model):
+    """Extend product.category to add code field for product code generation"""
+    _inherit = 'product.category'
+    
+    code = fields.Char('Mã danh mục', size=2, index=True,
+                       help='Mã 2 số dùng cho tạo mã sản phẩm (VD: 06=Tròng kính, 27=Gọng kính, 20=Phụ kiện)')
+
+
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
 
@@ -193,15 +201,15 @@ class ProductTemplateExtension(models.Model):
     def create(self, vals):
         # Auto-generate product code if enabled and not provided
         if vals.get('auto_generate_code', True) and not vals.get('default_code'):
-            group_id = vals.get('group_id')
+            categ_id = vals.get('categ_id')  # Changed from group_id
             brand_id = vals.get('brand_id')
             index_id = vals.get('index_id')  # For lens products
             
-            if group_id and brand_id:
+            if categ_id and brand_id:  # Changed from group_id
                 from ..utils import product_code_utils
                 try:
                     code = product_code_utils.generate_product_code(
-                        self.env, group_id, brand_id, index_id
+                        self.env, categ_id, brand_id, index_id  # Changed from group_id
                     )
                     vals['default_code'] = code
                 except Exception as e:

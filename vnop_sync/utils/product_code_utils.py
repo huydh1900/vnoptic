@@ -23,15 +23,51 @@ _logger = logging.getLogger(__name__)
 
 SEQUENCE_CODE_PREFIX = "vnop_product"
 
-def _get_prefix_components(env, group_id, brand_id, lens_index_id, lens_index_cache=None):
-    """Helper to consistency generate prefix string"""
-    # Group Part
-    group_part = f"{group_id:02d}" if group_id else "00"
+
+def _base36_encode(number):
+    """
+    Convert integer to Base36 string (0-9, A-Z)
+    Used to match RS system format: 000BL, 000N1, etc.
+    """
+    if number == 0:
+        return '00000'
     
-    # Brand Part
-    brand_part = f"{brand_id:03d}" if brand_id else "000"
+    chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    result = ''
+    while number:
+        result = chars[number % 36] + result
+        number //= 36
+    return result.rjust(5, '0')
+
+
+def _get_prefix_components(env, categ_id, brand_id, lens_index_id, lens_index_cache=None):
+    """
+    Helper to generate prefix string from category, brand, and lens index
     
-    # Index Part
+    Returns: (categ_part, brand_part, index_part)
+    - categ_part: 2 digits from category.code (e.g., '06', '27', '20')
+    - brand_part: 3 digits from brand.code or brand.id (e.g., '003', '004')
+    - index_part: 3 digits from lens_index.cid (e.g., '167')
+    """
+    # Category Part (2 digits)
+    categ_part = '00'
+    if categ_id:
+        category = env['product.category'].browse(categ_id)
+        if category.code:
+            categ_part = category.code[:2].ljust(2, '0')
+    
+    # Brand Part (3 digits)
+    brand_part = '000'
+    if brand_id:
+        brand = env['product.brand'].browse(brand_id)
+        if brand.code:
+            # Use brand.code if available
+            brand_part = brand.code[:3].zfill(3)
+        else:
+            # Fallback to brand ID
+            brand_part = f"{brand_id:03d}"
+    
+    # Index Part (3 digits) - only for lens products
     index_part = "000"
     if lens_index_id:
         if lens_index_cache and lens_index_id in lens_index_cache:
@@ -41,7 +77,7 @@ def _get_prefix_components(env, group_id, brand_id, lens_index_id, lens_index_ca
             cid = lens_index.cid if lens_index and lens_index.cid else "000"
         index_part = cid[:3].ljust(3, '0')
     
-    return group_part, brand_part, index_part
+    return categ_part, brand_part, index_part
 
 def _ensure_sequence_exists(env, prefix):
     """
@@ -93,18 +129,30 @@ def _ensure_sequence_exists(env, prefix):
         'company_id': False,
     })
 
-def generate_product_code(env, group_id, brand_id, lens_index_id):
+def generate_product_code(env, categ_id, brand_id, lens_index_id):
     """
-    Generate a single product code using standard numeric ir.sequence
+    Generate a single product code using Base36 encoded sequence
+    
+    Args:
+        categ_id: product.category ID
+        brand_id: product.brand ID  
+        lens_index_id: product.lens.index ID (optional, only for lens)
+    
+    Returns:
+        13-character product code (e.g., '06004167000BL')
     """
-    group_part, brand_part, index_part = _get_prefix_components(env, group_id, brand_id, lens_index_id)
-    prefix = f"{group_part}{brand_part}{index_part}"
+    categ_part, brand_part, index_part = _get_prefix_components(env, categ_id, brand_id, lens_index_id)
+    prefix = f"{categ_part}{brand_part}{index_part}"
     
     sequence = _ensure_sequence_exists(env, prefix)
     
-    # sequence.next_by_id() returns the formatted string (e.g., '00001')
-    # because we set prefix='', padding=5
-    seq_suffix = sequence.next_by_id()
+    # Get next number from sequence (returns formatted string like '00001')
+    # We need to extract the integer value
+    seq_str = sequence.next_by_id()
+    seq_number = int(seq_str) if seq_str.isdigit() else 1
+    
+    # Convert to Base36 (matches RS format: 000BL, 000N1, etc.)
+    seq_suffix = _base36_encode(seq_number)
     
     final_code = f"{prefix}{seq_suffix}"
     _logger.info(f"Generated product code {final_code}")
@@ -114,7 +162,7 @@ def generate_product_code(env, group_id, brand_id, lens_index_id):
 def generate_product_codes_batch(env, code_requests):
     """
     Generate product codes for multiple products at once.
-    code_requests: list of tuples (group_id, brand_id, lens_index_id)
+    code_requests: list of tuples (categ_id, brand_id, lens_index_id)
     """
     if not code_requests:
         return []
@@ -129,9 +177,9 @@ def generate_product_codes_batch(env, code_requests):
     
     # 1. Prepare all prefixes
     prefixes = []
-    for group_id, brand_id, lens_index_id in code_requests:
-        g, b, i = _get_prefix_components(env, group_id, brand_id, lens_index_id, lens_index_cache)
-        prefixes.append(f"{g}{b}{i}")
+    for categ_id, brand_id, lens_index_id in code_requests:
+        c, b, i = _get_prefix_components(env, categ_id, brand_id, lens_index_id, lens_index_cache)
+        prefixes.append(f"{c}{b}{i}")
     
     # 2. Ensure sequences exist
     unique_prefixes = set(prefixes)
@@ -139,12 +187,14 @@ def generate_product_codes_batch(env, code_requests):
     for prefix in unique_prefixes:
         sequences[prefix] = _ensure_sequence_exists(env, prefix)
     
-    # 3. Generate codes
+    # 3. Generate codes with Base36 encoding
     results = []
     for prefix in prefixes:
         seq = sequences[prefix]
-        # next_by_id() returns formatted '0000X'
-        seq_suffix = seq.next_by_id()
+        # Get next number and convert to Base36
+        seq_str = seq.next_by_id()
+        seq_number = int(seq_str) if seq_str.isdigit() else 1
+        seq_suffix = _base36_encode(seq_number)
         results.append(f"{prefix}{seq_suffix}")
         
     return results

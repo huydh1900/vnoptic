@@ -255,30 +255,43 @@ class ProductSync(models.Model):
         cid = (dto.get('cid') or '').strip()
         if not cid: raise ValueError("Missing CID")
         
-        # Category Logic
+        # Category Logic with Code (for product code generation)
         grp_dto = dto.get('groupdto') or {}
         grp_type_name = (grp_dto.get('groupTypedto') or {}).get('name', 'Khác')
-        cat_map = {'Mắt': ('Lens Products', 'lens'), 'Gọng': ('Optical OPT', 'opt'), 'Khác': ('Accessories', 'accessory')}
-        main_cat, _ = cat_map.get(grp_type_name, ('Accessories', 'accessory'))
+        
+        # Map product type to category code (matches RS format)
+        cat_map = {
+            'Mắt': ('Lens Products', 'lens', '06'),      # Code 06 for Lens
+            'Gọng': ('Optical OPT', 'opt', '27'),        # Code 27 for Opt
+            'Khác': ('Accessories', 'accessory', '20')   # Code 20 for Accessory
+        }
+        main_cat, _, main_code = cat_map.get(grp_type_name, ('Accessories', 'accessory', '20'))
         
         # Get/Create Category
         cat_name = grp_dto.get('name', 'All Products')
         
-        # 1. Ensure Parent Category
+        # 1. Ensure Parent Category with code
         parent_key = (main_cat, False)
         if parent_key in cache['categories']:
             parent_id = cache['categories'][parent_key]
         else:
-            parent = self.env['product.category'].create({'name': main_cat})
+            parent = self.env['product.category'].create({
+                'name': main_cat,
+                'code': main_code  # Set code for parent category
+            })
             parent_id = parent.id
             cache['categories'][parent_key] = parent_id
             
-        # 2. Ensure Category
+        # 2. Ensure Child Category (inherit parent code if not set)
         cat_key = (cat_name, parent_id)
         if cat_key in cache['categories']:
             categ_id = cache['categories'][cat_key]
         else:
-            cat = self.env['product.category'].create({'name': cat_name, 'parent_id': parent_id})
+            cat = self.env['product.category'].create({
+                'name': cat_name,
+                'parent_id': parent_id,
+                'code': main_code  # Child categories use same code as parent
+            })
             categ_id = cat.id
             cache['categories'][cat_key] = categ_id
 
