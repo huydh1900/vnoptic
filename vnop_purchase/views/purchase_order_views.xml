@@ -160,4 +160,18 @@
         </field>
     </record>
 
+<record id="vnop_purchase_order_form_import_contract_inherit" model="ir.ui.view">
+    <field name="name">vnop.purchase.order.form.import.contract.inherit</field>
+    <field name="model">purchase.order</field>
+    <field name="inherit_id" ref="purchase.purchase_order_form"/>
+    <field name="arch" type="xml">
+        <xpath expr="//field[@name='partner_ref']" position="after">
+            <field name="import_contract_id" options="{'no_create': False}"/>
+        </xpath>
+        <xpath expr="//field[@name='order_line']/list/field[@name='qty_received']" position="after">
+            <field name="qty_remaining" readonly="1" optional="show"/>
+        </xpath>
+    </field>
+</record>
+
 </odoo>
