@@ -175,8 +175,8 @@ class DeliverySchedule(models.Model):
 
                 if existing:
                     raise ValidationError(
-                        "Hợp đồng này đã được gán cho lịch giao hàng với số vận đơn: %s."
-                        % (existing.bill_number or "N/A")
+                        "Lịch giao hàng cho Hợp đồng %s đã tồn tại. Vui lòng chọn hợp đồng khác!"
+                        % (rec.contract_id.name or "N/A")
                     )
 
     def action_view_contract(self):
