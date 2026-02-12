@@ -210,6 +210,7 @@ class Contract(models.Model):
         for rec in self:
             if not rec.partner_id:
                 raise ValidationError(_("Vui lòng chọn Nhà cung cấp trước khi gửi duyệt."))
+            rec._check_fifo_valuation()
             rec.write({'state': 'waiting'})
 
     @api.onchange("partner_id")
@@ -220,7 +221,7 @@ class Contract(models.Model):
 
     @api.onchange("purchase_order_ids")
     def _onchange_purchase_order_ids_build_product_lines(self):
-        """Tự động nạp dòng sản phẩm từ PO đã chọn vào hợp đồng."""
+        """Tự động nạp dòng sản phẩm từ PO, chỉ đề xuất phần còn lại chưa nhận."""
         for contract in self:
             line_commands = [(5, 0, 0)]
 
@@ -229,15 +230,50 @@ class Contract(models.Model):
                     if not line.product_id or line.display_type:
                         continue
 
+                    qty_remaining = max(line.qty_remaining, 0.0)
+                    if qty_remaining <= 0:
+                        continue
+
                     line_commands.append((0, 0, {
                         "product_id": line.product_id.id,
                         "uom_id": line.product_uom.id,
                         "currency_id": po.currency_id.id,
                         "product_qty": line.product_qty,
-                        "qty_contract": line.product_qty,
+                        "qty_contract": qty_remaining,
+                        "qty_remaining": qty_remaining,
                         "price_unit": line.price_unit,
                         "amount_total": line.price_subtotal,
                         "purchase_id": po.id,
                     }))
 
             contract.line_ids = line_commands
+
+    def _check_fifo_valuation(self):
+        """Bắt buộc sản phẩm trong hợp đồng dùng FIFO + định giá tự động."""
+        for contract in self:
+            invalid_lines = contract.line_ids.filtered(
+                lambda line: (
+                    line.product_id.type == 'product'
+                    and (
+                        line.product_id.categ_id.property_cost_method != 'fifo'
+                        or line.product_id.categ_id.property_valuation != 'real_time'
+                    )
+                )
+            )
+            if not invalid_lines:
+                continue
+
+            details = "\n".join(
+                "- %s (Nhóm: %s, Costing: %s, Valuation: %s)" % (
+                    line.product_id.display_name,
+                    line.product_id.categ_id.display_name,
+                    line.product_id.categ_id.property_cost_method,
+                    line.product_id.categ_id.property_valuation,
+                )
+                for line in invalid_lines
+            )
+
+            raise ValidationError(_(
+                "Các sản phẩm sau chưa dùng FIFO hoặc chưa bật Automated Valuation:\n%s\n"
+                "Vui lòng chỉnh Product Category trước khi gửi duyệt hợp đồng."
+            ) % details)

@@ -25,14 +25,16 @@ class ContractLine(models.Model):
         string="Đơn mua",
     )
 
-    @api.constrains("qty_contract", "product_qty")
+    @api.constrains("qty_contract", "qty_remaining")
     @api.onchange("qty_contract")
-    def _check_qty_contract_not_exceed_po(self):
+    def _check_qty_contract_not_exceed_remaining(self):
         for line in self:
-            if line.qty_contract and line.product_qty:
-                if line.qty_contract > line.product_qty:
-                    raise UserError("SL theo hợp đồng không được vượt SL đặt hàng.\n\n"
-                        "Vui lòng quay lại Đơn mua để điều chỉnh.")
-                line.qty_remaining = (line.product_qty or 0.0) - (line.qty_contract or 0.0)
+            if line.qty_contract < 0:
+                raise UserError("SL theo hợp đồng không được âm.")
 
+            if line.qty_contract and line.qty_remaining and line.qty_contract > line.qty_remaining:
+                raise UserError(
+                    "SL theo hợp đồng không được vượt SL còn lại chưa nhận của đơn mua.\n\n"
+                    "Vui lòng quay lại Đơn mua để kiểm tra nhận hàng/backorder."
+                )
 
