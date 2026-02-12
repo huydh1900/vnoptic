@@ -21,7 +21,7 @@ class ProductSync(models.Model):
         ('never', 'Chưa đồng bộ'),
         ('in_progress', 'Đang đồng bộ'),
         ('success', 'Thành công'),
-        ('error', 'Lỗi')
+        ('error', 'Lỗi')])
     sync_log = fields.Text('Nhật ký', readonly=True)
 
     total_synced = fields.Integer('Tổng sản phẩm đã sync', readonly=True)
