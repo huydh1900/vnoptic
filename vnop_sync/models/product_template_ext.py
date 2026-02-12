@@ -13,6 +13,20 @@ class ProductCategory(models.Model):
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
 
+    # Computed fields to replace product_type for UI logic
+    is_lens = fields.Boolean(compute='_compute_product_kind', store=True)
+    is_opt = fields.Boolean(compute='_compute_product_kind', store=True)
+
+    @api.depends('categ_id', 'categ_id.code')
+    def _compute_product_kind(self):
+        for record in self:
+            code = record.categ_id.code
+            # 06 = Lens, 27 = Opt (Frame)
+            record.is_lens = (code == '06')
+            record.is_opt = (code == '27')
+
+    # Keep product_type for now but make it computed or optional if needed
+    # For now we just add the new logic alongside
     x_eng_name = fields.Char(
         'Tên tiếng Anh',
         help="Product name in English"

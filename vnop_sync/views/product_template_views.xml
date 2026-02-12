@@ -7,13 +7,13 @@
         <field name="priority">100</field>
         <field name="arch" type="xml">
             
-            <!-- Add product_type selection in header -->
-            <xpath expr="//div[@class='oe_title']" position="inside">
-                <div class="o_row mt-2">
-                    <label for="product_type" string="Phân loại nghiệp vụ"/>
-                    <field name="product_type" widget="radio" options="{'horizontal': true}" readonly="id != False"/>
-                </div>
+            <!-- Add hidden computed fields for UI logic -->
+            <xpath expr="//div[@class='oe_title']" position="after">
+                <field name="is_lens" invisible="1"/>
+                <field name="is_opt" invisible="1"/>
             </xpath>
+            
+            <!-- Removed product_type selection from header -->
             
             <!-- Add Product General Info Section -->
             <xpath expr="//sheet/notebook/page[@name='general_information']/group" position="before">
@@ -24,7 +24,7 @@
                         <field name="brand_id"/>
                         <field name="warranty_id" options="{'no_create': True}"/>
                         <field name="index_id" options="{'no_create': True}" 
-                                invisible="product_type != 'lens'"/>
+                                invisible="not is_lens"/>
                     </group>
                     <group>
                         <field name="x_eng_name"/>
@@ -124,7 +124,7 @@
                 
                 <!-- Tab: Optical Design -->
                 <page string="Thiết kế Gọng" name="product_opt_design"
-                      invisible="product_type != 'opt'">
+                      invisible="not is_opt">
                     <field name="opt_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
                         <list editable="bottom">
                             <field name="frame_id" options="{'no_create': True}"/>
@@ -139,7 +139,7 @@
                 
                 <!-- Tab: Optical Material -->
                 <page string="Chất liệu Gọng" name="product_opt_material"
-                      invisible="product_type != 'opt'">
+                      invisible="not is_opt">
                     <field name="opt_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
                         <list editable="bottom">
                             <field name="materials_front_ids" widget="many2many_tags" options="{'no_create': True}"/>
@@ -154,7 +154,7 @@
                 
                 <!-- Tab: Optical Color -->
                 <page string="Màu sắc Gọng" name="product_opt_color"
-                      invisible="product_type != 'opt'">
+                      invisible="not is_opt">
                     <field name="opt_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
                         <list editable="bottom">
                             <field name="color_front_id" options="{'no_create': True}"/>
@@ -166,7 +166,7 @@
                 
                 <!-- Tab: Optical Size -->
                 <page string="Kích thước Gọng" name="product_opt_size"
-                      invisible="product_type != 'opt'">
+                      invisible="not is_opt">
                     <field name="opt_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
                         <list editable="bottom">
                             <field name="temple_width"/>
