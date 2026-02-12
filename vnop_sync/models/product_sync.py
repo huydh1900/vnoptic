@@ -184,8 +184,8 @@ class ProductSync(models.Model):
             ('warranties', 'product.warranty', 'code'),
             ('groups', 'product.group', 'cid'),
             ('groups', 'product.group', 'name'),
-            ('designs', 'product.design', 'cid'),
-            ('materials', 'product.material', 'cid'),
+            ('designs', 'product.design', 'name'),
+            ('materials', 'product.material', 'name'),
             ('uvs', 'product.uv', 'cid'),
             ('coatings', 'product.coating', 'cid'),
             ('colors', 'product.cl', 'cid'),
@@ -196,7 +196,22 @@ class ProductSync(models.Model):
             ('ves', 'product.ve', 'cid'),
             ('temples', 'product.temple', 'cid'),
         ]
-        
+        # Chuẩn bị cache cho power, design, material
+        cache['lens_powers'] = {'sph': {}, 'cyl': {}}
+        if 'product.lens.power' in self.env:
+            for r in self.env['product.lens.power'].search_read([], ['id', 'value', 'type']):
+                t = r['type']
+                v = float(r['value'])
+                cache['lens_powers'][t][v] = r['id']
+        cache['lens_designs'] = {}
+        if 'product.lens.design' in self.env:
+            for r in self.env['product.lens.design'].search_read([], ['id', 'name']):
+                cache['lens_designs'][r['name'].strip().lower()] = r['id']
+        cache['lens_materials'] = {}
+        if 'product.lens.material' in self.env:
+            for r in self.env['product.lens.material'].search_read([], ['id', 'name']):
+                cache['lens_materials'][r['name'].strip().lower()] = r['id']
+
         for key, model, _ in MODELS:
             if key not in cache: cache[key] = {}
 
@@ -414,23 +429,37 @@ class ProductSync(models.Model):
         return vals, cache['products'].get(cid)
 
     def _prepare_lens_vals(self, item, cache):
+        # Xử lý SPH/CYL: API trả về string, cần ép kiểu float rồi tra cache
+        def get_power_id(val, t):
+            try:
+                fval = float(val)
+            except Exception:
+                return False
+            return cache['lens_powers'][t].get(fval)
+
+        sph_val = item.get('sph')
+        cyl_val = item.get('cyl')
+        design_name = (item.get('design') or '').strip().lower()
+        material_name = (item.get('material') or '').strip().lower()
+
         v = {
-            'sph': item.get('sph', ''), 'cyl': item.get('cyl', ''), 'len_add': item.get('lensAdd', ''),
-            'diameter': item.get('diameter', ''), 'corridor': item.get('corridor', ''), 'abbe': item.get('abbe', ''),
-            'polarized': item.get('polarized', ''), 'prism': item.get('prism', ''), 'base': item.get('base', ''),
-            'axis': item.get('axis', ''), 'prism_base': item.get('prismBase', ''), 'color_int': item.get('colorInt', ''),
+            'sph_id': get_power_id(sph_val, 'sph'),
+            'cyl_id': get_power_id(cyl_val, 'cyl'),
+            'design_id': cache['lens_designs'].get(design_name),
+            'material_id': cache['lens_materials'].get(material_name),
+            'len_add': item.get('lensAdd', ''),
+            'diameter': item.get('diameter', ''),
+            'corridor': item.get('corridor', ''),
+            'abbe': item.get('abbe', ''),
+            'polarized': item.get('polarized', ''),
+            'prism': item.get('prism', ''),
+            'base_curve': item.get('base', ''),
+            'axis': item.get('axis', ''),
+            'prism_base': item.get('prismBase', ''),
+            'color_int': item.get('colorInt', ''),
             'mir_coating': item.get('mirCoating', ''),
-            'design1_id': self._get_id(cache, 'designs', self._get_val(item, 'design1dto')),
-            'design2_id': self._get_id(cache, 'designs', self._get_val(item, 'design2dto')),
-            'uv_id': self._get_id(cache, 'uvs', self._get_val(item, 'uvdto')),
-            'cl_hmc_id': self._get_id(cache, 'colors', self._get_val(item, 'clhmcdto')),
-            'cl_pho_id': self._get_id(cache, 'colors', self._get_val(item, 'clphodto')),
-            'cl_tint_id': self._get_id(cache, 'colors', self._get_val(item, 'clTintdto')),
-            'index_id': self._get_id(cache, 'lens_indexes', self._get_val(item, 'lensIndexdto')),
-            'material_id': self._get_id(cache, 'materials', self._get_val(item, 'materialdto')),
         }
-        coats = [self._get_id(cache, 'coatings', c.get('cid')) for c in (item.get('coatingsdto') or []) if c.get('cid')]
-        if any(coats): v['coating_ids'] = [(6, 0, [c for c in coats if c])]
+        # Coating/Feature xử lý sau nếu cần
         return v
 
     def _prepare_opt_vals(self, item, cache):
