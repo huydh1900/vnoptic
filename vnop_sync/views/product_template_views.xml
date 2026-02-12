@@ -23,7 +23,7 @@
                         <field name="group_id" options="{'no_create': True}" 
                                domain="[('product_type', '=', product_type)]" 
                                context="{'default_product_type': product_type}"/>
-                        <field name="brand_id" options="{'no_create': True}"/>
+                        <field name="brand_id"/>
                         <field name="warranty_id" options="{'no_create': True}"/>
                         <field name="index_id" options="{'no_create': True}" 
                                 invisible="product_type != 'lens'"/>

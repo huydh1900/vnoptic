@@ -44,8 +44,8 @@
         <field name="model">product.brand</field>
         <field name="arch" type="xml">
             <list string="Brands">
-                <field name="code"/>
                 <field name="name"/>
+                <field name="code"/>
                 <field name="product_count"/>
                 <field name="active"/>
             </list>
@@ -72,8 +72,8 @@
                             invisible="active == True"/>
                     <group>
                         <group>
-                            <field name="name" placeholder="e.g. Essilor"/>
-                            <field name="code" placeholder="e.g. ESS"/>
+                            <field name="name" placeholder="VD: Essilor, Cadillac, ZenOptic"/>
+                            <field name="code" placeholder="VD: 003, 004, 005"/>
                         </group>
                         <group>
                             <field name="active" widget="boolean_toggle"/>
