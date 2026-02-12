@@ -1,6 +1,6 @@
 from odoo import models, fields, api
 from odoo.exceptions import UserError
-from collections import defaultdict
+import datetime, time
 from odoo.exceptions import ValidationError
 
 
@@ -8,7 +8,7 @@ class DeliverySchedule(models.Model):
     _name = 'delivery.schedule'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'delivery_datetime desc'
-    _rec_name = 'bill_number'
+    _rec_name = 'contract_id'
     _description = 'Lịch giao hàng'
 
     name = fields.Char(string='Đợt giao')
@@ -27,7 +27,7 @@ class DeliverySchedule(models.Model):
     )
 
     bill_number = fields.Char(
-        string='Mã vận đơn', required=True
+        string='Mã vận đơn'
     )
     contract_id = fields.Many2one('contract', string='Hợp đồng', required=True)
 
@@ -89,6 +89,20 @@ class DeliverySchedule(models.Model):
 
     picking_count = fields.Integer(compute='_compute_picking_count')
 
+    color = fields.Integer(string="Color", compute="_compute_color", store=True)
+
+    @api.depends('state')
+    def _compute_color(self):
+        mapping = {
+            'draft': 1,  # xanh dương nhạt
+            'confirmed': 2,  # xanh lá
+            'partial': 3,  # vàng/cam
+            'done': 10,  # xanh lá đậm
+            'cancel': 4,  # đỏ
+        }
+        for rec in self:
+            rec.color = mapping.get(rec.state, 0)
+
     @api.depends('picking_ids')
     def _compute_picking_count(self):
         for rec in self:
@@ -127,7 +141,6 @@ class DeliverySchedule(models.Model):
             self.env['stock.move'].create({
                 'name': line.product_id.display_name,
                 'product_id': line.product_id.id,
-                'product_uom_qty': line.contract_quantity,
                 'product_uom': line.product_uom.id,
                 'picking_id': picking.id,
                 'location_id': picking.location_id.id,

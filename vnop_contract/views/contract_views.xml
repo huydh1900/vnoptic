@@ -1,23 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
-    <!-- ====== CONTRACT TREE ====== -->
     <record id="vnoptic_contract_tree_view" model="ir.ui.view">
         <field name="name">vnoptic.contract.tree</field>
         <field name="model">contract</field>
         <field name="arch" type="xml">
-            <list string="Framework Contracts">
+            <list string="Hợp đồng mua hàng">
                 <field name="number"/>
+                <field name="name"/>
                 <field name="partner_id"/>
                 <field name="partner_ref"/>
-                <field name="create_uid" string="Tạo bởi"/>
                 <field name="currency_id"/>
+                <field name="sign_date"/>
+
+                <field name="type_contract"
+                       widget="badge"
+                       decoration-info="type_contract == 'domestic'"
+                       decoration-primary="type_contract == 'foreign'"/>
+
                 <field name="purchase_order_ids" widget="many2many_tags"/>
+
+                <field name="currency_id" column_invisible="1"/>
+                <!--                <field name="amount_total" widget="monetary" sum="Tổng giá trị"/>-->
+
+                <field name="state"
+                       widget="badge"
+                       decoration-warning="state == 'waiting'"
+                       decoration-success="state == 'approved'"
+                       decoration-danger="state == 'cancel'"/>
             </list>
         </field>
     </record>
 
-    <!-- ====== CONTRACT FORM ====== -->
+
     <record id="vnoptic_contract_form_view" model="ir.ui.view">
         <field name="name">vnoptic.contract.form</field>
         <field name="model">contract</field>
@@ -28,7 +43,14 @@
                             type="object"
                             string="Phê duyệt"
                             class="oe_highlight"
+                            invisible="state != 'waiting'"/>
+
+                    <button name="action_submit"
+                            type="object"
+                            string="Gửi duyệt"
+                            class="btn-primary"
                             invisible="state != 'draft'"/>
+
 
                     <button name="action_cancel"
                             type="object"
@@ -37,7 +59,7 @@
                             invisible="state == 'cancel'"
                             confirm="Bạn có chắc chắn muốn hủy hợp đồng này không?"/>
 
-                    <field name="state" widget="statusbar" statusbar_visible="draft,approved,cancel"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,waiting,approved,cancel"/>
                 </header>
 
                 <sheet>
@@ -46,92 +68,107 @@
                                 type="object"
                                 string="Lịch giao hàng"
                                 invisible="state != 'approved'"
-                                icon="fa-calendar">
-                        </button>
-                        <button name="action_view_purchase_orders"
-                                type="object"
-                                class="oe_stat_button"
-                                invisible="purchase_order_count == 0"
-                                icon="fa-shopping-cart">
-                            <field name="purchase_order_count" widget="statinfo" string="Đơn mua"/>
-                        </button>
+                                icon="fa-calendar"/>
+
                         <button name="action_view_product"
                                 type="object"
                                 class="oe_stat_button"
-                                invisible="purchase_order_count == 0"
                                 icon="fa-cubes">
-                            <field name="product_count" widget="statinfo" string="Danh sách sản phẩm"/>
+                            <field name="product_count" widget="statinfo" string="Sản phẩm"/>
                         </button>
                     </div>
 
                     <div class="oe_title">
-                        <span class="o_form_label">Số hợp đồng</span>
                         <h1>
-                            <field name="number" placeholder="Ví dụ: HĐ/2024/001" readonly="state != 'draft'"/>
+                            <field name="name" placeholder="Tên hợp đồng..." readonly="state != 'draft'"/>
                         </h1>
                     </div>
 
                     <group>
-                        <group name="vendor_info" string="Thông tin đối tác">
-                            <field name="partner_id"
-                                   options="{'no_create': True}"
-                                   readonly="state != 'draft'"/>
-                            <field name="partner_ref" placeholder="Mã NCC..."
-                                   readonly="state != 'draft'"/>
+                        <group string="Thông tin chung">
+                            <field name="number" placeholder="Số hợp đồng..." readonly="state != 'draft'"/>
+                            <field name="sign_date" readonly="state != 'draft'"/>
                             <field name="type_contract" readonly="state != 'draft'"/>
                             <field name="currency_id" readonly="state != 'draft'"/>
-                            <field name="attachment_ids"
-                                   widget="many2many_binary"
-                                   readonly="state != 'draft'"/>
+                            <!--                            <field name="amount_total" widget="monetary" readonly="1"/>-->
+                            <!--                            <field name="total_qty" readonly="1"/>-->
                         </group>
 
-                        <group name="contract_info" string="Thông tin chung">
-                            <field name="purchase_order_ids"
-                                   widget="many2many_tags"
-                                   options="{'no_create': True}"
-                                   domain="[('partner_id','=',partner_id), ('state','in',('purchase','done'))]"
-                                   readonly="state != 'draft'"/>
-                            <field name="approved_by" widget="many2one_avatar_user"/>
-                            <field name="approved_date"/>
-                            <label for="create_uid" string="Người tạo"/>
-                            <div class="o_row">
-                                <field name="create_uid" readonly="1" class="oe_inline"/>
-                            </div>
-                            <label for="create_date" string="Ngày tạo"/>
-                            <div class="o_row">
-                                <field name="create_date" readonly="1" class="oe_inline"/>
-                            </div>
+                        <group string="Nhà cung cấp">
+                            <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'"/>
+                            <field name="partner_ref" readonly="1"/>
+                            <field name="attachment_ids" widget="many2many_binary" readonly="state != 'draft'"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <group string="Giao hàng">
+                            <field name="incoterm_id" readonly="state != 'draft'"/>
+                            <field name="shipment_date" readonly="state != 'draft'"/>
+                            <field name="port_of_loading" readonly="state != 'draft'"/>
+                            <field name="destination" readonly="state != 'draft'"/>
+                            <field name="partial_shipment" readonly="state != 'draft'"/>
+                            <field name="origin_country_id" readonly="state != 'draft'"/>
+                        </group>
+
+                        <group string="Thanh toán / Ngân hàng">
+                            <field name="payment_term_id" readonly="state != 'draft'"/>
+                            <field name="beneficiary_bank_id" readonly="state != 'draft'"/>
                         </group>
                     </group>
 
                     <notebook>
-                        <page string="Sản phẩm" name="products">
-                            <field name="line_ids">
-                                <list editable="bottom" delete="0" create="0" decoration-info="product_qty > 0">
-                                    <field name="purchase_id" readonly="1" force_save="1"/>
-                                    <field name="product_id" readonly="1" force_save="1"/>
-                                    <field name="product_uom" readonly="1" force_save="1" optional="hide"/>
-                                    <field name="product_qty" sum="Tổng số lượng" readonly="1" force_save="1"/>
-                                    <field name="contract_quantity" sum="Tổng số lượng" force_save="1"/>
-                                    <field name="price_unit" readonly="1" force_save="1"/>
-                                    <field name="amount_total" sum="Tổng cộng" readonly="1" force_save="1"/>
+                        <page string="Sản phẩm">
+                            <field name="line_ids" readonly="state in ('approved','cancel')">
+                                <list editable="bottom">
+                                    <field name="product_id"/>
+                                    <field name="product_qty"/>
+                                    <field name="qty_contract"/>
+                                    <field name="uom_id"/>
+                                    <field name="price_unit"/>
+                                    <field name="amount_total" widget="monetary"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <!--                                    <field name="price_subtotal"/>-->
                                 </list>
                             </field>
                         </page>
 
-                        <page string="Điều khoản" name="terms">
-                            <group string="Nội dung điều khoản">
-                                <field name="terms"
-                                       nolabel="1"
-                                       widget="html"
-                                       placeholder="Nhập các điều khoản thương mại, thanh toán..."
-                                       readonly="state != 'draft'"/>
+                        <page string="Đơn mua hàng">
+                            <field name="purchase_order_ids" readonly="state in ('approved','cancel')">
+                                <list delete="0" create="0">
+                                    <field name="name" readonly="1"/>
+                                    <field name="date_order" readonly="1"/>
+                                    <field name="state" readonly="1"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <field name="amount_total" sum="Total amount" widget="monetary"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Điều khoản">
+                            <field name="terms" nolabel="1" widget="html"
+                                   placeholder="Nhập điều khoản thương mại, thanh toán..."
+                                   readonly="state != 'draft'"/>
+                        </page>
+
+                        <page string="Chất lượng / Đóng gói">
+                            <group>
+                                <field name="quality_requirements" readonly="state != 'draft'"/>
+                                <field name="packing" readonly="state != 'draft'"/>
                             </group>
                         </page>
-                        <page string="Ghi chú" name="note">
-                            <field name="note"
-                                   nolabel="1"
-                                   widget="html"/>
+
+                        <page string="Ghi chú">
+                            <field name="note" nolabel="1" widget="html" readonly="state != 'draft'"/>
+                        </page>
+
+                        <page string="Thông tin bổ sung">
+                            <group>
+                                <field name="create_uid" string="Người lập" readonly="1"/>
+                                <field name="create_date" string="Ngày tạo" readonly="1"/>
+                                <field name="approved_by" widget="many2one_avatar_user" readonly="1"/>
+                                <field name="approved_date" readonly="1"/>
+                            </group>
                         </page>
                     </notebook>
                 </sheet>

@@ -6,14 +6,23 @@ from odoo.exceptions import ValidationError
 class Contract(models.Model):
     _name = "contract"
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _rec_name = 'number'
+    _rec_name = 'name'
     _description = "Hợp đồng mua hàng"
     _order = "id desc"
 
-    number = fields.Char(string="Số HĐ", copy=False, index=True, required=True)
-    partner_id = fields.Many2one("res.partner", string="Nhà cung cấp", required=True,
-                                 domain="[('supplier_rank','>',0)]")
-    partner_ref = fields.Char(string='Mã NCC')
+    number = fields.Char(string="Số HĐ", copy=False, index=True)
+    name = fields.Char(string="Tên hợp đồng", tracking=True, required=True)
+    sign_date = fields.Date(string="Ngày ký HĐ", tracking=True)
+
+    partner_id = fields.Many2one(
+        "res.partner",
+        string="Nhà cung cấp",
+        required=True,
+        domain="[('supplier_rank','>',0)]",
+        tracking=True,
+    )
+    partner_ref = fields.Char(string="Mã NCC", related="partner_id.ref", store=True, readonly=True)
+
     state = fields.Selection(
         [
             ("draft", "Nháp"),
@@ -33,12 +42,50 @@ class Contract(models.Model):
 
     currency_id = fields.Many2one(
         "res.currency",
-        string="Đơn vị tiền tệ",
+        string="Tiền tệ",
+        related="partner_id.property_purchase_currency_id",
         required=True,
-        default=lambda self: self.env.company.currency_id.id,
+    )
+    # amount_total = fields.Monetary(
+    #     string="Tổng giá trị HĐ",
+    #     currency_field="currency_id",
+    #     compute="_compute_totals",
+    #     store=True,
+    #     tracking=True,
+    # )
+    # total_qty = fields.Float(
+    #     string="Tổng số lượng",
+    #     compute="_compute_totals",
+    #     store=True,
+    # )
+
+    # ====== Delivery / shipping ======
+    incoterm_id = fields.Many2one("account.incoterms", string="Điều kiện giao hàng")
+    shipment_date = fields.Date(string="Ngày dự kiến giao hàng", required=True)
+    port_of_loading = fields.Char(string="Cảng xếp hàng")
+    destination = fields.Char(string="Cảng/điểm đến")
+    partial_shipment = fields.Boolean(string="Cho phép giao nhiều đợt", default=True)
+
+    origin_country_id = fields.Many2one("res.country", string="Xuất xứ")
+
+    packing = fields.Text(string="Quy cách đóng gói")
+    quality_requirements = fields.Text(string="Yêu cầu chất lượng")
+
+    # ====== Payment ======
+    payment_term_id = fields.Many2one("account.payment.term", string="Điều khoản thanh toán")
+
+    # ====== Bank info (dùng model chuẩn) ======
+    beneficiary_bank_id = fields.Many2one(
+        "res.partner.bank",
+        string="Tài khoản thụ hưởng",
+        domain="[('partner_id', 'in', [partner_id])]",
+        help="Chọn tài khoản ngân hàng của nhà cung cấp (res.partner.bank).",
     )
 
+    # ====== Docs / terms ======
     terms = fields.Html(string="Terms & Conditions")
+    note = fields.Html(string="Ghi chú")
+
     attachment_ids = fields.Many2many(
         "ir.attachment",
         "contract_ir_attachment_rel",
@@ -47,21 +94,16 @@ class Contract(models.Model):
         string="Chứng từ/Hợp đồng",
     )
 
-    purchase_order_ids = fields.Many2many("purchase.order", string="Đơn mua hàng",
-                                          domain="[('partner_id','=', partner_id), ('state','in',('purchase','done'))]", )
-
-    line_ids = fields.One2many(
-        "contract.line",
-        "contract_id",
-        string="Tổng hợp sản phẩm",
-        copy=False,
+    # ====== PO links ======
+    purchase_order_ids = fields.Many2many(
+        "purchase.order",
+        string="Đơn mua hàng",
+        domain="[('partner_id','=', partner_id), ('state','in',('purchase','done'))]",
     )
+    purchase_order_count = fields.Integer(string="Số PO", compute="_compute_purchase_order_count")
 
-    purchase_order_count = fields.Integer(
-        string="Số PO",
-        compute="_compute_purchase_order_count",
-        store=False,
-    )
+    # ====== Lines ======
+    line_ids = fields.One2many("contract.line", "contract_id", string="Tổng hợp sản phẩm", copy=False)
 
     type_contract = fields.Selection(
         [
@@ -72,10 +114,26 @@ class Contract(models.Model):
         default="foreign",
         copy=False,
         index=True,
+        tracking=True,
     )
 
-    note = fields.Text()
-    product_count = fields.Integer(string='Số sản phẩm', compute="_compute_product_count")
+    product_count = fields.Integer(string="Số sản phẩm", compute="_compute_product_count")
+
+    # @api.depends("line_ids", "line_ids.product_qty", "line_ids.price_subtotal")
+    # def _compute_totals(self):
+    #     for rec in self:
+    #         rec.total_qty = sum(rec.line_ids.mapped("product_qty"))
+    #         rec.amount_total = sum(rec.line_ids.mapped("price_subtotal"))
+
+    def _compute_purchase_order_count(self):
+        for rec in self:
+            rec.purchase_order_count = len(rec.purchase_order_ids)
+
+    def _compute_product_count(self):
+        for rec in self:
+            # nếu bạn muốn đếm số dòng: len(line_ids)
+            # nếu muốn đếm số product khác nhau: len(set(product_id))
+            rec.product_count = len(set(rec.line_ids.mapped("product_id").ids))
 
     @api.depends("line_ids")
     def _compute_product_count(self):
@@ -98,14 +156,18 @@ class Contract(models.Model):
         }
 
     def action_approve(self):
-        for rec in self:
-            if rec.state != "draft":
-                continue
-            rec.write({
-                "state": "approved",
-                "approved_date": fields.Datetime.now(),
-                "approved_by": self.env.user.id,
-            })
+        self.write({
+            "state": "approved",
+            "approved_date": fields.Datetime.now(),
+            "approved_by": self.env.user.id,
+        })
+        Schedule = self.env['delivery.schedule']
+        Schedule.create({
+            'partner_id': self.partner_id.id,
+            'partner_ref': self.partner_ref,
+            'contract_id': self.id,
+            'delivery_datetime': self.shipment_date,
+        })
 
     def action_view_delivery_schedule(self):
         self.ensure_one()
@@ -126,22 +188,12 @@ class Contract(models.Model):
         for rec in self:
             rec.write({"state": "cancel"})
 
-    @api.depends("purchase_order_ids")
-    def _compute_purchase_order_count(self):
-        for rec in self:
-            rec.purchase_order_count = len(rec.purchase_order_ids)
 
-    def action_view_purchase_orders(self):
-        self.ensure_one()
-        action = self.env.ref("purchase.purchase_form_action").read()[0]
-        action["domain"] = [("id", "in", self.purchase_order_ids.ids)]
-        action["context"] = {
-            "default_partner_id": self.partner_id.id,
-            "create": False,
-            "edit": False,
-            "delete": False,
-        }
-        return action
+    def action_submit(self):
+        for rec in self:
+            if not rec.partner_id:
+                raise ValidationError(_("Vui lòng chọn Nhà cung cấp trước khi gửi duyệt."))
+            rec.write({'state': 'waiting'})
 
     @api.onchange("partner_id")
     def _onchange_partner_id(self):
@@ -149,33 +201,33 @@ class Contract(models.Model):
         self.purchase_order_ids = [(5, 0, 0)]
         self.line_ids = [(5, 0, 0)]
 
-    @api.onchange("purchase_order_ids")
-    def _onchange_purchase_order_ids_build_product_lines(self):
-        """
-        Chọn PO A -> đổ line của PO A (1-1 theo từng order_line)
-        Thêm PO B -> append thêm line, KHÔNG cộng dồn
-        Bỏ PO -> rebuild lại theo danh sách PO hiện tại
-        """
-        for contract in self:
-            commands = [(5, 0, 0)]  # clear
-
-            for po in contract.purchase_order_ids:
-                for line in po.order_line:
-                    if not line.product_id or line.display_type:
-                        continue
-
-                    qty = line.product_qty
-                    price_unit = line.price_unit
-                    subtotal = line.price_subtotal
-
-                    commands.append((0, 0, {
-                        "product_id": line.product_id.id,
-                        "product_uom": line.product_uom.id,
-                        "product_qty": qty,
-                        "price_unit": price_unit,
-                        "amount_total": subtotal,
-                        'purchase_id': po.id,
-
-                    }))
-
-            contract.line_ids = commands
+    # @api.onchange("purchase_order_ids")
+    # def _onchange_purchase_order_ids_build_product_lines(self):
+    #     """
+    #     Chọn PO A -> đổ line của PO A (1-1 theo từng order_line)
+    #     Thêm PO B -> append thêm line, KHÔNG cộng dồn
+    #     Bỏ PO -> rebuild lại theo danh sách PO hiện tại
+    #     """
+    #     for contract in self:
+    #         commands = [(5, 0, 0)]  # clear
+    #
+    #         for po in contract.purchase_order_ids:
+    #             for line in po.order_line:
+    #                 if not line.product_id or line.display_type:
+    #                     continue
+    #
+    #                 qty = line.product_qty
+    #                 price_unit = line.price_unit
+    #                 subtotal = line.price_subtotal
+    #
+    #                 commands.append((0, 0, {
+    #                     "product_id": line.product_id.id,
+    #                     "product_uom": line.product_uom.id,
+    #                     "product_qty": qty,
+    #                     "price_unit": price_unit,
+    #                     "amount_total": subtotal,
+    #                     'purchase_id': po.id,
+    #
+    #                 }))
+    #
+    #         contract.line_ids = commands

@@ -1,45 +1,95 @@
 <odoo>
 
-    <!--    <record id="vnop_purchase_order_tree_inherit" model="ir.ui.view">-->
-    <!--        <field name="name">vnop.purchase.order.tree.inherit</field>-->
-    <!--        <field name="model">purchase.order</field>-->
-    <!--        <field name="inherit_id" ref="purchase.purchase_order_view_tree"/>-->
-    <!--        <field name="arch" type="xml">-->
-    <!--            <xpath expr="//field[@name='partner_id']" position="attributes">-->
-    <!--                <attribute name="column_invisible">1</attribute>-->
-    <!--            </xpath>-->
-    <!--            <xpath expr="//field[@name='amount_total']" position="replace"/>-->
-    <!--            <xpath expr="//field[@name='user_id']" position="replace"/>-->
-    <!--            <xpath expr="//field[@name='date_approve']" position="attributes">-->
-    <!--                <attribute name="column_invisible">1</attribute>-->
-    <!--            </xpath>-->
-    <!--            <xpath expr="//field[@name='activity_ids']" position="attributes">-->
-    <!--                <attribute name="column_invisible">1</attribute>-->
-    <!--            </xpath>-->
-    <!--            <xpath expr="//field[@name='company_id']" position="attributes">-->
-    <!--                <attribute name="column_invisible">1</attribute>-->
-    <!--            </xpath>-->
-    <!--            <xpath expr="//field[@name='priority']" position="attributes">-->
-    <!--                <attribute name="column_invisible">1</attribute>-->
-    <!--            </xpath>-->
-    <!--            <xpath expr="//field[@name='name']" position="attributes">-->
-    <!--                <attribute name="string">Mã đơn hàng</attribute>-->
-    <!--            </xpath>-->
-    <!--            <xpath expr="//field[@name='name']" position="after">-->
-    <!--                <field name="partner_id"/>-->
-    <!--                <field name="amount_total" string="Tổng giá trị"/>-->
-    <!--            </xpath>-->
-    <!--            <xpath expr="//field[@name='invoice_status']" position="after">-->
-    <!--                <field name="state"-->
-    <!--                       widget="badge"-->
-    <!--                       decoration-primary="state == 'draft'"-->
-    <!--                       decoration-info="state == 'sent'"-->
-    <!--                       decoration-warning="state == 'to approve'"-->
-    <!--                       decoration-success="state == 'purchase'"-->
-    <!--                       decoration-danger="state == 'cancel'"/>-->
-    <!--            </xpath>-->
-    <!--        </field>-->
-    <!--    </record>-->
+
+    <record id="vnop_purchase_order_tree_inherit" model="ir.ui.view">
+        <field name="name">vnop.purchase.order.tree.inherit</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_view_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='activity_ids']" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='partner_ref']" position="replace"/>
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="partner_ref"/>
+            </xpath>
+            <xpath expr="//field[@name='date_approve']" position="attributes">
+                <attribute name="optional">hide</attribute>
+            </xpath>
+            <xpath expr="//field[@name='name']" position="attributes">
+                <attribute name="string">Mã đơn hàng</attribute>
+            </xpath>
+            <xpath expr="//field[@name='user_id']" position="attributes">
+                <attribute name="string">Người lập đơn</attribute>
+            </xpath>
+            <xpath expr="//field[@name='company_id']" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='priority']" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </xpath>
+            <!--            <xpath expr="//field[@name='name']" position="attributes">-->
+            <!--                <attribute name="string">Mã đơn hàng</attribute>-->
+            <!--            </xpath>-->
+            <!--            <xpath expr="//field[@name='name']" position="after">-->
+            <!--                <field name="partner_id"/>-->
+            <!--                <field name="amount_total" string="Tổng giá trị"/>-->
+            <!--            </xpath>-->
+            <!--            <xpath expr="//field[@name='invoice_status']" position="after">-->
+            <!--                <field name="state"-->
+            <!--                       widget="badge"-->
+            <!--                       decoration-primary="state == 'draft'"-->
+            <!--                       decoration-info="state == 'sent'"-->
+            <!--                       decoration-warning="state == 'to approve'"-->
+            <!--                       decoration-success="state == 'purchase'"-->
+            <!--                       decoration-danger="state == 'cancel'"/>-->
+            <!--            </xpath>-->
+        </field>
+    </record>
+
+    <record id="vnop_purchase_order_kpis_tree_inherit" model="ir.ui.view">
+        <field name="name">vnop.purchase.order.kpis.tree.inherit</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_kpis_tree"/>
+        <field name="arch" type="xml">
+            <!--            <xpath expr="//field[@name='partner_id']" position="attributes">-->
+            <!--                <attribute name="column_invisible">1</attribute>-->
+            <!--            </xpath>-->
+            <!--            <xpath expr="//field[@name='amount_total']" position="replace"/>-->
+            <!--            <xpath expr="//field[@name='user_id']" position="replace"/>-->
+            <!--            <xpath expr="//field[@name='date_approve']" position="attributes">-->
+            <!--                <attribute name="column_invisible">1</attribute>-->
+            <!--            </xpath>-->
+            <xpath expr="//field[@name='activity_ids']" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='name']" position="attributes">
+                <attribute name="string">Mã đơn hàng</attribute>
+            </xpath>
+            <xpath expr="//field[@name='company_id']" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='priority']" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </xpath>
+            <!--            <xpath expr="//field[@name='name']" position="attributes">-->
+            <!--                <attribute name="string">Mã đơn hàng</attribute>-->
+            <!--            </xpath>-->
+            <!--            <xpath expr="//field[@name='name']" position="after">-->
+            <!--                <field name="partner_id"/>-->
+            <!--                <field name="amount_total" string="Tổng giá trị"/>-->
+            <!--            </xpath>-->
+            <!--            <xpath expr="//field[@name='invoice_status']" position="after">-->
+            <!--                <field name="state"-->
+            <!--                       widget="badge"-->
+            <!--                       decoration-primary="state == 'draft'"-->
+            <!--                       decoration-info="state == 'sent'"-->
+            <!--                       decoration-warning="state == 'to approve'"-->
+            <!--                       decoration-success="state == 'purchase'"-->
+            <!--                       decoration-danger="state == 'cancel'"/>-->
+            <!--            </xpath>-->
+        </field>
+    </record>
 
     <record id="vnop_purchase_order_form_inherit" model="ir.ui.view">
         <field name="name">vnop.purchase.order.form.inherit</field>
@@ -49,23 +99,21 @@
             <xpath expr="//button[@name='print_quotation']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
+            <xpath expr="//button[@id='bid_confirm']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
             <xpath expr="//button[@name='print_quotation' and @invisible=&quot;state != 'sent'&quot;]"
                    position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
-            <xpath expr="//field[@name='partner_id']" position="attributes">
-                <attribute name="domain">[('supplier_rank','>',0), ('parent_id','=',False)]</attribute>
-                <attribute name="options">{'no_create': True}</attribute>
+            <xpath expr="//field[@name='partner_id']" position="replace">
+                <field name="partner_id" context="{'res_partner_search_mode': 'supplier', 'show_vat': True}"
+                       placeholder="Name, TIN, Email, or Reference"
+                       domain="[('supplier_rank','>',0), ('parent_id','=',False)]"
+                       options="{'no_create': True}"
+                       readonly="state not in ('draft', 'sent', 'need_revision')"/>
             </xpath>
             <xpath expr="//button[@id='draft_confirm']" position="attributes">
-                <attribute name="invisible">1</attribute>
-            </xpath>
-            <xpath expr="//button[@name='action_rfq_send' and contains(@context, &quot;'send_rfq':False&quot;)]"
-                   position="attributes">
-                <attribute name="invisible">1</attribute>
-            </xpath>
-            <xpath expr="//button[@name='action_rfq_send' and @invisible=&quot;state != 'sent'&quot;]"
-                   position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//button[@name='button_cancel']" position='attributes'>
@@ -78,74 +126,38 @@
             <xpath expr="//button[@name='action_bill_matching']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
-            <xpath expr="//field[@name='date_order']" position="before">
-                <field name="approver_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+            <xpath expr="//button[@name='button_done']" position="attributes">
+                <attribute name="invisible">1</attribute>
             </xpath>
-            <!--            <xpath expr="//button[@name='button_done']" position="attributes">-->
-            <!--                <attribute name="invisible">1</attribute>-->
-            <!--            </xpath>-->
-            <!--             <xpath expr="//button[@name='action_create_invoice'][2]" position="attributes">-->
-            <!--                <attribute name="invisible">1</attribute>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//button[@name='confirm_reminder_mail']" position="attributes">-->
-            <!--                <attribute name="invisible">1</attribute>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//button[@id='draft_confirm']" position="attributes">-->
-            <!--                <attribute name="invisible">1</attribute>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//form/sheet/group/group[2]/label[3]" position="attributes">-->
-            <!--                <attribute name="invisible">1</attribute>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//label[@for='date_planned']" position="attributes">-->
-            <!--                <attribute name="invisible">not delivery_schedule_ids</attribute>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//form/sheet/group/group[2]/div[@name='date_planned_div']" position="attributes">-->
-            <!--                <attribute name="invisible">not delivery_schedule_ids</attribute>-->
-            <!--            </xpath>-->
+            <xpath expr="(//button[@name='action_create_invoice'])[2]" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
 
-            <!--            <xpath expr="//button[@name='button_cancel']" position="attributes">-->
-            <!--                <attribute name="invisible">1</attribute>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//button[@name='button_draft']" position="attributes">-->
-            <!--                <attribute name="invisible">1</attribute>-->
-            <!--            </xpath>-->
-            <!--            <field name="state" position="replace">-->
-            <!--                <field name="state" widget="statusbar" statusbar_visible="draft,to approve,purchase,cancel"-->
-            <!--                       readonly="1"/>-->
-            <!--            </field>-->
-            <!--            <xpath expr="//field[@name='partner_ref']" position="after">-->
-            <!--                <field name="contract_id" options="{'no_create': True}" readonly="state != 'draft'"/>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//field[@name='partner_id']" position="attributes">-->
-            <!--                <attribute name="readonly">state != 'draft'</attribute>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//field[@name='partner_ref']" position="attributes">-->
-            <!--                <attribute name="readonly">state != 'draft'</attribute>-->
-            <!--            </xpath>-->
+            <xpath expr="//field[@name='date_order']" position="before">
+                <field name="approver_id" readonly="state not in ('draft', 'sent')" options="{'no_create': True}"/>
+            </xpath>
+            <xpath expr="//field[@name='partner_ref']" position="attributes">
+                <attribute name="readonly">state not in ('draft', 'sent', 'need_revision')</attribute>
+            </xpath>
+
+            <xpath expr="//field[@name='state']" position="replace">
+                <field name="state" widget="statusbar"
+                       statusbar_visible="draft,sent,need_revision,to approve, purchase,cancel" readonly="1"/>
+            </xpath>
 
 
-            <!--            <xpath expr="//button[@name='button_approve']" position='attributes'>-->
-            <!--                <attribute name="invisible">1</attribute>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//button[@name='button_approve']" position='before'>-->
-            <!--                <button name="button_approve" invisible="state not in ('to approve','approved')" string="Cần chỉnh sửa"-->
-            <!--                        type="object"-->
-            <!--                        class="btn-warning"-->
-            <!--                        confirm="Bạn có chăc muốn Chỉnh sửa đơn mua hàng này?"/>-->
-            <!--            </xpath>-->
+            <xpath expr="//button[@id='bid_confirm']" position="before">
+                <button name="button_submit_rfq" type="object" invisible="state not in ('sent', 'need_revision')"
+                        string="Gửi duyệt"
+                        context="{'validate_analytic': True}" class="oe_highlight" id="bid_confirm" data-hotkey="q"/>
 
-            <!--            <field name="partner_id" position="attributes">-->
-            <!--                <attribute name="domain">[('supplier_rank', '>', 0)]</attribute>-->
-            <!--                <attribute name="options">{'no_quick_create': True}</attribute>-->
-            <!--            </field>-->
+                <button name="action_need_revision"
+                        type="object"
+                        string="Yêu cầu chỉnh sửa"
+                        invisible="state not in ('to approve', 'purchase')"
+                        class="btn-warning"/>
+            </xpath>
         </field>
     </record>
 
-    <!--    <record id="purchase.menu_purchase_rfq" model="ir.ui.menu">-->
-    <!--        <field name="active" eval="False"/>-->
-    <!--    </record>-->
-
-    <!--    <record id="purchase.purchase_form_action" model="ir.actions.act_window">-->
-    <!--        <field name="domain"/>-->
-    <!--    </record>-->
 </odoo>

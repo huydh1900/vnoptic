@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
-    <!-- ====== CONTRACT TREE ====== -->
     <record id="contract_line_tree_view" model="ir.ui.view">
         <field name="name">contract.line.tree</field>
         <field name="model">contract.line</field>
@@ -10,132 +9,10 @@
                 <field name="purchase_id" readonly="1"/>
                 <field name="product_id" options="{'no_open': True}" readonly="1"/>
                 <field name="product_qty" readonly="1"/>
-                <field name="contract_quantity"/>
                 <field name="price_unit" readonly="1"/>
                 <field name="amount_total" readonly="1"/>
             </list>
         </field>
     </record>
-
-
-    <!-- ====== CONTRACT FORM ====== -->
-    <!--    <record id="vnoptic_contract_form_view" model="ir.ui.view">-->
-    <!--        <field name="name">vnoptic.contract.form</field>-->
-    <!--        <field name="model">contract</field>-->
-    <!--        <field name="arch" type="xml">-->
-    <!--            <form string="Hợp đồng mua hàng">-->
-    <!--                <header>-->
-    <!--                    <button name="action_approve"-->
-    <!--                            type="object"-->
-    <!--                            string="Phê duyệt"-->
-    <!--                            class="oe_highlight"-->
-    <!--                            invisible="state != 'draft'"/>-->
-
-    <!--                    <button name="action_cancel"-->
-    <!--                            type="object"-->
-    <!--                            string="Hủy hợp đồng"-->
-    <!--                            class="btn-secondary"-->
-    <!--                            invisible="state == 'cancel'"-->
-    <!--                            confirm="Bạn có chắc chắn muốn hủy hợp đồng này không?"/>-->
-
-    <!--                    <field name="state" widget="statusbar" statusbar_visible="draft,approved,cancel"/>-->
-    <!--                </header>-->
-
-    <!--                <sheet>-->
-    <!--                    <div class="oe_button_box" name="button_box">-->
-    <!--                        <button name="action_view_purchase_orders"-->
-    <!--                                type="object"-->
-    <!--                                class="oe_stat_button"-->
-    <!--                                invisible="purchase_order_count == 0"-->
-    <!--                                icon="fa-shopping-cart">-->
-    <!--                            <field name="purchase_order_count" widget="statinfo" string="Đơn mua"/>-->
-    <!--                        </button>-->
-    <!--                         <button name="action_view_product"-->
-    <!--                                type="object"-->
-    <!--                                class="oe_stat_button"-->
-    <!--                                invisible="purchase_order_count == 0"-->
-    <!--                                icon="fa-cubes">-->
-    <!--                            <field name="product_count" widget="statinfo" string="Danh sách sản phẩm"/>-->
-    <!--                        </button>-->
-    <!--                    </div>-->
-
-    <!--                    <div class="oe_title">-->
-    <!--                        <span class="o_form_label">Số hợp đồng</span>-->
-    <!--                        <h1>-->
-    <!--                            <field name="number" placeholder="Ví dụ: HĐ/2024/001" readonly="state != 'draft'"/>-->
-    <!--                        </h1>-->
-    <!--                    </div>-->
-
-    <!--                    <group>-->
-    <!--                        <group name="vendor_info" string="Thông tin đối tác">-->
-    <!--                            <field name="partner_id"-->
-    <!--                                   options="{'no_create': True}"-->
-    <!--                                   readonly="state != 'draft'"/>-->
-    <!--                            <field name="partner_ref" placeholder="Mã NCC..."-->
-    <!--                                   readonly="state != 'draft'"/>-->
-    <!--                            <field name="type_contract" readonly="state != 'draft'"/>-->
-    <!--                            <field name="currency_id" readonly="state != 'draft'"/>-->
-    <!--                            <field name="attachment_ids"-->
-    <!--                                   widget="many2many_binary"-->
-    <!--                                   readonly="state != 'draft'"/>-->
-    <!--                        </group>-->
-
-    <!--                        <group name="contract_info" string="Thông tin chung">-->
-    <!--                            <field name="purchase_order_ids"-->
-    <!--                                   widget="many2many_tags"-->
-    <!--                                   options="{'no_create': True}"-->
-    <!--                                   domain="[('partner_id','=',partner_id), ('state','in',('purchase','done'))]"-->
-    <!--                                   readonly="state != 'draft'"/>-->
-    <!--                            <field name="approved_by" widget="many2one_avatar_user"/>-->
-    <!--                            <field name="approved_date"/>-->
-    <!--                            <label for="create_uid" string="Người tạo"/>-->
-    <!--                            <div class="o_row">-->
-    <!--                                <field name="create_uid" readonly="1" class="oe_inline"/>-->
-    <!--                            </div>-->
-    <!--                            <label for="create_date" string="Ngày tạo"/>-->
-    <!--                            <div class="o_row">-->
-    <!--                                <field name="create_date" readonly="1" class="oe_inline"/>-->
-    <!--                            </div>-->
-    <!--                        </group>-->
-    <!--                    </group>-->
-
-    <!--                    <notebook>-->
-    <!--                        <page string="Sản phẩm" name="products">-->
-    <!--                            <field name="product_line_ids" readonly="1" force_save="1">-->
-    <!--                                <list decoration-info="product_qty > 0">-->
-    <!--                                    <field name="product_id"/>-->
-    <!--                                    <field name="source_po_names" readonly="1" force_save="1"/>-->
-    <!--                                    <field name="product_uom" groups="uom.group_uom"/>-->
-    <!--                                    <field name="product_qty" sum="Tổng số lượng"/>-->
-    <!--                                    <field name="available_qty"/>-->
-    <!--                                    <field name="price_unit" widget="monetary"-->
-    <!--                                           options="{'currency_field': 'currency_id'}"/>-->
-    <!--                                    <field name="amount_total" widget="monetary"-->
-    <!--                                           options="{'currency_field': 'currency_id'}" sum="Tổng cộng"/>-->
-    <!--                                </list>-->
-    <!--                            </field>-->
-    <!--                        </page>-->
-
-    <!--                        <page string="Điều khoản" name="terms">-->
-    <!--                            <group string="Nội dung điều khoản">-->
-    <!--                                <field name="terms"-->
-    <!--                                       nolabel="1"-->
-    <!--                                       widget="html"-->
-    <!--                                       placeholder="Nhập các điều khoản thương mại, thanh toán..."-->
-    <!--                                       readonly="state != 'draft'"/>-->
-    <!--                            </group>-->
-    <!--                        </page>-->
-    <!--                        <page string="Ghi chú" name="note">-->
-    <!--                            <field name="note"-->
-    <!--                                   nolabel="1"-->
-    <!--                                   widget="html"/>-->
-    <!--                        </page>-->
-    <!--                    </notebook>-->
-    <!--                </sheet>-->
-
-    <!--                <chatter/>-->
-    <!--            </form>-->
-    <!--        </field>-->
-    <!--    </record>-->
 
 </odoo>

@@ -6,6 +6,11 @@ from odoo.exceptions import UserError
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
+    state = fields.Selection(
+        selection_add=[
+            ('need_revision', 'Cần chỉnh sửa')
+        ]
+    )
     approver_id = fields.Many2one('res.users', string="Người duyệt")
 
     create_date_tmp = fields.Date(
@@ -23,7 +28,7 @@ class PurchaseOrder(models.Model):
         for order in self:
 
             if not order.order_line:
-                raise ValidationError(_("Đơn mua hàng phải có ít nhất 01 sản phẩm."))
+                raise ValidationError(_("Yêu cầu báo giá cần có ít nhất 01 sản phẩm!"))
 
             product_lines = order.order_line.filtered(lambda l: l.product_id)
 
@@ -40,10 +45,20 @@ class PurchaseOrder(models.Model):
 
             if duplicated_products:
                 raise ValidationError(
-                    _("Sản phẩm bị trùng trong đơn mua hàng:\n- %s")
+                    _("Sản phẩm bị trùng trong Yêu cầu báo giá:\n- %s")
                     % "\n- ".join(duplicated_products)
                 )
-        self.write({'state': 'sent'})
+
+        return super().action_rfq_send()
+
+    def action_need_revision(self):
+        for rec in self:
+            rec.write({'state': 'need_revision'})
+
+    def button_submit_rfq(self):
+        if not self.approver_id:
+            raise UserError('Người duyệt không được trống!')
+        self.write({'state': 'to approve'})
 
     @api.depends('create_date')
     def _compute_create_date_tmp(self):
@@ -51,9 +66,6 @@ class PurchaseOrder(models.Model):
             rec.create_date_tmp = (
                 rec.create_date.date() if rec.create_date else False
             )
-
-    def button_confirm(self):
-        self.write({'state': 'purchase'})
 
     def unlink(self):
         for order in self:
@@ -67,10 +79,6 @@ class PurchaseOrder(models.Model):
     def _compute_count_delivery_schedule(self):
         for rec in self:
             rec.count_delivery_schedule = len(rec.delivery_schedule_ids)
-
-    def button_need_edit(self):
-        for order in self:
-            order.state = 'draft'
 
     def action_view_delivery_schedule(self):
         self.ensure_one()

@@ -74,7 +74,6 @@
                                    widget="many2many_tags"/>
                             <field name="delivery_datetime"/>
                             <field name="description" placeholder="Nhập ghi chú nội bộ hoặc hướng dẫn giao hàng..."/>
-                            <field name="create_uid" readonly="1" string="Người tạo" options='{"no_open": True}'/>
                             <field name="create_date" readonly="1" string="Thời gian tạo"/>
                         </group>
                         <group name="customs_info" string="Thông tin Hải quan">
@@ -120,11 +119,31 @@
         </field>
     </record>
 
+    <record id="delivery_schedule_view_gantt" model="ir.ui.view">
+        <field name="name">delivery.schedule.view.gantt</field>
+        <field name="model">delivery.schedule</field>
+        <field name="arch" type="xml">
+            <gantt
+                    date_start="delivery_datetime"
+                    date_stop="delivery_datetime"
+                    create="0" delete="0" edit="0"
+                    default_group_by="partner_id"
+                    default_scale="week"
+                    color="color"
+                    string="Lịch giao hàng">
+                <field name="bill_number"/>
+                <field name="partner_id"/>
+                <field name="contract_id"/>
+                <field name="state"/>
+            </gantt>
+        </field>
+    </record>
+
 
     <record id="action_delivery_schedule" model="ir.actions.act_window">
         <field name="name">Lịch giao hàng</field>
         <field name="res_model">delivery.schedule</field>
-        <field name="view_mode">list,form,calendar</field>
+        <field name="view_mode">list,form,gantt,calendar</field>
     </record>
 
     <menuitem id="menu_delivery_schedule"

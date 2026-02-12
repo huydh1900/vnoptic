@@ -1,31 +1,21 @@
 #. module: purchase
-#: model:ir.model.fields.selection,name:purchase.selection__purchase_order__state__to_approve
-#: model:ir.model.fields.selection,name:purchase.selection__purchase_report__state__to_approve
-#: model_terms:ir.ui.view,arch_db:purchase.view_purchase_order_filter
-msgid "To Approve"
-msgstr "Chờ phê duyệt"
-
-#. module: purchase
 #: model:ir.model.fields.selection,name:purchase.selection__purchase_order__state__draft
 msgid "RFQ"
-msgstr "Dự thảo"
+msgstr "YCBG"
 
 #. module: purchase
 #: model:ir.model.fields.selection,name:purchase.selection__purchase_order__state__sent
 #: model:ir.model.fields.selection,name:purchase.selection__purchase_report__state__sent
 #: model:mail.message.subtype,name:purchase.mt_rfq_sent
 msgid "RFQ Sent"
+msgstr "YCBG đã gửi"
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order__state__to_approve
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_report__state__to_approve
+#: model_terms:ir.ui.view,arch_db:purchase.view_purchase_order_filter
+msgid "To Approve"
 msgstr "Chờ duyệt"
-
-#. module: purchase
-#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
-msgid "Approve Order"
-msgstr "Phê duyệt đơn mua"
-
-#. module: purchase
-#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
-msgid "Send by Email"
-msgstr "Gửi duyệt"
 
 #. module: purchase
 #: model:ir.model.fields,field_description:purchase.field_purchase_order__date_approve
@@ -34,3 +24,14 @@ msgstr "Gửi duyệt"
 #: model_terms:ir.ui.view,arch_db:purchase.view_purchase_order_search
 msgid "Confirmation Date"
 msgstr "Ngày duyệt"
+
+#. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
+msgid "Send by Email"
+msgstr "Gửi email tới NCC"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_res_bank__bic
+#: model:ir.model.fields,field_description:base.field_res_partner_bank__bank_bic
+msgid "Bank Identifier Code"
+msgstr "Swift"
