@@ -7,10 +7,10 @@ class ProductBrand(models.Model):
     _order = 'name'
     _rec_name = 'name'
 
-    name = fields.Char('Brand Name', required=True, index=True)
+    name = fields.Char('Tên thương hiệu', required=True, index=True)
     code = fields.Char('Mã thương hiệu (3 số)', size=3, index=True, 
                        help='Mã 3 số dùng cho tạo mã sản phẩm (VD: 003, 004). Để trống sẽ dùng ID.')
-    description = fields.Text('Description')
+    description = fields.Text('Mô tả thương hiệu')
     logo = fields.Image('Logo', max_width=512, max_height=512)
     active = fields.Boolean('Active', default=True)
 
