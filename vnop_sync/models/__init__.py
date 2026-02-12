@@ -8,4 +8,4 @@ from . import product_brand
 from . import product_country
 from . import product_warranty
 from . import server_connector
-from . import hooks
+
