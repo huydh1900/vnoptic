@@ -4,7 +4,7 @@ from odoo.exceptions import ValidationError, UserError
 
 class OTKWizard(models.TransientModel):
     _name = "otk.wizard"
-    _description = "OTK Wizard"
+    _description = "Trình hướng dẫn OTK"
 
     picking_id = fields.Many2one('stock.picking', string='Phiếu nhập kho', required=True)
     line_ids = fields.One2many('otk.wizard.line', 'wizard_id')

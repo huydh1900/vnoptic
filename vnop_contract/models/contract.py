@@ -91,7 +91,7 @@ class Contract(models.Model):
     )
 
     # ====== Docs / terms ======
-    terms = fields.Html(string="Terms & Conditions")
+    terms = fields.Html(string="Điều khoản & điều kiện")
     note = fields.Html(string="Ghi chú")
 
     attachment_ids = fields.Many2many(
@@ -109,15 +109,15 @@ class Contract(models.Model):
         domain="[('partner_id','=', partner_id), ('state','in',('purchase','done'))]",
     )
     purchase_order_count = fields.Integer(string="Số PO", compute="_compute_purchase_order_count")
-    receipt_ids = fields.One2many("stock.picking", "contract_id", string="Receipts", readonly=True)
-    receipt_count_open = fields.Integer(compute="_compute_receipt_metrics", string="Receipt đang mở")
-    receipt_count_done = fields.Integer(compute="_compute_receipt_metrics", string="Receipt hoàn tất")
-    batch_ids = fields.One2many("stock.picking.batch", "contract_id", string="Batch Receipts", readonly=True)
-    batch_count = fields.Integer(compute="_compute_batch_count", string="Số Batch")
+    receipt_ids = fields.One2many("stock.picking", "contract_id", string="Phiếu nhập kho", readonly=True)
+    receipt_count_open = fields.Integer(compute="_compute_receipt_metrics", string="Phiếu nhập kho đang mở")
+    receipt_count_done = fields.Integer(compute="_compute_receipt_metrics", string="Phiếu nhập kho hoàn tất")
+    batch_ids = fields.One2many("stock.picking.batch", "contract_id", string="Lô phiếu nhập kho", readonly=True)
+    batch_count = fields.Integer(compute="_compute_batch_count", string="Số lô")
     otk_picking_ids = fields.One2many(
         "stock.picking",
         "contract_id",
-        string="OTK Transfers",
+        string="Phiếu chuyển OTK",
         domain=[("otk_type", "in", ("ok", "ng"))],
         readonly=True,
     )
@@ -289,13 +289,13 @@ class Contract(models.Model):
                 if po.company_id != contract.company_id:
                     raise ValidationError(_("PO %s khác công ty với hợp đồng.") % po.display_name)
                 if po.state == 'cancel':
-                    raise ValidationError(_("PO %s đang ở trạng thái hủy, không thể add vào Contract.") % po.display_name)
+                    raise ValidationError(_("PO %s đang ở trạng thái hủy, không thể thêm vào hợp đồng.") % po.display_name)
                 if po.currency_id != contract.currency_id:
-                    raise ValidationError(_("PO %s khác tiền tệ với Contract.") % po.display_name)
+                    raise ValidationError(_("PO %s khác tiền tệ với hợp đồng.") % po.display_name)
                 if contract.incoterm_id and po.incoterm_id and po.incoterm_id != contract.incoterm_id:
-                    raise ValidationError(_("PO %s khác Incoterm với Contract.") % po.display_name)
+                    raise ValidationError(_("PO %s khác Incoterm với hợp đồng.") % po.display_name)
                 if po.contract_id and po.contract_id != contract:
-                    raise ValidationError(_("PO %s đã thuộc Contract %s.") % (po.display_name, po.contract_id.display_name))
+                    raise ValidationError(_("PO %s đã thuộc hợp đồng %s.") % (po.display_name, po.contract_id.display_name))
 
     def write(self, vals):
         tracked_po_before = {rec.id: rec.purchase_order_ids for rec in self}
@@ -319,7 +319,7 @@ class Contract(models.Model):
         for po in orders:
             done_receipts = po.picking_ids.filtered(lambda p: p.picking_type_code == 'incoming' and p.state == 'done')
             if done_receipts:
-                raise UserError(_("Không thể remove PO %s vì đã có Receipt hoàn tất.") % po.display_name)
+                raise UserError(_("Không thể gỡ PO %s vì đã có phiếu nhập kho hoàn tất.") % po.display_name)
 
     def _propagate_contract_to_receipts(self, orders=None):
         for contract in self:
@@ -344,7 +344,7 @@ class Contract(models.Model):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
-            "name": _("Receipts"),
+            "name": _("Phiếu nhập kho"),
             "res_model": "stock.picking",
             "view_mode": "list,form",
             "domain": [("contract_id", "=", self.id), ("picking_type_code", "=", "incoming")],
@@ -355,7 +355,7 @@ class Contract(models.Model):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
-            "name": _("Batch Receipts"),
+            "name": _("Lô phiếu nhập kho"),
             "res_model": "stock.picking.batch",
             "view_mode": "list,form",
             "domain": [("contract_id", "=", self.id)],
@@ -366,7 +366,7 @@ class Contract(models.Model):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
-            "name": _("OTK Transfers"),
+            "name": _("Phiếu chuyển OTK"),
             "res_model": "stock.picking",
             "view_mode": "list,form",
             "domain": [("contract_id", "=", self.id), ("otk_type", "in", ("ok", "ng"))],
@@ -382,7 +382,7 @@ class Contract(models.Model):
             and p.state not in ('done', 'cancel')
         )
         if not incoming:
-            raise UserError(_("Không có Receipt phù hợp để tạo batch."))
+            raise UserError(_("Không có phiếu nhập kho phù hợp để tạo lô."))
         batch = self.env['stock.picking.batch'].create({
             "company_id": self.company_id.id,
             "contract_id": self.id,
@@ -425,7 +425,7 @@ class Contract(models.Model):
         ng_picking = self._create_otk_picking(picking_type, temp_location, location_ng, grouped, "ng", create_moves=False)
         return {
             "type": "ir.actions.act_window",
-            "name": _("OTK Transfers"),
+            "name": _("Phiếu chuyển OTK"),
             "res_model": "stock.picking",
             "view_mode": "list,form",
             "domain": [("id", "in", (ok_picking | ng_picking).ids)],
