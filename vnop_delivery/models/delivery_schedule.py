@@ -1,7 +1,5 @@
 from odoo import models, fields, api
-from odoo.exceptions import UserError
-import datetime, time
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 
 class DeliverySchedule(models.Model):
@@ -91,6 +89,14 @@ class DeliverySchedule(models.Model):
 
     color = fields.Integer(string="Color", compute="_compute_color", store=True)
 
+    _sql_constraints = [
+        (
+            'contract_unique_schedule',
+            'unique(contract_id)',
+            'Mỗi hợp đồng chỉ được gán cho một lịch giao hàng.'
+        )
+    ]
+
     @api.depends('state')
     def _compute_color(self):
         mapping = {
@@ -138,10 +144,12 @@ class DeliverySchedule(models.Model):
         })
 
         for line in self.contract_id.line_ids:
+            uom_id = line.uom_id.id or line.product_id.uom_id.id
             self.env['stock.move'].create({
                 'name': line.product_id.display_name,
                 'product_id': line.product_id.id,
-                'product_uom': line.product_uom.id,
+                'product_uom': uom_id,
+                'product_uom_qty': line.product_qty,
                 'picking_id': picking.id,
                 'location_id': picking.location_id.id,
                 'location_dest_id': picking.location_dest_id.id,
