@@ -12,6 +12,7 @@
         'views/product_template_views.xml',
         'wizard/product_excel_import_views.xml',
         'views/product_group_views.xml',
+        'views/product_lens_config_views.xml',
         'data/ir_cron_data.xml',
     ],
     'external_dependencies': {
@@ -20,4 +21,5 @@
     'installable': True,
     'application': True,
     'auto_install': False,
+    'post_init_hook': 'post_init_hook',
 }

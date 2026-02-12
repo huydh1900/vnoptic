@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+    <!-- Lens Power Views -->
+    <record id="view_product_lens_power_tree" model="ir.ui.view">
+        <field name="name">product.lens.power.tree</field>
+        <field name="model">product.lens.power</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="name"/>
+                <field name="value"/>
+                <field name="type"/>
+                <field name="active" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_product_lens_power" model="ir.actions.act_window">
+        <field name="name">Lens Powers (SPH/CYL)</field>
+        <field name="res_model">product.lens.power</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Lens Design Views -->
+    <record id="view_product_lens_design_tree" model="ir.ui.view">
+        <field name="name">product.lens.design.tree</field>
+        <field name="model">product.lens.design</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="design_type"/>
+                <field name="active" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_product_lens_design" model="ir.actions.act_window">
+        <field name="name">Lens Designs</field>
+        <field name="res_model">product.lens.design</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Lens Material Views -->
+    <record id="view_product_lens_material_tree" model="ir.ui.view">
+        <field name="name">product.lens.material.tree</field>
+        <field name="model">product.lens.material</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="name"/>
+                <field name="refractive_index"/>
+                <field name="description"/>
+                <field name="active" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_product_lens_material" model="ir.actions.act_window">
+        <field name="name">Lens Materials</field>
+        <field name="res_model">product.lens.material</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Lens Feature Views -->
+    <record id="view_product_lens_feature_tree" model="ir.ui.view">
+        <field name="name">product.lens.feature.tree</field>
+        <field name="model">product.lens.feature</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="name"/>
+                <field name="feature_type"/>
+                <field name="price_extra"/>
+                <field name="active" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_product_lens_feature" model="ir.actions.act_window">
+        <field name="name">Lens Features</field>
+        <field name="res_model">product.lens.feature</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Menus -->
+    <!-- Assuming there is a parent menu for Vnoptic Product Configuration.
+         Checking previous files, existing menu structure usually in product_sync_views.xml or product_brand_views.xml
+         Let's create a new Configuration submenu under Inventory or a generic one if parent not known.
+         Checking product_brand_views.xml might reveal parent menu.
+    -->
+    <menuitem id="menu_vnoptic_config_lens"
+              name="Lens Configuration"
+              parent="stock.menu_stock_config_settings" 
+              sequence="50"/>
+
+    <menuitem id="menu_product_lens_power"
+              parent="menu_vnoptic_config_lens"
+              action="action_product_lens_power"
+              sequence="10"/>
+
+    <menuitem id="menu_product_lens_design"
+              parent="menu_vnoptic_config_lens"
+              action="action_product_lens_design"
+              sequence="20"/>
+
+    <menuitem id="menu_product_lens_material"
+              parent="menu_vnoptic_config_lens"
+              action="action_product_lens_material"
+              sequence="30"/>
+              
+    <menuitem id="menu_product_lens_feature"
+              parent="menu_vnoptic_config_lens"
+              action="action_product_lens_feature"
+              sequence="40"/>
+
+</odoo>

@@ -39,65 +39,45 @@
             <!-- Add custom tabs to notebook -->
             <xpath expr="//notebook" position="inside">
                 
-                <!-- Tab: Lens Design (only visible when product_type = lens) -->
-                <page string="Thiết kế Lens" name="product_lens_design"
-                      invisible="product_type != 'lens'">
+                <!-- Tab: Lens Design (New Config-Driven) -->
+                <page string="Thông số &amp; Thiết kế Lens" name="product_lens_design"
+                      invisible="not is_lens">
                     <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}">
                         <list editable="bottom" create="1" delete="1">
-                            <field name="sph"/>
-                            <field name="cyl"/>
-                            <field name="len_add"/>
-                            <field name="diameter"/>
-                            <field name="prism"/>
-                            <field name="base"/>
-                            <field name="axis"/>
-                            <field name="design1_id" options="{'no_create': True}"/>
-                            <field name="design2_id" options="{'no_create': True}"/>
+                            <field name="sph_id" options="{'no_create': True}" optional="show"/>
+                            <field name="cyl_id" options="{'no_create': True}" optional="show"/>
+                            <field name="axis" optional="show"/>
+                            <field name="lens_add" optional="show"/>
+                            <field name="diameter" optional="show"/>
+                            <field name="base_curve" optional="hide"/>
+                            <field name="design_id" options="{'no_create': True}" optional="show"/>
+                            <field name="material_id" options="{'no_create': True}" optional="show"/>
+                            <field name="feature_ids" widget="many2many_tags" options="{'no_create': True}" optional="show"/>
+                            
+                            <field name="prism" optional="hide"/>
                         </list>
                         <form>
                             <sheet>
                                 <group>
                                     <group string="Thông số quang học">
-                                        <field name="sph"/>
-                                        <field name="cyl"/>
-                                        <field name="len_add"/>
-                                        <field name="diameter"/>
-                                        <field name="prism"/>
-                                        <field name="base"/>
+                                        <field name="sph_id" options="{'no_create': True}"/>
+                                        <field name="cyl_id" options="{'no_create': True}"/>
                                         <field name="axis"/>
-                                        <field name="corridor"/>
-                                        <field name="abbe"/>
+                                        <field name="lens_add"/>
+                                        <field name="diameter"/>
+                                        <field name="base_curve"/>
+                                        <field name="prism"/>
                                     </group>
-                                    <group string="Thiết kế">
-                                        <field name="design1_id" options="{'no_create': True}"/>
-                                        <field name="design2_id" options="{'no_create': True}"/>
-                                        <field name="polarized"/>
-                                        <field name="prism_base"/>
+                                    <group string="Thiết kế &amp; Chất liệu">
+                                        <field name="design_id" options="{'no_create': True}"/>
+                                        <field name="material_id" options="{'no_create': True}"/>
+                                        <field name="feature_ids" widget="many2many_tags" options="{'no_create': True}"/>
                                     </group>
                                 </group>
                             </sheet>
                         </form>
                     </field>
                 </page>
-                
-                <!-- Tab: Lens Material -->
-                <page string="Chất liệu Lens" name="product_lens_material"
-                      invisible="product_type != 'lens'">
-                    <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
-                        <list editable="bottom">
-                            <field name="material_id" options="{'no_create': True}"/>
-                            <field name="index_id" options="{'no_create': True}"/>
-                        </list>
-                    </field>
-                </page>
-                
-                <!-- Tab: Lens Integration (UV, Coating...) -->
-                <page string="Tích hợp Lens" name="product_lens_integration"
-                      invisible="product_type != 'lens'">
-                    <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}" mode="list">
-                        <list editable="bottom">
-                            <field name="uv_id" options="{'no_create': True}"/>
-                            <field name="cl_pho_id" options="{'no_create': True}"/>
                             <field name="cl_hmc_id" options="{'no_create': True}"/>
                             <field name="cl_tint_id" options="{'no_create': True}"/>
                             <field name="color_int"/>
