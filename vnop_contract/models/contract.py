@@ -129,12 +129,6 @@ class Contract(models.Model):
         for rec in self:
             rec.purchase_order_count = len(rec.purchase_order_ids)
 
-    def _compute_product_count(self):
-        for rec in self:
-            # nếu bạn muốn đếm số dòng: len(line_ids)
-            # nếu muốn đếm số product khác nhau: len(set(product_id))
-            rec.product_count = len(set(rec.line_ids.mapped("product_id").ids))
-
     @api.depends("line_ids")
     def _compute_product_count(self):
         for rec in self:
@@ -156,18 +150,28 @@ class Contract(models.Model):
         }
 
     def action_approve(self):
-        self.write({
-            "state": "approved",
-            "approved_date": fields.Datetime.now(),
-            "approved_by": self.env.user.id,
-        })
         Schedule = self.env['delivery.schedule']
-        Schedule.create({
-            'partner_id': self.partner_id.id,
-            'partner_ref': self.partner_ref,
-            'contract_id': self.id,
-            'delivery_datetime': self.shipment_date,
-        })
+        for rec in self:
+            if rec.state == "approved":
+                continue
+
+            rec.write({
+                "state": "approved",
+                "approved_date": fields.Datetime.now(),
+                "approved_by": self.env.user.id,
+            })
+
+            existing_schedule = Schedule.search([
+                ('contract_id', '=', rec.id)
+            ], limit=1)
+
+            if not existing_schedule:
+                Schedule.create({
+                    'partner_id': rec.partner_id.id,
+                    'partner_ref': rec.partner_ref,
+                    'contract_id': rec.id,
+                    'delivery_datetime': rec.shipment_date,
+                })
 
     def action_view_delivery_schedule(self):
         self.ensure_one()
