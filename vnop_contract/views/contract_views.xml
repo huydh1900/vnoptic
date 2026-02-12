@@ -140,6 +140,11 @@
                                     <field name="state" readonly="1"/>
                                     <field name="currency_id" column_invisible="1"/>
                                     <field name="amount_total" sum="Total amount" widget="monetary"/>
+                                    <button name="action_view_purchase"
+                                            type="object"
+                                            icon="fa-eye"
+                                            title="Xem chi tiết"
+                                            class="btn-link"/>
                                 </list>
                             </field>
                         </page>

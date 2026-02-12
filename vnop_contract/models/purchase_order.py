@@ -13,4 +13,14 @@ class PurchaseOrder(models.Model):
         index=True,
     )
 
+    def action_view_purchase(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "purchase.order",
+            "view_mode": "form",
+            "res_id": self.id,
+            "target": "current",
+        }
+
 

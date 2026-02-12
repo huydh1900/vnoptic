@@ -36,5 +36,3 @@ class ContractLine(models.Model):
                 line.qty_remaining = (line.product_qty or 0.0) - (line.qty_contract or 0.0)
 
 
-
-
