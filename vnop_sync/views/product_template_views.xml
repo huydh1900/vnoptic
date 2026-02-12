@@ -41,7 +41,7 @@
                 
                 <!-- Tab: Lens Design (New Config-Driven) -->
                 <page string="Thông số &amp; Thiết kế Lens" name="product_lens_design"
-                      invisible="not is_lens">
+                      invisible="0">
                     <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}">
                         <list editable="bottom" create="1" delete="1">
                             <field name="sph_id" string="SPH" options="{'no_create': True}" optional="show"/>
