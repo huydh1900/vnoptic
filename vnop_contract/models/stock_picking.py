@@ -53,3 +53,18 @@ class StockPickingBatch(models.Model):
                 pending_pickings.action_confirm()
                 pending_pickings.action_assign()
         return res
+
+    def action_done(self):
+        res = super().action_done()
+        self._sync_contract_receipt_progress()
+        return res
+
+    def button_validate(self):
+        res = super().button_validate()
+        self._sync_contract_receipt_progress()
+        return res
+
+    def _sync_contract_receipt_progress(self):
+        contracts = self.mapped("contract_id")
+        if contracts:
+            contracts._sync_receipt_progress()

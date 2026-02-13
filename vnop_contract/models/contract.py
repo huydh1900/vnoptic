@@ -45,6 +45,21 @@ class Contract(models.Model):
         index=True,
     )
 
+    delivery_state = fields.Selection(
+        [
+            ("expected", "Dự kiến giao"),
+            ("confirmed_arrival", "Xác nhận hàng về"),
+            ("partial", "Đã giao 1 phần"),
+            ("done", "Đã giao đủ"),
+            ("cancel", "Hủy"),
+        ],
+        string="Trạng thái giao",
+        default="expected",
+        tracking=True,
+        copy=False,
+        index=True,
+    )
+
     approved_date = fields.Datetime(string="Ngày duyệt", readonly=True, copy=False, tracking=True)
     approved_by = fields.Many2one("res.users", string="Người duyệt", readonly=True, copy=False, tracking=True)
 
@@ -228,7 +243,7 @@ class Contract(models.Model):
 
     def action_cancel(self):
         for rec in self:
-            rec.write({"state": "cancel"})
+            rec.write({"state": "cancel", "delivery_state": "cancel"})
 
     def action_request_revision(self):
         for rec in self:
@@ -406,6 +421,7 @@ class Contract(models.Model):
             "origin": origin_name,
             "picking_ids": [(6, 0, incoming.ids)],
         })
+        self.delivery_state = "confirmed_arrival"
         return {
             "type": "ir.actions.act_window",
             "res_model": "stock.picking.batch",
@@ -530,6 +546,52 @@ class Contract(models.Model):
             qty_left = 0.0
 
         return max(qty_target - qty_left, 0.0)
+
+    def _sync_receipt_progress(self):
+        for contract in self:
+            contract._update_contract_line_received_quantities()
+            contract._update_delivery_state_from_lines()
+
+    def _update_contract_line_received_quantities(self):
+        StockMove = self.env["stock.move"]
+        for contract in self:
+            incoming_done_moves = StockMove.search([
+                ("contract_id", "=", contract.id),
+                ("state", "=", "done"),
+                ("picking_type_id.code", "=", "incoming"),
+                ("purchase_line_id", "!=", False),
+            ])
+            received_by_po_line = {}
+            for move in incoming_done_moves:
+                qty_done = move.quantity if "quantity" in move._fields else move.quantity_done
+                received_by_po_line[move.purchase_line_id.id] = (
+                    received_by_po_line.get(move.purchase_line_id.id, 0.0) + qty_done
+                )
+
+            for line in contract.line_ids:
+                received_qty = received_by_po_line.get(line.purchase_line_id.id, 0.0)
+                qty_contract = line.qty_contract or 0.0
+                line.qty_received = min(received_qty, qty_contract)
+                line.qty_remaining = max(qty_contract - line.qty_received, 0.0)
+
+    def _update_delivery_state_from_lines(self):
+        for contract in self:
+            if contract.state == "cancel":
+                contract.delivery_state = "cancel"
+                continue
+
+            total_ordered = sum(contract.line_ids.mapped("qty_contract"))
+            total_received = sum(contract.line_ids.mapped("qty_received"))
+
+            if not total_received:
+                if contract.delivery_state != "confirmed_arrival":
+                    contract.delivery_state = "expected"
+                continue
+
+            if abs(total_received - total_ordered) <= 1e-6:
+                contract.delivery_state = "done"
+            else:
+                contract.delivery_state = "partial"
 
     def action_create_otk(self):
         self.ensure_one()

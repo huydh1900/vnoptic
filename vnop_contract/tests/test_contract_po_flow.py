@@ -76,3 +76,110 @@ class TestContractPurchaseFlow(SavepointCase):
         contract_a.write({"purchase_order_ids": [(3, po.id)]})
 
         self.assertEqual(picking.contract_id, contract_b)
+
+
+    def test_create_batch_sets_delivery_state_confirmed_arrival(self):
+        contract = self._create_contract("Contract Batch")
+        po = self._create_po("PO-BATCH")
+        contract.write({"purchase_order_ids": [(4, po.id)], "state": "approved"})
+
+        incoming_type = self.env["stock.picking.type"].search([
+            ("code", "=", "incoming"),
+            ("company_id", "=", self.company.id),
+        ], limit=1)
+        picking = self.env["stock.picking"].create({
+            "partner_id": self.partner.id,
+            "picking_type_id": incoming_type.id,
+            "location_id": incoming_type.default_location_src_id.id,
+            "location_dest_id": incoming_type.default_location_dest_id.id,
+            "purchase_id": po.id,
+            "contract_id": contract.id,
+            "state": "confirmed",
+        })
+        self.env["stock.move"].create({
+            "name": self.product.display_name,
+            "product_id": self.product.id,
+            "product_uom": self.product.uom_po_id.id,
+            "product_uom_qty": 5,
+            "location_id": incoming_type.default_location_src_id.id,
+            "location_dest_id": incoming_type.default_location_dest_id.id,
+            "picking_id": picking.id,
+            "purchase_line_id": po.order_line[:1].id,
+            "contract_id": contract.id,
+        })
+
+        action = contract.action_create_batch_receipt()
+
+        self.assertEqual(contract.delivery_state, "confirmed_arrival")
+        self.assertEqual(action.get("res_model"), "stock.picking.batch")
+
+    def test_sync_receipt_progress_updates_line_and_delivery_state(self):
+        contract = self._create_contract("Contract Sync")
+        po = self._create_po("PO-SYNC")
+        po_line = po.order_line[:1]
+        contract.write({"purchase_order_ids": [(4, po.id)], "state": "approved"})
+        self.env["contract.line"].create({
+            "contract_id": contract.id,
+            "product_id": self.product.id,
+            "uom_id": po_line.product_uom.id,
+            "currency_id": po.currency_id.id,
+            "product_qty": 5,
+            "qty_contract": 5,
+            "qty_received": 0,
+            "qty_remaining": 5,
+            "price_unit": 10,
+            "amount_total": 50,
+            "purchase_id": po.id,
+            "purchase_line_id": po_line.id,
+        })
+
+        incoming_type = self.env["stock.picking.type"].search([
+            ("code", "=", "incoming"),
+            ("company_id", "=", self.company.id),
+        ], limit=1)
+        picking = self.env["stock.picking"].create({
+            "partner_id": self.partner.id,
+            "picking_type_id": incoming_type.id,
+            "location_id": incoming_type.default_location_src_id.id,
+            "location_dest_id": incoming_type.default_location_dest_id.id,
+            "purchase_id": po.id,
+            "contract_id": contract.id,
+            "state": "done",
+        })
+
+        self.env["stock.move"].create({
+            "name": self.product.display_name,
+            "product_id": self.product.id,
+            "product_uom": self.product.uom_po_id.id,
+            "product_uom_qty": 3,
+            "quantity": 3,
+            "state": "done",
+            "location_id": incoming_type.default_location_src_id.id,
+            "location_dest_id": incoming_type.default_location_dest_id.id,
+            "picking_id": picking.id,
+            "purchase_line_id": po_line.id,
+            "contract_id": contract.id,
+        })
+        contract._sync_receipt_progress()
+        line = contract.line_ids[:1]
+        self.assertEqual(line.qty_received, 3)
+        self.assertEqual(line.qty_remaining, 2)
+        self.assertEqual(contract.delivery_state, "partial")
+
+        self.env["stock.move"].create({
+            "name": self.product.display_name,
+            "product_id": self.product.id,
+            "product_uom": self.product.uom_po_id.id,
+            "product_uom_qty": 2,
+            "quantity": 2,
+            "state": "done",
+            "location_id": incoming_type.default_location_src_id.id,
+            "location_dest_id": incoming_type.default_location_dest_id.id,
+            "picking_id": picking.id,
+            "purchase_line_id": po_line.id,
+            "contract_id": contract.id,
+        })
+        contract._sync_receipt_progress()
+        self.assertEqual(line.qty_received, 5)
+        self.assertEqual(line.qty_remaining, 0)
+        self.assertEqual(contract.delivery_state, "done")

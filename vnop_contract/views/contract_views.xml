@@ -29,6 +29,13 @@
                        decoration-warning="state == 'waiting'"
                        decoration-success="state == 'approved'"
                        decoration-danger="state == 'cancel'"/>
+                <field name="delivery_state"
+                       widget="badge"
+                       decoration-info="delivery_state == 'expected'"
+                       decoration-warning="delivery_state == 'confirmed_arrival'"
+                       decoration-primary="delivery_state == 'partial'"
+                       decoration-success="delivery_state == 'done'"
+                       decoration-danger="delivery_state == 'cancel'"/>
             </list>
         </field>
     </record>
@@ -81,6 +88,8 @@
 
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,waiting,approved,revision_requested,cancel"/>
+                    <field name="delivery_state" widget="statusbar"
+                           statusbar_visible="expected,confirmed_arrival,partial,done,cancel"/>
                 </header>
 
                 <sheet>
@@ -137,6 +146,7 @@
                         <group string="Giao hàng">
                             <field name="incoterm_id" readonly="state != 'draft'"/>
                             <field name="shipment_date" readonly="state != 'draft'"/>
+                            <field name="delivery_state" readonly="1"/>
                             <field name="port_of_loading" readonly="state != 'draft'"/>
                             <field name="destination" readonly="state != 'draft'"/>
                             <field name="partial_shipment" readonly="state != 'draft'"/>
