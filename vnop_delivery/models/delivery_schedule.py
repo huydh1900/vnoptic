@@ -10,7 +10,7 @@ class DeliverySchedule(models.Model):
     _description = 'Lịch giao hàng'
 
     name = fields.Char(string='Đợt giao')
-    delivery_datetime = fields.Datetime(
+    delivery_datetime = fields.Date(
         string='Thời gian giao hàng',
         required=True,
         tracking=True
@@ -87,7 +87,7 @@ class DeliverySchedule(models.Model):
 
     picking_count = fields.Integer(compute='_compute_picking_count')
 
-    color = fields.Integer(string="Color", compute="_compute_color", store=True)
+    color = fields.Integer(string="Màu", compute="_compute_color", store=True)
 
     _sql_constraints = [
         (
@@ -175,8 +175,8 @@ class DeliverySchedule(models.Model):
 
                 if existing:
                     raise ValidationError(
-                        "Hợp đồng này đã được gán cho lịch giao hàng với số vận đơn: %s."
-                        % (existing.bill_number or "N/A")
+                        "Lịch giao hàng cho Hợp đồng %s đã tồn tại. Vui lòng chọn hợp đồng khác!"
+                        % (rec.contract_id.name or "N/A")
                     )
 
     def action_view_contract(self):

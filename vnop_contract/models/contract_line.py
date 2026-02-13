@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError
 
 
 class ContractLine(models.Model):
@@ -15,12 +15,42 @@ class ContractLine(models.Model):
         "res.currency",
         string="Tiền tệ",
     )
-    product_qty = fields.Integer(string="SL đặt hàng", digits="Product Unit of Measure")
-    qty_contract = fields.Integer(string="SL theo hợp đồng", digits="Product Unit of Measure")
+    product_qty = fields.Float(string="SL đặt hàng", digits="Product Unit of Measure")
+    qty_received = fields.Float(string="SL đã nhận", digits="Product Unit of Measure")
+    qty_contract = fields.Float(string="SL theo hợp đồng", digits="Product Unit of Measure")
+    qty_remaining = fields.Float(string="SL còn lại", digits="Product Unit of Measure")
     price_unit = fields.Float(string="Đơn giá", digits="Product Price")
     amount_total = fields.Float(string="Thành tiền")
     purchase_id = fields.Many2one(
         "purchase.order",
         string="Đơn mua",
     )
+    purchase_line_id = fields.Many2one(
+        "purchase.order.line",
+        string="Dòng PO",
+        domain="[('order_id', '=', purchase_id), ('display_type', '=', False)]",
+    )
 
+    @api.constrains("qty_contract", "qty_remaining")
+    @api.onchange("qty_contract")
+    def _check_qty_contract_not_exceed_remaining(self):
+        for line in self:
+            if line.qty_contract < 0:
+                raise UserError("SL theo hợp đồng không được âm.")
+
+            if line.qty_contract and line.qty_remaining and line.qty_contract > line.qty_remaining:
+                raise UserError(
+                    "SL theo hợp đồng không được vượt SL còn lại chưa nhận của đơn mua.\n\n"
+                    "Vui lòng quay lại Đơn mua để kiểm tra nhận hàng/backorder."
+                )
+
+    @api.constrains("purchase_line_id", "contract_id")
+    def _check_purchase_line_unique_in_contract(self):
+        for line in self.filtered("purchase_line_id"):
+            duplicated = self.search_count([
+                ("id", "!=", line.id),
+                ("contract_id", "=", line.contract_id.id),
+                ("purchase_line_id", "=", line.purchase_line_id.id),
+            ])
+            if duplicated:
+                raise UserError(_("Mỗi dòng PO chỉ được map với một dòng hợp đồng."))

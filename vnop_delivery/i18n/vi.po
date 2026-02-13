@@ -3,4 +3,4 @@
 #: model_terms:ir.ui.view,arch_db:stock.view_picking_form
 #: model_terms:ir.ui.view,arch_db:stock.view_picking_move_tree
 msgid "Demand"
-msgstr "SL hợp đồng"
+msgstr "SL đơn mua"

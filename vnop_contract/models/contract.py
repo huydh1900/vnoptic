@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
 
 
 class Contract(models.Model):
@@ -22,16 +22,39 @@ class Contract(models.Model):
         tracking=True,
     )
     partner_ref = fields.Char(string="Mã NCC", related="partner_id.ref", store=True, readonly=True)
+    company_id = fields.Many2one(
+        "res.company",
+        string="Công ty",
+        required=True,
+        default=lambda self: self.env.company,
+        index=True,
+    )
 
     state = fields.Selection(
         [
             ("draft", "Nháp"),
             ("waiting", "Chờ duyệt"),
+            ("revision_requested", "Yêu cầu chỉnh sửa"),
             ("approved", "Đã duyệt"),
             ("cancel", "Hủy"),
         ],
         string="Trạng thái",
         default="draft",
+        tracking=True,
+        copy=False,
+        index=True,
+    )
+
+    delivery_state = fields.Selection(
+        [
+            ("expected", "Dự kiến giao"),
+            ("confirmed_arrival", "Xác nhận hàng về"),
+            ("partial", "Đã giao 1 phần"),
+            ("done", "Đã giao đủ"),
+            ("cancel", "Hủy"),
+        ],
+        string="Trạng thái giao",
+        default="expected",
         tracking=True,
         copy=False,
         index=True,
@@ -61,7 +84,7 @@ class Contract(models.Model):
 
     # ====== Delivery / shipping ======
     incoterm_id = fields.Many2one("account.incoterms", string="Điều kiện giao hàng")
-    shipment_date = fields.Date(string="Ngày dự kiến giao hàng", required=True)
+    shipment_date = fields.Date(string="Ngày dự kiến giao hàng")
     port_of_loading = fields.Char(string="Cảng xếp hàng")
     destination = fields.Char(string="Cảng/điểm đến")
     partial_shipment = fields.Boolean(string="Cho phép giao nhiều đợt", default=True)
@@ -83,7 +106,7 @@ class Contract(models.Model):
     )
 
     # ====== Docs / terms ======
-    terms = fields.Html(string="Terms & Conditions")
+    terms = fields.Html(string="Điều khoản & điều kiện")
     note = fields.Html(string="Ghi chú")
 
     attachment_ids = fields.Many2many(
@@ -97,10 +120,26 @@ class Contract(models.Model):
     # ====== PO links ======
     purchase_order_ids = fields.Many2many(
         "purchase.order",
+        "contract_purchase_order_rel",
+        "contract_id",
+        "purchase_order_id",
         string="Đơn mua hàng",
         domain="[('partner_id','=', partner_id), ('state','in',('purchase','done'))]",
     )
     purchase_order_count = fields.Integer(string="Số PO", compute="_compute_purchase_order_count")
+    receipt_ids = fields.One2many("stock.picking", "contract_id", string="Phiếu nhập kho", readonly=True)
+    receipt_count_open = fields.Integer(compute="_compute_receipt_metrics", string="Phiếu nhập kho đang mở")
+    receipt_count_done = fields.Integer(compute="_compute_receipt_metrics", string="Phiếu nhập kho hoàn tất")
+    batch_ids = fields.One2many("stock.picking.batch", "contract_id", string="Lô phiếu nhập kho", readonly=True)
+    batch_count = fields.Integer(compute="_compute_batch_count", string="Số lô")
+    otk_picking_ids = fields.One2many(
+        "stock.picking",
+        "contract_id",
+        string="Phiếu chuyển OTK",
+        domain=[("otk_type", "in", ("ok", "ng"))],
+        readonly=True,
+    )
+    otk_count = fields.Integer(compute="_compute_otk_count", string="Số phiếu OTK")
 
     # ====== Lines ======
     line_ids = fields.One2many("contract.line", "contract_id", string="Tổng hợp sản phẩm", copy=False)
@@ -128,6 +167,20 @@ class Contract(models.Model):
     def _compute_purchase_order_count(self):
         for rec in self:
             rec.purchase_order_count = len(rec.purchase_order_ids)
+
+    def _compute_batch_count(self):
+        for rec in self:
+            rec.batch_count = len(rec.batch_ids)
+
+    def _compute_otk_count(self):
+        for rec in self:
+            rec.otk_count = len(rec.otk_picking_ids)
+
+    def _compute_receipt_metrics(self):
+        for rec in self:
+            incoming = rec.receipt_ids.filtered(lambda p: p.picking_type_code == 'incoming')
+            rec.receipt_count_open = len(incoming.filtered(lambda p: p.state not in ('done', 'cancel')))
+            rec.receipt_count_done = len(incoming.filtered(lambda p: p.state == 'done'))
 
     @api.depends("line_ids")
     def _compute_product_count(self):
@@ -190,13 +243,28 @@ class Contract(models.Model):
 
     def action_cancel(self):
         for rec in self:
-            rec.write({"state": "cancel"})
+            rec.write({"state": "cancel", "delivery_state": "cancel"})
+
+    def action_request_revision(self):
+        for rec in self:
+            if rec.state != 'approved':
+                continue
+            rec.write({'state': 'revision_requested'})
+
+    def action_allow_revision(self):
+        for rec in self:
+            if rec.state != 'revision_requested':
+                continue
+            rec.write({'state': 'draft'})
 
 
     def action_submit(self):
         for rec in self:
             if not rec.partner_id:
                 raise ValidationError(_("Vui lòng chọn Nhà cung cấp trước khi gửi duyệt."))
+            if not rec.shipment_date:
+                raise ValidationError(_("Ngày dự kiến giao hàng không được để trống!"))
+            rec._check_fifo_valuation()
             rec.write({'state': 'waiting'})
 
     @api.onchange("partner_id")
@@ -205,33 +273,440 @@ class Contract(models.Model):
         self.purchase_order_ids = [(5, 0, 0)]
         self.line_ids = [(5, 0, 0)]
 
-    # @api.onchange("purchase_order_ids")
-    # def _onchange_purchase_order_ids_build_product_lines(self):
-    #     """
-    #     Chọn PO A -> đổ line của PO A (1-1 theo từng order_line)
-    #     Thêm PO B -> append thêm line, KHÔNG cộng dồn
-    #     Bỏ PO -> rebuild lại theo danh sách PO hiện tại
-    #     """
+    @api.onchange("purchase_order_ids")
+    def _onchange_purchase_order_ids_build_product_lines(self):
+        """Tự động nạp dòng sản phẩm từ PO, chỉ đề xuất phần còn lại chưa nhận."""
+        for contract in self:
+            line_commands = [(5, 0, 0)]
+
+            for po in contract.purchase_order_ids:
+                for line in po.order_line:
+                    if not line.product_id or line.display_type:
+                        continue
+
+                    qty_remaining = max(line.qty_remaining, 0.0)
+                    if qty_remaining <= 0:
+                        continue
+
+                    line_commands.append((0, 0, {
+                        "product_id": line.product_id.id,
+                        "uom_id": line.product_uom.id,
+                        "currency_id": po.currency_id.id,
+                        "product_qty": line.product_qty,
+                        "qty_received": line.qty_received,
+                        "qty_contract": qty_remaining,
+                        "qty_remaining": qty_remaining,
+                        "price_unit": line.price_unit,
+                        "amount_total": line.price_subtotal,
+                        "purchase_id": po.id,
+                        "purchase_line_id": line.id,
+                    }))
+
+            contract.line_ids = line_commands
+
+    # @api.constrains("purchase_order_ids", "partner_id", "currency_id", "incoterm_id")
+    # def _check_purchase_order_policy(self):
     #     for contract in self:
-    #         commands = [(5, 0, 0)]  # clear
-    #
     #         for po in contract.purchase_order_ids:
-    #             for line in po.order_line:
-    #                 if not line.product_id or line.display_type:
-    #                     continue
-    #
-    #                 qty = line.product_qty
-    #                 price_unit = line.price_unit
-    #                 subtotal = line.price_subtotal
-    #
-    #                 commands.append((0, 0, {
-    #                     "product_id": line.product_id.id,
-    #                     "product_uom": line.product_uom.id,
-    #                     "product_qty": qty,
-    #                     "price_unit": price_unit,
-    #                     "amount_total": subtotal,
-    #                     'purchase_id': po.id,
-    #
-    #                 }))
-    #
-    #         contract.line_ids = commands
+    #             if po.company_id != contract.company_id:
+    #                 raise ValidationError(_("PO %s khác công ty với hợp đồng.") % po.display_name)
+    #             if po.state == 'cancel':
+    #                 raise ValidationError(_("PO %s đang ở trạng thái hủy, không thể thêm vào hợp đồng.") % po.display_name)
+    #             if po.currency_id != contract.currency_id:
+    #                 raise ValidationError(_("PO %s khác tiền tệ với hợp đồng.") % po.display_name)
+    #             if contract.incoterm_id and po.incoterm_id and po.incoterm_id != contract.incoterm_id:
+    #                 raise ValidationError(_("PO %s khác Incoterm với hợp đồng.") % po.display_name)
+    #             if po.contract_id and po.contract_id != contract:
+    #                 raise ValidationError(_("PO %s đã thuộc hợp đồng %s.") % (po.display_name, po.contract_id.display_name))
+
+    def write(self, vals):
+        tracked_po_before = {rec.id: rec.purchase_order_ids for rec in self}
+        res = super().write(vals)
+        if "purchase_order_ids" in vals:
+            for contract in self:
+                before = tracked_po_before.get(contract.id, self.env['purchase.order'])
+                after = contract.purchase_order_ids
+                added = after - before
+                removed = before - after
+                if added:
+                    contract._propagate_contract_to_receipts(added)
+                if removed:
+                    contract._check_po_removal_policy(removed)
+                    contract._clear_contract_on_receipts(removed)
+        return res
+
+    def _check_po_removal_policy(self, orders):
+        for po in orders:
+            done_receipts = po.picking_ids.filtered(lambda p: p.picking_type_code == 'incoming' and p.state == 'done')
+            if done_receipts:
+                raise UserError(_("Không thể gỡ PO %s vì đã có phiếu nhập kho hoàn tất.") % po.display_name)
+
+    def _propagate_contract_to_receipts(self, orders=None):
+        for contract in self:
+            purchase_orders = orders or contract.purchase_order_ids
+            receipts = purchase_orders.mapped('picking_ids').filtered(
+                lambda p: p.picking_type_code == 'incoming' and p.state not in ('done', 'cancel')
+            )
+            receipts.write({"contract_id": contract.id})
+            receipts.move_ids_without_package.write({"contract_id": contract.id})
+
+    def _clear_contract_on_receipts(self, orders):
+        receipts = orders.mapped('picking_ids').filtered(
+            lambda p: p.picking_type_code == 'incoming' and p.state not in ('done', 'cancel')
+        )
+        for picking in receipts:
+            if picking.contract_id != self:
+                continue
+            remaining_contracts = (picking.purchase_id.contract_ids - self)
+            replacement_contract = remaining_contracts[:1]
+            picking.write({"contract_id": replacement_contract.id or False})
+            picking.move_ids_without_package.write({"contract_id": replacement_contract.id or False})
+
+    def action_propagate_receipt(self):
+        self._propagate_contract_to_receipts()
+
+    def action_view_receipts(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Phiếu nhập kho"),
+            "res_model": "stock.picking",
+            "view_mode": "list,form",
+            "domain": [("purchase_id", "in", self.purchase_order_ids.ids), ("picking_type_code", "=", "incoming")],
+            "context": {"default_contract_id": self.id},
+        }
+
+    def action_view_batches(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Phiếu tiếp nhận hàng",
+            "res_model": "stock.picking.batch",
+            "view_mode": "list,form",
+            "domain": [("contract_id", "=", self.id)],
+            "context": {"default_contract_id": self.id},
+        }
+
+    def action_view_otk(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Phiếu chuyển OTK"),
+            "res_model": "stock.picking",
+            "view_mode": "list,form",
+            "domain": [("contract_id", "=", self.id), ("otk_type", "in", ("ok", "ng"))],
+            "context": {"default_contract_id": self.id},
+        }
+
+    def action_create_batch_receipt(self):
+        self.ensure_one()
+        self._check_create_batch_receipt_preconditions()
+        reset_qty_done = bool(self.env.context.get("reset_qty_done"))
+        incoming = self._get_incoming_receipts_for_batch()
+        if not incoming:
+            raise UserError(_("Không có phiếu nhập kho phù hợp để tạo lô."))
+
+        self._prefill_qty_done_from_contract(incoming, reset_qty_done=reset_qty_done)
+        picking_types = incoming.mapped("picking_type_id")
+        if len(picking_types) > 1:
+            raise UserError(_("Các phiếu nhập thuộc nhiều loại vận chuyển khác nhau, không thể gom chung một lô."))
+
+        origin_name = self.number or self.name
+
+        batch = self.env['stock.picking.batch'].create({
+            "company_id": self.company_id.id,
+            "contract_id": self.id,
+            "picking_type_id": picking_types.id,
+            "user_id": self.env.uid,
+            "origin": origin_name,
+            "picking_ids": [(6, 0, incoming.ids)],
+        })
+        self.delivery_state = "confirmed_arrival"
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "stock.picking.batch",
+            "view_mode": "form",
+            "res_id": batch.id,
+            "target": "current",
+        }
+
+    def _check_create_batch_receipt_preconditions(self):
+        self.ensure_one()
+        if self.state != "approved":
+            raise UserError(_("Chỉ được tạo lô nhận hàng khi hợp đồng ở trạng thái Đã duyệt."))
+        if not self.purchase_order_ids:
+            raise UserError(_("Hợp đồng chưa có PO liên quan."))
+
+    def _get_incoming_receipts_for_batch(self):
+        self.ensure_one()
+        picking_domain = [
+            ("purchase_id", "in", self.purchase_order_ids.ids),
+            ("picking_type_code", "=", "incoming"),
+            ("state", "in", ("waiting", "confirmed", "assigned")),
+            ("batch_id", "=", False),
+            ("company_id", "=", self.company_id.id),
+        ]
+        receipts = self.env["stock.picking"].search(picking_domain)
+        if not receipts:
+            return receipts
+
+        open_receipts = receipts.filtered(
+            lambda picking: any(
+                self._get_move_remaining_qty(move) > 0
+                for move in picking.move_ids_without_package.filtered(
+                    lambda m: m.state not in ("cancel", "done")
+                )
+            )
+        )
+        return open_receipts
+
+    def _prefill_qty_done_from_contract(self, incoming_pickings, reset_qty_done=False):
+        self.ensure_one()
+        quantity_by_key = {}
+        for line in self.line_ids:
+            if not line.product_id:
+                continue
+            received_contract_qty = min(line.qty_received or 0.0, line.qty_contract or 0.0)
+            remaining = max((line.qty_contract or 0.0) - received_contract_qty, 0.0)
+            if not remaining:
+                continue
+            key = self._contract_line_key(line)
+            quantity_by_key[key] = quantity_by_key.get(key, 0.0) + remaining
+
+        if not quantity_by_key:
+            return
+
+        candidate_moves = incoming_pickings.move_ids_without_package.filtered(
+            lambda move: move.state not in ("cancel", "done") and move.product_id and move.purchase_line_id
+        ).sorted("id")
+
+        for move in candidate_moves:
+            move_key = self._move_contract_key(move)
+            contract_remaining = quantity_by_key.get(move_key, 0.0)
+            if contract_remaining <= 0:
+                continue
+            move_remaining = self._get_move_remaining_qty(move)
+            if move_remaining <= 0:
+                continue
+            qty_to_receive_now = min(contract_remaining, move_remaining)
+            if qty_to_receive_now <= 0:
+                continue
+            assigned_qty = self._assign_qty_done_on_move(move, qty_to_receive_now, reset_qty_done=reset_qty_done)
+            if assigned_qty:
+                quantity_by_key[move_key] = max(contract_remaining - assigned_qty, 0.0)
+
+    def _contract_line_key(self, line):
+        if line.purchase_line_id:
+            return ("po_line", line.purchase_line_id.id)
+        if line.purchase_id and line.product_id:
+            return ("po_product", line.purchase_id.id, line.product_id.id)
+        return None
+
+    def _move_contract_key(self, move):
+        if move.purchase_line_id:
+            return ("po_line", move.purchase_line_id.id)
+        return None
+
+    def _get_move_remaining_qty(self, move):
+        return max((move.product_uom_qty or 0.0) - (move.quantity_done or 0.0), 0.0)
+
+    def _assign_qty_done_on_move(self, move, qty_target, reset_qty_done=False):
+        qty_left = qty_target
+        done_field = "qty_done" if "qty_done" in self.env["stock.move.line"]._fields else "quantity"
+        move_lines = move.move_line_ids.sorted("id")
+
+        if move_lines:
+            for move_line in move_lines:
+                current_done = move_line[done_field]
+                if current_done > 0 and not reset_qty_done:
+                    continue
+                reservable = move_line.reserved_uom_qty if "reserved_uom_qty" in move_line._fields else move_line.product_uom_qty
+                line_capacity = max((reservable or 0.0) - (0.0 if reset_qty_done else current_done), 0.0)
+                if line_capacity <= 0 and qty_left <= 0:
+                    continue
+                line_qty = min(line_capacity if line_capacity > 0 else qty_left, qty_left)
+                if line_qty <= 0:
+                    continue
+                move_line[done_field] = line_qty if reset_qty_done else current_done + line_qty
+                qty_left -= line_qty
+                if qty_left <= 0:
+                    break
+
+        if qty_left > 0 and (reset_qty_done or not any(line[done_field] > 0 for line in move_lines)):
+            fallback_vals = {
+                "move_id": move.id,
+                "picking_id": move.picking_id.id,
+                "product_id": move.product_id.id,
+                "product_uom_id": move.product_uom.id,
+                "location_id": move.location_id.id,
+                "location_dest_id": move.location_dest_id.id,
+                done_field: qty_left,
+            }
+            self.env["stock.move.line"].create(fallback_vals)
+            qty_left = 0.0
+
+        return max(qty_target - qty_left, 0.0)
+
+    def _sync_receipt_progress(self):
+        for contract in self:
+            contract._update_contract_line_received_quantities()
+            contract._update_delivery_state_from_lines()
+
+    def _update_contract_line_received_quantities(self):
+        StockMove = self.env["stock.move"]
+        for contract in self:
+            incoming_done_moves = StockMove.search([
+                ("contract_id", "=", contract.id),
+                ("state", "=", "done"),
+                ("picking_type_id.code", "=", "incoming"),
+                ("purchase_line_id", "!=", False),
+            ])
+            received_by_po_line = {}
+            for move in incoming_done_moves:
+                qty_done = move.quantity if "quantity" in move._fields else move.quantity_done
+                received_by_po_line[move.purchase_line_id.id] = (
+                    received_by_po_line.get(move.purchase_line_id.id, 0.0) + qty_done
+                )
+
+            for line in contract.line_ids:
+                received_qty = received_by_po_line.get(line.purchase_line_id.id, 0.0)
+                qty_contract = line.qty_contract or 0.0
+                line.qty_received = min(received_qty, qty_contract)
+                line.qty_remaining = max(qty_contract - line.qty_received, 0.0)
+
+    def _update_delivery_state_from_lines(self):
+        for contract in self:
+            if contract.state == "cancel":
+                contract.delivery_state = "cancel"
+                continue
+
+            total_ordered = sum(contract.line_ids.mapped("qty_contract"))
+            total_received = sum(contract.line_ids.mapped("qty_received"))
+
+            if not total_received:
+                if contract.delivery_state != "confirmed_arrival":
+                    contract.delivery_state = "expected"
+                continue
+
+            if abs(total_received - total_ordered) <= 1e-6:
+                contract.delivery_state = "done"
+            else:
+                contract.delivery_state = "partial"
+
+    def action_create_otk(self):
+        self.ensure_one()
+        picking_type = self.env['stock.picking.type'].search([
+            ('code', '=', 'internal'),
+            ('warehouse_id.company_id', '=', self.company_id.id),
+        ], limit=1)
+        if not picking_type:
+            raise UserError(_("Không tìm thấy loại vận chuyển nội bộ để tạo OTK."))
+
+        temp_location = picking_type.default_location_src_id
+        location_ok = self.env['stock.location'].search([
+            ('usage', '=', 'internal'), ('company_id', 'in', [self.company_id.id, False]), ('name', 'ilike', 'đạt')
+        ], limit=1) or self.env['stock.location'].search([
+            ('complete_name', 'ilike', 'OK'), ('usage', '=', 'internal'), ('company_id', 'in', [self.company_id.id, False])
+        ], limit=1)
+        location_ng = self.env['stock.location'].search([
+            ('usage', '=', 'internal'), ('company_id', 'in', [self.company_id.id, False]), ('name', 'ilike', 'NG')
+        ], limit=1)
+        if not temp_location or not location_ok or not location_ng:
+            raise UserError(_("Thiếu cấu hình kho tạm/Kho đạt/Kho NG."))
+
+        grouped = self._get_otk_candidate_quantities(temp_location)
+        if not grouped:
+            raise UserError(_("Không có số lượng tồn ở kho tạm để OTK."))
+
+        ok_picking = self._create_otk_picking(picking_type, temp_location, location_ok, grouped, "ok")
+        ng_picking = self._create_otk_picking(picking_type, temp_location, location_ng, grouped, "ng", create_moves=False)
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Phiếu chuyển OTK"),
+            "res_model": "stock.picking",
+            "view_mode": "list,form",
+            "domain": [("id", "in", (ok_picking | ng_picking).ids)],
+        }
+
+    def _get_otk_candidate_quantities(self, temp_location):
+        self.ensure_one()
+        incoming_moves = self.env['stock.move'].search([
+            ('contract_id', '=', self.id),
+            ('state', '=', 'done'),
+            ('picking_type_id.code', '=', 'incoming'),
+            ('location_dest_id', '=', temp_location.id),
+        ])
+        if not incoming_moves:
+            return {}
+        moved = {}
+        for move in incoming_moves:
+            moved[move.product_id] = moved.get(move.product_id, 0.0) + move.quantity
+
+        otk_done = self.env['stock.move'].search([
+            ('contract_id', '=', self.id),
+            ('state', '=', 'done'),
+            ('picking_id.otk_type', 'in', ('ok', 'ng')),
+            ('location_id', '=', temp_location.id),
+        ])
+        for move in otk_done:
+            moved[move.product_id] = moved.get(move.product_id, 0.0) - move.quantity
+
+        return {product: qty for product, qty in moved.items() if qty > 0}
+
+    def _create_otk_picking(self, picking_type, source, destination, grouped, otk_type, create_moves=True):
+        self.ensure_one()
+        picking = self.env['stock.picking'].create({
+            'picking_type_id': picking_type.id,
+            'partner_id': self.partner_id.id,
+            'location_id': source.id,
+            'location_dest_id': destination.id,
+            'origin': self.name,
+            'company_id': self.company_id.id,
+            'contract_id': self.id,
+            'otk_type': otk_type,
+        })
+        if create_moves:
+            for product, qty in grouped.items():
+                self.env['stock.move'].create({
+                    'name': product.display_name,
+                    'product_id': product.id,
+                    'product_uom_qty': qty,
+                    'product_uom': product.uom_id.id,
+                    'picking_id': picking.id,
+                    'location_id': source.id,
+                    'location_dest_id': destination.id,
+                    'contract_id': self.id,
+                })
+            picking.action_confirm()
+            picking.action_assign()
+        return picking
+
+    def _check_fifo_valuation(self):
+        """Bắt buộc sản phẩm trong hợp đồng dùng FIFO + định giá tự động."""
+        for contract in self:
+            invalid_lines = contract.line_ids.filtered(
+                lambda line: (
+                    line.product_id.type == 'product'
+                    and (
+                        line.product_id.categ_id.property_cost_method != 'fifo'
+                        or line.product_id.categ_id.property_valuation != 'real_time'
+                    )
+                )
+            )
+            if not invalid_lines:
+                continue
+
+            details = "\n".join(
+                "- %s (Nhóm: %s, Costing: %s, Valuation: %s)" % (
+                    line.product_id.display_name,
+                    line.product_id.categ_id.display_name,
+                    line.product_id.categ_id.property_cost_method,
+                    line.product_id.categ_id.property_valuation,
+                )
+                for line in invalid_lines
+            )
+
+            raise ValidationError(_(
+                "Các sản phẩm sau chưa dùng FIFO hoặc chưa bật Automated Valuation:\n%s\n"
+                "Vui lòng chỉnh Product Category trước khi gửi duyệt hợp đồng."
+            ) % details)
