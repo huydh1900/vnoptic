@@ -25,36 +25,20 @@ class ProductLens(models.Model):
     # 5. Diameter (Manual Input, Validated)
     diameter = fields.Integer('Diameter', required=True)
 
-    # 6. Lens Design (Legacy fields from old system)
-    design1_id = fields.Many2one('product.design', string='Thiết kế 1')
-    design2_id = fields.Many2one('product.design', string='Thiết kế 2')
-    design_id = fields.Many2one('product.lens.design', string='Design (New)')
+    # 6. Lens Design (Config-Driven)
+    design_id = fields.Many2one('product.lens.design', string='Design', required=True)
 
     # 7. Material (Config-Driven)
-    material_id = fields.Many2one('product.lens.material', string='Vật liệu')
+    material_id = fields.Many2one('product.lens.material', string='Material', required=True)
     
-    # 8. Lens Index (Chiết suất)
-    index_id = fields.Many2one('product.lens.index', string='Chiết suất')
-    
-    # 9. UV Protection
-    uv_id = fields.Many2one('product.uv', string='UV')
-    
-    # 10. Color/Coating specific fields (Legacy)
-    cl_hmc_id = fields.Many2one('product.cl', string='HMC')
-    cl_pho_id = fields.Many2one('product.cl', string='Photochromic')
-    cl_tint_id = fields.Many2one('product.cl', string='Tint')
-    
-    # 11. Coatings (Lớp trắng/Lớp phủ)
-    coating_ids = fields.Many2many(
-        'product.coating', 'lens_coating_rel',
-        'lens_id', 'coating_id', string='Lớp trắng'
-    )
-    
-    # 12. Features (New Config-Driven, for future use)
+    # 8. Features & Coatings (Config-Driven, Unified)
     feature_ids = fields.Many2many(
         'product.lens.feature', 'lens_feature_rel', 
-        'lens_id', 'feature_id', string='Features & Coatings (New)'
+        'lens_id', 'feature_id', string='Features & Coatings'
     )
+
+    # 9. Lens Index (Chiết suất)
+    index_id = fields.Many2one('product.lens.index', string='Chiết suất')
     
     # Helper fields for display/search if needed
     corridor = fields.Char('Corridor', size=50) # Keep specialized params
