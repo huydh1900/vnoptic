@@ -275,6 +275,7 @@ class Contract(models.Model):
                         "uom_id": line.product_uom.id,
                         "currency_id": po.currency_id.id,
                         "product_qty": line.product_qty,
+                        "qty_received": line.qty_received,
                         "qty_contract": qty_remaining,
                         "qty_remaining": qty_remaining,
                         "price_unit": line.price_unit,
@@ -386,7 +387,9 @@ class Contract(models.Model):
         if not incoming:
             raise UserError(_("Không có phiếu nhập kho phù hợp để tạo lô."))
 
-        self._apply_contract_quantities_to_incoming_moves(incoming)
+        incoming = self._apply_contract_quantities_to_incoming_moves(incoming)
+        if not incoming:
+            raise UserError(_("Không có phiếu nhập kho phù hợp với SL theo hợp đồng để tạo lô."))
 
         batch = self.env['stock.picking.batch'].create({
             "company_id": self.company_id.id,
@@ -403,7 +406,7 @@ class Contract(models.Model):
         }
 
     def _apply_contract_quantities_to_incoming_moves(self, incoming_pickings):
-        """Đè số lượng nhu cầu nhận hàng theo SL hợp đồng trước khi gom lô."""
+        """Đè số lượng theo hợp đồng và tách phần thiếu sang backorder."""
         self.ensure_one()
         quantity_by_po_product = {}
         for line in self.line_ids:
@@ -413,7 +416,7 @@ class Contract(models.Model):
             quantity_by_po_product[key] = quantity_by_po_product.get(key, 0.0) + (line.qty_contract or 0.0)
 
         if not quantity_by_po_product:
-            return
+            return incoming_pickings
 
         moves_by_key = {}
         for move in incoming_pickings.move_ids_without_package.filtered(
@@ -423,6 +426,9 @@ class Contract(models.Model):
             moves_by_key.setdefault(key, self.env['stock.move'])
             moves_by_key[key] |= move
 
+        backorder_pickings = self.env['stock.picking']
+        split_backorder_by_picking = {}
+
         for key, target_qty in quantity_by_po_product.items():
             moves = moves_by_key.get(key)
             if not moves:
@@ -430,13 +436,53 @@ class Contract(models.Model):
 
             remaining = target_qty
             for move in moves.sorted('id'):
-                move_qty = max(min(remaining, move.product_uom_qty), 0.0)
-                move.product_uom_qty = move_qty
+                original_qty = move.product_uom_qty
+                move_qty = max(min(remaining, original_qty), 0.0)
+                shortage_qty = max(original_qty - move_qty, 0.0)
+                move_vals = move.copy_data()[0] if shortage_qty > 0 else None
+
+                if move_qty > 0:
+                    move.product_uom_qty = move_qty
+                else:
+                    move.unlink()
+
+                if shortage_qty > 0:
+                    backorder = split_backorder_by_picking.get(move.picking_id.id)
+                    if not backorder:
+                        backorder = move.picking_id.copy(default={
+                            'name': '/',
+                            'move_ids_without_package': [],
+                            'move_line_ids': [],
+                            'batch_id': False,
+                            'backorder_id': move.picking_id.id,
+                            'contract_id': self.id,
+                        })
+                        split_backorder_by_picking[move.picking_id.id] = backorder
+                        backorder_pickings |= backorder
+
+                    move_vals.update({
+                        'picking_id': backorder.id,
+                        'product_uom_qty': shortage_qty,
+                        'state': 'draft',
+                        'contract_id': self.id,
+                        'move_line_ids': [],
+                    })
+                    self.env['stock.move'].create(move_vals)
+
                 remaining -= move_qty
 
             if remaining > 0:
-                first_move = moves.sorted('id')[0]
-                first_move.product_uom_qty += remaining
+                first_move = moves.sorted('id')[:1]
+                if first_move:
+                    first_move.product_uom_qty += remaining
+
+        if backorder_pickings:
+            backorder_pickings.action_confirm()
+            backorder_pickings.action_assign()
+
+        return incoming_pickings.filtered(
+            lambda p: p.state not in ('done', 'cancel') and p.move_ids_without_package
+        )
 
     def action_create_otk(self):
         self.ensure_one()
