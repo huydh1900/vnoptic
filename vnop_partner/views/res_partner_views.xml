@@ -12,6 +12,7 @@
             <xpath expr="//form/sheet/group/group[2]/field[@name='function']" position="replace"/>
             <field name="vat" position="after">
                 <field name="ref"/>
+<!--                <field name="property_purchase_currency_id"/>-->
             </field>
         </field>
     </record>

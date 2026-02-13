@@ -10,6 +10,7 @@
                 <field name="name"/>
                 <field name="partner_id"/>
                 <field name="partner_ref"/>
+                <field name="company_id"/>
                 <field name="currency_id"/>
                 <field name="sign_date"/>
 
@@ -51,6 +52,25 @@
                             class="btn-primary"
                             invisible="state != 'draft'"/>
 
+                    <button name="action_request_revision"
+                            type="object"
+                            string="Yêu cầu chỉnh sửa"
+                            class="btn-secondary"
+                            invisible="state != 'approved'"/>
+
+                    <button name="action_allow_revision"
+                            type="object"
+                            string="Cho phép chỉnh sửa"
+                            class="oe_highlight"
+                            invisible="state != 'revision_requested'"/>
+
+                    <button name="action_propagate_receipt" type="object" string="Đồng bộ phiếu nhập kho"
+                            class="btn-secondary"/>
+                    <button name="action_create_batch_receipt" type="object" string="Tạo lô nhận hàng"
+                            class="btn-primary"
+                            invisible="state != 'approved' or not purchase_order_ids"/>
+                    <button name="action_create_otk" type="object" string="Tạo OTK" class="btn-secondary"/>
+
 
                     <button name="action_cancel"
                             type="object"
@@ -59,7 +79,8 @@
                             invisible="state == 'cancel'"
                             confirm="Bạn có chắc chắn muốn hủy hợp đồng này không?"/>
 
-                    <field name="state" widget="statusbar" statusbar_visible="draft,waiting,approved,cancel"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,waiting,approved,revision_requested,cancel"/>
                 </header>
 
                 <sheet>
@@ -76,6 +97,16 @@
                                 icon="fa-cubes">
                             <field name="product_count" widget="statinfo" string="Sản phẩm"/>
                         </button>
+
+                        <button name="action_view_receipts" type="object" class="oe_stat_button" icon="fa-truck">
+                            <field name="receipt_count_open" widget="statinfo" string="Phiếu nhập kho mở"/>
+                        </button>
+                        <button name="action_view_batches" type="object" class="oe_stat_button" icon="fa-truck">
+                            <field name="batch_count" widget="statinfo" string="Phiếu nhận hàng"/>
+                        </button>
+                        <button name="action_view_otk" type="object" class="oe_stat_button" icon="fa-random">
+                            <field name="otk_count" widget="statinfo" string="OTK"/>
+                        </button>
                     </div>
 
                     <div class="oe_title">
@@ -88,6 +119,7 @@
                         <group string="Thông tin chung">
                             <field name="number" placeholder="Số hợp đồng..." readonly="state != 'draft'"/>
                             <field name="sign_date" readonly="state != 'draft'"/>
+                            <field name="company_id" readonly="state != 'draft'"/>
                             <field name="type_contract" readonly="state != 'draft'"/>
                             <field name="currency_id" readonly="state != 'draft'"/>
                             <!--                            <field name="amount_total" widget="monetary" readonly="1"/>-->
@@ -118,29 +150,41 @@
                     </group>
 
                     <notebook>
-                        <page string="Sản phẩm">
-                            <field name="line_ids" readonly="state in ('approved','cancel')">
-                                <list editable="bottom">
-                                    <field name="product_id"/>
-                                    <field name="product_qty"/>
-                                    <field name="qty_contract"/>
-                                    <field name="uom_id"/>
-                                    <field name="price_unit"/>
-                                    <field name="amount_total" widget="monetary"/>
+                        <page string="Đơn mua hàng">
+                            <field name="purchase_order_ids"
+                                   domain="[('partner_id', '=', partner_id),('state', '=', 'purchase')]"
+                                   readonly="state in ('approved','revision_requested','cancel')">
+                                <list delete="0" create="0">
+                                    <field name="name" readonly="1"/>
+                                    <field name="date_order" readonly="1" string="Ngày hàng về dự kiến"/>
+                                    <field name="state" readonly="1"/>
                                     <field name="currency_id" column_invisible="1"/>
-                                    <!--                                    <field name="price_subtotal"/>-->
+                                    <field name="amount_total" sum="Tổng giá trị" widget="monetary"/>
+                                    <button name="action_view_purchase"
+                                            type="object"
+                                            icon="fa-eye"
+                                            title="Xem chi tiết"
+                                            class="btn-link"/>
                                 </list>
                             </field>
                         </page>
-
-                        <page string="Đơn mua hàng">
-                            <field name="purchase_order_ids" readonly="state in ('approved','cancel')">
-                                <list delete="0" create="0">
-                                    <field name="name" readonly="1"/>
-                                    <field name="date_order" readonly="1"/>
-                                    <field name="state" readonly="1"/>
+                        <page string="Sản phẩm">
+                            <field name="line_ids" readonly="state in ('approved','revision_requested','cancel')">
+                                <list editable="bottom" delete="0" create="0">
+                                    <field name="purchase_id" readonly="1" force_save="1"/>
+                                    <field name="product_id" readonly="1" force_save="1"/>
+                                    <field name="product_qty" readonly="1" force_save="1" sum="Tổng SL đặt hàng"/>
+                                    <field name="qty_received" readonly="1" force_save="1" sum="Tổng SL đã nhận"/>
+                                    <field name="qty_contract"
+                                           sum="Tổng SL theo hợp đồng"
+                                           decoration-success="qty_contract"/>
+                                    <field name="qty_remaining" force_save="1" readonly="1"
+                                           decoration-danger="qty_remaining > 0"
+                                           sum="Tổng SL còn lại"/>
+                                    <field name="price_unit" force_save="1" readonly="1"/>
+                                    <field name="amount_total" widget="monetary" readonly="1" force_save="1"
+                                           sum="Tổng giá trị"/>
                                     <field name="currency_id" column_invisible="1"/>
-                                    <field name="amount_total" sum="Total amount" widget="monetary"/>
                                 </list>
                             </field>
                         </page>

@@ -62,7 +62,7 @@
                     </div>
 
                     <group>
-                        <group name="delivery_info" string="Logistics">
+                        <group name="delivery_info" string="Thông tin vận chuyển">
                             <field name="partner_id"
                                    domain="[('supplier_rank','>',0)]" options="{'no_create': True}"
                                    readonly="context.get('from_purchase')"/>

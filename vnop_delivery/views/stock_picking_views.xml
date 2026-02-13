@@ -14,4 +14,3 @@
         </field>
     </record>
 </odoo>
-        <!--or picking_type_id.name != 'Phiếu nhập kho tạm'-->
