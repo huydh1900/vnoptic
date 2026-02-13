@@ -12,32 +12,6 @@ class StockPicking(models.Model):
         index=True,
     )
 
-    def button_validate(self):
-        res = super().button_validate()
-        incoming_done_pickings = self.filtered(
-            lambda picking: picking.state == "done" and picking.picking_type_code == "incoming"
-        )
-        incoming_done_pickings._sync_contract_line_qty_remaining_from_po()
-        return res
-
-    def _sync_contract_line_qty_remaining_from_po(self):
-        for picking in self:
-            remaining_by_po_product = {}
-            for po_line in picking.move_ids_without_package.mapped("purchase_line_id"):
-                if not po_line or not po_line.order_id or not po_line.product_id:
-                    continue
-                key = (po_line.order_id.id, po_line.product_id.id)
-                remaining_by_po_product[key] = remaining_by_po_product.get(key, 0.0) + (po_line.qty_remaining or 0.0)
-
-            for (purchase_id, product_id), qty_remaining in remaining_by_po_product.items():
-                contract_lines = self.env["contract.line"].search([
-                    ("purchase_id", "=", purchase_id),
-                    ("product_id", "=", product_id),
-                ])
-                if contract_lines:
-                    contract_lines.write({"qty_remaining": qty_remaining})
-
-
 class StockMove(models.Model):
     _inherit = "stock.move"
 
