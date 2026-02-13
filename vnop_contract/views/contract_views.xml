@@ -75,7 +75,7 @@
                             class="btn-secondary"/>
                     <button name="action_create_batch_receipt" type="object" string="Tạo lô nhận hàng"
                             class="btn-primary"
-                            invisible="state != 'approved' or not purchase_order_ids"/>
+                            invisible="state != 'approved' or not purchase_order_ids or batch_count &gt; 0"/>
                     <button name="action_create_otk" type="object" string="Tạo OTK" class="btn-secondary"/>
 
 

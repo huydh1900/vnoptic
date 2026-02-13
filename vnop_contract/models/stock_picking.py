@@ -12,6 +12,22 @@ class StockPicking(models.Model):
         index=True,
     )
 
+    def _auto_process_validate_result(self, validate_result):
+        if not isinstance(validate_result, dict):
+            return
+
+        res_model = validate_result.get("res_model")
+        res_id = validate_result.get("res_id")
+        if not res_model or not res_id:
+            return
+
+        wizard = self.env[res_model].browse(res_id)
+        if not wizard.exists():
+            return
+
+        if hasattr(wizard, "process"):
+            wizard.with_context(skip_backorder=False).process()
+
 class StockMove(models.Model):
     _inherit = "stock.move"
 
@@ -53,6 +69,16 @@ class StockPickingBatch(models.Model):
             if pending_pickings:
                 pending_pickings.action_confirm()
                 pending_pickings.action_assign()
+
+            if batch.contract_id:
+                batch.contract_id._prefill_qty_done_from_contract(batch.picking_ids, reset_qty_done=True)
+
+            pickings_to_validate = batch.picking_ids.filtered(lambda picking: picking.state not in ("done", "cancel"))
+            for picking in pickings_to_validate:
+                validate_result = picking.with_context(skip_immediate=True).button_validate()
+                picking._auto_process_validate_result(validate_result)
+
+        self._sync_contract_receipt_progress()
         return res
 
     def action_done(self):
