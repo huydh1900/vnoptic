@@ -46,27 +46,27 @@
                         <list editable="bottom" create="1" delete="1">
                             <field name="sph_id" string="SPH" options="{'no_create': True}" optional="show"/>
                             <field name="cyl_id" string="CYL" options="{'no_create': True}" optional="show"/>
-                            <field name="axis" string="Axis" optional="show"/>
-                            <field name="lens_add" string="Lens Add" optional="show"/>
-                            <field name="diameter" string="Diameter" optional="show"/>
-                            <field name="base_curve" string="Base" optional="hide"/>
-                            <field name="prism" string="Prism" optional="hide"/>
-                            <field name="design_id" string="Thiết kế" options="{'no_create': True}" optional="show"/>
+                            <field name="lens_add" string="Add" optional="show"/>
+                            <field name="prism" string="Prism" optional="show"/>
+                            <field name="base_curve" string="Base" optional="show"/>
+                            <field name="diameter" string="Đường kính" optional="show"/>
+                            <field name="design1_id" string="Thiết kế 1" options="{'no_create': True}" optional="show"/>
+                            <field name="design2_id" string="Thiết kế 2" options="{'no_create': True}" optional="show"/>
                         </list>
                         <form>
                             <sheet>
                                 <group>
-                                    <group string="Thông số quang học">
-                                        <field name="sph_id" options="{'no_create': True}"/>
-                                        <field name="cyl_id" options="{'no_create': True}"/>
-                                        <field name="axis"/>
-                                        <field name="lens_add"/>
-                                        <field name="diameter"/>
-                                        <field name="base_curve"/>
-                                        <field name="prism"/>
+                                    <group string="Thông số kỹ thuật">
+                                        <field name="sph_id" string="SPH" options="{'no_create': True}"/>
+                                        <field name="cyl_id" string="CYL" options="{'no_create': True}"/>
+                                        <field name="lens_add" string="Add"/>
+                                        <field name="prism" string="Prism"/>
+                                        <field name="base_curve" string="Base"/>
+                                        <field name="diameter" string="Đường kính"/>
                                     </group>
                                     <group string="Thiết kế">
-                                        <field name="design_id" string="Thiết kế" options="{'no_create': True}"/>
+                                        <field name="design1_id" string="Thiết kế 1" options="{'no_create': True}"/>
+                                        <field name="design2_id" string="Thiết kế 2" options="{'no_create': True}"/>
                                     </group>
                                 </group>
                             </sheet>
@@ -74,39 +74,32 @@
                     </field>
                 </page>
                 
-                <!-- Tab 2: Chất liệu Lens -->
-                <page string="Chất liệu Lens" name="product_lens_material"
+                <!-- Tab 2: Chất liệu & Tích hợp Lens -->
+                <page string="Chất liệu &amp; Tích hợp Lens" name="product_lens_material_integration"
                       invisible="0">
                     <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}">
                         <list editable="bottom" create="1" delete="1">
-                            <field name="material_id" string="Chất liệu" options="{'no_create': True}" optional="show"/>
+                            <field name="material_id" string="Vật liệu" options="{'no_create': True}" optional="show"/>
                             <field name="index_id" string="Chiết suất" options="{'no_create': True}" optional="show"/>
+                            <field name="uv_id" string="UV" options="{'no_create': True}" optional="show"/>
+                            <field name="coating_ids" string="Lớp trắng" widget="many2many_tags" options="{'no_create': True}" optional="show"/>
+                            <field name="cl_hmc_id" string="HMC" options="{'no_create': True}" optional="show"/>
+                            <field name="cl_pho_id" string="Photochromic" options="{'no_create': True}" optional="show"/>
+                            <field name="cl_tint_id" string="Tint" options="{'no_create': True}" optional="show"/>
                         </list>
                         <form>
                             <sheet>
                                 <group>
-                                    <group string="Chất liệu &amp; Chiết suất">
-                                        <field name="material_id" string="Chất liệu" options="{'no_create': True}"/>
+                                    <group string="Chất liệu">
+                                        <field name="material_id" string="Vật liệu" options="{'no_create': True}"/>
                                         <field name="index_id" string="Chiết suất" options="{'no_create': True}"/>
                                     </group>
-                                </group>
-                            </sheet>
-                        </form>
-                    </field>
-                </page>
-                
-                <!-- Tab 3: Tích hợp Lens -->
-                <page string="Tích hợp Lens" name="product_lens_integration"
-                      invisible="0">
-                    <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}">
-                        <list editable="bottom" create="1" delete="1">
-                            <field name="feature_ids" string="Tích hợp/Coating" widget="many2many_tags" options="{'no_create': True}" optional="show"/>
-                        </list>
-                        <form>
-                            <sheet>
-                                <group>
-                                    <group string="Tính năng &amp; Coating">
-                                        <field name="feature_ids" string="Tích hợp/Coating" widget="many2many_tags" options="{'no_create': True}"/>
+                                    <group string="Tích hợp">
+                                        <field name="uv_id" string="UV" options="{'no_create': True}"/>
+                                        <field name="coating_ids" string="Lớp trắng" widget="many2many_tags" options="{'no_create': True}"/>
+                                        <field name="cl_hmc_id" string="HMC" options="{'no_create': True}"/>
+                                        <field name="cl_pho_id" string="Photochromic" options="{'no_create': True}"/>
+                                        <field name="cl_tint_id" string="Tint" options="{'no_create': True}"/>
                                     </group>
                                 </group>
                             </sheet>
