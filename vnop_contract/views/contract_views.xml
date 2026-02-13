@@ -176,8 +176,7 @@
                                     <field name="qty_received" readonly="1" force_save="1" sum="Tổng SL đã nhận"/>
                                     <field name="qty_contract"
                                            sum="Tổng SL theo hợp đồng"
-                                           decoration-danger="product_qty > qty_contract"
-                                           decoration-success="qty_contract == product_qty"/>
+                                           decoration-success="qty_contract"/>
                                     <field name="qty_remaining" force_save="1" readonly="1"
                                            decoration-danger="qty_remaining > 0"
                                            sum="Tổng SL còn lại"/>

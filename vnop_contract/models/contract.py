@@ -285,20 +285,20 @@ class Contract(models.Model):
 
             contract.line_ids = line_commands
 
-    @api.constrains("purchase_order_ids", "partner_id", "currency_id", "incoterm_id")
-    def _check_purchase_order_policy(self):
-        for contract in self:
-            for po in contract.purchase_order_ids:
-                if po.company_id != contract.company_id:
-                    raise ValidationError(_("PO %s khác công ty với hợp đồng.") % po.display_name)
-                if po.state == 'cancel':
-                    raise ValidationError(_("PO %s đang ở trạng thái hủy, không thể thêm vào hợp đồng.") % po.display_name)
-                if po.currency_id != contract.currency_id:
-                    raise ValidationError(_("PO %s khác tiền tệ với hợp đồng.") % po.display_name)
-                if contract.incoterm_id and po.incoterm_id and po.incoterm_id != contract.incoterm_id:
-                    raise ValidationError(_("PO %s khác Incoterm với hợp đồng.") % po.display_name)
-                if po.contract_id and po.contract_id != contract:
-                    raise ValidationError(_("PO %s đã thuộc hợp đồng %s.") % (po.display_name, po.contract_id.display_name))
+    # @api.constrains("purchase_order_ids", "partner_id", "currency_id", "incoterm_id")
+    # def _check_purchase_order_policy(self):
+    #     for contract in self:
+    #         for po in contract.purchase_order_ids:
+    #             if po.company_id != contract.company_id:
+    #                 raise ValidationError(_("PO %s khác công ty với hợp đồng.") % po.display_name)
+    #             if po.state == 'cancel':
+    #                 raise ValidationError(_("PO %s đang ở trạng thái hủy, không thể thêm vào hợp đồng.") % po.display_name)
+    #             if po.currency_id != contract.currency_id:
+    #                 raise ValidationError(_("PO %s khác tiền tệ với hợp đồng.") % po.display_name)
+    #             if contract.incoterm_id and po.incoterm_id and po.incoterm_id != contract.incoterm_id:
+    #                 raise ValidationError(_("PO %s khác Incoterm với hợp đồng.") % po.display_name)
+    #             if po.contract_id and po.contract_id != contract:
+    #                 raise ValidationError(_("PO %s đã thuộc hợp đồng %s.") % (po.display_name, po.contract_id.display_name))
 
     def write(self, vals):
         tracked_po_before = {rec.id: rec.purchase_order_ids for rec in self}
