@@ -378,6 +378,15 @@ class Contract(models.Model):
 
     def action_view_batches(self):
         self.ensure_one()
+        if len(self.batch_ids) == 1:
+            return {
+                "type": "ir.actions.act_window",
+                "name": "Phiếu tiếp nhận hàng",
+                "res_model": "stock.picking.batch",
+                "view_mode": "form",
+                "res_id": self.batch_ids.id,
+                "target": "current",
+            }
         return {
             "type": "ir.actions.act_window",
             "name": "Phiếu tiếp nhận hàng",
@@ -436,6 +445,9 @@ class Contract(models.Model):
             raise UserError(_("Chỉ được tạo lô nhận hàng khi hợp đồng ở trạng thái Đã duyệt."))
         if not self.purchase_order_ids:
             raise UserError(_("Hợp đồng chưa có PO liên quan."))
+        existing_batches = self.batch_ids.filtered(lambda batch: batch.state != "cancel")
+        if existing_batches:
+            raise UserError(_("Mỗi hợp đồng chỉ được tạo một phiếu tiếp nhận hàng."))
 
     def _get_incoming_receipts_for_batch(self):
         self.ensure_one()
