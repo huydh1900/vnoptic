@@ -385,6 +385,9 @@ class Contract(models.Model):
         )
         if not incoming:
             raise UserError(_("Không có phiếu nhập kho phù hợp để tạo lô."))
+
+        self._apply_contract_quantities_to_incoming_moves(incoming)
+
         batch = self.env['stock.picking.batch'].create({
             "company_id": self.company_id.id,
             "contract_id": self.id,
@@ -398,6 +401,42 @@ class Contract(models.Model):
             "res_id": batch.id,
             "target": "current",
         }
+
+    def _apply_contract_quantities_to_incoming_moves(self, incoming_pickings):
+        """Đè số lượng nhu cầu nhận hàng theo SL hợp đồng trước khi gom lô."""
+        self.ensure_one()
+        quantity_by_po_product = {}
+        for line in self.line_ids:
+            if not line.purchase_id or not line.product_id:
+                continue
+            key = (line.purchase_id.id, line.product_id.id)
+            quantity_by_po_product[key] = quantity_by_po_product.get(key, 0.0) + (line.qty_contract or 0.0)
+
+        if not quantity_by_po_product:
+            return
+
+        moves_by_key = {}
+        for move in incoming_pickings.move_ids_without_package.filtered(
+            lambda m: m.state not in ('done', 'cancel') and m.product_id and m.purchase_line_id
+        ):
+            key = (move.purchase_line_id.order_id.id, move.product_id.id)
+            moves_by_key.setdefault(key, self.env['stock.move'])
+            moves_by_key[key] |= move
+
+        for key, target_qty in quantity_by_po_product.items():
+            moves = moves_by_key.get(key)
+            if not moves:
+                continue
+
+            remaining = target_qty
+            for move in moves.sorted('id'):
+                move_qty = max(min(remaining, move.product_uom_qty), 0.0)
+                move.product_uom_qty = move_qty
+                remaining -= move_qty
+
+            if remaining > 0:
+                first_move = moves.sorted('id')[0]
+                first_move.product_uom_qty += remaining
 
     def action_create_otk(self):
         self.ensure_one()
