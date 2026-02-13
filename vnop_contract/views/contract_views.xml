@@ -64,6 +64,12 @@
                             class="oe_highlight"
                             invisible="state != 'revision_requested'"/>
 
+                    <button name="action_propagate_receipt" type="object" string="Đồng bộ phiếu nhập kho"
+                            class="btn-secondary"/>
+                    <button name="action_create_batch_receipt" type="object" string="Tạo phiếu nhận hàng "
+                            class="btn-primary"/>
+                    <button name="action_create_otk" type="object" string="Tạo OTK" class="btn-secondary"/>
+
 
                     <button name="action_cancel"
                             type="object"
@@ -94,8 +100,8 @@
                         <button name="action_view_receipts" type="object" class="oe_stat_button" icon="fa-truck">
                             <field name="receipt_count_open" widget="statinfo" string="Phiếu nhập kho mở"/>
                         </button>
-                        <button name="action_view_batches" type="object" class="oe_stat_button" icon="fa-tasks">
-                            <field name="batch_count" widget="statinfo" string="Lô nhập"/>
+                        <button name="action_view_batches" type="object" class="oe_stat_button" icon="fa-truck">
+                            <field name="batch_count" widget="statinfo" string="Phiếu nhận hàng"/>
                         </button>
                         <button name="action_view_otk" type="object" class="oe_stat_button" icon="fa-random">
                             <field name="otk_count" widget="statinfo" string="OTK"/>
@@ -144,10 +150,8 @@
 
                     <notebook>
                         <page string="Đơn mua hàng">
-                            <button name="action_propagate_receipt" type="object" string="Đồng bộ phiếu nhập kho" class="btn-secondary"/>
-                            <button name="action_create_batch_receipt" type="object" string="Tạo lô phiếu nhập kho" class="btn-primary"/>
-                            <button name="action_create_otk" type="object" string="Tạo OTK" class="btn-secondary"/>
-                            <field name="purchase_order_ids" domain="[('state', '=', 'purchase')]"
+                            <field name="purchase_order_ids"
+                                   domain="[('partner_id', '=', partner_id),('state', '=', 'purchase')]"
                                    readonly="state in ('approved','revision_requested','cancel')">
                                 <list delete="0" create="0">
                                     <field name="name" readonly="1"/>

@@ -7,7 +7,7 @@ class PurchaseOrder(models.Model):
 
     contract_id = fields.Many2one(
         "contract",
-        string="Hợp đồng khung",
+        string="Thuộc hợp đồng",
         copy=False,
         index=True,
     )

@@ -69,7 +69,7 @@ class Contract(models.Model):
 
     # ====== Delivery / shipping ======
     incoterm_id = fields.Many2one("account.incoterms", string="Điều kiện giao hàng")
-    shipment_date = fields.Date(string="Ngày dự kiến giao hàng", required=True)
+    shipment_date = fields.Date(string="Ngày dự kiến giao hàng")
     port_of_loading = fields.Char(string="Cảng xếp hàng")
     destination = fields.Char(string="Cảng/điểm đến")
     partial_shipment = fields.Boolean(string="Cho phép giao nhiều đợt", default=True)
@@ -244,6 +244,8 @@ class Contract(models.Model):
         for rec in self:
             if not rec.partner_id:
                 raise ValidationError(_("Vui lòng chọn Nhà cung cấp trước khi gửi duyệt."))
+            if not self.shipment_date:
+                raise ValidationError(_("Ngày dự kiến giao hàng không được để trống!"))
             rec._check_fifo_valuation()
             rec.write({'state': 'waiting'})
 
@@ -355,7 +357,7 @@ class Contract(models.Model):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
-            "name": _("Lô phiếu nhập kho"),
+            "name": "Phiếu tiếp nhận hàng",
             "res_model": "stock.picking.batch",
             "view_mode": "list,form",
             "domain": [("contract_id", "=", self.id)],
@@ -386,6 +388,7 @@ class Contract(models.Model):
         batch = self.env['stock.picking.batch'].create({
             "company_id": self.company_id.id,
             "contract_id": self.id,
+            "user_id": self.env.uid,
             "picking_ids": [(6, 0, incoming.ids)],
         })
         return {

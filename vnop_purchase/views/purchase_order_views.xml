@@ -145,7 +145,6 @@
                        statusbar_visible="draft,sent,need_revision,to approve, purchase,cancel" readonly="1"/>
             </xpath>
 
-
             <xpath expr="//button[@id='bid_confirm']" position="before">
                 <button name="button_submit_rfq" type="object" invisible="state not in ('sent', 'need_revision')"
                         string="Gửi duyệt"
@@ -160,18 +159,18 @@
         </field>
     </record>
 
-<record id="vnop_purchase_order_form_contract_inherit" model="ir.ui.view">
-    <field name="name">vnop.purchase.order.form.contract.inherit</field>
-    <field name="model">purchase.order</field>
-    <field name="inherit_id" ref="purchase.purchase_order_form"/>
-    <field name="arch" type="xml">
-        <xpath expr="//field[@name='partner_ref']" position="after">
-            <field name="contract_id" options="{'no_create': False}"/>
-        </xpath>
-        <xpath expr="//field[@name='order_line']/list/field[@name='qty_received']" position="after">
-            <field name="qty_remaining" readonly="1" optional="show"/>
-        </xpath>
-    </field>
-</record>
+    <record id="vnop_purchase_order_form_contract_inherit" model="ir.ui.view">
+        <field name="name">vnop.purchase.order.form.contract.inherit</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_ref']" position="after">
+                <field name="contract_id" invisible="not contract_id" readonly="1"/>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/list/field[@name='qty_received']" position="after">
+                <field name="qty_remaining" readonly="1" optional="show"/>
+            </xpath>
+        </field>
+    </record>
 
 </odoo>
