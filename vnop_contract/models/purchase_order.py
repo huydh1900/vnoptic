@@ -5,17 +5,27 @@ from odoo import fields, models
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
-    contract_id = fields.Many2one(
+    contract_ids = fields.Many2many(
         "contract",
+        "contract_purchase_order_rel",
+        "purchase_order_id",
+        "contract_id",
         string="Thuộc hợp đồng",
         copy=False,
-        index=True,
     )
+
+    def _get_preferred_contract(self):
+        self.ensure_one()
+        if len(self.contract_ids) == 1:
+            return self.contract_ids
+        return self.contract_ids[:1]
+
     def _sync_contract_to_pickings(self):
-        for order in self.filtered("contract_id"):
+        for order in self:
+            preferred_contract = order._get_preferred_contract()
             pending_pickings = order.picking_ids.filtered(lambda p: p.state not in ("done", "cancel"))
-            pending_pickings.write({"contract_id": order.contract_id.id})
-            pending_pickings.move_ids_without_package.write({"contract_id": order.contract_id.id})
+            pending_pickings.write({"contract_id": preferred_contract.id or False})
+            pending_pickings.move_ids_without_package.write({"contract_id": preferred_contract.id or False})
 
     def button_confirm(self):
         res = super().button_confirm()
@@ -24,7 +34,7 @@ class PurchaseOrder(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        if "contract_id" in vals:
+        if "contract_ids" in vals:
             self._sync_contract_to_pickings()
         return res
 

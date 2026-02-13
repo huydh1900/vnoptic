@@ -105,6 +105,9 @@ class Contract(models.Model):
     # ====== PO links ======
     purchase_order_ids = fields.Many2many(
         "purchase.order",
+        "contract_purchase_order_rel",
+        "contract_id",
+        "purchase_order_id",
         string="Đơn mua hàng",
         domain="[('partner_id','=', partner_id), ('state','in',('purchase','done'))]",
     )
@@ -244,7 +247,7 @@ class Contract(models.Model):
         for rec in self:
             if not rec.partner_id:
                 raise ValidationError(_("Vui lòng chọn Nhà cung cấp trước khi gửi duyệt."))
-            if not self.shipment_date:
+            if not rec.shipment_date:
                 raise ValidationError(_("Ngày dự kiến giao hàng không được để trống!"))
             rec._check_fifo_valuation()
             rec.write({'state': 'waiting'})
@@ -311,11 +314,9 @@ class Contract(models.Model):
                 added = after - before
                 removed = before - after
                 if added:
-                    added.write({"contract_id": contract.id})
                     contract._propagate_contract_to_receipts(added)
                 if removed:
                     contract._check_po_removal_policy(removed)
-                    removed.write({"contract_id": False})
                     contract._clear_contract_on_receipts(removed)
         return res
 
@@ -338,8 +339,13 @@ class Contract(models.Model):
         receipts = orders.mapped('picking_ids').filtered(
             lambda p: p.picking_type_code == 'incoming' and p.state not in ('done', 'cancel')
         )
-        receipts.write({"contract_id": False})
-        receipts.move_ids_without_package.write({"contract_id": False})
+        for picking in receipts:
+            if picking.contract_id != self:
+                continue
+            remaining_contracts = (picking.purchase_id.contract_ids - self)
+            replacement_contract = remaining_contracts[:1]
+            picking.write({"contract_id": replacement_contract.id or False})
+            picking.move_ids_without_package.write({"contract_id": replacement_contract.id or False})
 
     def action_propagate_receipt(self):
         self._propagate_contract_to_receipts()
