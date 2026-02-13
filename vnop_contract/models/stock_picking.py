@@ -44,3 +44,12 @@ class StockPickingBatch(models.Model):
             'target': 'current',
             'domain': [('id', 'in', self.picking_ids.ids)]
         }
+
+    def action_confirm(self):
+        res = super().action_confirm()
+        for batch in self:
+            pending_pickings = batch.picking_ids.filtered(lambda picking: picking.state in ("draft", "confirmed", "waiting"))
+            if pending_pickings:
+                pending_pickings.action_confirm()
+                pending_pickings.action_assign()
+        return res

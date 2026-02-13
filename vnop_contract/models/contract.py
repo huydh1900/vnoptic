@@ -281,6 +281,7 @@ class Contract(models.Model):
                         "price_unit": line.price_unit,
                         "amount_total": line.price_subtotal,
                         "purchase_id": po.id,
+                        "purchase_line_id": line.id,
                     }))
 
             contract.line_ids = line_commands
@@ -350,7 +351,7 @@ class Contract(models.Model):
             "name": _("Phiếu nhập kho"),
             "res_model": "stock.picking",
             "view_mode": "list,form",
-            "domain": [("contract_id", "=", self.id), ("picking_type_code", "=", "incoming")],
+            "domain": [("purchase_id", "in", self.purchase_order_ids.ids), ("picking_type_code", "=", "incoming")],
             "context": {"default_contract_id": self.id},
         }
 
@@ -378,23 +379,25 @@ class Contract(models.Model):
 
     def action_create_batch_receipt(self):
         self.ensure_one()
-        incoming = self.purchase_order_ids.mapped('picking_ids').filtered(
-            lambda p: p.picking_type_code == 'incoming'
-            and p.state in ('waiting', 'confirmed', 'assigned')
-            and not p.batch_id
-            and p.state not in ('done', 'cancel')
-        )
+        self._check_create_batch_receipt_preconditions()
+        reset_qty_done = bool(self.env.context.get("reset_qty_done"))
+        incoming = self._get_incoming_receipts_for_batch()
         if not incoming:
             raise UserError(_("Không có phiếu nhập kho phù hợp để tạo lô."))
 
-        incoming = self._apply_contract_quantities_to_incoming_moves(incoming)
-        if not incoming:
-            raise UserError(_("Không có phiếu nhập kho phù hợp với SL theo hợp đồng để tạo lô."))
+        self._prefill_qty_done_from_contract(incoming, reset_qty_done=reset_qty_done)
+        picking_types = incoming.mapped("picking_type_id")
+        if len(picking_types) > 1:
+            raise UserError(_("Các phiếu nhập thuộc nhiều loại vận chuyển khác nhau, không thể gom chung một lô."))
+
+        origin_name = self.number or self.name
 
         batch = self.env['stock.picking.batch'].create({
             "company_id": self.company_id.id,
             "contract_id": self.id,
+            "picking_type_id": picking_types.id,
             "user_id": self.env.uid,
+            "origin": origin_name,
             "picking_ids": [(6, 0, incoming.ids)],
         })
         return {
@@ -405,84 +408,122 @@ class Contract(models.Model):
             "target": "current",
         }
 
-    def _apply_contract_quantities_to_incoming_moves(self, incoming_pickings):
-        """Đè số lượng theo hợp đồng và tách phần thiếu sang backorder."""
+    def _check_create_batch_receipt_preconditions(self):
         self.ensure_one()
-        quantity_by_po_product = {}
-        for line in self.line_ids:
-            if not line.purchase_id or not line.product_id:
-                continue
-            key = (line.purchase_id.id, line.product_id.id)
-            quantity_by_po_product[key] = quantity_by_po_product.get(key, 0.0) + (line.qty_contract or 0.0)
+        if self.state != "approved":
+            raise UserError(_("Chỉ được tạo lô nhận hàng khi hợp đồng ở trạng thái Đã duyệt."))
+        if not self.purchase_order_ids:
+            raise UserError(_("Hợp đồng chưa có PO liên quan."))
 
-        if not quantity_by_po_product:
-            return incoming_pickings
+    def _get_incoming_receipts_for_batch(self):
+        self.ensure_one()
+        picking_domain = [
+            ("purchase_id", "in", self.purchase_order_ids.ids),
+            ("picking_type_code", "=", "incoming"),
+            ("state", "in", ("waiting", "confirmed", "assigned")),
+            ("batch_id", "=", False),
+            ("company_id", "=", self.company_id.id),
+        ]
+        receipts = self.env["stock.picking"].search(picking_domain)
+        if not receipts:
+            return receipts
 
-        moves_by_key = {}
-        for move in incoming_pickings.move_ids_without_package.filtered(
-            lambda m: m.state not in ('done', 'cancel') and m.product_id and m.purchase_line_id
-        ):
-            key = (move.purchase_line_id.order_id.id, move.product_id.id)
-            moves_by_key.setdefault(key, self.env['stock.move'])
-            moves_by_key[key] |= move
-
-        backorder_pickings = self.env['stock.picking']
-        split_backorder_by_picking = {}
-
-        for key, target_qty in quantity_by_po_product.items():
-            moves = moves_by_key.get(key)
-            if not moves:
-                continue
-
-            remaining = target_qty
-            for move in moves.sorted('id'):
-                original_qty = move.product_uom_qty
-                move_qty = max(min(remaining, original_qty), 0.0)
-                shortage_qty = max(original_qty - move_qty, 0.0)
-                move_vals = move.copy_data()[0] if shortage_qty > 0 else None
-
-                if move_qty > 0:
-                    move.product_uom_qty = move_qty
-                else:
-                    move.unlink()
-
-                if shortage_qty > 0:
-                    backorder = split_backorder_by_picking.get(move.picking_id.id)
-                    if not backorder:
-                        backorder = move.picking_id.copy(default={
-                            'name': '/',
-                            'move_ids_without_package': [],
-                            'move_line_ids': [],
-                            'batch_id': False,
-                            'backorder_id': move.picking_id.id,
-                            'contract_id': self.id,
-                        })
-                        split_backorder_by_picking[move.picking_id.id] = backorder
-                        backorder_pickings |= backorder
-
-                    move_vals.update({
-                        'picking_id': backorder.id,
-                        'product_uom_qty': shortage_qty,
-                        'state': 'draft',
-                        'contract_id': self.id,
-                        'move_line_ids': [],
-                    })
-                    self.env['stock.move'].create(move_vals)
-
-                remaining -= move_qty
-
-            if remaining > 0:
-                first_move = moves.sorted('id')[:1]
-                if first_move:
-                    first_move.product_uom_qty += remaining
-
-        if backorder_pickings:
-            backorder_pickings.action_confirm()
-            backorder_pickings.action_assign()
-
-        return incoming_pickings.filtered(
-            lambda p: p.state not in ('done', 'cancel') and p.move_ids_without_package
+        open_receipts = receipts.filtered(
+            lambda picking: any(
+                self._get_move_remaining_qty(move) > 0
+                for move in picking.move_ids_without_package.filtered(
+                    lambda m: m.state not in ("cancel", "done")
+                )
+            )
         )
+        return open_receipts
+
+    def _prefill_qty_done_from_contract(self, incoming_pickings, reset_qty_done=False):
+        self.ensure_one()
+        quantity_by_key = {}
+        for line in self.line_ids:
+            if not line.product_id:
+                continue
+            received_contract_qty = min(line.qty_received or 0.0, line.qty_contract or 0.0)
+            remaining = max((line.qty_contract or 0.0) - received_contract_qty, 0.0)
+            if not remaining:
+                continue
+            key = self._contract_line_key(line)
+            quantity_by_key[key] = quantity_by_key.get(key, 0.0) + remaining
+
+        if not quantity_by_key:
+            return
+
+        candidate_moves = incoming_pickings.move_ids_without_package.filtered(
+            lambda move: move.state not in ("cancel", "done") and move.product_id and move.purchase_line_id
+        ).sorted("id")
+
+        for move in candidate_moves:
+            move_key = self._move_contract_key(move)
+            contract_remaining = quantity_by_key.get(move_key, 0.0)
+            if contract_remaining <= 0:
+                continue
+            move_remaining = self._get_move_remaining_qty(move)
+            if move_remaining <= 0:
+                continue
+            qty_to_receive_now = min(contract_remaining, move_remaining)
+            if qty_to_receive_now <= 0:
+                continue
+            assigned_qty = self._assign_qty_done_on_move(move, qty_to_receive_now, reset_qty_done=reset_qty_done)
+            if assigned_qty:
+                quantity_by_key[move_key] = max(contract_remaining - assigned_qty, 0.0)
+
+    def _contract_line_key(self, line):
+        if line.purchase_line_id:
+            return ("po_line", line.purchase_line_id.id)
+        if line.purchase_id and line.product_id:
+            return ("po_product", line.purchase_id.id, line.product_id.id)
+        return None
+
+    def _move_contract_key(self, move):
+        if move.purchase_line_id:
+            return ("po_line", move.purchase_line_id.id)
+        return None
+
+    def _get_move_remaining_qty(self, move):
+        return max((move.product_uom_qty or 0.0) - (move.quantity_done or 0.0), 0.0)
+
+    def _assign_qty_done_on_move(self, move, qty_target, reset_qty_done=False):
+        qty_left = qty_target
+        done_field = "qty_done" if "qty_done" in self.env["stock.move.line"]._fields else "quantity"
+        move_lines = move.move_line_ids.sorted("id")
+
+        if move_lines:
+            for move_line in move_lines:
+                current_done = move_line[done_field]
+                if current_done > 0 and not reset_qty_done:
+                    continue
+                reservable = move_line.reserved_uom_qty if "reserved_uom_qty" in move_line._fields else move_line.product_uom_qty
+                line_capacity = max((reservable or 0.0) - (0.0 if reset_qty_done else current_done), 0.0)
+                if line_capacity <= 0 and qty_left <= 0:
+                    continue
+                line_qty = min(line_capacity if line_capacity > 0 else qty_left, qty_left)
+                if line_qty <= 0:
+                    continue
+                move_line[done_field] = line_qty if reset_qty_done else current_done + line_qty
+                qty_left -= line_qty
+                if qty_left <= 0:
+                    break
+
+        if qty_left > 0 and (reset_qty_done or not any(line[done_field] > 0 for line in move_lines)):
+            fallback_vals = {
+                "move_id": move.id,
+                "picking_id": move.picking_id.id,
+                "product_id": move.product_id.id,
+                "product_uom_id": move.product_uom.id,
+                "location_id": move.location_id.id,
+                "location_dest_id": move.location_dest_id.id,
+                done_field: qty_left,
+            }
+            self.env["stock.move.line"].create(fallback_vals)
+            qty_left = 0.0
+
+        return max(qty_target - qty_left, 0.0)
 
     def action_create_otk(self):
         self.ensure_one()

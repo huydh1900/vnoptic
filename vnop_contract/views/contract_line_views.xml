@@ -7,6 +7,7 @@
         <field name="arch" type="xml">
             <list editable="bottom">
                 <field name="purchase_id" readonly="1"/>
+                <field name="purchase_line_id" optional="hide" readonly="1"/>
                 <field name="product_id" options="{'no_open': True}" readonly="1"/>
                 <field name="product_qty" readonly="1"/>
                 <field name="qty_received" readonly="1"/>
