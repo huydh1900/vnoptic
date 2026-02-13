@@ -80,12 +80,8 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <!-- Menus -->
-    <!-- Assuming there is a parent menu for Vnoptic Product Configuration.
-         Checking previous files, existing menu structure usually in product_sync_views.xml or product_brand_views.xml
-         Let's create a new Configuration submenu under Inventory or a generic one if parent not known.
-         Checking product_brand_views.xml might reveal parent menu.
-    -->
+    <!-- Menus - HIDDEN: Commented out as per user request to remove "Lens Configuration" menu -->
+    <!-- 
     <menuitem id="menu_vnoptic_config_lens"
               name="Lens Configuration"
               parent="stock.menu_stock_config_settings" 
@@ -110,5 +106,6 @@
               parent="menu_vnoptic_config_lens"
               action="action_product_lens_feature"
               sequence="40"/>
+    -->
 
 </odoo>

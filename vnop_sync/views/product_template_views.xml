@@ -39,8 +39,8 @@
             <!-- Add custom tabs to notebook -->
             <xpath expr="//notebook" position="inside">
                 
-                <!-- Tab: Lens Design (New Config-Driven) -->
-                <page string="Thông số &amp; Thiết kế Lens" name="product_lens_design"
+                <!-- Tab 1: Thiết kế Lens -->
+                <page string="Thiết kế Lens" name="product_lens_design"
                       invisible="0">
                     <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}">
                         <list editable="bottom" create="1" delete="1">
@@ -50,11 +50,8 @@
                             <field name="lens_add" string="Lens Add" optional="show"/>
                             <field name="diameter" string="Diameter" optional="show"/>
                             <field name="base_curve" string="Base" optional="hide"/>
-                            <field name="design_id" string="Thiết kế" options="{'no_create': True}" optional="show"/>
-                            <field name="index_id" string="Chiết suất" options="{'no_create': True}" optional="show"/>
-                            <field name="material_id" string="Chất liệu" options="{'no_create': True}" optional="show"/>
-                            <field name="feature_ids" string="Tích hợp/Coating" widget="many2many_tags" options="{'no_create': True}" optional="show"/>
                             <field name="prism" string="Prism" optional="hide"/>
+                            <field name="design_id" string="Thiết kế" options="{'no_create': True}" optional="show"/>
                         </list>
                         <form>
                             <sheet>
@@ -68,10 +65,47 @@
                                         <field name="base_curve"/>
                                         <field name="prism"/>
                                     </group>
-                                    <group string="Thiết kế, Chiết suất &amp; Chất liệu">
+                                    <group string="Thiết kế">
                                         <field name="design_id" string="Thiết kế" options="{'no_create': True}"/>
-                                        <field name="index_id" string="Chiết suất" options="{'no_create': True}"/>
+                                    </group>
+                                </group>
+                            </sheet>
+                        </form>
+                    </field>
+                </page>
+                
+                <!-- Tab 2: Chất liệu Lens -->
+                <page string="Chất liệu Lens" name="product_lens_material"
+                      invisible="0">
+                    <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}">
+                        <list editable="bottom" create="1" delete="1">
+                            <field name="material_id" string="Chất liệu" options="{'no_create': True}" optional="show"/>
+                            <field name="index_id" string="Chiết suất" options="{'no_create': True}" optional="show"/>
+                        </list>
+                        <form>
+                            <sheet>
+                                <group>
+                                    <group string="Chất liệu &amp; Chiết suất">
                                         <field name="material_id" string="Chất liệu" options="{'no_create': True}"/>
+                                        <field name="index_id" string="Chiết suất" options="{'no_create': True}"/>
+                                    </group>
+                                </group>
+                            </sheet>
+                        </form>
+                    </field>
+                </page>
+                
+                <!-- Tab 3: Tích hợp Lens -->
+                <page string="Tích hợp Lens" name="product_lens_integration"
+                      invisible="0">
+                    <field name="lens_ids" nolabel="1" context="{'default_product_tmpl_id': id}">
+                        <list editable="bottom" create="1" delete="1">
+                            <field name="feature_ids" string="Tích hợp/Coating" widget="many2many_tags" options="{'no_create': True}" optional="show"/>
+                        </list>
+                        <form>
+                            <sheet>
+                                <group>
+                                    <group string="Tính năng &amp; Coating">
                                         <field name="feature_ids" string="Tích hợp/Coating" widget="many2many_tags" options="{'no_create': True}"/>
                                     </group>
                                 </group>
