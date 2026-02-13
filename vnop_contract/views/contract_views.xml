@@ -173,6 +173,7 @@
                                     <field name="purchase_id" readonly="1" force_save="1"/>
                                     <field name="product_id" readonly="1" force_save="1"/>
                                     <field name="product_qty" readonly="1" force_save="1" sum="Tổng SL đặt hàng"/>
+                                    <field name="qty_received" readonly="1" force_save="1" sum="Tổng SL đã nhận"/>
                                     <field name="qty_contract"
                                            sum="Tổng SL theo hợp đồng"
                                            decoration-danger="product_qty > qty_contract"

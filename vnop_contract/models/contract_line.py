@@ -16,6 +16,7 @@ class ContractLine(models.Model):
         string="Tiền tệ",
     )
     product_qty = fields.Float(string="SL đặt hàng", digits="Product Unit of Measure")
+    qty_received = fields.Float(string="SL đã nhận", digits="Product Unit of Measure")
     qty_contract = fields.Float(string="SL theo hợp đồng", digits="Product Unit of Measure")
     qty_remaining = fields.Float(string="SL còn lại", digits="Product Unit of Measure")
     price_unit = fields.Float(string="Đơn giá", digits="Product Price")
@@ -37,4 +38,3 @@ class ContractLine(models.Model):
                     "SL theo hợp đồng không được vượt SL còn lại chưa nhận của đơn mua.\n\n"
                     "Vui lòng quay lại Đơn mua để kiểm tra nhận hàng/backorder."
                 )
-
