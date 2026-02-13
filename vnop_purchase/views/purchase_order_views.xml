@@ -165,7 +165,7 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='partner_ref']" position="after">
-                <field name="contract_id" invisible="not contract_id" readonly="1"/>
+                <field name="contract_ids" widget="many2many_tags" readonly="1" optional="show"/>
             </xpath>
             <xpath expr="//field[@name='order_line']/list/field[@name='qty_received']" position="after">
                 <field name="qty_remaining" readonly="1" optional="show"/>
