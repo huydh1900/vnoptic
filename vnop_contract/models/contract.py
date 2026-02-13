@@ -67,7 +67,7 @@ class Contract(models.Model):
         "res.currency",
         string="Tiền tệ",
         related="partner_id.property_purchase_currency_id",
-        required=True,
+        # required=True,
     )
     # amount_total = fields.Monetary(
     #     string="Tổng giá trị HĐ",
@@ -508,7 +508,15 @@ class Contract(models.Model):
         return None
 
     def _get_move_remaining_qty(self, move):
-        return max((move.product_uom_qty or 0.0) - (move.quantity_done or 0.0), 0.0)
+        return max((move.product_uom_qty or 0.0) - self._get_move_done_qty(move), 0.0)
+
+    def _get_move_done_qty(self, move):
+        # chuẩn nhất: quantity_done trên move
+        if "quantity_done" in move._fields:
+            return move.quantity_done or 0.0
+        # fallback: sum qty_done/quantity trên move lines
+        done_field = "qty_done" if "qty_done" in self.env["stock.move.line"]._fields else "quantity"
+        return sum(move.move_line_ids.mapped(done_field)) or 0.0
 
     def _assign_qty_done_on_move(self, move, qty_target, reset_qty_done=False):
         qty_left = qty_target

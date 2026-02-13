@@ -88,8 +88,6 @@
 
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,waiting,approved,revision_requested,cancel"/>
-                    <field name="delivery_state" widget="statusbar"
-                           statusbar_visible="expected,confirmed_arrival,partial,done,cancel"/>
                 </header>
 
                 <sheet>
