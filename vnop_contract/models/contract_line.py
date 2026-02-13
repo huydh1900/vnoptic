@@ -25,6 +25,11 @@ class ContractLine(models.Model):
         "purchase.order",
         string="Đơn mua",
     )
+    purchase_line_id = fields.Many2one(
+        "purchase.order.line",
+        string="Dòng PO",
+        domain="[('order_id', '=', purchase_id), ('display_type', '=', False)]",
+    )
 
     @api.constrains("qty_contract", "qty_remaining")
     @api.onchange("qty_contract")
@@ -38,3 +43,14 @@ class ContractLine(models.Model):
                     "SL theo hợp đồng không được vượt SL còn lại chưa nhận của đơn mua.\n\n"
                     "Vui lòng quay lại Đơn mua để kiểm tra nhận hàng/backorder."
                 )
+
+    @api.constrains("purchase_line_id", "contract_id")
+    def _check_purchase_line_unique_in_contract(self):
+        for line in self.filtered("purchase_line_id"):
+            duplicated = self.search_count([
+                ("id", "!=", line.id),
+                ("contract_id", "=", line.contract_id.id),
+                ("purchase_line_id", "=", line.purchase_line_id.id),
+            ])
+            if duplicated:
+                raise UserError(_("Mỗi dòng PO chỉ được map với một dòng hợp đồng."))
