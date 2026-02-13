@@ -13,15 +13,15 @@
     </record>
 
     <!-- ===================== GROUP OTK ===================== -->
-    <record id="group_otk" model="res.groups">
-        <field name="name">OTK</field>
-        <!-- Quyền kho + kiểm tra chất lượng -->
-        <field name="implied_ids" eval="[
-            (4, ref('stock.group_stock_user')),
-            (4, ref('quality.group_quality_user'))
-        ]"/>
-        <field name="category_id" ref="base.module_category_inventory"/>
-    </record>
+<!--    <record id="group_otk" model="res.groups">-->
+<!--        <field name="name">OTK</field>-->
+<!--        &lt;!&ndash; Quyền kho + kiểm tra chất lượng &ndash;&gt;-->
+<!--        <field name="implied_ids" eval="[-->
+<!--            (4, ref('stock.group_stock_user')),-->
+<!--            (4, ref('quality.group_quality_user'))-->
+<!--        ]"/>-->
+<!--        <field name="category_id" ref="base.module_category_inventory"/>-->
+<!--    </record>-->
 
     <!-- ============== GROUP KẾ TOÁN HÀNG HÓA ============== -->
     <record id="group_ke_toan_hang_hoa" model="res.groups">

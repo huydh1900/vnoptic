@@ -22,6 +22,9 @@ class StockPickingBatch(models.Model):
     _inherit = "stock.picking.batch"
 
     contract_id = fields.Many2one("contract", string="Hợp đồng", index=True, copy=False)
+    origin = fields.Char(
+        'Chứng từ gốc', copy=False,
+        help="Reference of the document that generated this production order request.")
 
     def action_view_contract(self):
         self.ensure_one()
