@@ -434,7 +434,7 @@ class Contract(models.Model):
 
         # Tự động xác nhận lô để validate phiếu nhập theo qty_contract đã prefill.
         # Nếu qty_done < demand trên PO thì Odoo sẽ sinh backorder chuẩn trong flow validate.
-        batch.action_confirm()
+        batch.with_context(reset_qty_done=reset_qty_done).action_confirm()
 
         self.delivery_state = "confirmed_arrival"
         return {
@@ -453,7 +453,10 @@ class Contract(models.Model):
             raise UserError(_("Hợp đồng chưa có PO liên quan."))
         existing_batches = self.batch_ids.filtered(lambda batch: batch.state != "cancel")
         if existing_batches:
-            raise UserError(_("Mỗi hợp đồng chỉ được tạo một phiếu tiếp nhận hàng."))
+            raise UserError(_(
+                "Mỗi hợp đồng chỉ được tạo một lô phiếu nhập hàng. "
+                "Vui lòng hủy lô hiện tại nếu muốn tạo lại."
+            ))
 
     def _get_incoming_receipts_for_batch(self):
         self.ensure_one()
