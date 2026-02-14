@@ -432,10 +432,6 @@ class Contract(models.Model):
             "picking_ids": [(6, 0, incoming.ids)],
         })
 
-        # Tự động xác nhận lô để validate phiếu nhập theo qty_contract đã prefill.
-        # Nếu qty_done < demand trên PO thì Odoo sẽ sinh backorder chuẩn trong flow validate.
-        batch.with_context(reset_qty_done=reset_qty_done).action_confirm()
-
         self.delivery_state = "confirmed_arrival"
         return {
             "type": "ir.actions.act_window",
