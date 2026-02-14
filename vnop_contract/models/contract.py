@@ -129,7 +129,6 @@ class Contract(models.Model):
     purchase_order_count = fields.Integer(string="Số PO", compute="_compute_purchase_order_count")
     receipt_ids = fields.One2many("stock.picking", "contract_id", string="Phiếu nhập kho", readonly=True)
     receipt_count_open = fields.Integer(compute="_compute_receipt_metrics", string="Phiếu nhập kho đang mở")
-    receipt_count_done = fields.Integer(compute="_compute_receipt_metrics", string="Phiếu nhập kho hoàn tất")
     otk_picking_ids = fields.One2many(
         "stock.picking",
         "contract_id",
@@ -174,7 +173,6 @@ class Contract(models.Model):
         for rec in self:
             incoming = rec.receipt_ids.filtered(lambda p: p.picking_type_code == 'incoming')
             rec.receipt_count_open = len(incoming.filtered(lambda p: p.state not in ('done', 'cancel')))
-            rec.receipt_count_done = len(incoming.filtered(lambda p: p.state == 'done'))
 
     @api.depends("line_ids")
     def _compute_product_count(self):
@@ -297,51 +295,6 @@ class Contract(models.Model):
 
             contract.line_ids = line_commands
 
-    def write(self, vals):
-        tracked_po_before = {rec.id: rec.purchase_order_ids for rec in self}
-        res = super().write(vals)
-        if "purchase_order_ids" in vals:
-            for contract in self:
-                before = tracked_po_before.get(contract.id, self.env['purchase.order'])
-                after = contract.purchase_order_ids
-                added = after - before
-                removed = before - after
-                if added:
-                    contract._propagate_contract_to_receipts(added)
-                if removed:
-                    contract._check_po_removal_policy(removed)
-                    contract._clear_contract_on_receipts(removed)
-        return res
-
-    def _check_po_removal_policy(self, orders):
-        for po in orders:
-            done_receipts = po.picking_ids.filtered(lambda p: p.picking_type_code == 'incoming' and p.state == 'done')
-            if done_receipts:
-                raise UserError(_("Không thể gỡ PO %s vì đã có phiếu nhập kho hoàn tất.") % po.display_name)
-
-    def _propagate_contract_to_receipts(self, orders=None):
-        for contract in self:
-            purchase_orders = orders or contract.purchase_order_ids
-            receipts = purchase_orders.mapped('picking_ids').filtered(
-                lambda p: p.picking_type_code == 'incoming' and p.state not in ('done', 'cancel')
-            )
-            receipts.write({"contract_id": contract.id})
-            receipts.move_ids_without_package.write({"contract_id": contract.id})
-
-    def _clear_contract_on_receipts(self, orders):
-        receipts = orders.mapped('picking_ids').filtered(
-            lambda p: p.picking_type_code == 'incoming' and p.state not in ('done', 'cancel')
-        )
-        for picking in receipts:
-            if picking.contract_id != self:
-                continue
-            remaining_contracts = (picking.purchase_id.contract_ids - self)
-            replacement_contract = remaining_contracts[:1]
-            picking.write({"contract_id": replacement_contract.id or False})
-            picking.move_ids_without_package.write({"contract_id": replacement_contract.id or False})
-
-    def action_propagate_receipt(self):
-        self._propagate_contract_to_receipts()
 
     def action_view_receipts(self):
         self.ensure_one()
@@ -353,23 +306,6 @@ class Contract(models.Model):
             "domain": [("purchase_id", "in", self.purchase_order_ids.ids), ("picking_type_code", "=", "incoming")],
             "context": {"default_contract_id": self.id},
         }
-
-    def action_view_done_receipts(self):
-        self.ensure_one()
-        receipts = self.receipt_ids.filtered(
-            lambda p: p.picking_type_code == "incoming" and p.state == "done"
-        )
-        action = {
-            "type": "ir.actions.act_window",
-            "name": _("Phiếu nhập kho hoàn tất"),
-            "res_model": "stock.picking",
-            "view_mode": "list,form",
-            "domain": [("id", "in", receipts.ids)],
-            "context": {"default_contract_id": self.id},
-        }
-        if len(receipts) == 1:
-            action.update({"view_mode": "form", "res_id": receipts.id})
-        return action
 
     def action_view_otk(self):
         self.ensure_one()
@@ -383,227 +319,9 @@ class Contract(models.Model):
         }
 
     def action_confirm_arrival_auto(self):
-        """Phase 1: one-click receive based on contract quantities."""
         self.ensure_one()
-        self._check_confirm_arrival_preconditions()
-
-        if not self.line_ids:
-            raise UserError(_("Hợp đồng chưa có dòng sản phẩm để xác nhận hàng về."))
-
-        lines = self.line_ids.filtered(lambda l: l.purchase_line_id and (l.qty_contract or 0.0) > 0)
-        if not lines:
-            raise UserError(_("Không có dòng hợp đồng hợp lệ (PO line + SL theo hợp đồng > 0)."))
-
-        receipts = self._get_incoming_receipts_for_confirmation()
-        if not receipts:
-            raise UserError(_("Không có phiếu nhập kho mở phù hợp để xác nhận hàng về."))
-
         self.delivery_state = "confirmed_arrival"
 
-        self._apply_qty_contract_to_receipts(receipts, lines)
-        self._validate_receipts(receipts)
-        self._sync_receipt_progress()
-
-        self.message_post(body=_("Đã tự động xác nhận hàng về theo SL hợp đồng."))
-        return self.action_view_done_receipts()
-
-    def _check_confirm_arrival_preconditions(self):
-        self.ensure_one()
-        if self.state != "approved":
-            raise UserError(_("Chỉ được xác nhận hàng về khi hợp đồng ở trạng thái Đã duyệt."))
-        if not self.purchase_order_ids:
-            raise UserError(_("Hợp đồng chưa có PO liên quan."))
-
-    def _get_incoming_receipts_for_confirmation(self):
-        picking_domain = [
-            ("purchase_id", "in", self.purchase_order_ids.ids),
-            ("picking_type_code", "=", "incoming"),
-            ("state", "in", ("waiting", "confirmed", "assigned")),
-            ("company_id", "=", self.company_id.id),
-        ]
-        receipts = self.env["stock.picking"].search(picking_domain)
-        if not receipts:
-            return receipts
-
-        open_receipts = receipts.filtered(
-            lambda picking: any(
-                self._get_move_remaining_qty(move) > 0
-                for move in picking.move_ids_without_package.filtered(
-                    lambda m: m.state not in ("cancel", "done")
-                )
-            )
-        )
-        return open_receipts
-
-    def _contract_line_key(self, line):
-        return ("po_line", line.purchase_line_id.id) if line.purchase_line_id else None
-
-    def _move_contract_key(self, move):
-        return ("po_line", move.purchase_line_id.id) if move.purchase_line_id else None
-
-    def _get_move_remaining_qty(self, move):
-        return max((move.product_uom_qty or 0.0) - self._get_move_done_qty(move), 0.0)
-
-    def _get_move_done_qty(self, move):
-        # chuẩn nhất: quantity_done trên move
-        if "quantity_done" in move._fields:
-            return move.quantity_done or 0.0
-        # fallback: sum qty_done/quantity trên move lines
-        done_field = "qty_done" if "qty_done" in self.env["stock.move.line"]._fields else "quantity"
-        return sum(move.move_line_ids.mapped(done_field)) or 0.0
-
-    def _assign_qty_done_on_move(self, move, qty_target, reset_qty_done=False):
-        qty_left = qty_target
-        done_field = "qty_done" if "qty_done" in self.env["stock.move.line"]._fields else "quantity"
-        move_lines = move.move_line_ids.sorted("id")
-
-        if move.product_id.tracking in ("lot", "serial"):
-            raise UserError(_(
-                "Sản phẩm %s yêu cầu Lot/Serial. Không thể tự động nhận hàng.\n"
-                "Vui lòng nhập Lot/Serial trong Hoạt động chi tiết trước khi xác nhận lô."
-            ) % move.product_id.display_name)
-
-        if move_lines:
-            for move_line in move_lines:
-                current_done = move_line[done_field]
-                if current_done > 0 and not reset_qty_done:
-                    continue
-                if move.picking_id.picking_type_id.code == "incoming":
-                    reservable = qty_left
-                else:
-                    reservable = (
-                        move_line.reserved_uom_qty
-                        if "reserved_uom_qty" in move_line._fields
-                        else move_line.product_uom_qty
-                    )
-                line_capacity = max((reservable or 0.0) - (0.0 if reset_qty_done else current_done), 0.0)
-                if line_capacity <= 0 and qty_left <= 0:
-                    continue
-                line_qty = min(line_capacity if line_capacity > 0 else qty_left, qty_left)
-                if line_qty <= 0:
-                    continue
-                move_line[done_field] = line_qty if reset_qty_done else current_done + line_qty
-                qty_left -= line_qty
-                if qty_left <= 0:
-                    break
-
-        if qty_left > 0 and (reset_qty_done or not any(line[done_field] > 0 for line in move_lines)):
-            fallback_vals = {
-                "move_id": move.id,
-                "picking_id": move.picking_id.id,
-                "product_id": move.product_id.id,
-                "product_uom_id": move.product_uom.id,
-                "location_id": move.location_id.id,
-                "location_dest_id": move.location_dest_id.id,
-                done_field: qty_left,
-            }
-            self.env["stock.move.line"].create(fallback_vals)
-            qty_left = 0.0
-
-        return max(qty_target - qty_left, 0.0)
-
-    def _apply_qty_contract_to_receipts(self, receipts, lines):
-        self.ensure_one()
-        for line in lines.sorted("id"):
-            qty_to_assign = line.qty_contract or 0.0
-            if qty_to_assign <= 0:
-                continue
-
-            candidate_moves = receipts.mapped("move_ids_without_package").filtered(
-                lambda move: (
-                    move.purchase_line_id == line.purchase_line_id
-                    and move.state not in ("done", "cancel")
-                )
-            ).sorted("id")
-
-            if not candidate_moves:
-                raise UserError(_(
-                    "Không tìm thấy lệnh chuyển hàng phù hợp cho dòng PO %s."
-                ) % (line.purchase_line_id.display_name,))
-
-            for move in candidate_moves:
-                move_capacity = move.product_uom_qty or 0.0
-                if move_capacity <= 0:
-                    continue
-
-                assign_qty = min(qty_to_assign, move_capacity)
-                assigned = self._assign_qty_done_on_move(move, assign_qty, reset_qty_done=True)
-                qty_to_assign -= assigned
-                if qty_to_assign <= 1e-6:
-                    break
-
-            if qty_to_assign > 1e-6:
-                raise UserError(_(
-                    "SL theo hợp đồng cho dòng PO %s vượt quá tổng SL có thể nhận trên phiếu nhập kho mở."
-                ) % (line.purchase_line_id.display_name,))
-
-    def _validate_receipts(self, receipts):
-        self.ensure_one()
-        receipts = receipts.filtered(
-            lambda picking: picking.picking_type_code == "incoming" and picking.state not in ("done", "cancel")
-        ).sorted("id")
-        if not receipts:
-            return
-
-        for picking in receipts:
-            if picking.state == "waiting":
-                picking.action_confirm()
-            if picking.state in ("confirmed", "waiting"):
-                picking.action_assign()
-            validate_result = picking.button_validate()
-            picking._auto_process_validate_result(validate_result)
-
-    def _sync_receipt_progress(self):
-        for contract in self:
-            contract._update_contract_line_received_quantities()
-            contract._update_delivery_state_from_lines()
-
-    def _update_contract_line_received_quantities(self):
-        StockMove = self.env["stock.move"]
-        for contract in self:
-            incoming_done_moves = StockMove.search([
-                ("contract_id", "=", contract.id),
-                ("state", "=", "done"),
-                ("picking_type_id.code", "=", "incoming"),
-                ("purchase_line_id", "!=", False),
-            ])
-            received_by_po_line = {}
-            for move in incoming_done_moves:
-                if "quantity_done" in move._fields:
-                    qty_done = move.quantity_done
-                elif "quantity" in move._fields:
-                    qty_done = move.quantity
-                else:
-                    done_field = "quantity" if "quantity" in move.move_line_ids._fields else "qty_done"
-                    qty_done = sum(move.move_line_ids.mapped(done_field))
-                received_by_po_line[move.purchase_line_id.id] = (
-                        received_by_po_line.get(move.purchase_line_id.id, 0.0) + qty_done
-                )
-
-            for line in contract.line_ids:
-                received_qty = received_by_po_line.get(line.purchase_line_id.id, 0.0)
-                qty_contract = line.qty_contract or 0.0
-                line.qty_received = min(received_qty, qty_contract)
-                line.qty_remaining = max(qty_contract - line.qty_received, 0.0)
-
-    def _update_delivery_state_from_lines(self):
-        for contract in self:
-            if contract.state == "cancel":
-                contract.delivery_state = "cancel"
-                continue
-
-            total_ordered = sum(contract.line_ids.mapped("qty_contract"))
-            total_received = sum(contract.line_ids.mapped("qty_received"))
-
-            if not total_received:
-                if contract.delivery_state != "confirmed_arrival":
-                    contract.delivery_state = "expected"
-                continue
-
-            if abs(total_received - total_ordered) <= 1e-6:
-                contract.delivery_state = "done"
-            else:
-                contract.delivery_state = "partial"
 
     def action_create_otk(self):
         self.ensure_one()
