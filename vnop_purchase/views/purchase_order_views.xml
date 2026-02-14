@@ -28,22 +28,6 @@
             <xpath expr="//field[@name='priority']" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </xpath>
-            <!--            <xpath expr="//field[@name='name']" position="attributes">-->
-            <!--                <attribute name="string">Mã đơn hàng</attribute>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//field[@name='name']" position="after">-->
-            <!--                <field name="partner_id"/>-->
-            <!--                <field name="amount_total" string="Tổng giá trị"/>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//field[@name='invoice_status']" position="after">-->
-            <!--                <field name="state"-->
-            <!--                       widget="badge"-->
-            <!--                       decoration-primary="state == 'draft'"-->
-            <!--                       decoration-info="state == 'sent'"-->
-            <!--                       decoration-warning="state == 'to approve'"-->
-            <!--                       decoration-success="state == 'purchase'"-->
-            <!--                       decoration-danger="state == 'cancel'"/>-->
-            <!--            </xpath>-->
         </field>
     </record>
 
@@ -52,14 +36,6 @@
         <field name="model">purchase.order</field>
         <field name="inherit_id" ref="purchase.purchase_order_kpis_tree"/>
         <field name="arch" type="xml">
-            <!--            <xpath expr="//field[@name='partner_id']" position="attributes">-->
-            <!--                <attribute name="column_invisible">1</attribute>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//field[@name='amount_total']" position="replace"/>-->
-            <!--            <xpath expr="//field[@name='user_id']" position="replace"/>-->
-            <!--            <xpath expr="//field[@name='date_approve']" position="attributes">-->
-            <!--                <attribute name="column_invisible">1</attribute>-->
-            <!--            </xpath>-->
             <xpath expr="//field[@name='activity_ids']" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </xpath>
@@ -72,22 +48,6 @@
             <xpath expr="//field[@name='priority']" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </xpath>
-            <!--            <xpath expr="//field[@name='name']" position="attributes">-->
-            <!--                <attribute name="string">Mã đơn hàng</attribute>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//field[@name='name']" position="after">-->
-            <!--                <field name="partner_id"/>-->
-            <!--                <field name="amount_total" string="Tổng giá trị"/>-->
-            <!--            </xpath>-->
-            <!--            <xpath expr="//field[@name='invoice_status']" position="after">-->
-            <!--                <field name="state"-->
-            <!--                       widget="badge"-->
-            <!--                       decoration-primary="state == 'draft'"-->
-            <!--                       decoration-info="state == 'sent'"-->
-            <!--                       decoration-warning="state == 'to approve'"-->
-            <!--                       decoration-success="state == 'purchase'"-->
-            <!--                       decoration-danger="state == 'cancel'"/>-->
-            <!--            </xpath>-->
         </field>
     </record>
 
@@ -146,7 +106,8 @@
             </xpath>
 
             <xpath expr="//button[@id='bid_confirm']" position="before">
-                <button name="button_submit_rfq" type="object" invisible="state not in ('sent', 'need_revision')"
+                <button name="button_submit_rfq" type="object"
+                        invisible="state not in ('draft','sent', 'need_revision')"
                         string="Gửi duyệt"
                         context="{'validate_analytic': True}" class="oe_highlight" id="bid_confirm" data-hotkey="q"/>
 
@@ -166,9 +127,6 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='partner_ref']" position="after">
                 <field name="contract_ids" widget="many2many_tags" readonly="1" optional="show"/>
-            </xpath>
-            <xpath expr="//field[@name='order_line']/list/field[@name='qty_received']" position="after">
-                <field name="qty_remaining" readonly="1" optional="show"/>
             </xpath>
         </field>
     </record>

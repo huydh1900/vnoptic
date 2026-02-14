@@ -29,25 +29,30 @@ class ContractLine(models.Model):
         domain="[('order_id', '=', purchase_id), ('display_type', '=', False)]",
     )
 
-    qty_remaining = fields.Float(string="Còn lại", related='purchase_line_id.qty_remaining',
-                                 digits="Product Unit of Measure",
-                                 store=True)
-
     qty_received = fields.Float(string="SL đã nhận", related='purchase_line_id.qty_received',
                                 store=True, digits="Product Unit of Measure")
 
-    @api.constrains("qty_contract", "qty_remaining")
+    qty_remaining = fields.Float(string="Còn lại", compute="_compute_qty_remaining",
+                                 digits="Product Unit of Measure")
+
     @api.onchange("qty_contract")
+    @api.constrains("qty_contract", "qty_remaining")
     def _check_qty_contract_not_exceed_remaining(self):
         for line in self:
             if line.qty_contract < 0:
-                raise UserError("SL theo hợp đồng không được âm.")
+                raise UserError(_("SL theo hợp đồng không được âm."))
 
-            if line.qty_contract and line.qty_remaining and line.qty_contract > line.qty_remaining:
-                raise UserError(
-                    "SL theo hợp đồng không được vượt SL còn lại chưa nhận của đơn mua.\n\n"
-                    "Vui lòng quay lại Đơn mua để kiểm tra nhận hàng/backorder."
-                )
+            # nếu chưa chọn PO line thì chưa có remaining chuẩn -> bỏ qua
+            if not line.purchase_line_id:
+                continue
+
+            if line.qty_contract > line.qty_remaining:
+                raise UserError(_("SL theo hợp đồng không được lớn hơn SL còn lại."))
+
+    @api.depends("purchase_line_id", 'qty_received')
+    def _compute_qty_remaining(self):
+        for rec in self:
+            rec.qty_remaining = rec.product_qty - rec.qty_received
 
     @api.constrains("purchase_line_id", "contract_id")
     def _check_purchase_line_unique_in_contract(self):

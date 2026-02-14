@@ -193,7 +193,7 @@
                                     <field name="amount_total" widget="monetary" readonly="1" force_save="1"
                                            sum="Tổng giá trị"/>
                                     <field name="currency_id" column_invisible="1"/>
-                                    <field name="purchase_line_id" force_save="1" readonly="1"/>
+                                    <field name="purchase_line_id" force_save="1" column_invisible="1"/>
                                 </list>
                             </field>
                         </page>
@@ -243,8 +243,8 @@
 
     <menuitem id="vnoptic_contract_menu"
               name="Hợp đồng mua hàng"
-              parent="purchase.menu_procurement_management"
+              parent="purchase.menu_purchase_root"
               action="vnoptic_contract_action"
-              sequence="10"/>
+              sequence="2"/>
 
 </odoo>

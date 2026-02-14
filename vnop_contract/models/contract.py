@@ -397,45 +397,26 @@ class Contract(models.Model):
 
         reset_qty_done = bool(self.env.context.get("reset_qty_done"))
 
-        # 1) Lấy incoming pickings hợp lệ để gom batch
         incoming = self._get_incoming_receipts_for_batch()
         if not incoming:
             raise UserError(_("Không có phiếu nhập kho phù hợp để tạo lô."))
-
-        # 2) Sync qty_received/qty_remaining từ moves DONE thực tế
-        self._update_contract_line_received_quantities()
-
-        # 3) Prefill DONE theo qty_remaining của hợp đồng
-        filled = self._prefill_qty_done_from_contract(incoming, reset_qty_done=reset_qty_done)
-        if not filled:
-            raise UserError(_(
-                "Không có số lượng cần nhận theo hợp đồng (qty_remaining = 0) "
-                "hoặc các phiếu nhập không còn nhu cầu để nhận."
-            ))
 
         picking_types = incoming.mapped("picking_type_id")
         if len(picking_types) > 1:
             raise UserError(_("Các phiếu nhập thuộc nhiều loại vận chuyển khác nhau, không thể gom chung một lô."))
 
-        origin_name = self.number or self.name
-
-        # 4) Tạo batch
         batch = self.env["stock.picking.batch"].create({
             "company_id": self.company_id.id,
             "contract_id": self.id,
             "picking_type_id": picking_types.id,
             "user_id": self.env.uid,
-            "origin": origin_name,
+            "origin": self.number or self.name,
             "picking_ids": [(6, 0, incoming.ids)],
         })
 
         self.delivery_state = "confirmed_arrival"
 
-        # 5) Auto confirm/assign/validate + process wizard => sinh backorder theo PO
         batch.with_context(reset_qty_done=reset_qty_done).action_confirm()
-
-        # 6) Sync tiến độ hợp đồng (nếu bạn muốn update ngay)
-        self._sync_receipt_progress()
 
         return {
             "type": "ir.actions.act_window",
@@ -459,7 +440,6 @@ class Contract(models.Model):
             ))
 
     def _get_incoming_receipts_for_batch(self):
-        self.ensure_one()
         picking_domain = [
             ("purchase_id", "in", self.purchase_order_ids.ids),
             ("picking_type_code", "=", "incoming"),
@@ -480,51 +460,6 @@ class Contract(models.Model):
             )
         )
         return open_receipts
-
-    def _prefill_qty_done_from_contract(self, incoming_pickings, reset_qty_done=False):
-        self.ensure_one()
-
-        # Map remaining theo PO line
-        qty_remaining_by_po_line = {}
-        for line in self.line_ids:
-            if not line.purchase_line_id or not line.product_id:
-                continue
-            remaining = max(line.qty_remaining or 0.0, 0.0)
-            if not remaining:
-                continue
-            key = ("po_line", line.purchase_line_id.id)
-            qty_remaining_by_po_line[key] = qty_remaining_by_po_line.get(key, 0.0) + remaining
-
-        if not qty_remaining_by_po_line:
-            return False
-
-        candidate_moves = incoming_pickings.move_ids_without_package.filtered(
-            lambda m: m.state not in ("cancel", "done") and m.purchase_line_id and m.product_id
-        ).sorted("id")
-
-        any_assigned = False
-        for move in candidate_moves:
-            move_key = ("po_line", move.purchase_line_id.id)
-            contract_remaining = qty_remaining_by_po_line.get(move_key, 0.0)
-            if contract_remaining <= 0:
-                continue
-
-            move_remaining = self._get_move_remaining_qty(move)  # demand PO - done
-            if move_remaining <= 0:
-                continue
-
-            qty_to_receive_now = min(contract_remaining, move_remaining)
-            if qty_to_receive_now <= 0:
-                continue
-
-            assigned_qty = self._assign_qty_done_on_move(
-                move, qty_to_receive_now, reset_qty_done=reset_qty_done
-            )
-            if assigned_qty:
-                any_assigned = True
-                qty_remaining_by_po_line[move_key] = max(contract_remaining - assigned_qty, 0.0)
-
-        return any_assigned
 
     def _contract_line_key(self, line):
         return ("po_line", line.purchase_line_id.id) if line.purchase_line_id else None
