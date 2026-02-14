@@ -411,7 +411,6 @@ class Contract(models.Model):
         self.ensure_one()
         self._check_create_batch_receipt_preconditions()
         reset_qty_done = bool(self.env.context.get("reset_qty_done"))
-        self._fill_assigned_receipt_move_qty_from_contract()
         incoming = self._get_incoming_receipts_for_batch()
         if not incoming:
             raise UserError(_("Không có phiếu nhập kho phù hợp để tạo lô."))
@@ -441,36 +440,6 @@ class Contract(models.Model):
             "res_id": batch.id,
             "target": "current",
         }
-
-    def _fill_assigned_receipt_move_qty_from_contract(self):
-        self.ensure_one()
-        picking_domain = [
-            ("purchase_id", "in", self.purchase_order_ids.ids),
-            ("picking_type_code", "=", "incoming"),
-        ]
-        assigned_receipts = self.env["stock.picking"].search(picking_domain).filtered(lambda picking: picking.state == "assigned")
-        if not assigned_receipts:
-            return
-
-        qty_contract_by_key = {}
-        for line in self.line_ids:
-            if not line.product_id:
-                continue
-            line_key = self._contract_line_key(line)
-            if not line_key:
-                continue
-            qty_contract_by_key[line_key] = qty_contract_by_key.get(line_key, 0.0) + (line.qty_contract or 0.0)
-
-        for move in assigned_receipts.move_ids_without_package.filtered(lambda m: m.state not in ("cancel", "done")):
-            move_key = self._move_contract_key(move)
-            if not move_key:
-                move_key = ("po_product", move.purchase_id.id, move.product_id.id) if move.purchase_id and move.product_id else None
-            if not move_key:
-                continue
-            qty_contract = qty_contract_by_key.get(move_key)
-            if qty_contract is None:
-                continue
-            move.product_uom_qty = qty_contract
 
     def _check_create_batch_receipt_preconditions(self):
         self.ensure_one()
@@ -518,6 +487,11 @@ class Contract(models.Model):
             remaining = max((line.qty_contract or 0.0) - received_contract_qty, 0.0)
             if not remaining:
                 continue
+            if not line.purchase_line_id:
+                raise UserError(_(
+                    "Dòng hợp đồng %s thiếu liên kết dòng PO. "
+                    "Không thể tự động phân bổ số lượng nhận."
+                ) % (line.display_name or line.product_id.display_name))
             key = self._contract_line_key(line)
             quantity_by_key[key] = quantity_by_key.get(key, 0.0) + remaining
 
@@ -546,8 +520,6 @@ class Contract(models.Model):
     def _contract_line_key(self, line):
         if line.purchase_line_id:
             return ("po_line", line.purchase_line_id.id)
-        if line.purchase_id and line.product_id:
-            return ("po_product", line.purchase_id.id, line.product_id.id)
         return None
 
     def _move_contract_key(self, move):
