@@ -155,12 +155,6 @@ class Contract(models.Model):
 
     product_count = fields.Integer(string="Số sản phẩm", compute="_compute_product_count")
 
-    # @api.depends("line_ids", "line_ids.product_qty", "line_ids.price_subtotal")
-    # def _compute_totals(self):
-    #     for rec in self:
-    #         rec.total_qty = sum(rec.line_ids.mapped("product_qty"))
-    #         rec.amount_total = sum(rec.line_ids.mapped("price_subtotal"))
-
     def _compute_purchase_order_count(self):
         for rec in self:
             rec.purchase_order_count = len(rec.purchase_order_ids)
@@ -169,13 +163,17 @@ class Contract(models.Model):
         for rec in self:
             rec.otk_count = len(rec.otk_picking_ids)
 
-    @api.depends("purchase_order_ids", "purchase_order_ids.picking_ids", "purchase_order_ids.picking_ids.state")
+    @api.depends("purchase_order_ids", "purchase_order_ids.picking_ids", "purchase_order_ids.picking_ids.state",
+                 "receipt_ids", "receipt_ids.state")
     def _compute_receipt_metrics(self):
+        StockPicking = self.env["stock.picking"]
         for rec in self:
-            incoming_done = rec.purchase_order_ids.picking_ids.filtered(
-                lambda p: p.picking_type_code == "incoming" and p.state == "done"
-            )
-            rec.receipt_count_open = len(incoming_done)
+            incoming_done = StockPicking.search_count([
+                ("contract_id", "=", rec.id),
+                ("picking_type_code", "=", "incoming"),
+                ("state", "=", "done"),
+            ])
+            rec.receipt_count_open = incoming_done
 
     @api.depends("line_ids")
     def _compute_product_count(self):
@@ -469,7 +467,12 @@ class Contract(models.Model):
         if not picking_type:
             raise UserError(_("Không tìm thấy loại vận chuyển nội bộ để tạo OTK."))
 
-        temp_location = picking_type.default_location_src_id
+        incoming_pt = self.env['stock.picking.type'].search([
+            ('code', '=', 'incoming'),
+            ('warehouse_id.company_id', '=', self.company_id.id),
+        ], limit=1)
+        temp_location = incoming_pt.default_location_dest_id
+
         location_ok = self.env['stock.location'].search([
             ('usage', '=', 'internal'), ('company_id', 'in', [self.company_id.id, False]), ('name', 'ilike', 'đạt')
         ], limit=1) or self.env['stock.location'].search([
@@ -499,28 +502,48 @@ class Contract(models.Model):
 
     def _get_otk_candidate_quantities(self, temp_location):
         self.ensure_one()
+
         incoming_moves = self.env['stock.move'].search([
             ('contract_id', '=', self.id),
             ('state', '=', 'done'),
-            ('picking_type_id.code', '=', 'incoming'),
+            ('picking_id.picking_type_code', '=', 'incoming'),  # rõ hơn Odoo18
             ('location_dest_id', '=', temp_location.id),
         ])
         if not incoming_moves:
             return {}
+
         moved = {}
         for move in incoming_moves:
-            moved[move.product_id] = moved.get(move.product_id, 0.0) + move.quantity_done
+            qty_done = self._move_done_qty(move)
+            if qty_done:
+                moved[move.product_id] = moved.get(move.product_id, 0.0) + qty_done
 
-        otk_done = self.env['stock.move'].search([
+        otk_done_moves = self.env['stock.move'].search([
             ('contract_id', '=', self.id),
             ('state', '=', 'done'),
             ('picking_id.otk_type', 'in', ('ok', 'ng')),
             ('location_id', '=', temp_location.id),
         ])
-        for move in otk_done:
-            moved[move.product_id] = moved.get(move.product_id, 0.0) - move.quantity_done
+        for move in otk_done_moves:
+            qty_done = self._move_done_qty(move)
+            if qty_done:
+                moved[move.product_id] = moved.get(move.product_id, 0.0) - qty_done
 
         return {product: qty for product, qty in moved.items() if qty > 0}
+
+    def _move_done_qty(self, move):
+        """Return done qty of a stock.move, compatible with Odoo 18."""
+        MoveLine = self.env['stock.move.line']
+        # Odoo 18: done qty nằm trên move lines
+        if move.move_line_ids:
+            if 'quantity' in MoveLine._fields:
+                return sum(move.move_line_ids.mapped('quantity')) or 0.0
+            return sum(move.move_line_ids.mapped('qty_done')) or 0.0
+
+        # fallback nếu chưa có move_line_ids (hiếm), dùng field khác nếu tồn tại
+        if 'quantity_done' in move._fields:
+            return move.quantity_done or 0.0
+        return 0.0
 
     def _create_otk_picking(self, picking_type, source, destination, grouped, otk_type, create_moves=True):
         self.ensure_one()
