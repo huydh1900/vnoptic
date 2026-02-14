@@ -130,8 +130,6 @@ class Contract(models.Model):
     receipt_ids = fields.One2many("stock.picking", "contract_id", string="Phiếu nhập kho", readonly=True)
     receipt_count_open = fields.Integer(compute="_compute_receipt_metrics", string="Phiếu nhập kho đang mở")
     receipt_count_done = fields.Integer(compute="_compute_receipt_metrics", string="Phiếu nhập kho hoàn tất")
-    batch_ids = fields.One2many("stock.picking.batch", "contract_id", string="Lô phiếu nhập kho", readonly=True)
-    batch_count = fields.Integer(compute="_compute_batch_count", string="Số lô")
     otk_picking_ids = fields.One2many(
         "stock.picking",
         "contract_id",
@@ -167,10 +165,6 @@ class Contract(models.Model):
     def _compute_purchase_order_count(self):
         for rec in self:
             rec.purchase_order_count = len(rec.purchase_order_ids)
-
-    def _compute_batch_count(self):
-        for rec in self:
-            rec.batch_count = len(rec.batch_ids)
 
     def _compute_otk_count(self):
         for rec in self:
@@ -360,25 +354,22 @@ class Contract(models.Model):
             "context": {"default_contract_id": self.id},
         }
 
-    def action_view_batches(self):
+    def action_view_done_receipts(self):
         self.ensure_one()
-        if len(self.batch_ids) == 1:
-            return {
-                "type": "ir.actions.act_window",
-                "name": "Phiếu tiếp nhận hàng",
-                "res_model": "stock.picking.batch",
-                "view_mode": "form",
-                "res_id": self.batch_ids.id,
-                "target": "current",
-            }
-        return {
+        receipts = self.receipt_ids.filtered(
+            lambda p: p.picking_type_code == "incoming" and p.state == "done"
+        )
+        action = {
             "type": "ir.actions.act_window",
-            "name": "Phiếu tiếp nhận hàng",
-            "res_model": "stock.picking.batch",
+            "name": _("Phiếu nhập kho hoàn tất"),
+            "res_model": "stock.picking",
             "view_mode": "list,form",
-            "domain": [("contract_id", "=", self.id)],
+            "domain": [("id", "in", receipts.ids)],
             "context": {"default_contract_id": self.id},
         }
+        if len(receipts) == 1:
+            action.update({"view_mode": "form", "res_id": receipts.id})
+        return action
 
     def action_view_otk(self):
         self.ensure_one()
@@ -391,45 +382,10 @@ class Contract(models.Model):
             "context": {"default_contract_id": self.id},
         }
 
-    def action_create_batch_receipt(self):
-        self.ensure_one()
-        self._check_create_batch_receipt_preconditions()
-
-        reset_qty_done = bool(self.env.context.get("reset_qty_done"))
-
-        incoming = self._get_incoming_receipts_for_batch()
-        if not incoming:
-            raise UserError(_("Không có phiếu nhập kho phù hợp để tạo lô."))
-
-        picking_types = incoming.mapped("picking_type_id")
-        if len(picking_types) > 1:
-            raise UserError(_("Các phiếu nhập thuộc nhiều loại vận chuyển khác nhau, không thể gom chung một lô."))
-
-        batch = self.env["stock.picking.batch"].create({
-            "company_id": self.company_id.id,
-            "contract_id": self.id,
-            "picking_type_id": picking_types.id,
-            "user_id": self.env.uid,
-            "origin": self.number or self.name,
-            "picking_ids": [(6, 0, incoming.ids)],
-        })
-
-        self.delivery_state = "confirmed_arrival"
-
-        batch.with_context(reset_qty_done=reset_qty_done).action_confirm()
-
-        return {
-            "type": "ir.actions.act_window",
-            "res_model": "stock.picking.batch",
-            "view_mode": "form",
-            "res_id": batch.id,
-            "target": "current",
-        }
-
     def action_confirm_arrival_auto(self):
         """Phase 1: one-click receive based on contract quantities."""
         self.ensure_one()
-        self._check_create_batch_receipt_preconditions()
+        self._check_confirm_arrival_preconditions()
 
         if not self.line_ids:
             raise UserError(_("Hợp đồng chưa có dòng sản phẩm để xác nhận hàng về."))
@@ -438,44 +394,31 @@ class Contract(models.Model):
         if not lines:
             raise UserError(_("Không có dòng hợp đồng hợp lệ (PO line + SL theo hợp đồng > 0)."))
 
-        batch_action = self.with_context(reset_qty_done=True).action_create_batch_receipt()
-        batch = self.env["stock.picking.batch"].browse(batch_action.get("res_id"))
-        if not batch:
-            raise UserError(_("Không thể khởi tạo lô nhận hàng."))
+        receipts = self._get_incoming_receipts_for_confirmation()
+        if not receipts:
+            raise UserError(_("Không có phiếu nhập kho mở phù hợp để xác nhận hàng về."))
 
-        self._apply_qty_contract_to_batch(batch, lines)
-        self._validate_batch_receipts(batch)
+        self.delivery_state = "confirmed_arrival"
+
+        self._apply_qty_contract_to_receipts(receipts, lines)
+        self._validate_receipts(receipts)
         self._sync_receipt_progress()
 
-        self.message_post(body=_("Đã tự động xác nhận hàng về theo SL hợp đồng cho lô %s.") % (batch.display_name,))
+        self.message_post(body=_("Đã tự động xác nhận hàng về theo SL hợp đồng."))
+        return self.action_view_done_receipts()
 
-        return {
-            "type": "ir.actions.act_window",
-            "res_model": "stock.picking.batch",
-            "view_mode": "form",
-            "res_id": batch.id,
-            "target": "current",
-        }
-
-    def _check_create_batch_receipt_preconditions(self):
+    def _check_confirm_arrival_preconditions(self):
         self.ensure_one()
         if self.state != "approved":
-            raise UserError(_("Chỉ được tạo lô nhận hàng khi hợp đồng ở trạng thái Đã duyệt."))
+            raise UserError(_("Chỉ được xác nhận hàng về khi hợp đồng ở trạng thái Đã duyệt."))
         if not self.purchase_order_ids:
             raise UserError(_("Hợp đồng chưa có PO liên quan."))
-        existing_batches = self.batch_ids.filtered(lambda batch: batch.state != "cancel")
-        if existing_batches:
-            raise UserError(_(
-                "Mỗi hợp đồng chỉ được tạo một lô phiếu nhập hàng. "
-                "Vui lòng hủy lô hiện tại nếu muốn tạo lại."
-            ))
 
-    def _get_incoming_receipts_for_batch(self):
+    def _get_incoming_receipts_for_confirmation(self):
         picking_domain = [
             ("purchase_id", "in", self.purchase_order_ids.ids),
             ("picking_type_code", "=", "incoming"),
             ("state", "in", ("waiting", "confirmed", "assigned")),
-            ("batch_id", "=", False),
             ("company_id", "=", self.company_id.id),
         ]
         receipts = self.env["stock.picking"].search(picking_domain)
@@ -559,14 +502,14 @@ class Contract(models.Model):
 
         return max(qty_target - qty_left, 0.0)
 
-    def _apply_qty_contract_to_batch(self, batch, lines):
+    def _apply_qty_contract_to_receipts(self, receipts, lines):
         self.ensure_one()
         for line in lines.sorted("id"):
             qty_to_assign = line.qty_contract or 0.0
             if qty_to_assign <= 0:
                 continue
 
-            candidate_moves = batch.picking_ids.mapped("move_ids_without_package").filtered(
+            candidate_moves = receipts.mapped("move_ids_without_package").filtered(
                 lambda move: (
                     move.purchase_line_id == line.purchase_line_id
                     and move.state not in ("done", "cancel")
@@ -594,9 +537,9 @@ class Contract(models.Model):
                     "SL theo hợp đồng cho dòng PO %s vượt quá tổng SL có thể nhận trên phiếu nhập kho mở."
                 ) % (line.purchase_line_id.display_name,))
 
-    def _validate_batch_receipts(self, batch):
+    def _validate_receipts(self, receipts):
         self.ensure_one()
-        receipts = batch.picking_ids.filtered(
+        receipts = receipts.filtered(
             lambda picking: picking.picking_type_code == "incoming" and picking.state not in ("done", "cancel")
         ).sorted("id")
         if not receipts:

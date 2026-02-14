@@ -75,7 +75,7 @@
                             class="btn-secondary"/>
                     <button name="action_confirm_arrival_auto" type="object" string="Xác nhận hàng về"
                             class="btn-primary"
-                            invisible="state != 'approved' or not purchase_order_ids or batch_count &gt; 0"/>
+                            invisible="state != 'approved' or not purchase_order_ids"/>
                     <button name="action_create_otk" type="object" string="Tạo OTK" class="btn-secondary"/>
 
 
@@ -108,8 +108,8 @@
                         <button name="action_view_receipts" type="object" class="oe_stat_button" icon="fa-truck">
                             <field name="receipt_count_open" widget="statinfo" string="Phiếu nhập kho mở"/>
                         </button>
-                        <button name="action_view_batches" type="object" class="oe_stat_button" icon="fa-truck">
-                            <field name="batch_count" widget="statinfo" string="Phiếu nhận hàng"/>
+                        <button name="action_view_done_receipts" type="object" class="oe_stat_button" icon="fa-check-square-o">
+                            <field name="receipt_count_done" widget="statinfo" string="Phiếu nhập kho hoàn tất"/>
                         </button>
                         <button name="action_view_otk" type="object" class="oe_stat_button" icon="fa-random">
                             <field name="otk_count" widget="statinfo" string="OTK"/>
