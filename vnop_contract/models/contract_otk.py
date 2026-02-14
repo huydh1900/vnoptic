@@ -4,19 +4,19 @@ from odoo.exceptions import ValidationError, UserError
 
 class ContractOtk(models.Model):
     _name = "contract.otk"
-    _description = "OTK Session"
+    _description = "Phiên OTK"
     _inherit = ["mail.thread", "mail.activity.mixin"]
     _order = "date desc, id desc"
 
-    name = fields.Char(required=True, readonly=True, copy=False, default=lambda self: _("New"))
+    name = fields.Char(required=True, readonly=True, copy=False, default=lambda self: _("Mới"))
     contract_id = fields.Many2one("contract", required=True, ondelete="cascade", index=True)
     company_id = fields.Many2one("res.company", required=True, default=lambda self: self.env.company)
     date = fields.Datetime(required=True, default=fields.Datetime.now, tracking=True)
     state = fields.Selection([
-        ("draft", "Draft"),
-        ("confirmed", "Confirmed"),
-        ("done", "Done"),
-        ("cancel", "Cancelled"),
+        ("draft", "Nháp"),
+        ("confirmed", "Đã xác nhận"),
+        ("done", "Hoàn tất"),
+        ("cancel", "Đã hủy"),
     ], default="draft", tracking=True, index=True)
 
     source_location_id = fields.Many2one("stock.location", required=True)
@@ -34,15 +34,15 @@ class ContractOtk(models.Model):
     total_ng = fields.Float(compute="_compute_totals", store=True)
 
     _sql_constraints = [
-        ("name_company_unique", "unique(name, company_id)", "OTK number must be unique per company."),
+        ("name_company_unique", "unique(name, company_id)", "Số OTK phải là duy nhất trong từng công ty."),
     ]
 
     @api.model_create_multi
     def create(self, vals_list):
         seq = self.env["ir.sequence"]
         for vals in vals_list:
-            if vals.get("name", _("New")) == _("New"):
-                vals["name"] = seq.next_by_code("contract.otk.seq") or _("New")
+            if vals.get("name", _("Mới")) == _("Mới"):
+                vals["name"] = seq.next_by_code("contract.otk.seq") or _("Mới")
         return super().create(vals_list)
 
     @api.depends("line_ids.qty_checked", "line_ids.qty_ok", "line_ids.qty_ng")
@@ -71,13 +71,13 @@ class ContractOtk(models.Model):
         if line.product_id.tracking == "none":
             return
         if not line.lot_line_ids:
-            raise ValidationError(_("Product %s requires lot/serial breakdown.") % line.product_id.display_name)
+            raise ValidationError(_("Sản phẩm %s yêu cầu khai báo chi tiết theo lô/serial.") % line.product_id.display_name)
         checked_sum = sum(line.lot_line_ids.mapped("qty_checked"))
         ok_sum = sum(line.lot_line_ids.mapped("qty_ok"))
         if not fields.Float.is_zero(checked_sum - line.qty_checked, precision_rounding=line.uom_id.rounding):
-            raise ValidationError(_("Lot checked quantity must equal checked quantity for %s.") % line.product_id.display_name)
+            raise ValidationError(_("Tổng SL kiểm theo lô phải bằng SL kiểm của %s.") % line.product_id.display_name)
         if not fields.Float.is_zero(ok_sum - line.qty_ok, precision_rounding=line.uom_id.rounding):
-            raise ValidationError(_("Lot OK quantity must equal OK quantity for %s.") % line.product_id.display_name)
+            raise ValidationError(_("Tổng SL đạt theo lô phải bằng SL đạt của %s.") % line.product_id.display_name)
 
     def action_confirm(self):
         StockPicking = self.env["stock.picking"]
@@ -90,14 +90,14 @@ class ContractOtk(models.Model):
                 continue
             lines = rec.line_ids.filtered(lambda l: l.qty_checked or l.qty_ok)
             if not lines:
-                raise UserError(_("Please input at least one line with checked or OK quantity."))
+                raise UserError(_("Vui lòng nhập ít nhất một dòng có SL kiểm hoặc SL đạt."))
 
             for line in lines:
                 line._check_business_rules()
                 rec._validate_tracking_lines(line)
                 available_now = line._get_available_qty_temp()
                 if line.qty_checked > available_now:
-                    raise ValidationError(_("Checked qty for %s exceeds available temporary stock.") % line.product_id.display_name)
+                    raise ValidationError(_("SL kiểm của %s vượt quá tồn tạm khả dụng.") % line.product_id.display_name)
 
             picking_ok = StockPicking.create(rec._prepare_picking_vals("ok"))
             picking_ng = StockPicking.create(rec._prepare_picking_vals("ng"))
@@ -157,13 +157,13 @@ class ContractOtk(models.Model):
     def action_cancel(self):
         for rec in self:
             if rec.state == "done":
-                raise UserError(_("Done OTK session cannot be cancelled."))
+                raise UserError(_("Phiên OTK đã hoàn tất thì không thể hủy."))
             rec.state = "cancel"
 
 
 class ContractOtkLine(models.Model):
     _name = "contract.otk.line"
-    _description = "OTK Session Line"
+    _description = "Dòng phiên OTK"
 
     otk_id = fields.Many2one("contract.otk", required=True, ondelete="cascade")
     contract_id = fields.Many2one(related="otk_id.contract_id", store=True, index=True)
@@ -233,9 +233,9 @@ class ContractOtkLine(models.Model):
     def _check_business_rules(self):
         for line in self:
             if line.qty_checked < 0 or line.qty_ok < 0:
-                raise ValidationError(_("Checked/OK quantity cannot be negative."))
+                raise ValidationError(_("SL kiểm/SL đạt không được âm."))
             if line.qty_ok > line.qty_checked:
-                raise ValidationError(_("OK quantity cannot exceed checked quantity."))
+                raise ValidationError(_("SL đạt không được lớn hơn SL kiểm."))
 
     def _prepare_move_vals(self, picking, qty, dest_location):
         self.ensure_one()
@@ -267,7 +267,7 @@ class ContractOtkLine(models.Model):
 
 class ContractOtkLineLot(models.Model):
     _name = "contract.otk.line.lot"
-    _description = "OTK line lot split"
+    _description = "Chi tiết lô dòng OTK"
 
     otk_line_id = fields.Many2one("contract.otk.line", required=True, ondelete="cascade")
     lot_id = fields.Many2one("stock.lot", required=True)
@@ -284,9 +284,9 @@ class ContractOtkLineLot(models.Model):
     def _check_qty(self):
         for rec in self:
             if rec.qty_checked < 0 or rec.qty_ok < 0:
-                raise ValidationError(_("Lot quantities must be >= 0."))
+                raise ValidationError(_("Số lượng theo lô phải lớn hơn hoặc bằng 0."))
             if rec.qty_ok > rec.qty_checked:
-                raise ValidationError(_("Lot OK quantity cannot exceed checked quantity."))
+                raise ValidationError(_("SL đạt theo lô không được lớn hơn SL kiểm theo lô."))
             if rec.otk_line_id.product_id.tracking == "serial":
                 if rec.qty_checked not in (0.0, 1.0) or rec.qty_ok not in (0.0, 1.0):
-                    raise ValidationError(_("Serial tracked lot quantities must be 0 or 1."))
+                    raise ValidationError(_("Sản phẩm quản lý theo serial chỉ cho phép SL lô là 0 hoặc 1."))

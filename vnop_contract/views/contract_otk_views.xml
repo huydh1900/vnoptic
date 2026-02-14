@@ -4,7 +4,7 @@
         <field name="name">contract.otk.tree</field>
         <field name="model">contract.otk</field>
         <field name="arch" type="xml">
-            <list>
+            <list decoration-info="state == 'draft'" decoration-primary="state == 'confirmed'" decoration-success="state == 'done'" decoration-danger="state == 'cancel'">
                 <field name="name"/>
                 <field name="date"/>
                 <field name="contract_id"/>
@@ -22,11 +22,12 @@
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <button name="action_confirm" type="object" string="Confirm" class="btn-primary" invisible="state != 'draft'"/>
-                    <button name="action_cancel" type="object" string="Cancel" class="btn-secondary" invisible="state in ('done','cancel')"/>
-                    <button name="action_open_picking_ok" type="object" string="Open Picking OK" invisible="state not in ('confirmed','done') or not picking_ok_id"/>
-                    <button name="action_open_picking_ng" type="object" string="Open Picking NG" invisible="state not in ('confirmed','done') or not picking_ng_id"/>
+                    <button name="action_confirm" type="object" string="Xác nhận" class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_cancel" type="object" string="Hủy" class="btn-secondary" invisible="state in ('done','cancel')"/>
+                    <button name="action_open_picking_ok" type="object" string="Mở phiếu chuyển đạt" invisible="state not in ('confirmed','done') or not picking_ok_id"/>
+                    <button name="action_open_picking_ng" type="object" string="Mở phiếu chuyển lỗi" invisible="state not in ('confirmed','done') or not picking_ng_id"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,done,cancel"/>
+                    <field name="state" widget="badge" decoration-info="state == 'draft'" decoration-primary="state == 'confirmed'" decoration-success="state == 'done'" decoration-danger="state == 'cancel'"/>
                 </header>
                 <sheet>
                     <group>
@@ -95,7 +96,7 @@
     </record>
 
     <record id="action_contract_otk" model="ir.actions.act_window">
-        <field name="name">OTK Sessions</field>
+        <field name="name">Phiên OTK</field>
         <field name="res_model">contract.otk</field>
         <field name="view_mode">list,form</field>
     </record>
