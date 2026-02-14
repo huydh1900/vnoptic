@@ -128,7 +128,7 @@ class Contract(models.Model):
     )
     purchase_order_count = fields.Integer(string="Số PO", compute="_compute_purchase_order_count")
     receipt_ids = fields.One2many("stock.picking", "contract_id", string="Phiếu nhập kho", readonly=True)
-    receipt_count_open = fields.Integer(compute="_compute_receipt_metrics", string="Phiếu nhập kho đang mở")
+    receipt_count_open = fields.Integer(compute="_compute_receipt_metrics", string="Số phiếu nhập kho")
     otk_picking_ids = fields.One2many(
         "stock.picking",
         "contract_id",
@@ -169,10 +169,13 @@ class Contract(models.Model):
         for rec in self:
             rec.otk_count = len(rec.otk_picking_ids)
 
+    @api.depends("purchase_order_ids", "purchase_order_ids.picking_ids", "purchase_order_ids.picking_ids.state")
     def _compute_receipt_metrics(self):
         for rec in self:
-            incoming = rec.receipt_ids.filtered(lambda p: p.picking_type_code == 'incoming')
-            rec.receipt_count_open = len(incoming.filtered(lambda p: p.state not in ('done', 'cancel')))
+            incoming_done = rec.purchase_order_ids.picking_ids.filtered(
+                lambda p: p.picking_type_code == "incoming" and p.state == "done"
+            )
+            rec.receipt_count_open = len(incoming_done)
 
     @api.depends("line_ids")
     def _compute_product_count(self):
