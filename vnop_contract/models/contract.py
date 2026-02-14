@@ -426,6 +426,37 @@ class Contract(models.Model):
             "target": "current",
         }
 
+    def action_confirm_arrival_auto(self):
+        """Phase 1: one-click receive based on contract quantities."""
+        self.ensure_one()
+        self._check_create_batch_receipt_preconditions()
+
+        if not self.line_ids:
+            raise UserError(_("Hợp đồng chưa có dòng sản phẩm để xác nhận hàng về."))
+
+        lines = self.line_ids.filtered(lambda l: l.purchase_line_id and (l.qty_contract or 0.0) > 0)
+        if not lines:
+            raise UserError(_("Không có dòng hợp đồng hợp lệ (PO line + SL theo hợp đồng > 0)."))
+
+        batch_action = self.with_context(reset_qty_done=True).action_create_batch_receipt()
+        batch = self.env["stock.picking.batch"].browse(batch_action.get("res_id"))
+        if not batch:
+            raise UserError(_("Không thể khởi tạo lô nhận hàng."))
+
+        self._apply_qty_contract_to_batch(batch, lines)
+        self._validate_batch_receipts(batch)
+        self._sync_receipt_progress()
+
+        self.message_post(body=_("Đã tự động xác nhận hàng về theo SL hợp đồng cho lô %s.") % (batch.display_name,))
+
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "stock.picking.batch",
+            "view_mode": "form",
+            "res_id": batch.id,
+            "target": "current",
+        }
+
     def _check_create_batch_receipt_preconditions(self):
         self.ensure_one()
         if self.state != "approved":
@@ -527,6 +558,57 @@ class Contract(models.Model):
             qty_left = 0.0
 
         return max(qty_target - qty_left, 0.0)
+
+    def _apply_qty_contract_to_batch(self, batch, lines):
+        self.ensure_one()
+        for line in lines.sorted("id"):
+            qty_to_assign = line.qty_contract or 0.0
+            if qty_to_assign <= 0:
+                continue
+
+            candidate_moves = batch.picking_ids.mapped("move_ids_without_package").filtered(
+                lambda move: (
+                    move.purchase_line_id == line.purchase_line_id
+                    and move.state not in ("done", "cancel")
+                )
+            ).sorted("id")
+
+            if not candidate_moves:
+                raise UserError(_(
+                    "Không tìm thấy lệnh chuyển hàng phù hợp cho dòng PO %s."
+                ) % (line.purchase_line_id.display_name,))
+
+            for move in candidate_moves:
+                move_capacity = move.product_uom_qty or 0.0
+                if move_capacity <= 0:
+                    continue
+
+                assign_qty = min(qty_to_assign, move_capacity)
+                assigned = self._assign_qty_done_on_move(move, assign_qty, reset_qty_done=True)
+                qty_to_assign -= assigned
+                if qty_to_assign <= 1e-6:
+                    break
+
+            if qty_to_assign > 1e-6:
+                raise UserError(_(
+                    "SL theo hợp đồng cho dòng PO %s vượt quá tổng SL có thể nhận trên phiếu nhập kho mở."
+                ) % (line.purchase_line_id.display_name,))
+
+    def _validate_batch_receipts(self, batch):
+        self.ensure_one()
+        receipts = batch.picking_ids.filtered(
+            lambda picking: picking.picking_type_code == "incoming" and picking.state not in ("done", "cancel")
+        ).sorted("id")
+        if not receipts:
+            return
+
+        for picking in receipts:
+            if picking.state == "waiting":
+                picking.action_confirm()
+            if picking.state in ("confirmed", "waiting"):
+                picking.action_assign()
+            validate_result = picking.button_validate()
+            picking._auto_process_validate_result(validate_result)
 
     def _sync_receipt_progress(self):
         for contract in self:
