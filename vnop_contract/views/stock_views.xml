@@ -12,21 +12,5 @@
         </field>
     </record>
 
-    <record id="vnop_stock_picking_batch_form_contract_inherit" model="ir.ui.view">
-        <field name="name">vnop.stock.picking.batch.form.contract.inherit</field>
-        <field name="model">stock.picking.batch</field>
-        <field name="inherit_id" ref="stock_picking_batch.stock_picking_batch_form"/>
-        <field name="arch" type="xml">
-            <xpath expr="//button[@name='action_view_reception_report']" position="after">
-                <button name="action_view_contract" string="Hợp đồng" type="object"
-                        class="oe_stat_button" icon="fa-file-text-o"/>
-                <button name="action_view_picking" string="Lệnh chuyển hàng" type="object"
-                        class="oe_stat_button" icon="fa-exchange"/>
-            </xpath>
-            <xpath expr="//page[@name='page_transfers']/field[@name='picking_ids']" position="attributes">
-                <attribute name="readonly">1</attribute>
-            </xpath>
-        </field>
-    </record>
 
 </odoo>

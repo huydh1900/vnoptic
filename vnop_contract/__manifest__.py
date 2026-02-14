@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': "vnoptic_contract",
-    'depends': ['purchase_stock', 'stock_picking_batch'],
+    'depends': ['purchase_stock'],
 
     # always loaded
     'data': [
