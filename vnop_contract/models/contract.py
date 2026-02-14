@@ -304,7 +304,7 @@ class Contract(models.Model):
             "res_model": "stock.picking",
             "view_mode": "list,form",
             "domain": [
-                ("purchase_id", "in", self.purchase_order_ids.ids),
+                ("contract_id", "=", self.id),
                 ("picking_type_code", "=", "incoming"),
                 ("state", "=", "done"),
             ],
@@ -324,24 +324,63 @@ class Contract(models.Model):
 
     def action_confirm_arrival_auto(self):
         self.ensure_one()
+        self._process_contract_receipts()
+        self.delivery_state = "confirmed_arrival"
+
+    def _set_done_qty_on_move_line(self, move_line, qty):
+        if "quantity" in move_line._fields:
+            move_line.quantity = qty
+        else:
+            move_line.qty_done = qty
+
+    def _process_contract_receipts(self):
         qty_by_purchase_line = {
             line.purchase_line_id.id: line.qty_contract
             for line in self.line_ids.filtered("purchase_line_id")
         }
+        if not qty_by_purchase_line:
+            return
 
-        if qty_by_purchase_line:
-            incoming_moves = self.env["stock.move"].search([
-                ("purchase_line_id", "in", list(qty_by_purchase_line.keys())),
-                ("state", "not in", ("done", "cancel")),
-                ("picking_type_id.code", "=", "incoming"),
-            ])
+        candidate_pickings = self.purchase_order_ids.picking_ids.filtered(
+            lambda picking: picking.state not in ("done", "cancel") and picking.picking_type_code == "incoming"
+        )
+        if not candidate_pickings:
+            return
 
-            for move in incoming_moves:
-                qty_contract = qty_by_purchase_line.get(move.purchase_line_id.id)
-                if qty_contract is not None:
-                    move.product_uom_qty = qty_contract
+        for picking in candidate_pickings:
+            picking.write({"contract_id": self.id})
+            picking.move_ids_without_package.write({"contract_id": self.id})
 
-        self.delivery_state = "confirmed_arrival"
+            moves_to_update = picking.move_ids_without_package.filtered(
+                lambda move: move.purchase_line_id and move.purchase_line_id.id in qty_by_purchase_line
+            )
+            if not moves_to_update:
+                continue
+
+            for move in moves_to_update:
+                qty_contract = qty_by_purchase_line[move.purchase_line_id.id]
+                move.product_uom_qty = qty_contract
+
+            picking.action_confirm()
+            picking.action_assign()
+
+            for move in moves_to_update:
+                if not move.move_line_ids:
+                    self.env["stock.move.line"].create({
+                        "picking_id": picking.id,
+                        "move_id": move.id,
+                        "product_id": move.product_id.id,
+                        "product_uom_id": move.product_uom.id,
+                        "location_id": move.location_id.id,
+                        "location_dest_id": move.location_dest_id.id,
+                        "quantity" if "quantity" in self.env["stock.move.line"]._fields else "qty_done": move.product_uom_qty,
+                    })
+                else:
+                    for move_line in move.move_line_ids:
+                        self._set_done_qty_on_move_line(move_line, move.product_uom_qty)
+
+            validate_result = picking.button_validate()
+            picking._auto_process_validate_result(validate_result)
 
 
     def action_create_otk(self):
