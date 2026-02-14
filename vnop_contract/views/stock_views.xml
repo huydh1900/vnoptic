@@ -7,6 +7,7 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='origin']" position="after">
                 <field name="contract_id" readonly="1"/>
+                <field name="contract_otk_id" readonly="1" invisible="not contract_otk_id"/>
                 <field name="otk_type" readonly="1" invisible="not otk_type"/>
             </xpath>
         </field>

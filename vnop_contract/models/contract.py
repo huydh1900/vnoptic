@@ -136,6 +136,8 @@ class Contract(models.Model):
         domain=[("otk_type", "in", ("ok", "ng"))],
         readonly=True,
     )
+    otk_session_ids = fields.One2many("contract.otk", "contract_id", string="OTK Sessions", readonly=True)
+    otk_session_count = fields.Integer(compute="_compute_otk_session_count", string="Số phiên OTK")
     otk_count = fields.Integer(compute="_compute_otk_count", string="Số phiếu OTK")
 
     # ====== Lines ======
@@ -162,6 +164,10 @@ class Contract(models.Model):
     def _compute_otk_count(self):
         for rec in self:
             rec.otk_count = len(rec.otk_picking_ids)
+
+    def _compute_otk_session_count(self):
+        for rec in self:
+            rec.otk_session_count = len(rec.otk_session_ids)
 
     @api.depends("purchase_order_ids", "purchase_order_ids.picking_ids", "purchase_order_ids.picking_ids.state",
                  "receipt_ids", "receipt_ids.state")
@@ -322,6 +328,70 @@ class Contract(models.Model):
             "context": {"default_contract_id": self.id},
         }
 
+    def action_view_otk_sessions(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("OTK Sessions"),
+            "res_model": "contract.otk",
+            "view_mode": "list,form",
+            "domain": [("contract_id", "=", self.id)],
+            "context": {"default_contract_id": self.id},
+        }
+
+    def _get_default_otk_configuration(self):
+        self.ensure_one()
+        company = self.company_id
+        source = company.otk_source_location_id
+        internal_picking_type = company.otk_internal_picking_type_id
+
+        incoming_type = self.env["stock.picking.type"].search([
+            ("code", "=", "incoming"),
+            ("company_id", "=", company.id),
+        ], limit=1)
+        source = source or incoming_type.default_location_dest_id
+
+        internal_picking_type = internal_picking_type or self.env["stock.picking.type"].search([
+            ("code", "=", "internal"),
+            ("company_id", "=", company.id),
+        ], limit=1)
+        return source, company.otk_ok_location_id, company.otk_ng_location_id, internal_picking_type
+
+    def action_create_otk_session(self):
+        self.ensure_one()
+        if self.state != "approved":
+            raise UserError(_("Chỉ tạo OTK khi hợp đồng đã duyệt."))
+
+        source, ok_location, ng_location, picking_type = self._get_default_otk_configuration()
+        if not source or not ok_location or not ng_location or not picking_type:
+            raise UserError(_("Thiếu cấu hình OTK mặc định trên công ty (source/OK/NG/picking type)."))
+
+        lines = self.line_ids.filtered(lambda l: l.purchase_line_id and l.qty_contract > 0)
+        if not lines:
+            raise UserError(_("Hợp đồng không có dòng PO hợp lệ để tạo OTK."))
+
+        session = self.env["contract.otk"].create({
+            "contract_id": self.id,
+            "company_id": self.company_id.id,
+            "source_location_id": source.id,
+            "ok_location_id": ok_location.id,
+            "ng_location_id": ng_location.id,
+            "picking_type_id": picking_type.id,
+            "line_ids": [(0, 0, {
+                "purchase_line_id": line.purchase_line_id.id,
+                "contract_line_id": line.id,
+                "qty_contract": line.qty_contract,
+            }) for line in lines],
+        })
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("OTK Session"),
+            "res_model": "contract.otk",
+            "view_mode": "form",
+            "res_id": session.id,
+            "target": "current",
+        }
+
     def action_confirm_arrival_auto(self):
         self.ensure_one()
         self._process_contract_receipts()
@@ -457,121 +527,6 @@ class Contract(models.Model):
         if res_model == "stock.immediate.transfer":
             wizard.process()
             return
-
-    def action_create_otk(self):
-        self.ensure_one()
-        picking_type = self.env['stock.picking.type'].search([
-            ('code', '=', 'internal'),
-            ('warehouse_id.company_id', '=', self.company_id.id),
-        ], limit=1)
-        if not picking_type:
-            raise UserError(_("Không tìm thấy loại vận chuyển nội bộ để tạo OTK."))
-
-        incoming_pt = self.env['stock.picking.type'].search([
-            ('code', '=', 'incoming'),
-            ('warehouse_id.company_id', '=', self.company_id.id),
-        ], limit=1)
-        temp_location = incoming_pt.default_location_dest_id
-
-        location_ok = self.env['stock.location'].search([
-            ('usage', '=', 'internal'), ('company_id', 'in', [self.company_id.id, False]), ('name', 'ilike', 'đạt')
-        ], limit=1) or self.env['stock.location'].search([
-            ('complete_name', 'ilike', 'OK'), ('usage', '=', 'internal'),
-            ('company_id', 'in', [self.company_id.id, False])
-        ], limit=1)
-        location_ng = self.env['stock.location'].search([
-            ('usage', '=', 'internal'), ('company_id', 'in', [self.company_id.id, False]), ('name', 'ilike', 'NG')
-        ], limit=1)
-        if not temp_location or not location_ok or not location_ng:
-            raise UserError(_("Thiếu cấu hình kho tạm/Kho đạt/Kho NG."))
-
-        grouped = self._get_otk_candidate_quantities(temp_location)
-        if not grouped:
-            raise UserError(_("Không có số lượng tồn ở kho tạm để OTK."))
-
-        ok_picking = self._create_otk_picking(picking_type, temp_location, location_ok, grouped, "ok")
-        ng_picking = self._create_otk_picking(picking_type, temp_location, location_ng, grouped, "ng",
-                                              create_moves=False)
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Phiếu chuyển OTK"),
-            "res_model": "stock.picking",
-            "view_mode": "list,form",
-            "domain": [("id", "in", (ok_picking | ng_picking).ids)],
-        }
-
-    def _get_otk_candidate_quantities(self, temp_location):
-        self.ensure_one()
-
-        incoming_moves = self.env['stock.move'].search([
-            ('contract_id', '=', self.id),
-            ('state', '=', 'done'),
-            ('picking_id.picking_type_code', '=', 'incoming'),  # rõ hơn Odoo18
-            ('location_dest_id', '=', temp_location.id),
-        ])
-        if not incoming_moves:
-            return {}
-
-        moved = {}
-        for move in incoming_moves:
-            qty_done = self._move_done_qty(move)
-            if qty_done:
-                moved[move.product_id] = moved.get(move.product_id, 0.0) + qty_done
-
-        otk_done_moves = self.env['stock.move'].search([
-            ('contract_id', '=', self.id),
-            ('state', '=', 'done'),
-            ('picking_id.otk_type', 'in', ('ok', 'ng')),
-            ('location_id', '=', temp_location.id),
-        ])
-        for move in otk_done_moves:
-            qty_done = self._move_done_qty(move)
-            if qty_done:
-                moved[move.product_id] = moved.get(move.product_id, 0.0) - qty_done
-
-        return {product: qty for product, qty in moved.items() if qty > 0}
-
-    def _move_done_qty(self, move):
-        """Return done qty of a stock.move, compatible with Odoo 18."""
-        MoveLine = self.env['stock.move.line']
-        # Odoo 18: done qty nằm trên move lines
-        if move.move_line_ids:
-            if 'quantity' in MoveLine._fields:
-                return sum(move.move_line_ids.mapped('quantity')) or 0.0
-            return sum(move.move_line_ids.mapped('qty_done')) or 0.0
-
-        # fallback nếu chưa có move_line_ids (hiếm), dùng field khác nếu tồn tại
-        if 'quantity_done' in move._fields:
-            return move.quantity_done or 0.0
-        return 0.0
-
-    def _create_otk_picking(self, picking_type, source, destination, grouped, otk_type, create_moves=True):
-        self.ensure_one()
-        picking = self.env['stock.picking'].create({
-            'picking_type_id': picking_type.id,
-            'partner_id': self.partner_id.id,
-            'location_id': source.id,
-            'location_dest_id': destination.id,
-            'origin': self.name,
-            'company_id': self.company_id.id,
-            'contract_id': self.id,
-            'otk_type': otk_type,
-        })
-        if create_moves:
-            for product, qty in grouped.items():
-                self.env['stock.move'].create({
-                    'name': product.display_name,
-                    'product_id': product.id,
-                    'product_uom_qty': qty,
-                    'product_uom': product.uom_id.id,
-                    'picking_id': picking.id,
-                    'location_id': source.id,
-                    'location_dest_id': destination.id,
-                    'contract_id': self.id,
-                })
-            picking.action_confirm()
-            picking.action_assign()
-        return picking
 
     def _check_fifo_valuation(self):
         """Bắt buộc sản phẩm trong hợp đồng dùng FIFO + định giá tự động."""

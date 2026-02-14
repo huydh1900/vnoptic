@@ -1,11 +1,11 @@
-from odoo import _, fields, models
-from odoo.exceptions import UserError
+from odoo import fields, models
 
 
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
     contract_id = fields.Many2one("contract", string="Hợp đồng", index=True, copy=False)
+    contract_otk_id = fields.Many2one("contract.otk", string="OTK Session", index=True, copy=False)
     otk_type = fields.Selection(
         [("ok", "OTK đạt"), ("ng", "OTK lỗi")],
         string="Loại OTK",
@@ -13,23 +13,15 @@ class StockPicking(models.Model):
         index=True,
     )
 
-    def _auto_process_validate_result(self, validate_result):
-        """Auto process wizard (backorder/immediate transfer) nếu button_validate trả về action dict."""
-        if not isinstance(validate_result, dict):
-            return
-
-        res_model = validate_result.get("res_model")
-        res_id = validate_result.get("res_id")
-        if not res_model or not res_id:
-            return
-
-        wizard = self.env[res_model].browse(res_id)
-        if wizard.exists() and hasattr(wizard, "process"):
-            # skip_backorder=False => tạo backorder theo chuẩn
-            wizard.with_context(skip_backorder=False).process()
+    def write(self, vals):
+        res = super().write(vals)
+        if "state" in vals:
+            self.mapped("contract_otk_id")._update_done_state()
+        return res
 
 
 class StockMove(models.Model):
     _inherit = "stock.move"
 
     contract_id = fields.Many2one("contract", string="Hợp đồng", index=True, copy=False)
+    contract_otk_line_id = fields.Many2one("contract.otk.line", string="OTK Line", index=True, copy=False)

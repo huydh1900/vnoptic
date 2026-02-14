@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_vnop_otk" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.vnop.otk</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app string="OTK" name="vnop_otk_settings">
+                    <block title="Default OTK Configuration">
+                        <setting string="OTK Source Location">
+                            <field name="otk_source_location_id"/>
+                        </setting>
+                        <setting string="OTK OK Location">
+                            <field name="otk_ok_location_id"/>
+                        </setting>
+                        <setting string="OTK NG Location">
+                            <field name="otk_ng_location_id"/>
+                        </setting>
+                        <setting string="OTK Internal Picking Type">
+                            <field name="otk_internal_picking_type_id"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

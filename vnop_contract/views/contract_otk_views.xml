@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_contract_otk_tree" model="ir.ui.view">
+        <field name="name">contract.otk.tree</field>
+        <field name="model">contract.otk</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="date"/>
+                <field name="contract_id"/>
+                <field name="state" widget="badge"/>
+                <field name="total_checked"/>
+                <field name="total_ok"/>
+                <field name="total_ng"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_contract_otk_form" model="ir.ui.view">
+        <field name="name">contract.otk.form</field>
+        <field name="model">contract.otk</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_confirm" type="object" string="Confirm" class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_cancel" type="object" string="Cancel" class="btn-secondary" invisible="state in ('done','cancel')"/>
+                    <button name="action_open_picking_ok" type="object" string="Open Picking OK" invisible="state not in ('confirmed','done') or not picking_ok_id"/>
+                    <button name="action_open_picking_ng" type="object" string="Open Picking NG" invisible="state not in ('confirmed','done') or not picking_ng_id"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,done,cancel"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" readonly="1"/>
+                            <field name="contract_id" readonly="1"/>
+                            <field name="date" readonly="state != 'draft'"/>
+                            <field name="company_id" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="source_location_id" readonly="state != 'draft'"/>
+                            <field name="ok_location_id" readonly="state != 'draft'"/>
+                            <field name="ng_location_id" readonly="state != 'draft'"/>
+                            <field name="picking_type_id" readonly="state != 'draft'"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="total_checked" readonly="1"/>
+                        <field name="total_ok" readonly="1"/>
+                        <field name="total_ng" readonly="1"/>
+                        <field name="picking_ok_id" readonly="1"/>
+                        <field name="picking_ng_id" readonly="1"/>
+                    </group>
+                    <field name="line_ids" readonly="state != 'draft'">
+                        <list editable="bottom">
+                            <field name="product_id" readonly="1"/>
+                            <field name="purchase_line_id" readonly="1"/>
+                            <field name="qty_contract" readonly="1"/>
+                            <field name="qty_available_temp" readonly="1"/>
+                            <field name="qty_checked"/>
+                            <field name="qty_ok"/>
+                            <field name="qty_ng" readonly="1"/>
+                            <field name="qty_short" readonly="1"/>
+                            <field name="qty_excess" readonly="1"/>
+                        </list>
+                        <form>
+                            <group>
+                                <group>
+                                    <field name="product_id" readonly="1"/>
+                                    <field name="purchase_line_id" readonly="1"/>
+                                    <field name="qty_contract" readonly="1"/>
+                                    <field name="qty_available_temp" readonly="1"/>
+                                </group>
+                                <group>
+                                    <field name="qty_checked"/>
+                                    <field name="qty_ok"/>
+                                    <field name="qty_ng" readonly="1"/>
+                                    <field name="qty_short" readonly="1"/>
+                                    <field name="qty_excess" readonly="1"/>
+                                </group>
+                            </group>
+                            <field name="lot_line_ids" invisible="product_id.tracking == 'none'">
+                                <list editable="bottom">
+                                    <field name="lot_id"/>
+                                    <field name="qty_checked"/>
+                                    <field name="qty_ok"/>
+                                    <field name="qty_ng" readonly="1"/>
+                                </list>
+                            </field>
+                        </form>
+                    </field>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_contract_otk" model="ir.actions.act_window">
+        <field name="name">OTK Sessions</field>
+        <field name="res_model">contract.otk</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>
