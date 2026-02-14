@@ -303,7 +303,11 @@ class Contract(models.Model):
             "name": _("Phiếu nhập kho"),
             "res_model": "stock.picking",
             "view_mode": "list,form",
-            "domain": [("purchase_id", "in", self.purchase_order_ids.ids), ("picking_type_code", "=", "incoming")],
+            "domain": [
+                ("purchase_id", "in", self.purchase_order_ids.ids),
+                ("picking_type_code", "=", "incoming"),
+                ("state", "=", "done"),
+            ],
             "context": {"default_contract_id": self.id},
         }
 
@@ -320,6 +324,23 @@ class Contract(models.Model):
 
     def action_confirm_arrival_auto(self):
         self.ensure_one()
+        qty_by_purchase_line = {
+            line.purchase_line_id.id: line.qty_contract
+            for line in self.line_ids.filtered("purchase_line_id")
+        }
+
+        if qty_by_purchase_line:
+            incoming_moves = self.env["stock.move"].search([
+                ("purchase_line_id", "in", list(qty_by_purchase_line.keys())),
+                ("state", "not in", ("done", "cancel")),
+                ("picking_type_id.code", "=", "incoming"),
+            ])
+
+            for move in incoming_moves:
+                qty_contract = qty_by_purchase_line.get(move.purchase_line_id.id)
+                if qty_contract is not None:
+                    move.product_uom_qty = qty_contract
+
         self.delivery_state = "confirmed_arrival"
 
 
