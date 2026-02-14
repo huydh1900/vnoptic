@@ -491,12 +491,11 @@ class Contract(models.Model):
         for line in self.line_ids:
             if not line.product_id:
                 continue
-            received_contract_qty = min(line.qty_received or 0.0, line.qty_contract or 0.0)
-            remaining = max((line.qty_contract or 0.0) - received_contract_qty, 0.0)
-            if not remaining:
+            qty_contract = max(line.qty_contract or 0.0, 0.0)
+            if not qty_contract:
                 continue
             key = self._contract_line_key(line)
-            quantity_by_key[key] = quantity_by_key.get(key, 0.0) + remaining
+            quantity_by_key[key] = quantity_by_key.get(key, 0.0) + qty_contract
 
         if not quantity_by_key:
             return
