@@ -65,6 +65,7 @@ class StockPickingBatch(models.Model):
 
     def action_confirm(self):
         res = super().action_confirm()
+        move_line_done_field = "quantity" if "quantity" in self.env["stock.move.line"]._fields else "qty_done"
         for batch in self:
             pending_pickings = batch.picking_ids.filtered(lambda picking: picking.state in ("draft", "confirmed", "waiting"))
             if pending_pickings:
@@ -72,17 +73,23 @@ class StockPickingBatch(models.Model):
                 pending_pickings.action_assign()
 
             if batch.contract_id:
-                batch.contract_id._prefill_qty_done_from_contract(batch.picking_ids, reset_qty_done=True)
+                batch.contract_id._prefill_qty_done_from_contract(
+                    batch.picking_ids,
+                    reset_qty_done=bool(self.env.context.get("reset_qty_done")),
+                )
+
+            incoming_pickings = batch.picking_ids.filtered(
+                lambda picking: picking.picking_type_id.code == "incoming" and picking.state not in ("done", "cancel")
+            )
+            has_contract_qty_done = any(
+                line[move_line_done_field] > 0
+                for line in incoming_pickings.move_line_ids
+            )
+            if incoming_pickings and not has_contract_qty_done:
+                raise UserError(_("Không có số lượng nhận theo hợp đồng để xác nhận phiếu nhập."))
 
             pickings_to_validate = batch.picking_ids.filtered(lambda picking: picking.state not in ("done", "cancel"))
             for picking in pickings_to_validate:
-                if picking.picking_type_id.code == "incoming":
-                    done_field = "quantity" if "quantity" in picking.move_line_ids._fields else "qty_done"
-                    if not any(ml[done_field] > 0 for ml in picking.move_line_ids):
-                        raise UserError(_(
-                            "Phiếu %s chưa có số lượng thực nhận (Done). "
-                            "Vui lòng kiểm tra prefill theo hợp đồng."
-                        ) % picking.name)
                 validate_result = picking.with_context(skip_immediate=True).button_validate()
                 picking._auto_process_validate_result(validate_result)
 
