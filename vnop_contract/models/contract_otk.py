@@ -9,7 +9,7 @@ class ContractOtk(models.Model):
     _order = "date desc, id desc"
 
     name = fields.Char(required=True, readonly=True, copy=False, default=lambda self: _("Mới"))
-    contract_id = fields.Many2one("contract", required=True, ondelete="cascade", index=True)
+    contract_id = fields.Many2one("contract", string='Hợp đồng', required=True, ondelete="cascade", index=True)
     company_id = fields.Many2one("res.company", required=True, default=lambda self: self.env.company)
     date = fields.Datetime(required=True, default=fields.Datetime.now, tracking=True)
     state = fields.Selection([
