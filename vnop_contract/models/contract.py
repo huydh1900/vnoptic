@@ -602,7 +602,13 @@ class Contract(models.Model):
             ])
             received_by_po_line = {}
             for move in incoming_done_moves:
-                qty_done = move.quantity_done
+                if "quantity_done" in move._fields:
+                    qty_done = move.quantity_done
+                elif "quantity" in move._fields:
+                    qty_done = move.quantity
+                else:
+                    done_field = "quantity" if "quantity" in move.move_line_ids._fields else "qty_done"
+                    qty_done = sum(move.move_line_ids.mapped(done_field))
                 received_by_po_line[move.purchase_line_id.id] = (
                     received_by_po_line.get(move.purchase_line_id.id, 0.0) + qty_done
                 )
