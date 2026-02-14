@@ -410,20 +410,28 @@ class Contract(models.Model):
     def action_create_batch_receipt(self):
         self.ensure_one()
         self._check_create_batch_receipt_preconditions()
+
         reset_qty_done = bool(self.env.context.get("reset_qty_done"))
+
+        # 1) Lấy incoming pickings hợp lệ để gom batch
         incoming = self._get_incoming_receipts_for_batch()
         if not incoming:
             raise UserError(_("Không có phiếu nhập kho phù hợp để tạo lô."))
 
+        # 2) Sync qty_received trên contract.line từ moves DONE thực tế (để remaining chuẩn)
         self._update_contract_line_received_quantities()
+
+        # 3) Prefill qty_done (encode quantities) theo qty_contract còn lại
         self._prefill_qty_done_from_contract(incoming, reset_qty_done=reset_qty_done)
+
         picking_types = incoming.mapped("picking_type_id")
         if len(picking_types) > 1:
             raise UserError(_("Các phiếu nhập thuộc nhiều loại vận chuyển khác nhau, không thể gom chung một lô."))
 
         origin_name = self.number or self.name
 
-        batch = self.env['stock.picking.batch'].create({
+        # 4) Tạo batch
+        batch = self.env["stock.picking.batch"].create({
             "company_id": self.company_id.id,
             "contract_id": self.id,
             "picking_type_id": picking_types.id,
@@ -487,11 +495,6 @@ class Contract(models.Model):
             remaining = max((line.qty_contract or 0.0) - received_contract_qty, 0.0)
             if not remaining:
                 continue
-            if not line.purchase_line_id:
-                raise UserError(_(
-                    "Dòng hợp đồng %s thiếu liên kết dòng PO. "
-                    "Không thể tự động phân bổ số lượng nhận."
-                ) % (line.display_name or line.product_id.display_name))
             key = self._contract_line_key(line)
             quantity_by_key[key] = quantity_by_key.get(key, 0.0) + remaining
 
@@ -520,6 +523,8 @@ class Contract(models.Model):
     def _contract_line_key(self, line):
         if line.purchase_line_id:
             return ("po_line", line.purchase_line_id.id)
+        if line.purchase_id and line.product_id:
+            return ("po_product", line.purchase_id.id, line.product_id.id)
         return None
 
     def _move_contract_key(self, move):
