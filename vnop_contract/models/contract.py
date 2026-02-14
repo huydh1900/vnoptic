@@ -439,8 +439,10 @@ class Contract(models.Model):
             "origin": origin_name,
             "picking_ids": [(6, 0, incoming.ids)],
         })
-
         self.delivery_state = "confirmed_arrival"
+
+        # 5) Tự động xác nhận + validate để sinh backorder theo chuẩn PO
+        batch.with_context(reset_qty_done=reset_qty_done).action_confirm()
         return {
             "type": "ir.actions.act_window",
             "res_model": "stock.picking.batch",
@@ -491,11 +493,11 @@ class Contract(models.Model):
         for line in self.line_ids:
             if not line.product_id:
                 continue
-            qty_contract = max(line.qty_contract or 0.0, 0.0)
-            if not qty_contract:
+            qty_remaining = max(line.qty_remaining or 0.0, 0.0)
+            if not qty_remaining:
                 continue
             key = self._contract_line_key(line)
-            quantity_by_key[key] = quantity_by_key.get(key, 0.0) + qty_contract
+            quantity_by_key[key] = quantity_by_key.get(key, 0.0) + qty_remaining
 
         if not quantity_by_key:
             return
