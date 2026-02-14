@@ -34,6 +34,11 @@ class ContractLine(models.Model):
 
     qty_remaining = fields.Float(string="Còn lại", compute="_compute_qty_remaining",
                                  digits="Product Unit of Measure")
+    otk_qty_checked = fields.Float(string="OTK Thực tế", compute="_compute_otk_totals")
+    otk_qty_ok = fields.Float(string="OTK Đạt", compute="_compute_otk_totals")
+    otk_qty_ng = fields.Float(string="OTK Lỗi", compute="_compute_otk_totals")
+    otk_qty_short = fields.Float(string="OTK Thiếu", compute="_compute_otk_totals")
+    otk_qty_excess = fields.Float(string="OTK Thừa", compute="_compute_otk_totals")
 
     @api.onchange("qty_contract")
     @api.constrains("qty_contract", "qty_remaining")
@@ -64,3 +69,27 @@ class ContractLine(models.Model):
             ])
             if duplicated:
                 raise UserError(_("Mỗi dòng PO chỉ được map với một dòng hợp đồng."))
+
+    def _compute_otk_totals(self):
+        OtkLine = self.env["contract.otk.line"]
+        for line in self:
+            if not line.purchase_line_id or not line.contract_id:
+                line.otk_qty_checked = 0.0
+                line.otk_qty_ok = 0.0
+                line.otk_qty_ng = 0.0
+                line.otk_qty_short = max(0.0, line.qty_contract)
+                line.otk_qty_excess = 0.0
+                continue
+            otk_lines = OtkLine.search([
+                ("contract_id", "=", line.contract_id.id),
+                ("purchase_line_id", "=", line.purchase_line_id.id),
+                ("otk_id.state", "=", "done"),
+            ])
+            checked = sum(otk_lines.mapped("qty_checked"))
+            ok = sum(otk_lines.mapped("qty_ok"))
+            ng = sum(otk_lines.mapped("qty_ng"))
+            line.otk_qty_checked = checked
+            line.otk_qty_ok = ok
+            line.otk_qty_ng = ng
+            line.otk_qty_short = max(0.0, line.qty_contract - checked)
+            line.otk_qty_excess = max(0.0, checked - line.qty_contract)

@@ -74,7 +74,8 @@
                     <button name="action_confirm_arrival_auto" type="object" string="Xác nhận hàng về"
                             class="btn-primary"
                             invisible="state != 'approved' or delivery_state != 'expected' or not purchase_order_ids"/>
-                    <button name="action_create_otk" type="object" string="Tạo OTK" class="btn-secondary"/>
+                    <button name="action_create_otk_session" type="object" string="Tạo OTK lần mới" class="btn-secondary"
+                            invisible="state != 'approved'"/>
 
 
                     <button name="action_cancel"
@@ -107,8 +108,11 @@
                                 invisible="delivery_state == 'expected'">
                             <field name="receipt_count_open" widget="statinfo" string="Phiếu nhập kho"/>
                         </button>
+                        <button name="action_view_otk_sessions" type="object" class="oe_stat_button" icon="fa-tasks">
+                            <field name="otk_session_count" widget="statinfo" string="OTK Sessions"/>
+                        </button>
                         <button name="action_view_otk" type="object" class="oe_stat_button" icon="fa-check-square-o">
-                            <field name="otk_count" widget="statinfo" string="OTK"/>
+                            <field name="otk_count" widget="statinfo" string="OTK Pickings"/>
                         </button>
                     </div>
 
@@ -185,6 +189,11 @@
                                     <field name="qty_remaining" force_save="1" readonly="1"
                                            decoration-danger="qty_remaining > 0"
                                            sum="Tổng SL còn lại"/>
+                                    <field name="otk_qty_checked" readonly="1" sum="OTK thực tế"/>
+                                    <field name="otk_qty_ok" readonly="1" sum="OTK đạt"/>
+                                    <field name="otk_qty_ng" readonly="1" sum="OTK lỗi"/>
+                                    <field name="otk_qty_short" readonly="1" sum="OTK thiếu"/>
+                                    <field name="otk_qty_excess" readonly="1" sum="OTK thừa"/>
                                     <field name="price_unit" force_save="1" readonly="1"/>
                                     <field name="amount_total" widget="monetary" readonly="1" force_save="1"
                                            sum="Tổng giá trị"/>
