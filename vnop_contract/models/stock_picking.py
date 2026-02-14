@@ -1,4 +1,5 @@
-from odoo import fields, models
+from odoo import _, fields, models
+from odoo.exceptions import UserError
 
 
 class StockPicking(models.Model):
@@ -75,6 +76,13 @@ class StockPickingBatch(models.Model):
 
             pickings_to_validate = batch.picking_ids.filtered(lambda picking: picking.state not in ("done", "cancel"))
             for picking in pickings_to_validate:
+                if picking.picking_type_id.code == "incoming":
+                    done_field = "quantity" if "quantity" in picking.move_line_ids._fields else "qty_done"
+                    if not any(ml[done_field] > 0 for ml in picking.move_line_ids):
+                        raise UserError(_(
+                            "Phiếu %s chưa có số lượng thực nhận (Done). "
+                            "Vui lòng kiểm tra prefill theo hợp đồng."
+                        ) % picking.name)
                 validate_result = picking.with_context(skip_immediate=True).button_validate()
                 picking._auto_process_validate_result(validate_result)
 
