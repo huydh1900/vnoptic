@@ -7,7 +7,7 @@ class OTKWizard(models.TransientModel):
     _description = "Trình hướng dẫn OTK"
 
     picking_id = fields.Many2one('stock.picking', string='Phiếu nhập kho', required=True)
-    line_ids = fields.One2many('otk.wizard.line', 'wizard_id')
+    line_ids = fields.One2many('otk.wizard.line', 'wizard_id', string='Chi tiết OTK')
 
     @api.model
     def default_get(self, fields_list):
@@ -177,8 +177,9 @@ class OTKWizard(models.TransientModel):
 
 class OTKWizardLine(models.TransientModel):
     _name = "otk.wizard.line"
+    _description = "Dòng kiểm tra OTK"
 
-    wizard_id = fields.Many2one('otk.wizard')
+    wizard_id = fields.Many2one('otk.wizard', string='Phiếu OTK')
 
     product_id = fields.Many2one(
         'product.product',

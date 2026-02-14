@@ -165,26 +165,26 @@ class ContractOtkLine(models.Model):
     _name = "contract.otk.line"
     _description = "Dòng phiên OTK"
 
-    otk_id = fields.Many2one("contract.otk", required=True, ondelete="cascade")
-    contract_id = fields.Many2one(related="otk_id.contract_id", store=True, index=True)
-    purchase_line_id = fields.Many2one("purchase.order.line", required=True)
-    purchase_id = fields.Many2one(related="purchase_line_id.order_id", store=True)
-    product_id = fields.Many2one(related="purchase_line_id.product_id", store=True)
-    uom_id = fields.Many2one(related="purchase_line_id.product_uom", store=True)
-    contract_line_id = fields.Many2one("contract.line")
-    qty_contract = fields.Float()
+    otk_id = fields.Many2one("contract.otk", string="Phiên OTK", required=True, ondelete="cascade")
+    contract_id = fields.Many2one(string="Hợp đồng", related="otk_id.contract_id", store=True, index=True)
+    purchase_line_id = fields.Many2one("purchase.order.line", string="Dòng đơn mua", required=True)
+    purchase_id = fields.Many2one(string="Đơn mua", related="purchase_line_id.order_id", store=True)
+    product_id = fields.Many2one(string="Sản phẩm", related="purchase_line_id.product_id", store=True)
+    uom_id = fields.Many2one(string="Đơn vị tính", related="purchase_line_id.product_uom", store=True)
+    contract_line_id = fields.Many2one("contract.line", string="Dòng hợp đồng")
+    qty_contract = fields.Float(string="Số lượng hợp đồng")
 
-    qty_available_temp = fields.Float(compute="_compute_qty_available_temp")
-    qty_checked = fields.Float(default=0.0)
-    qty_ok = fields.Float(default=0.0)
-    qty_ng = fields.Float(compute="_compute_qty_ng", store=True)
+    qty_available_temp = fields.Float(string="Tồn khả dụng tạm", compute="_compute_qty_available_temp")
+    qty_checked = fields.Float(string="Số lượng kiểm", default=0.0)
+    qty_ok = fields.Float(string="Số lượng đạt", default=0.0)
+    qty_ng = fields.Float(string="Số lượng lỗi", compute="_compute_qty_ng", store=True)
 
-    qty_checked_total_before = fields.Float(compute="_compute_totals_before_after")
-    qty_ok_total_before = fields.Float(compute="_compute_totals_before_after")
-    qty_ng_total_before = fields.Float(compute="_compute_totals_before_after")
-    qty_checked_total_after = fields.Float(compute="_compute_totals_before_after")
-    qty_short = fields.Float(compute="_compute_totals_before_after")
-    qty_excess = fields.Float(compute="_compute_totals_before_after")
+    qty_checked_total_before = fields.Float(string="Tổng SL kiểm trước", compute="_compute_totals_before_after")
+    qty_ok_total_before = fields.Float(string="Tổng SL đạt trước", compute="_compute_totals_before_after")
+    qty_ng_total_before = fields.Float(string="Tổng SL lỗi trước", compute="_compute_totals_before_after")
+    qty_checked_total_after = fields.Float(string="Tổng SL kiểm sau", compute="_compute_totals_before_after")
+    qty_short = fields.Float(string="Số lượng thiếu", compute="_compute_totals_before_after")
+    qty_excess = fields.Float(string="Số lượng thừa", compute="_compute_totals_before_after")
 
     lot_line_ids = fields.One2many("contract.otk.line.lot", "otk_line_id", copy=False)
 
@@ -271,9 +271,9 @@ class ContractOtkLineLot(models.Model):
 
     otk_line_id = fields.Many2one("contract.otk.line", required=True, ondelete="cascade")
     lot_id = fields.Many2one("stock.lot", required=True)
-    qty_checked = fields.Float(default=0.0)
-    qty_ok = fields.Float(default=0.0)
-    qty_ng = fields.Float(compute="_compute_qty_ng", store=True)
+    qty_checked = fields.Float(string="Số lượng kiểm", default=0.0)
+    qty_ok = fields.Float(string="Số lượng đạt", default=0.0)
+    qty_ng = fields.Float(string="Số lượng lỗi", compute="_compute_qty_ng", store=True)
 
     @api.depends("qty_checked", "qty_ok")
     def _compute_qty_ng(self):
