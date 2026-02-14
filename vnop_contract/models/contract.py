@@ -415,7 +415,7 @@ class Contract(models.Model):
         if not incoming:
             raise UserError(_("Không có phiếu nhập kho phù hợp để tạo lô."))
 
-        self._align_move_demand_with_contract(incoming)
+        self._update_contract_line_received_quantities()
         self._prefill_qty_done_from_contract(incoming, reset_qty_done=reset_qty_done)
         picking_types = incoming.mapped("picking_type_id")
         if len(picking_types) > 1:
@@ -513,38 +513,6 @@ class Contract(models.Model):
             if assigned_qty:
                 quantity_by_key[move_key] = max(contract_remaining - assigned_qty, 0.0)
 
-    def _align_move_demand_with_contract(self, incoming_pickings):
-        """Đồng bộ demand của stock.move theo qty_contract còn lại trên hợp đồng."""
-        self.ensure_one()
-        quantity_by_key = {}
-        for line in self.line_ids:
-            if not line.product_id:
-                continue
-            received_contract_qty = min(line.qty_received or 0.0, line.qty_contract or 0.0)
-            remaining = max((line.qty_contract or 0.0) - received_contract_qty, 0.0)
-            key = self._contract_line_key(line)
-            if not key:
-                continue
-            quantity_by_key[key] = quantity_by_key.get(key, 0.0) + remaining
-
-        candidate_moves = incoming_pickings.move_ids_without_package.filtered(
-            lambda move: move.state not in ("cancel", "done") and move.product_id and move.purchase_line_id
-        ).sorted("id")
-
-        for move in candidate_moves:
-            move_key = self._move_contract_key(move)
-            contract_remaining = quantity_by_key.get(move_key, 0.0)
-            move_done = self._get_move_done_qty(move)
-            move_target = move_done
-            if contract_remaining > 0:
-                move_capacity = max((move.product_uom_qty or 0.0) - move_done, 0.0)
-                qty_for_move = min(contract_remaining, move_capacity)
-                move_target += qty_for_move
-                quantity_by_key[move_key] = max(contract_remaining - qty_for_move, 0.0)
-
-            if move.product_uom_qty != move_target:
-                move.product_uom_qty = move_target
-
     def _contract_line_key(self, line):
         if line.purchase_line_id:
             return ("po_line", line.purchase_line_id.id)
@@ -573,12 +541,25 @@ class Contract(models.Model):
         done_field = "qty_done" if "qty_done" in self.env["stock.move.line"]._fields else "quantity"
         move_lines = move.move_line_ids.sorted("id")
 
+        if move.product_id.tracking in ("lot", "serial"):
+            raise UserError(_(
+                "Sản phẩm %s yêu cầu Lot/Serial. Không thể tự động nhận hàng.\n"
+                "Vui lòng nhập Lot/Serial trong Hoạt động chi tiết trước khi xác nhận lô."
+            ) % move.product_id.display_name)
+
         if move_lines:
             for move_line in move_lines:
                 current_done = move_line[done_field]
                 if current_done > 0 and not reset_qty_done:
                     continue
-                reservable = move_line.reserved_uom_qty if "reserved_uom_qty" in move_line._fields else move_line.product_uom_qty
+                if move.picking_id.picking_type_id.code == "incoming":
+                    reservable = qty_left
+                else:
+                    reservable = (
+                        move_line.reserved_uom_qty
+                        if "reserved_uom_qty" in move_line._fields
+                        else move_line.product_uom_qty
+                    )
                 line_capacity = max((reservable or 0.0) - (0.0 if reset_qty_done else current_done), 0.0)
                 if line_capacity <= 0 and qty_left <= 0:
                     continue
@@ -621,7 +602,7 @@ class Contract(models.Model):
             ])
             received_by_po_line = {}
             for move in incoming_done_moves:
-                qty_done = move.quantity if "quantity" in move._fields else move.quantity_done
+                qty_done = move.quantity_done
                 received_by_po_line[move.purchase_line_id.id] = (
                     received_by_po_line.get(move.purchase_line_id.id, 0.0) + qty_done
                 )
@@ -698,7 +679,7 @@ class Contract(models.Model):
             return {}
         moved = {}
         for move in incoming_moves:
-            moved[move.product_id] = moved.get(move.product_id, 0.0) + move.quantity
+            moved[move.product_id] = moved.get(move.product_id, 0.0) + move.quantity_done
 
         otk_done = self.env['stock.move'].search([
             ('contract_id', '=', self.id),
@@ -707,7 +688,7 @@ class Contract(models.Model):
             ('location_id', '=', temp_location.id),
         ])
         for move in otk_done:
-            moved[move.product_id] = moved.get(move.product_id, 0.0) - move.quantity
+            moved[move.product_id] = moved.get(move.product_id, 0.0) - move.quantity_done
 
         return {product: qty for product, qty in moved.items() if qty > 0}
 
