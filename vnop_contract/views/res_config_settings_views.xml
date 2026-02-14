@@ -7,17 +7,17 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app string="OTK" name="vnop_otk_settings">
-                    <block title="Default OTK Configuration">
-                        <setting string="OTK Source Location">
+                    <block title="Cấu hình OTK mặc định">
+                        <setting string="Vị trí nguồn OTK">
                             <field name="otk_source_location_id"/>
                         </setting>
-                        <setting string="OTK OK Location">
+                        <setting string="Vị trí đạt OTK">
                             <field name="otk_ok_location_id"/>
                         </setting>
-                        <setting string="OTK NG Location">
+                        <setting string="Vị trí lỗi OTK">
                             <field name="otk_ng_location_id"/>
                         </setting>
-                        <setting string="OTK Internal Picking Type">
+                        <setting string="Loại phiếu chuyển nội bộ OTK">
                             <field name="otk_internal_picking_type_id"/>
                         </setting>
                     </block>

@@ -5,7 +5,7 @@ class StockPicking(models.Model):
     _inherit = "stock.picking"
 
     contract_id = fields.Many2one("contract", string="Hợp đồng", index=True, copy=False)
-    contract_otk_id = fields.Many2one("contract.otk", string="OTK Session", index=True, copy=False)
+    contract_otk_id = fields.Many2one("contract.otk", string="Phiên OTK", index=True, copy=False)
     otk_type = fields.Selection(
         [("ok", "OTK đạt"), ("ng", "OTK lỗi")],
         string="Loại OTK",
@@ -24,4 +24,4 @@ class StockMove(models.Model):
     _inherit = "stock.move"
 
     contract_id = fields.Many2one("contract", string="Hợp đồng", index=True, copy=False)
-    contract_otk_line_id = fields.Many2one("contract.otk.line", string="OTK Line", index=True, copy=False)
+    contract_otk_line_id = fields.Many2one("contract.otk.line", string="Dòng OTK", index=True, copy=False)

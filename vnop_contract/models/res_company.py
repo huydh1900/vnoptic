@@ -4,10 +4,10 @@ from odoo import fields, models
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    otk_ok_location_id = fields.Many2one("stock.location", domain="[('usage','=','internal')]", string="Default OTK OK Location")
-    otk_ng_location_id = fields.Many2one("stock.location", domain="[('usage','=','internal')]", string="Default OTK NG Location")
-    otk_source_location_id = fields.Many2one("stock.location", domain="[('usage','=','internal')]", string="Default OTK Source Location")
-    otk_internal_picking_type_id = fields.Many2one("stock.picking.type", domain="[('code','=','internal')]", string="Default OTK Internal Picking Type")
+    otk_ok_location_id = fields.Many2one("stock.location", domain="[('usage','=','internal')]", string="Vị trí đạt OTK mặc định")
+    otk_ng_location_id = fields.Many2one("stock.location", domain="[('usage','=','internal')]", string="Vị trí lỗi OTK mặc định")
+    otk_source_location_id = fields.Many2one("stock.location", domain="[('usage','=','internal')]", string="Vị trí nguồn OTK mặc định")
+    otk_internal_picking_type_id = fields.Many2one("stock.picking.type", domain="[('code','=','internal')]", string="Loại phiếu chuyển nội bộ OTK mặc định")
 
 
 class ResConfigSettings(models.TransientModel):
