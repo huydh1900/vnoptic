@@ -193,6 +193,7 @@
                                     <field name="amount_total" widget="monetary" readonly="1" force_save="1"
                                            sum="Tổng giá trị"/>
                                     <field name="currency_id" column_invisible="1"/>
+                                    <field name="purchase_line_id" force_save="1" readonly="1"/>
                                 </list>
                             </field>
                         </page>

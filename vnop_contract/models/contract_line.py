@@ -16,9 +16,7 @@ class ContractLine(models.Model):
         string="Tiền tệ",
     )
     product_qty = fields.Float(string="SL đặt hàng", digits="Product Unit of Measure")
-    qty_received = fields.Float(string="SL đã nhận", digits="Product Unit of Measure")
     qty_contract = fields.Float(string="SL theo hợp đồng", digits="Product Unit of Measure")
-    qty_remaining = fields.Float(string="SL còn lại", digits="Product Unit of Measure")
     price_unit = fields.Float(string="Đơn giá", digits="Product Price")
     amount_total = fields.Float(string="Thành tiền")
     purchase_id = fields.Many2one(
@@ -30,6 +28,13 @@ class ContractLine(models.Model):
         string="Dòng PO",
         domain="[('order_id', '=', purchase_id), ('display_type', '=', False)]",
     )
+
+    qty_remaining = fields.Float(string="Còn lại", related='purchase_line_id.qty_remaining',
+                                 digits="Product Unit of Measure",
+                                 store=True)
+
+    qty_received = fields.Float(string="SL đã nhận", related='purchase_line_id.qty_received',
+                                store=True, digits="Product Unit of Measure")
 
     @api.constrains("qty_contract", "qty_remaining")
     @api.onchange("qty_contract")

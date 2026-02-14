@@ -14,6 +14,7 @@ class StockPicking(models.Model):
     )
 
     def _auto_process_validate_result(self, validate_result):
+        """Auto process wizard (backorder/immediate transfer) nếu button_validate trả về action dict."""
         if not isinstance(validate_result, dict):
             return
 
@@ -23,11 +24,10 @@ class StockPicking(models.Model):
             return
 
         wizard = self.env[res_model].browse(res_id)
-        if not wizard.exists():
-            return
-
-        if hasattr(wizard, "process"):
+        if wizard.exists() and hasattr(wizard, "process"):
+            # skip_backorder=False => tạo backorder theo chuẩn
             wizard.with_context(skip_backorder=False).process()
+
 
 class StockMove(models.Model):
     _inherit = "stock.move"
@@ -65,35 +65,46 @@ class StockPickingBatch(models.Model):
 
     def action_confirm(self):
         res = super().action_confirm()
-        move_line_done_field = "quantity" if "quantity" in self.env["stock.move.line"]._fields else "qty_done"
+        reset_qty_done = bool(self.env.context.get("reset_qty_done"))
+
         for batch in self:
-            pending_pickings = batch.picking_ids.filtered(lambda picking: picking.state in ("draft", "confirmed", "waiting"))
-            if pending_pickings:
-                pending_pickings.action_confirm()
-                pending_pickings.action_assign()
+            pickings = batch.picking_ids.filtered(lambda p: p.state not in ("done", "cancel"))
 
-            if batch.contract_id:
-                batch.contract_id._prefill_qty_done_from_contract(
-                    batch.picking_ids,
-                    reset_qty_done=bool(self.env.context.get("reset_qty_done")),
-                )
+            # 1) confirm + assign để picking về assigned (nếu cần)
+            to_confirm = pickings.filtered(lambda p: p.state in ("draft", "waiting", "confirmed"))
+            if to_confirm:
+                to_confirm.action_confirm()
 
-            incoming_pickings = batch.picking_ids.filtered(
-                lambda picking: picking.picking_type_id.code == "incoming" and picking.state not in ("done", "cancel")
-            )
-            has_contract_qty_done = any(
-                line[move_line_done_field] > 0
-                for line in incoming_pickings.move_line_ids
-            )
-            if incoming_pickings and not has_contract_qty_done:
-                raise UserError(_("Không có số lượng nhận theo hợp đồng để xác nhận phiếu nhập."))
+            # incoming thường không cần reserve để validate nếu có done,
+            # nhưng action_assign giúp ổn định flow
+            to_assign = pickings.filtered(lambda p: p.state in ("confirmed", "waiting"))
+            if to_assign:
+                to_assign.action_assign()
 
-            pickings_to_validate = batch.picking_ids.filtered(lambda picking: picking.state not in ("done", "cancel"))
-            for picking in pickings_to_validate:
+            # 2) Guard: nếu không có DONE => chặn (đúng spec)
+            MoveLine = self.env["stock.move.line"]
+            done_field = "quantity" if "quantity" in MoveLine._fields else "qty_done"
+
+            for picking in pickings:
+                # chỉ check incoming
+                if picking.picking_type_id.code != "incoming":
+                    continue
+
+                has_done = any(ml[done_field] > 0 for ml in picking.move_line_ids)
+                if not has_done:
+                    raise UserError(_(
+                        "Phiếu %s chưa có số lượng thực nhận (Done). "
+                        "Không thể xác nhận/validate để sinh backorder.\n"
+                        "Hãy kiểm tra qty_remaining trên hợp đồng hoặc logic prefill Done."
+                    ) % picking.name)
+
+            # 3) Validate + auto process wizard backorder
+            for picking in pickings:
+                if picking.state in ("done", "cancel"):
+                    continue
                 validate_result = picking.with_context(skip_immediate=True).button_validate()
                 picking._auto_process_validate_result(validate_result)
 
-        self._sync_contract_receipt_progress()
         return res
 
     def action_done(self):

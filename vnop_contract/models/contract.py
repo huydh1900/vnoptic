@@ -257,7 +257,6 @@ class Contract(models.Model):
                 continue
             rec.write({'state': 'draft'})
 
-
     def action_submit(self):
         for rec in self:
             if not rec.partner_id:
@@ -303,21 +302,6 @@ class Contract(models.Model):
                     }))
 
             contract.line_ids = line_commands
-
-    # @api.constrains("purchase_order_ids", "partner_id", "currency_id", "incoterm_id")
-    # def _check_purchase_order_policy(self):
-    #     for contract in self:
-    #         for po in contract.purchase_order_ids:
-    #             if po.company_id != contract.company_id:
-    #                 raise ValidationError(_("PO %s khác công ty với hợp đồng.") % po.display_name)
-    #             if po.state == 'cancel':
-    #                 raise ValidationError(_("PO %s đang ở trạng thái hủy, không thể thêm vào hợp đồng.") % po.display_name)
-    #             if po.currency_id != contract.currency_id:
-    #                 raise ValidationError(_("PO %s khác tiền tệ với hợp đồng.") % po.display_name)
-    #             if contract.incoterm_id and po.incoterm_id and po.incoterm_id != contract.incoterm_id:
-    #                 raise ValidationError(_("PO %s khác Incoterm với hợp đồng.") % po.display_name)
-    #             if po.contract_id and po.contract_id != contract:
-    #                 raise ValidationError(_("PO %s đã thuộc hợp đồng %s.") % (po.display_name, po.contract_id.display_name))
 
     def write(self, vals):
         tracked_po_before = {rec.id: rec.purchase_order_ids for rec in self}
@@ -418,11 +402,16 @@ class Contract(models.Model):
         if not incoming:
             raise UserError(_("Không có phiếu nhập kho phù hợp để tạo lô."))
 
-        # 2) Sync qty_received trên contract.line từ moves DONE thực tế (để remaining chuẩn)
+        # 2) Sync qty_received/qty_remaining từ moves DONE thực tế
         self._update_contract_line_received_quantities()
 
-        # 3) Prefill qty_done (encode quantities) theo qty_contract còn lại
-        self._prefill_qty_done_from_contract(incoming, reset_qty_done=reset_qty_done)
+        # 3) Prefill DONE theo qty_remaining của hợp đồng
+        filled = self._prefill_qty_done_from_contract(incoming, reset_qty_done=reset_qty_done)
+        if not filled:
+            raise UserError(_(
+                "Không có số lượng cần nhận theo hợp đồng (qty_remaining = 0) "
+                "hoặc các phiếu nhập không còn nhu cầu để nhận."
+            ))
 
         picking_types = incoming.mapped("picking_type_id")
         if len(picking_types) > 1:
@@ -439,10 +428,15 @@ class Contract(models.Model):
             "origin": origin_name,
             "picking_ids": [(6, 0, incoming.ids)],
         })
+
         self.delivery_state = "confirmed_arrival"
 
-        # 5) Tự động xác nhận + validate để sinh backorder theo chuẩn PO
+        # 5) Auto confirm/assign/validate + process wizard => sinh backorder theo PO
         batch.with_context(reset_qty_done=reset_qty_done).action_confirm()
+
+        # 6) Sync tiến độ hợp đồng (nếu bạn muốn update ngay)
+        self._sync_receipt_progress()
+
         return {
             "type": "ir.actions.act_window",
             "res_model": "stock.picking.batch",
@@ -489,49 +483,54 @@ class Contract(models.Model):
 
     def _prefill_qty_done_from_contract(self, incoming_pickings, reset_qty_done=False):
         self.ensure_one()
-        quantity_by_key = {}
-        for line in self.line_ids:
-            if not line.product_id:
-                continue
-            qty_remaining = max(line.qty_remaining or 0.0, 0.0)
-            if not qty_remaining:
-                continue
-            key = self._contract_line_key(line)
-            quantity_by_key[key] = quantity_by_key.get(key, 0.0) + qty_remaining
 
-        if not quantity_by_key:
-            return
+        # Map remaining theo PO line
+        qty_remaining_by_po_line = {}
+        for line in self.line_ids:
+            if not line.purchase_line_id or not line.product_id:
+                continue
+            remaining = max(line.qty_remaining or 0.0, 0.0)
+            if not remaining:
+                continue
+            key = ("po_line", line.purchase_line_id.id)
+            qty_remaining_by_po_line[key] = qty_remaining_by_po_line.get(key, 0.0) + remaining
+
+        if not qty_remaining_by_po_line:
+            return False
 
         candidate_moves = incoming_pickings.move_ids_without_package.filtered(
-            lambda move: move.state not in ("cancel", "done") and move.product_id and move.purchase_line_id
+            lambda m: m.state not in ("cancel", "done") and m.purchase_line_id and m.product_id
         ).sorted("id")
 
+        any_assigned = False
         for move in candidate_moves:
-            move_key = self._move_contract_key(move)
-            contract_remaining = quantity_by_key.get(move_key, 0.0)
+            move_key = ("po_line", move.purchase_line_id.id)
+            contract_remaining = qty_remaining_by_po_line.get(move_key, 0.0)
             if contract_remaining <= 0:
                 continue
-            move_remaining = self._get_move_remaining_qty(move)
+
+            move_remaining = self._get_move_remaining_qty(move)  # demand PO - done
             if move_remaining <= 0:
                 continue
+
             qty_to_receive_now = min(contract_remaining, move_remaining)
             if qty_to_receive_now <= 0:
                 continue
-            assigned_qty = self._assign_qty_done_on_move(move, qty_to_receive_now, reset_qty_done=reset_qty_done)
+
+            assigned_qty = self._assign_qty_done_on_move(
+                move, qty_to_receive_now, reset_qty_done=reset_qty_done
+            )
             if assigned_qty:
-                quantity_by_key[move_key] = max(contract_remaining - assigned_qty, 0.0)
+                any_assigned = True
+                qty_remaining_by_po_line[move_key] = max(contract_remaining - assigned_qty, 0.0)
+
+        return any_assigned
 
     def _contract_line_key(self, line):
-        if line.purchase_line_id:
-            return ("po_line", line.purchase_line_id.id)
-        if line.purchase_id and line.product_id:
-            return ("po_product", line.purchase_id.id, line.product_id.id)
-        return None
+        return ("po_line", line.purchase_line_id.id) if line.purchase_line_id else None
 
     def _move_contract_key(self, move):
-        if move.purchase_line_id:
-            return ("po_line", move.purchase_line_id.id)
-        return None
+        return ("po_line", move.purchase_line_id.id) if move.purchase_line_id else None
 
     def _get_move_remaining_qty(self, move):
         return max((move.product_uom_qty or 0.0) - self._get_move_done_qty(move), 0.0)
@@ -618,7 +617,7 @@ class Contract(models.Model):
                     done_field = "quantity" if "quantity" in move.move_line_ids._fields else "qty_done"
                     qty_done = sum(move.move_line_ids.mapped(done_field))
                 received_by_po_line[move.purchase_line_id.id] = (
-                    received_by_po_line.get(move.purchase_line_id.id, 0.0) + qty_done
+                        received_by_po_line.get(move.purchase_line_id.id, 0.0) + qty_done
                 )
 
             for line in contract.line_ids:
@@ -659,7 +658,8 @@ class Contract(models.Model):
         location_ok = self.env['stock.location'].search([
             ('usage', '=', 'internal'), ('company_id', 'in', [self.company_id.id, False]), ('name', 'ilike', 'đạt')
         ], limit=1) or self.env['stock.location'].search([
-            ('complete_name', 'ilike', 'OK'), ('usage', '=', 'internal'), ('company_id', 'in', [self.company_id.id, False])
+            ('complete_name', 'ilike', 'OK'), ('usage', '=', 'internal'),
+            ('company_id', 'in', [self.company_id.id, False])
         ], limit=1)
         location_ng = self.env['stock.location'].search([
             ('usage', '=', 'internal'), ('company_id', 'in', [self.company_id.id, False]), ('name', 'ilike', 'NG')
@@ -672,7 +672,8 @@ class Contract(models.Model):
             raise UserError(_("Không có số lượng tồn ở kho tạm để OTK."))
 
         ok_picking = self._create_otk_picking(picking_type, temp_location, location_ok, grouped, "ok")
-        ng_picking = self._create_otk_picking(picking_type, temp_location, location_ng, grouped, "ng", create_moves=False)
+        ng_picking = self._create_otk_picking(picking_type, temp_location, location_ng, grouped, "ng",
+                                              create_moves=False)
         return {
             "type": "ir.actions.act_window",
             "name": _("Phiếu chuyển OTK"),
@@ -739,11 +740,11 @@ class Contract(models.Model):
         for contract in self:
             invalid_lines = contract.line_ids.filtered(
                 lambda line: (
-                    line.product_id.type == 'product'
-                    and (
-                        line.product_id.categ_id.property_cost_method != 'fifo'
-                        or line.product_id.categ_id.property_valuation != 'real_time'
-                    )
+                        line.product_id.type == 'product'
+                        and (
+                                line.product_id.categ_id.property_cost_method != 'fifo'
+                                or line.product_id.categ_id.property_valuation != 'real_time'
+                        )
                 )
             )
             if not invalid_lines:

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models
+from odoo import fields, models, api
 
 
 class PurchaseOrder(models.Model):
@@ -47,3 +47,19 @@ class PurchaseOrder(models.Model):
             "res_id": self.id,
             "target": "current",
         }
+
+
+class PurchaseOrderLine(models.Model):
+    _inherit = "purchase.order.line"
+
+    qty_remaining = fields.Float(
+        string="Số lượng còn lại",
+        compute="_compute_qty_remaining",
+        store=True,
+        digits="Product Unit of Measure",
+    )
+
+    @api.depends("product_qty", "qty_received")
+    def _compute_qty_remaining(self):
+        for line in self:
+            line.qty_remaining = max(line.product_qty - line.qty_received, 0.0)
