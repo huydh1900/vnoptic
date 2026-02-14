@@ -295,7 +295,6 @@ class Contract(models.Model):
 
             contract.line_ids = line_commands
 
-
     def action_view_receipts(self):
         self.ensure_one()
         return {
@@ -327,61 +326,136 @@ class Contract(models.Model):
         self._process_contract_receipts()
         self.delivery_state = "confirmed_arrival"
 
-    def _set_done_qty_on_move_line(self, move_line, qty):
-        if "quantity" in move_line._fields:
-            move_line.quantity = qty
-        else:
-            move_line.qty_done = qty
-
     def _process_contract_receipts(self):
+        """
+        Validate receipt theo qty_contract nhưng backorder phải sinh ra chuẩn Odoo.
+        Quy tắc:
+          - KHÔNG sửa demand (product_uom_qty) theo hợp đồng
+          - CHỈ set qty_done = qty_contract (nhận thiếu so với demand) => Odoo bắt wizard backorder
+          - Tự process wizard backorder để sinh phiếu backorder (kiểm soát chặt)
+        """
+        self.ensure_one()
+
         qty_by_purchase_line = {
-            line.purchase_line_id.id: line.qty_contract
+            line.purchase_line_id.id: (line.qty_contract or 0.0)
             for line in self.line_ids.filtered("purchase_line_id")
+            if (line.qty_contract or 0.0) > 0
         }
         if not qty_by_purchase_line:
             return
 
         candidate_pickings = self.purchase_order_ids.picking_ids.filtered(
-            lambda picking: picking.state not in ("done", "cancel") and picking.picking_type_code == "incoming"
+            lambda p: p.state not in ("done", "cancel") and p.picking_type_code == "incoming"
         )
         if not candidate_pickings:
             return
 
         for picking in candidate_pickings:
+            # gắn contract cho picking/move để trace
             picking.write({"contract_id": self.id})
             picking.move_ids_without_package.write({"contract_id": self.id})
 
-            moves_to_update = picking.move_ids_without_package.filtered(
-                lambda move: move.purchase_line_id and move.purchase_line_id.id in qty_by_purchase_line
+            moves_to_receive = picking.move_ids_without_package.filtered(
+                lambda m: m.purchase_line_id and m.purchase_line_id.id in qty_by_purchase_line
             )
-            if not moves_to_update:
+            if not moves_to_receive:
                 continue
 
-            for move in moves_to_update:
-                qty_contract = qty_by_purchase_line[move.purchase_line_id.id]
-                move.product_uom_qty = qty_contract
+            # confirm/assign trước khi set done
+            if picking.state == "draft":
+                picking.action_confirm()
+            if picking.state in ("confirmed", "waiting"):
+                picking.action_assign()
 
-            picking.action_confirm()
-            picking.action_assign()
+            # set qty_done theo hợp đồng (nhưng không vượt demand còn lại)
+            for move in moves_to_receive:
+                qty_contract = qty_by_purchase_line.get(move.purchase_line_id.id, 0.0)
 
-            for move in moves_to_update:
-                if not move.move_line_ids:
-                    self.env["stock.move.line"].create({
-                        "picking_id": picking.id,
-                        "move_id": move.id,
-                        "product_id": move.product_id.id,
-                        "product_uom_id": move.product_uom.id,
-                        "location_id": move.location_id.id,
-                        "location_dest_id": move.location_dest_id.id,
-                        "quantity" if "quantity" in self.env["stock.move.line"]._fields else "qty_done": move.product_uom_qty,
-                    })
-                else:
-                    for move_line in move.move_line_ids:
-                        self._set_done_qty_on_move_line(move_line, move.product_uom_qty)
+                # chặn lot/serial
+                if move.product_id.tracking in ("lot", "serial"):
+                    raise UserError(_(
+                        "Sản phẩm %s yêu cầu Lot/Serial. Không thể auto nhận/backorder.\n"
+                        "Vui lòng nhập Lot/Serial trong Hoạt động chi tiết."
+                    ) % move.product_id.display_name)
 
+                # giới hạn để không vượt demand còn lại của move
+                move_remaining = self._get_move_remaining_qty(move)
+                qty_done = min(qty_contract, move_remaining)
+                if qty_done <= 0:
+                    continue
+
+                self._set_done_qty_for_move(move, qty_done)
+
+            # validate => Odoo sẽ trả wizard backorder nếu có nhận thiếu
             validate_result = picking.button_validate()
-            picking._auto_process_validate_result(validate_result)
 
+            # Tự xử lý wizard backorder/immediate transfer (nếu có)
+            self._auto_process_validate_result(validate_result)
+
+    def _set_done_qty_for_move(self, move, qty_done):
+        """
+        Set qty_done cho move bằng move lines.
+        - Nếu đã có move line -> dồn vào line đầu (reset các line khác về 0)
+        - Nếu chưa có -> tạo 1 move line mới
+        """
+        MoveLine = self.env["stock.move.line"]
+        done_field = "qty_done" if "qty_done" in MoveLine._fields else "quantity"
+
+        if move.move_line_ids:
+            # reset
+            for ml in move.move_line_ids:
+                ml[done_field] = 0.0
+            move.move_line_ids[0][done_field] = qty_done
+            return
+
+        MoveLine.create({
+            "picking_id": move.picking_id.id,
+            "move_id": move.id,
+            "product_id": move.product_id.id,
+            "product_uom_id": move.product_uom.id,
+            "location_id": move.location_id.id,
+            "location_dest_id": move.location_dest_id.id,
+            done_field: qty_done,
+        })
+
+    def _get_move_remaining_qty(self, move):
+        """
+        Remaining demand của move = product_uom_qty - done
+        (để không set qty_done vượt quá phần còn lại)
+        """
+        done_qty = 0.0
+        if "quantity_done" in move._fields:
+            done_qty = move.quantity_done or 0.0
+        else:
+            MoveLine = self.env["stock.move.line"]
+            done_field = "qty_done" if "qty_done" in MoveLine._fields else "quantity"
+            done_qty = sum(move.move_line_ids.mapped(done_field)) or 0.0
+
+        return max((move.product_uom_qty or 0.0) - done_qty, 0.0)
+
+    def _auto_process_validate_result(self, action_result):
+        """
+        Tự process wizard trả về từ button_validate để không hỏi user.
+        Backorder: stock.backorder.confirmation -> process()
+        Immediate transfer: stock.immediate.transfer -> process()
+        """
+        if not action_result or not isinstance(action_result, dict):
+            return
+
+        res_model = action_result.get("res_model")
+        res_id = action_result.get("res_id")
+        if not res_model or not res_id:
+            return
+
+        wizard = self.env[res_model].browse(res_id)
+
+        if res_model == "stock.backorder.confirmation":
+            wizard.process()
+            return
+
+        if res_model == "stock.immediate.transfer":
+            wizard.process()
+            return
 
     def action_create_otk(self):
         self.ensure_one()
