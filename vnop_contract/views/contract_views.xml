@@ -189,11 +189,16 @@
                                     <field name="qty_remaining" force_save="1" readonly="1"
                                            decoration-danger="qty_remaining > 0"
                                            sum="Tổng SL còn lại"/>
-                                    <field name="otk_qty_checked" readonly="1" sum="OTK thực tế"/>
-                                    <field name="otk_qty_ok" readonly="1" sum="OTK đạt"/>
-                                    <field name="otk_qty_ng" readonly="1" sum="OTK lỗi"/>
-                                    <field name="otk_qty_short" readonly="1" sum="OTK thiếu"/>
-                                    <field name="otk_qty_excess" readonly="1" sum="OTK thừa"/>
+                                    <field name="otk_qty_checked" readonly="1" sum="OTK thực tế"
+                                           column_invisible="parent.otk_session_count == 0"/>
+                                    <field name="otk_qty_ok" readonly="1" sum="OTK đạt"
+                                           column_invisible="parent.otk_session_count == 0"/>
+                                    <field name="otk_qty_ng" readonly="1" sum="OTK lỗi"
+                                           column_invisible="parent.otk_session_count == 0"/>
+                                    <field name="otk_qty_short" readonly="1" sum="OTK thiếu"
+                                           column_invisible="parent.otk_session_count == 0"/>
+                                    <field name="otk_qty_excess" readonly="1" sum="OTK thừa"
+                                           column_invisible="parent.otk_session_count == 0"/>
                                     <field name="price_unit" force_save="1" readonly="1"/>
                                     <field name="amount_total" widget="monetary" readonly="1" force_save="1"
                                            sum="Tổng giá trị"/>
