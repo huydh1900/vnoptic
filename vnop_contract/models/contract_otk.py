@@ -122,32 +122,31 @@ class ContractOtk(models.Model):
 
     _sql_constraints = [
         ("name_company_unique", "unique(name, company_id)", "Số OTK phải là duy nhất trong từng công ty."),
+        ("contract_seq_unique", "unique(contract_id, otk_sequence)", "Lần OTK phải là duy nhất trong từng hợp đồng."),
     ]
 
     @api.model_create_multi
     def create(self, vals_list):
         seq = self.env["ir.sequence"]
-        contract_ids = [vals.get("contract_id") for vals in vals_list if vals.get("contract_id")]
-        next_seq_by_contract = {}
-        if contract_ids:
-            grouped = self.read_group(
-                [("contract_id", "in", contract_ids)],
-                ["contract_id", "otk_sequence:max"],
-                ["contract_id"],
-            )
-            next_seq_by_contract = {
-                data["contract_id"][0]: (data.get("otk_sequence_max") or 0) + 1
-                for data in grouped
-                if data.get("contract_id")
-            }
         for vals in vals_list:
             if vals.get("name", _("Mới")) == _("Mới"):
                 vals["name"] = seq.next_by_code("contract.otk.seq") or _("Mới")
-            if vals.get("contract_id") and not vals.get("otk_sequence"):
-                contract_id = vals["contract_id"]
-                vals["otk_sequence"] = next_seq_by_contract.get(contract_id, 1)
-                next_seq_by_contract[contract_id] = vals["otk_sequence"] + 1
-        return super().create(vals_list)
+
+        records = super().create(vals_list)
+
+        for rec in records.filtered(lambda r: r.contract_id and not r.otk_sequence):
+            self.env.cr.execute(
+                """
+                SELECT COALESCE(MAX(otk_sequence), 0)
+                FROM contract_otk
+                WHERE contract_id = %s
+                FOR UPDATE
+                """,
+                (rec.contract_id.id,),
+            )
+            max_seq = self.env.cr.fetchone()[0] or 0
+            rec.otk_sequence = max_seq + 1
+        return records
 
     @api.depends("line_ids.qty_checked", "line_ids.qty_ok", "line_ids.qty_ng")
     def _compute_totals(self):
