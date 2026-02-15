@@ -137,10 +137,18 @@ class ContractOtk(models.Model):
         for rec in records.filtered(lambda r: r.contract_id and not r.otk_sequence):
             self.env.cr.execute(
                 """
+                SELECT id
+                FROM contract
+                WHERE id = %s
+                FOR UPDATE
+                """,
+                (rec.contract_id.id,),
+            )
+            self.env.cr.execute(
+                """
                 SELECT COALESCE(MAX(otk_sequence), 0)
                 FROM contract_otk
                 WHERE contract_id = %s
-                FOR UPDATE
                 """,
                 (rec.contract_id.id,),
             )
