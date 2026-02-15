@@ -6,6 +6,7 @@
         <field name="arch" type="xml">
             <list decoration-info="state == 'draft'" decoration-primary="state == 'confirmed'"
                   decoration-success="state == 'done'" decoration-danger="state == 'cancel'">
+                <field name="otk_sequence"/>
                 <field name="name"/>
                 <field name="date"/>
                 <field name="contract_id"/>
@@ -38,6 +39,7 @@
                 <sheet>
                     <group>
                         <group>
+                            <field name="otk_sequence" readonly="1"/>
                             <field name="name" readonly="1"/>
                             <field name="contract_id" readonly="1"/>
                             <field name="date" readonly="state != 'draft'"/>
