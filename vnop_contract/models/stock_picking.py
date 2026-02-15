@@ -19,6 +19,11 @@ class StockPicking(models.Model):
             self.mapped("contract_otk_id")._update_done_state()
         return res
 
+    def button_validate(self):
+        res = super().button_validate()
+        self.mapped("contract_otk_id")._update_done_state()
+        return res
+
 
 class StockMove(models.Model):
     _inherit = "stock.move"
