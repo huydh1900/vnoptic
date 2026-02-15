@@ -24,6 +24,13 @@ class ContractOtk(models.Model):
         index=True
     )
 
+    otk_sequence = fields.Integer(
+        string="Lần OTK",
+        readonly=True,
+        copy=False,
+        index=True,
+    )
+
     company_id = fields.Many2one(
         "res.company",
         string="Công ty",
@@ -52,17 +59,20 @@ class ContractOtk(models.Model):
 
     source_location_id = fields.Many2one(
         "stock.location",
-        string="Vị trí nguồn (Kho chờ kiểm)"
+        string="Vị trí nguồn (Kho chờ kiểm)",
+        required=True,
     )
 
     ok_location_id = fields.Many2one(
         "stock.location",
-        string="Vị trí đạt (Kho OK)"
+        string="Vị trí đạt (Kho OK)",
+        required=True,
     )
 
     ng_location_id = fields.Many2one(
         "stock.location",
-        string="Vị trí không đạt (Kho NG)"
+        string="Vị trí không đạt (Kho NG)",
+        required=True,
     )
 
     picking_type_id = fields.Many2one(
@@ -117,9 +127,26 @@ class ContractOtk(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         seq = self.env["ir.sequence"]
+        contract_ids = [vals.get("contract_id") for vals in vals_list if vals.get("contract_id")]
+        next_seq_by_contract = {}
+        if contract_ids:
+            grouped = self.read_group(
+                [("contract_id", "in", contract_ids)],
+                ["contract_id", "otk_sequence:max"],
+                ["contract_id"],
+            )
+            next_seq_by_contract = {
+                data["contract_id"][0]: (data.get("otk_sequence_max") or 0) + 1
+                for data in grouped
+                if data.get("contract_id")
+            }
         for vals in vals_list:
             if vals.get("name", _("Mới")) == _("Mới"):
                 vals["name"] = seq.next_by_code("contract.otk.seq") or _("Mới")
+            if vals.get("contract_id") and not vals.get("otk_sequence"):
+                contract_id = vals["contract_id"]
+                vals["otk_sequence"] = next_seq_by_contract.get(contract_id, 1)
+                next_seq_by_contract[contract_id] = vals["otk_sequence"] + 1
         return super().create(vals_list)
 
     @api.depends("line_ids.qty_checked", "line_ids.qty_ok", "line_ids.qty_ng")
@@ -171,14 +198,17 @@ class ContractOtk(models.Model):
                 raise UserError(_("Vui lòng nhập ít nhất một dòng có SL kiểm hoặc SL đạt."))
 
             for line in lines:
+                line._lock_related_quants_for_update()
                 line._check_business_rules()
                 rec._validate_tracking_lines(line)
                 available_now = line._get_available_qty_temp()
                 if line.qty_checked > available_now:
                     raise ValidationError(_("SL kiểm của %s vượt quá tồn tạm khả dụng.") % line.product_id.display_name)
 
-            picking_ok = StockPicking.create(rec._prepare_picking_vals("ok"))
-            picking_ng = StockPicking.create(rec._prepare_picking_vals("ng"))
+            has_ok_move = any(line.qty_ok > 0 for line in lines)
+            has_ng_move = any(line.qty_ng > 0 for line in lines)
+            picking_ok = StockPicking.create(rec._prepare_picking_vals("ok")) if has_ok_move else False
+            picking_ng = StockPicking.create(rec._prepare_picking_vals("ng")) if has_ng_move else False
 
             for line in lines:
                 if line.qty_ok > 0:
@@ -195,14 +225,14 @@ class ContractOtk(models.Model):
                                 line._prepare_move_line_vals(move_ng, lot_line.qty_ng, lot_line.lot_id, done_field))
 
             for picking in (picking_ok, picking_ng):
-                if picking.move_ids_without_package:
+                if picking:
                     picking.action_confirm()
                     picking.action_assign()
 
             rec.write({
                 "state": "confirmed",
-                "picking_ok_id": picking_ok.id,
-                "picking_ng_id": picking_ng.id,
+                "picking_ok_id": picking_ok.id if picking_ok else False,
+                "picking_ng_id": picking_ng.id if picking_ng else False,
             })
             rec._update_done_state()
         return True
@@ -211,7 +241,8 @@ class ContractOtk(models.Model):
         for rec in self:
             if rec.state in ("cancel", "done"):
                 continue
-            if rec.picking_ok_id.state == "done" and rec.picking_ng_id.state == "done":
+            pickings = (rec.picking_ok_id | rec.picking_ng_id)
+            if pickings and all(picking.state == "done" for picking in pickings):
                 rec.state = "done"
 
     def action_open_picking_ok(self):
@@ -275,14 +306,41 @@ class ContractOtkLine(models.Model):
 
     def _get_available_qty_temp(self):
         self.ensure_one()
-        domain = [
-            ("location_id", "=", self.otk_id.source_location_id.id),
-            ("product_id", "=", self.product_id.id),
-        ]
+        quant_model = self.env["stock.quant"]
         if self.product_id.tracking != "none" and self.lot_line_ids:
-            domain.append(("lot_id", "in", self.lot_line_ids.mapped("lot_id").ids))
-        quants = self.env["stock.quant"].search(domain)
-        return sum(quants.mapped(lambda q: q.quantity - q.reserved_quantity))
+            return sum(
+                quant_model._get_available_quantity(
+                    self.product_id,
+                    self.otk_id.source_location_id,
+                    lot_id=lot_line.lot_id,
+                )
+                for lot_line in self.lot_line_ids
+            )
+        return quant_model._get_available_quantity(
+            self.product_id,
+            self.otk_id.source_location_id,
+        )
+
+    def _lock_related_quants_for_update(self):
+        self.ensure_one()
+        lot_ids = self.lot_line_ids.mapped("lot_id").ids if self.product_id.tracking != "none" else []
+        query = """
+            SELECT id
+            FROM stock_quant
+            WHERE location_id = %s
+              AND product_id = %s
+              AND (%s = false OR lot_id = ANY(%s))
+            FOR UPDATE
+        """
+        self.env.cr.execute(
+            query,
+            (
+                self.otk_id.source_location_id.id,
+                self.product_id.id,
+                bool(lot_ids),
+                lot_ids or [0],
+            ),
+        )
 
     @api.depends("otk_id.source_location_id", "product_id", "lot_line_ids")
     def _compute_qty_available_temp(self):
@@ -291,16 +349,37 @@ class ContractOtkLine(models.Model):
 
     @api.depends("purchase_line_id", "otk_id.date", "qty_checked", "qty_contract")
     def _compute_totals_before_after(self):
+        key_pairs = {
+            (line.contract_id.id, line.purchase_line_id.id)
+            for line in self
+            if line.contract_id and line.purchase_line_id
+        }
+        done_grouped = {}
+        if key_pairs:
+            done_groups = self.read_group(
+                [
+                    ("contract_id", "in", list({item[0] for item in key_pairs})),
+                    ("purchase_line_id", "in", list({item[1] for item in key_pairs})),
+                    ("otk_id.state", "=", "done"),
+                ],
+                ["contract_id", "purchase_line_id", "qty_checked:sum", "qty_ok:sum", "qty_ng:sum"],
+                ["contract_id", "purchase_line_id"],
+            )
+            done_grouped = {
+                (item["contract_id"][0], item["purchase_line_id"][0]): {
+                    "checked": item.get("qty_checked", 0.0),
+                    "ok": item.get("qty_ok", 0.0),
+                    "ng": item.get("qty_ng", 0.0),
+                }
+                for item in done_groups
+                if item.get("contract_id") and item.get("purchase_line_id")
+            }
+
         for line in self:
-            done_lines = self.search([
-                ("id", "!=", line.id),
-                ("contract_id", "=", line.contract_id.id),
-                ("purchase_line_id", "=", line.purchase_line_id.id),
-                ("otk_id.state", "=", "done"),
-            ])
-            checked_before = sum(done_lines.mapped("qty_checked"))
-            ok_before = sum(done_lines.mapped("qty_ok"))
-            ng_before = sum(done_lines.mapped("qty_ng"))
+            values = done_grouped.get((line.contract_id.id, line.purchase_line_id.id), {})
+            checked_before = values.get("checked", 0.0)
+            ok_before = values.get("ok", 0.0)
+            ng_before = values.get("ng", 0.0)
             checked_after = checked_before + line.qty_checked
             line.qty_checked_total_before = checked_before
             line.qty_ok_total_before = ok_before
@@ -316,6 +395,22 @@ class ContractOtkLine(models.Model):
                 raise ValidationError(_("SL kiểm/SL đạt không được âm."))
             if line.qty_ok > line.qty_checked:
                 raise ValidationError(_("SL đạt không được lớn hơn SL kiểm."))
+
+    @api.constrains("lot_line_ids", "product_id", "qty_checked")
+    def _check_unique_lot_and_serial(self):
+        for line in self:
+            if not line.lot_line_ids:
+                continue
+            lot_ids = line.lot_line_ids.mapped("lot_id").ids
+            if len(lot_ids) != len(set(lot_ids)):
+                raise ValidationError(_("Không được chọn trùng lô/serial trong cùng một dòng OTK."))
+            if line.product_id.tracking == "serial":
+                serial_count = len(line.lot_line_ids.filtered("lot_id"))
+                if not fields.Float.is_zero(
+                    line.qty_checked - serial_count,
+                    precision_rounding=line.uom_id.rounding,
+                ):
+                    raise ValidationError(_("Với sản phẩm serial, SL kiểm phải bằng số serial đã khai báo."))
 
     def _prepare_move_vals(self, picking, qty, dest_location):
         self.ensure_one()
