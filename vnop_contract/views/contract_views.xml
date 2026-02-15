@@ -109,7 +109,7 @@
                             <field name="receipt_count_open" widget="statinfo" string="Phiếu nhập kho"/>
                         </button>
                         <button name="action_view_otk_sessions" type="object" class="oe_stat_button" icon="fa-tasks">
-                            <field name="otk_session_count" widget="statinfo" string="Phiên OTK"/>
+                            <field name="otk_session_count" widget="statinfo" string="Lần OTK"/>
                         </button>
                         <button name="action_view_otk" type="object" class="oe_stat_button" icon="fa-check-square-o">
                             <field name="otk_count" widget="statinfo" string="Phiếu chuyển OTK"/>

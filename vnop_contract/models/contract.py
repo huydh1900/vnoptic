@@ -136,8 +136,8 @@ class Contract(models.Model):
         domain=[("otk_type", "in", ("ok", "ng"))],
         readonly=True,
     )
-    otk_session_ids = fields.One2many("contract.otk", "contract_id", string="Phiên OTK", readonly=True)
-    otk_session_count = fields.Integer(compute="_compute_otk_session_count", string="Số phiên OTK")
+    otk_session_ids = fields.One2many("contract.otk", "contract_id", string="Lần OTK", readonly=True)
+    otk_session_count = fields.Integer(compute="_compute_otk_session_count", string="Số Lần OTK")
     otk_count = fields.Integer(compute="_compute_otk_count", string="Số phiếu OTK")
 
     # ====== Lines ======
@@ -332,7 +332,7 @@ class Contract(models.Model):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
-            "name": _("Phiên OTK"),
+            "name": _("Lần OTK"),
             "res_model": "contract.otk",
             "view_mode": "list,form",
             "domain": [("contract_id", "=", self.id)],
@@ -385,7 +385,7 @@ class Contract(models.Model):
         })
         return {
             "type": "ir.actions.act_window",
-            "name": _("Phiên OTK"),
+            "name": _("Lần OTK"),
             "res_model": "contract.otk",
             "view_mode": "form",
             "res_id": session.id,

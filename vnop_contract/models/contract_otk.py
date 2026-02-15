@@ -4,34 +4,111 @@ from odoo.exceptions import ValidationError, UserError
 
 class ContractOtk(models.Model):
     _name = "contract.otk"
-    _description = "Phiên OTK"
+    _description = "Lần kiểm tra chất lượng (OTK)"
     _inherit = ["mail.thread", "mail.activity.mixin"]
     _order = "date desc, id desc"
 
-    name = fields.Char(required=True, readonly=True, copy=False, default=lambda self: _("Mới"))
-    contract_id = fields.Many2one("contract", string='Hợp đồng', required=True, ondelete="cascade", index=True)
-    company_id = fields.Many2one("res.company", required=True, default=lambda self: self.env.company)
-    date = fields.Datetime(required=True, default=fields.Datetime.now, tracking=True)
+    name = fields.Char(
+        string="Số phiếu OTK",
+        required=True,
+        readonly=True,
+        copy=False,
+        default=lambda self: _("Mới")
+    )
+
+    contract_id = fields.Many2one(
+        "contract",
+        string="Hợp đồng",
+        required=True,
+        ondelete="cascade",
+        index=True
+    )
+
+    company_id = fields.Many2one(
+        "res.company",
+        string="Công ty",
+        required=True,
+        default=lambda self: self.env.company
+    )
+
+    date = fields.Datetime(
+        string="Ngày kiểm tra",
+        required=True,
+        default=fields.Datetime.now,
+        tracking=True
+    )
+
     state = fields.Selection([
         ("draft", "Nháp"),
         ("confirmed", "Đã xác nhận"),
         ("done", "Hoàn tất"),
         ("cancel", "Đã hủy"),
-    ], default="draft", tracking=True, index=True)
+    ],
+        string="Trạng thái",
+        default="draft",
+        tracking=True,
+        index=True
+    )
 
-    source_location_id = fields.Many2one("stock.location", required=True)
-    ok_location_id = fields.Many2one("stock.location", required=True)
-    ng_location_id = fields.Many2one("stock.location", required=True)
-    picking_type_id = fields.Many2one("stock.picking.type", required=True)
+    source_location_id = fields.Many2one(
+        "stock.location",
+        string="Vị trí nguồn (Kho chờ kiểm)"
+    )
 
-    picking_ok_id = fields.Many2one("stock.picking", readonly=True, copy=False)
-    picking_ng_id = fields.Many2one("stock.picking", readonly=True, copy=False)
+    ok_location_id = fields.Many2one(
+        "stock.location",
+        string="Vị trí đạt (Kho OK)"
+    )
 
-    line_ids = fields.One2many("contract.otk.line", "otk_id", copy=False)
+    ng_location_id = fields.Many2one(
+        "stock.location",
+        string="Vị trí không đạt (Kho NG)"
+    )
 
-    total_checked = fields.Float(compute="_compute_totals", store=True)
-    total_ok = fields.Float(compute="_compute_totals", store=True)
-    total_ng = fields.Float(compute="_compute_totals", store=True)
+    picking_type_id = fields.Many2one(
+        "stock.picking.type",
+        string="Loại vận chuyển OTK",
+        required=True
+    )
+
+    picking_ok_id = fields.Many2one(
+        "stock.picking",
+        string="Phiếu chuyển kho OK",
+        readonly=True,
+        copy=False
+    )
+
+    picking_ng_id = fields.Many2one(
+        "stock.picking",
+        string="Phiếu chuyển kho NG",
+        readonly=True,
+        copy=False
+    )
+
+    line_ids = fields.One2many(
+        "contract.otk.line",
+        "otk_id",
+        string="Chi tiết kiểm tra",
+        copy=False
+    )
+
+    total_checked = fields.Float(
+        string="Tổng số lượng đã kiểm",
+        compute="_compute_totals",
+        store=True
+    )
+
+    total_ok = fields.Float(
+        string="Tổng số lượng đạt",
+        compute="_compute_totals",
+        store=True
+    )
+
+    total_ng = fields.Float(
+        string="Tổng số lượng không đạt",
+        compute="_compute_totals",
+        store=True
+    )
 
     _sql_constraints = [
         ("name_company_unique", "unique(name, company_id)", "Số OTK phải là duy nhất trong từng công ty."),
@@ -71,7 +148,8 @@ class ContractOtk(models.Model):
         if line.product_id.tracking == "none":
             return
         if not line.lot_line_ids:
-            raise ValidationError(_("Sản phẩm %s yêu cầu khai báo chi tiết theo lô/serial.") % line.product_id.display_name)
+            raise ValidationError(
+                _("Sản phẩm %s yêu cầu khai báo chi tiết theo lô/serial.") % line.product_id.display_name)
         checked_sum = sum(line.lot_line_ids.mapped("qty_checked"))
         ok_sum = sum(line.lot_line_ids.mapped("qty_ok"))
         if not fields.Float.is_zero(checked_sum - line.qty_checked, precision_rounding=line.uom_id.rounding):
@@ -107,12 +185,14 @@ class ContractOtk(models.Model):
                     move_ok = StockMove.create(line._prepare_move_vals(picking_ok, line.qty_ok, rec.ok_location_id))
                     if line.product_id.tracking != "none":
                         for lot_line in line.lot_line_ids.filtered(lambda l: l.qty_ok > 0):
-                            StockMoveLine.create(line._prepare_move_line_vals(move_ok, lot_line.qty_ok, lot_line.lot_id, done_field))
+                            StockMoveLine.create(
+                                line._prepare_move_line_vals(move_ok, lot_line.qty_ok, lot_line.lot_id, done_field))
                 if line.qty_ng > 0:
                     move_ng = StockMove.create(line._prepare_move_vals(picking_ng, line.qty_ng, rec.ng_location_id))
                     if line.product_id.tracking != "none":
                         for lot_line in line.lot_line_ids.filtered(lambda l: l.qty_ng > 0):
-                            StockMoveLine.create(line._prepare_move_line_vals(move_ng, lot_line.qty_ng, lot_line.lot_id, done_field))
+                            StockMoveLine.create(
+                                line._prepare_move_line_vals(move_ng, lot_line.qty_ng, lot_line.lot_id, done_field))
 
             for picking in (picking_ok, picking_ng):
                 if picking.move_ids_without_package:
@@ -157,15 +237,15 @@ class ContractOtk(models.Model):
     def action_cancel(self):
         for rec in self:
             if rec.state == "done":
-                raise UserError(_("Phiên OTK đã hoàn tất thì không thể hủy."))
+                raise UserError(_("Lần OTK đã hoàn tất thì không thể hủy."))
             rec.state = "cancel"
 
 
 class ContractOtkLine(models.Model):
     _name = "contract.otk.line"
-    _description = "Dòng phiên OTK"
+    _description = "Line lần OTK"
 
-    otk_id = fields.Many2one("contract.otk", string="Phiên OTK", required=True, ondelete="cascade")
+    otk_id = fields.Many2one("contract.otk", string="Lần OTK", required=True, ondelete="cascade")
     contract_id = fields.Many2one(string="Hợp đồng", related="otk_id.contract_id", store=True, index=True)
     purchase_line_id = fields.Many2one("purchase.order.line", string="Dòng đơn mua", required=True)
     purchase_id = fields.Many2one(string="Đơn mua", related="purchase_line_id.order_id", store=True)

@@ -5,7 +5,7 @@ class StockPicking(models.Model):
     _inherit = "stock.picking"
 
     contract_id = fields.Many2one("contract", string="Hợp đồng", index=True, copy=False)
-    contract_otk_id = fields.Many2one("contract.otk", string="Phiên OTK", index=True, copy=False)
+    contract_otk_id = fields.Many2one("contract.otk", string="Lần OTK", index=True, copy=False)
     otk_type = fields.Selection(
         [("ok", "OTK đạt"), ("ng", "OTK lỗi")],
         string="Loại OTK",
