@@ -283,19 +283,19 @@ class ContractOtkLine(models.Model):
     product_id = fields.Many2one(string="Sản phẩm", related="purchase_line_id.product_id", store=True)
     uom_id = fields.Many2one(string="Đơn vị tính", related="purchase_line_id.product_uom", store=True)
     contract_line_id = fields.Many2one("contract.line", string="Dòng hợp đồng")
-    qty_contract = fields.Float(string="Số lượng hợp đồng")
+    qty_contract = fields.Float(string="SL hợp đồng")
 
     qty_available_temp = fields.Float(string="Tồn khả dụng tạm", compute="_compute_qty_available_temp")
-    qty_checked = fields.Float(string="Số lượng kiểm", default=0.0)
-    qty_ok = fields.Float(string="Số lượng đạt", default=0.0)
-    qty_ng = fields.Float(string="Số lượng lỗi", compute="_compute_qty_ng", store=True)
+    qty_checked = fields.Float(string="SL kiểm", default=0.0)
+    qty_ok = fields.Float(string="Đạt", default=0.0)
+    qty_ng = fields.Float(string="Lỗi", compute="_compute_qty_ng", store=True)
 
     qty_checked_total_before = fields.Float(string="Tổng SL kiểm trước", compute="_compute_totals_before_after")
     qty_ok_total_before = fields.Float(string="Tổng SL đạt trước", compute="_compute_totals_before_after")
     qty_ng_total_before = fields.Float(string="Tổng SL lỗi trước", compute="_compute_totals_before_after")
     qty_checked_total_after = fields.Float(string="Tổng SL kiểm sau", compute="_compute_totals_before_after")
-    qty_short = fields.Float(string="Số lượng thiếu", compute="_compute_totals_before_after")
-    qty_excess = fields.Float(string="Số lượng thừa", compute="_compute_totals_before_after")
+    qty_short = fields.Float(string="Thiếu", compute="_compute_totals_before_after")
+    qty_excess = fields.Float(string="Thừa", compute="_compute_totals_before_after")
 
     lot_line_ids = fields.One2many("contract.otk.line.lot", "otk_line_id", copy=False)
 
@@ -447,8 +447,8 @@ class ContractOtkLineLot(models.Model):
     otk_line_id = fields.Many2one("contract.otk.line", required=True, ondelete="cascade")
     lot_id = fields.Many2one("stock.lot", required=True)
     qty_checked = fields.Float(string="Số lượng kiểm", default=0.0)
-    qty_ok = fields.Float(string="Số lượng đạt", default=0.0)
-    qty_ng = fields.Float(string="Số lượng lỗi", compute="_compute_qty_ng", store=True)
+    qty_ok = fields.Float(string="Đạt", default=0.0)
+    qty_ng = fields.Float(string="Lỗi", compute="_compute_qty_ng", store=True)
 
     @api.depends("qty_checked", "qty_ok")
     def _compute_qty_ng(self):
