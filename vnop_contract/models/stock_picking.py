@@ -17,11 +17,17 @@ class StockPicking(models.Model):
         res = super().write(vals)
         if "state" in vals:
             self.mapped("contract_otk_id")._update_done_state()
+            self.filtered(
+                lambda p: p.contract_id and p.picking_type_code == "incoming"
+            ).mapped("contract_id")._update_delivery_state_from_receipts()
         return res
 
     def button_validate(self):
         res = super().button_validate()
         self.mapped("contract_otk_id")._update_done_state()
+        self.filtered(
+            lambda p: p.contract_id and p.picking_type_code == "incoming"
+        ).mapped("contract_id")._update_delivery_state_from_receipts()
         return res
 
 

@@ -118,7 +118,7 @@
 
                     <div class="oe_title">
                         <h1>
-                            <field name="name" placeholder="Tên hợp đồng..." readonly="state != 'draft'"/>
+                            <field name="name" placeholder="Tên hợp đồng..." readonly="state != 'draft'" class="vnop_required_hint"/>
                         </h1>
                     </div>
 
@@ -134,7 +134,7 @@
                         </group>
 
                         <group string="Nhà cung cấp">
-                            <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'"/>
+                            <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'" class="vnop_required_hint"/>
                             <field name="partner_ref" readonly="1"/>
                             <field name="attachment_ids" widget="many2many_binary" readonly="state != 'draft'"/>
                         </group>
@@ -143,7 +143,7 @@
                     <group>
                         <group string="Giao hàng">
                             <field name="incoterm_id" readonly="state != 'draft'"/>
-                            <field name="shipment_date" readonly="state != 'draft'"/>
+                            <field name="shipment_date" readonly="state != 'draft'" class="vnop_required_hint"/>
                             <field name="delivery_state" readonly="1"/>
                             <field name="port_of_loading" readonly="state != 'draft'"/>
                             <field name="destination" readonly="state != 'draft'"/>
@@ -159,7 +159,7 @@
 
                     <notebook>
                         <page string="Đơn mua hàng">
-                            <field name="purchase_order_ids"
+                            <field name="purchase_order_ids" class="vnop_required_hint"
                                    domain="[('partner_id', '=', partner_id),('state', '=', 'purchase')]"
                                    readonly="state in ('approved','revision_requested','cancel')">
                                 <list delete="0" create="0">

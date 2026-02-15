@@ -12,4 +12,11 @@
         'views/res_config_settings_views.xml',
         'views/stock_views.xml',
     ],
+
+
+    'assets': {
+        'web.assets_backend': [
+            'vnop_contract/static/src/scss/contract_required.scss',
+        ],
+    },
 }

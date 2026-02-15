@@ -395,7 +395,38 @@ class Contract(models.Model):
     def action_confirm_arrival_auto(self):
         self.ensure_one()
         self._process_contract_receipts()
-        self.delivery_state = "confirmed_arrival"
+        self._update_delivery_state_from_receipts()
+
+    def _update_delivery_state_from_receipts(self):
+        for rec in self:
+            if rec.state == "cancel" or rec.delivery_state == "cancel":
+                rec.delivery_state = "cancel"
+                continue
+
+            contract_lines = rec.line_ids.filtered(lambda l: l.purchase_line_id and l.qty_contract > 0)
+            done_incoming_count = self.env["stock.picking"].search_count([
+                ("contract_id", "=", rec.id),
+                ("picking_type_code", "=", "incoming"),
+                ("state", "=", "done"),
+            ])
+
+            if not contract_lines:
+                rec.delivery_state = "confirmed_arrival" if done_incoming_count else "expected"
+                continue
+
+            all_received = all(line.qty_received >= line.qty_contract for line in contract_lines)
+            any_received = any(line.qty_received > 0 for line in contract_lines)
+
+            if all_received:
+                new_state = "done"
+            elif any_received:
+                new_state = "partial"
+            elif done_incoming_count:
+                new_state = "confirmed_arrival"
+            else:
+                new_state = "expected"
+
+            rec.delivery_state = new_state
 
     def _process_contract_receipts(self):
         """
