@@ -1,0 +1,12 @@
+.o_form_view {
+    .vnop_required_hint.o_field_empty {
+        .o_input,
+        .o_field_many2one_selection,
+        .o_tag_badge,
+        .o_field_many2many_tags,
+        .o_field_widget {
+            background-color: #fff4cc !important;
+            border-radius: 4px;
+        }
+    }
+}
