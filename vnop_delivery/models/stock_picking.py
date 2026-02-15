@@ -13,17 +13,3 @@ class StockPicking(models.Model):
         ondelete='set null',
         index=True,
     )
-
-    def action_otk(self):
-        self.ensure_one()
-
-        return {
-            'type': 'ir.actions.act_window',
-            'name': 'OTK',
-            'res_model': 'otk.wizard',
-            'view_mode': 'form',
-            'target': 'new',
-            'context': {
-                'default_picking_id': self.id
-            }
-        }

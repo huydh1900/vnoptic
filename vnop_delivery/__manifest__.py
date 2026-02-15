@@ -7,8 +7,6 @@
     'data': [
         'security/ir.model.access.csv',
         'views/delivery_schedule_views.xml',
-        'views/stock_picking_views.xml',
-        'wizard/otk_wizard.xml',
     ],
 }
 
