@@ -14,9 +14,9 @@
 | Views sản phẩm – 3 tab Lens (Thiết kế / Chất liệu / Tích hợp) | ✅ ĐÃ XONG |
 | Ẩn menu cấu hình Lens (tạm thời) | ✅ ĐÃ XONG |
 | Phân tích kiến trúc tồn kho lens | ✅ ĐÃ XONG |
-| Chuyển sang product.product (variants) | 🟡 CHƯA LÀM |
-| Refactor sync logic sang tạo/update variants | 🟡 CHƯA LÀM |
-| Migration dữ liệu từ product.lens sang variants | 🟡 CHƯA LÀM |
+| Chuyển sang `product.product` (variants) | ✅ ĐÃ XONG |
+| Refactor sync logic sang tạo/update variants | ✅ ĐÃ XONG |
+| Migration dữ liệu từ product.lens sang variants | 🟡 CHƯA LÀM (cần chạy thủ công nếu có data cũ) |
 | Kiểm thử bán hàng, nhập kho, báo cáo tồn kho chi tiết | 🟡 CHƯA LÀM |
 
 ---
@@ -76,18 +76,47 @@
 
 ## 🟡 CHƯA LÀM – Giai đoạn 2: Chuyển sang product.product (variants)
 
-> Đây là phần chưa triển khai, chỉ mới ở mức thiết kế/phân tích.
+> Phần code đã hoàn thành, còn lại là kiểm thử và migration data cũ.
 
 | Công việc | Trạng thái |
 |---|---|
-| Phân tích API, xác định dimensions cần làm attributes (SPH, CYL, Material, Index, Coating...) | 🟡 CHƯA LÀM |
-| Thiết kế mapping: API field → product.attribute / product.attribute.value | 🟡 CHƯA LÀM |
-| Refactor `_prepare_lens_vals()` để tạo/update variants product.product | 🟡 CHƯA LÀM |
-| Thiết kế chiến lược migrate dữ liệu từ product.lens → variants | 🟡 CHƯA LÀM |
-| Viết script migration dữ liệu cũ | 🟡 CHƯA LÀM |
+| Phân tích API, xác định dimensions cần làm attributes (SPH, CYL, Material, Index, Coating...) | ✅ ĐÃ XONG |
+| Thiết kế mapping: API field → product.attribute / product.attribute.value | ✅ ĐÃ XONG |
+| Refactor `_prepare_lens_vals()` để tạo/update variants product.product | ✅ ĐÃ XONG |
+| Viết script migration dữ liệu cũ từ product.lens → variants | 🟡 CHƯA LÀM (nếu có data cũ) |
 | Cập nhật views, bán hàng, báo cáo theo variants | 🟡 CHƯA LÀM |
 | Kiểm thử quy trình bán hàng, nhập kho, báo cáo tồn kho chi tiết | 🟡 CHƯA LÀM |
 | Cập nhật tài liệu sau khi hoàn thành giai đoạn 2 | 🟡 CHƯA LÀM |
+
+---
+
+## ✅ ĐÃ XONG – Giai đoạn 2: Chuyển sang product.product variants (2026-02)
+
+### Thay đổi chính trong `models/product_sync.py`
+
+**4 hàm helper mới:**
+- `_get_or_create_attribute(cache, attr_name)` – Tạo/lấy `product.attribute` (SPH, CYL, Vật liệu, Thiết kế) theo tên, dùng cache tránh query lặp.
+- `_get_or_create_attr_value(cache, attr_id, value_name)` – Tạo/lấy `product.attribute.value` (ví dụ: -1.00, -0.50, CR39) theo (attr_id, value_name).
+- `_ensure_attr_line(cache, tmpl_id, attr_id, value_id)` – Đảm bảo `product.template.attribute.line` tồn tại trên template và có chứa value. Khi thêm value mới, Odoo tự tạo thêm variant tương ứng.
+- `_find_variant_by_attrs(tmpl_id, attr_value_ids)` – Tìm `product.product` variant khớp đúng tập attribute value IDs (so sánh theo set).
+
+**Hàm chính mới:**
+- `_sync_lens_variant(tmpl_id, item, cache)` – Thay thế logic tạo `product.lens`. Với mỗi bản ghi lens từ API: tạo attributes (SPH, CYL, Vật liệu, Thiết kế) → tạo values → gán vào attribute line của template → tìm/trả về variant `product.product` có tồn kho riêng.
+
+**Cache mở rộng trong `_preload_all_data`:**
+- `cache['attr_ids']` – Map tên attribute (lower) → attribute.id
+- `cache['attr_val_ids']` – Map (attr_id, value_lower) → attribute_value.id
+- `cache['attr_lines']` – Map (tmpl_id, attr_id) → {id, value_ids}
+
+**`_process_batch` refactored:**
+- Với `product_type = 'lens'`: KHÔNG tạo `product.lens` nữa, thay bằng gọi `_sync_lens_variant` sau khi template được create/update.
+- Với `product_type = 'opt'`: giữ nguyên child model approach.
+- `_run_sync`: bỏ `'product.lens'` khỏi tham số gọi `_process_batch` cho lens.
+
+**Kết quả:**
+- Mỗi combination (SPH, CYL, Vật liệu, Thiết kế) từ API → 1 `product.product` variant.
+- Variant hiện diện trong tab "Attributes & Variants" chuẩn Odoo trên form sản phẩm.
+- Tồn kho có thể quản lý riêng từng SKU (từng combination specs).
 
 ---
 

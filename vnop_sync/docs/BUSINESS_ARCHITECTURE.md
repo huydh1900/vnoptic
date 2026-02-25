@@ -140,25 +140,24 @@
   - Báo cáo tồn kho chi tiết từng specs.
 - `product.lens` hiện tại chỉ đóng vai trò **bảng thông số kỹ thuật** gắn với 1 sản phẩm chính.
 
-### 3.3. Hướng phát triển tương lai – Sang `product.product` (variants) 🟡 CHƯA LÀM
-- Mục tiêu:
-  - Mỗi combination lens (SPH, CYL, Material, Index, Coating, v.v.) trở thành **1 variant `product.product`**.
-  - Quản lý tồn kho, bán hàng, báo cáo theo từng variant.
-- Ý tưởng kiến trúc:
-  - Dùng `product.attribute` & `product.attribute.value` cho các dimension: SPH, CYL, Index, Material, v.v.
-  - `product.template` là model lens tổng (vd: Essilor Crizal), các combination specs tạo thành variants.
-  - Logic sync:
-    - Từ API → map sang attributes/values → tạo hoặc cập nhật variants.
-  - Phần `product.lens` có thể:
-    - Hoặc bị thay thế dần bằng variants.
-    - Hoặc giữ lại như bảng mô tả kỹ thuật bổ sung, liên kết 1-1 hoặc 1-n với variants.
+### 3.3. Hướng phát triển tương lai – Sang `product.product` (variants) ✅ ĐÃ TRIỂN KHAI (2026-02)
+- **Đã hoàn thành:** Mỗi combination lens (SPH, CYL, Vật liệu, Thiết kế) từ API → 1 variant `product.product` riêng.
+- Variant hiển thị trong tab "Attributes & Variants" chuẩn Odoo trên form sản phẩm.
+- Tồn kho, bán hàng, báo cáo đều theo từng variant SKU.
+- `product.attribute`: SPH, CYL, Vật liệu, Thiết kế
+- `product.attribute.value`: -1.00, -0.50, CR39, Progressive...
+- `product.product`: mỗi combination = 1 SKU có stock riêng
+
+**Còn cần làm:**
+- Kiểm thử quy trình bán hàng, nhập kho, báo cáo tồn kho chi tiết.
+- Migration data cũ từ `product.lens` (nếu có) sang variants.
 
 ## 4. Ghi chú thiết kế quan trọng
 
 - Cache (`_preload_all_data`) được dùng mạnh để tránh query lặp lại khi sync số lượng lớn bản ghi.
-- Các master data (design, material, uv, coating, colors, lens index, v.v.) được đồng bộ vào cache và tra cứu bằng key (cid, name, v.v.).
-- SPH/CYL được chuẩn hoá sang float và map qua `product.lens.power` để tránh lệch định dạng giữa API và Odoo.
-- Module hiện tại tập trung vào **đồng bộ master & thông số kỹ thuật**, chưa giải bài toán **stock chi tiết từng combination**. Điều này là chủ đích kiến trúc giai đoạn 1 để giảm độ phức tạp.
+- `cache['attr_ids']`, `cache['attr_val_ids']`, `cache['attr_lines']` được thêm để phục vụ variant management.
+- SPH/CYL từ API được map thành `product.attribute.value` theo tên string (không cần ép float như trước).
+- Module giai đoạn 2: tập trung vào **stock chi tiết từng combination** qua `product.product` variants.
 
 ---
 
@@ -166,4 +165,4 @@ Tài liệu này dùng để giúp dev/AI mới đọc nhanh hiểu được:
 - Module dùng để làm gì.
 - Các model chính là gì và liên kết ra sao.
 - Luồng sync dữ liệu từ Spring Boot sang Odoo.
-- Hiện trạng nghiệp vụ và hướng phát triển sang `product.product` trong tương lai.
+- Hiện trạng nghiệp vụ: đã chuyển sang `product.product` variants để quản lý tồn kho từng SKU.
