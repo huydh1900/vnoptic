@@ -1,168 +1,145 @@
 # vnop_sync – Nghiệp vụ & Kiến trúc
 
+> Cập nhật: 2026-02-25 | Hướng đi: **Hướng B – Field trực tiếp trên product.template**
+
+---
+
 ## 1. Mục đích module
+
 - Đồng bộ sản phẩm ngành kính mắt (Lens/Gọng) từ hệ thống React + Spring Boot sang Odoo 18.
-- Chuẩn hoá dữ liệu kỹ thuật lens (SPH, CYL, thiết kế, vật liệu, UV, coating, v.v.) thành cấu trúc master-data trong Odoo.
-- Phục vụ bán hàng, quản lý danh mục, và chuẩn bị nền tảng để sau này có thể nâng cấp sang quản lý tồn kho chi tiết theo từng specs.
-
-## 2. Kiến trúc tổng quan
-
-### 2.1. Luồng đồng bộ sản phẩm
-
-1. Lấy cấu hình API từ biến môi trường (SPRING_BOOT_BASE_URL, API_LENS_ENDPOINT, API_OPTS_ENDPOINT, v.v.).
-2. Lấy access token qua endpoint login.
-3. Gọi API phân trang (`_fetch_paged_api`) để lấy toàn bộ dữ liệu lens/gọng (`_fetch_all_items`).
-4. Preload cache dữ liệu hiện có trong Odoo (`_preload_all_data`).
-5. Với mỗi record API:
-   - Chuẩn bị dữ liệu cơ bản sản phẩm (`_prepare_base_vals`).
-   - Chuẩn bị dữ liệu con theo loại sản phẩm:
-     - Lens: `_prepare_lens_vals` → `product.lens`.
-     - Gọng: `_prepare_opt_vals` → `product.opt`.
-   - Ghi nhận phân loại: update (`to_update`) hoặc tạo mới (`to_create`).
-6. Batch create/update `product.template`, sau đó create/update bản ghi con (`product.lens` / `product.opt`).
-
-### 2.2. Các model chính
-
-#### 2.2.1. Model đồng bộ – `product.sync`
-- File: models/product_sync.py
-- Chức năng:
-  - Cấu hình/trigger việc đồng bộ (thường từ form hoặc cron).
-  - Quản lý tiến độ, log, trạng thái sync.
-- Các trường quan trọng:
-  - `last_sync_date`, `sync_status`, `sync_log`, `total_synced`, `total_failed`, `lens_count`, `opts_count`.
-- Hàm chính:
-  - `_get_api_config()`: Lấy cấu hình API.
-  - `_get_access_token()`: Login và lấy token.
-  - `_fetch_paged_api()`, `_fetch_all_items()`: Lấy dữ liệu phân trang.
-  - `_preload_all_data()`: Tạo cache cho product, category, supplier, tax, group, master data lens.
-  - `_prepare_base_vals()`: Chuẩn hóa dữ liệu chung cho `product.template`.
-  - `_prepare_lens_vals()`: Map dữ liệu lens từ API sang `product.lens`.
-  - `_prepare_opt_vals()`: Map dữ liệu gọng từ API sang `product.opt`.
-  - `_process_items()`: Batch create/update product + child.
-  - `sync_products_from_springboot()`, `sync_products_limited()`, `_run_sync()`: Entry point đồng bộ.
-
-#### 2.2.2. Model chi tiết Lens – `product.lens`
-- File: models/product_lens.py
-- Mục đích: Lưu thông số kỹ thuật lens theo từng product template.
-- Các trường chính (đã chuẩn hoá):
-  1. Công suất (Config-driven):
-     - `sph_id` – Many2one `product.lens.power` (type = 'sph').
-     - `cyl_id` – Many2one `product.lens.power` (type = 'cyl').
-  2. Trục, ADD, Base curve, Đường kính:
-     - `axis` – Integer (0–180), có validate.
-     - `lens_add` – Float.
-     - `base_curve` – Float.
-     - `diameter` – Integer, validate khoảng hợp lệ.
-  3. Thiết kế:
-     - `design1_id` – Many2one `product.design` (Thiết kế 1 – legacy).
-     - `design2_id` – Many2one `product.design` (Thiết kế 2 – legacy).
-     - `design_id` – Many2one `product.lens.design` (thiết kế chuẩn, dùng cho sync mới).
-  4. Vật liệu & chiết suất:
-     - `material_id` – Many2one `product.lens.material`.
-     - `index_id` – Many2one `product.lens.index` (chiết suất).
-  5. Màu sắc & coating:
-     - `color_int` – Char (Độ đậm màu – text từ API).
-     - `mir_coating` – Char (Màu tráng gương – text từ API).
-     - `uv_id` – Many2one `product.uv`.
-     - `cl_hmc_id` – Many2one `product.cl` (HMC).
-     - `cl_pho_id` – Many2one `product.cl` (Pho Col / Photochromic).
-     - `cl_tint_id` – Many2one `product.cl` (Tint Col).
-     - `coating_ids` – Many2many `product.coating` (coating layer).
-  6. Liên kết:
-     - `product_tmpl_id` – Many2one `product.template`.
-     - `product_id` – Many2one `product.product` (chưa dùng cho stock, reserved để mở rộng).
-- Có các ràng buộc/validate domain logic cơ bản (axis, diameter, base_curve, v.v.).
-
-#### 2.2.3. Mở rộng product.template
-- File: models/product_template_ext.py
-- Mục đích:
-  - Thêm `lens_ids` – One2many `product.lens` (quan hệ 1-n giữa product template và cấu hình lens).
-  - Thêm các field custom (x_*) gắn với sản phẩm, nhóm, thương hiệu, bảo hành, v.v.
-
-### 2.3. Views chính
-
-#### 2.3.1. Form sản phẩm – Tabs Lens
-- File: views/product_template_views.xml
-- Các tab chính liên quan đến lens:
-
-1. **"Thiết kế Lens"**
-   - Thông tin: SPH, CYL, ADD, Prism, Base curve, Đường kính, Thiết kế 1, Thiết kế 2.
-   - Lấy từ `lens_ids` với form/list liên kết `product.lens`.
-
-2. **"Chất liệu Lens"**
-   - Thông tin: Chiết suất (`index_id`), Vật liệu (`material_id`).
-   - Dùng lại `lens_ids` nhưng group fields theo tab này.
-
-3. **"Tích hợp Lens"**
-   - Thông tin: Độ đậm màu (`color_int`), UV (`uv_id`), HMC (`cl_hmc_id`), Màu tráng gương (`mir_coating`), Pho Col (`cl_pho_id`), Tint Col (`cl_tint_id`), Coating (`coating_ids`).
-   - Dùng lại `lens_ids` nhưng tập trung vào nhóm tính năng tích hợp.
-
-#### 2.3.2. Menu cấu hình Lens (đã ẩn)
-- File: views/product_lens_config_views.xml
-- Trước đây có menu Config cho master data lens.
-- Hiện tại đã comment/ẩn theo yêu cầu, vẫn có thể bật lại nếu cần quản trị master trực tiếp trong Odoo.
-
-## 3. Nghiệp vụ hiện tại vs. hướng phát triển
+- Chuẩn hoá dữ liệu kỹ thuật lens (SPH, CYL, thiết kế, vật liệu, UV, coating, v.v.).
+- Quản lý tồn kho, bán hàng, barcode, báo cáo cho từng sản phẩm (SKU).
 
 ---
 
-### 📊 Bảng trạng thái tổng quan
+## 2. Quyết định kiến trúc (2026-02-25)
 
-| Hạng mục | Trạng thái |
-|---|---|
-| Đồng bộ sản phẩm lens/gọng từ Spring Boot | ✅ ĐÃ XONG |
-| Cache master data (design, material, power, v.v.) | ✅ ĐÃ XONG |
-| Model `product.lens` với đầy đủ fields kỹ thuật | ✅ ĐÃ XONG |
-| Views sản phẩm – 3 tab Lens (Thiết kế / Chất liệu / Tích hợp) | ✅ ĐÃ XONG |
-| Ẩn menu cấu hình Lens (tạm thời) | ✅ ĐÃ XONG |
-| Phân tích kiến trúc tồn kho chi tiết | ✅ ĐÃ XONG |
-| Chuyển sang `product.product` variants | 🟡 CHƯA LÀM |
-| Quản lý tồn kho chi tiết theo từng SKU specs | 🟡 CHƯA LÀM |
-| Báo cáo tồn kho chi tiết từng combination | 🟡 CHƯA LÀM |
-| Migration dữ liệu `product.lens` → variants | 🟡 CHƯA LÀM |
+### 2.1. Bối cảnh
 
----
+API Spring Boot trả về mỗi sản phẩm lens với **CID riêng** (mã sản phẩm duy nhất).
+Mỗi CID đã bao gồm đầy đủ thông số (SPH, CYL, ADD, Material, Index...).
+→ **1 CID = 1 product.template = 1 product.product (variant mặc định)**.
 
-### 3.1. Nghiệp vụ hiện tại ✅
-- Dữ liệu lens từ Spring Boot:
-  - Cho mỗi combination specs (sph, cyl, material, v.v.) → 1 record trong API.
-  - Không có trường số lượng tồn kho (qty/stock) theo từng combination.
-- Trong Odoo:
-  - Mỗi sản phẩm lens là một `product.template`.
-  - Các combination specs được lưu thành nhiều dòng `product.lens` gắn với cùng `product_tmpl_id`.
-  - Tồn kho hiện tại chỉ có thể quản lý tổng theo `product.template` (type = consu), chưa quản lý tồn kho riêng cho từng combination specs.
+### 2.2. Ba hướng đã phân tích
 
-### 3.2. Hạn chế của mô hình `product.lens` ✅ (đã phân tích xong)
-- `product.lens` KHÔNG phải là `product.product` → không có stock moves/stock quant.
-- Không thể:
-  - Quản lý tồn kho chi tiết theo từng combination SPH/CYL/Material.
-  - Bán hàng chọn đúng 1 SKU specs và trừ tồn kho riêng.
-  - Báo cáo tồn kho chi tiết từng specs.
-- `product.lens` hiện tại chỉ đóng vai trò **bảng thông số kỹ thuật** gắn với 1 sản phẩm chính.
+| Hướng | Mô tả | Vấn đề |
+|-------|-------|--------|
+| **A** | Dùng `product.attribute` → sinh variant tổ hợp | Bùng nổ variant (50 SPH × 20 CYL × 5 Material = 5000+ variant/template) |
+| **B** ✅ | Field specs trực tiếp trên `product.template` | Đơn giản, mỗi CID = 1 template + 1 variant mặc định, tồn kho per SKU |
+| **C** | Giữ `product.lens` + liên kết tồn kho qua variant mặc định | Dữ liệu phân tán, phức tạp không cần thiết |
 
-### 3.3. Hướng phát triển tương lai – Sang `product.product` (variants) ✅ ĐÃ TRIỂN KHAI (2026-02)
-- **Đã hoàn thành:** Mỗi combination lens (SPH, CYL, Vật liệu, Thiết kế) từ API → 1 variant `product.product` riêng.
-- Variant hiển thị trong tab "Attributes & Variants" chuẩn Odoo trên form sản phẩm.
-- Tồn kho, bán hàng, báo cáo đều theo từng variant SKU.
-- `product.attribute`: SPH, CYL, Vật liệu, Thiết kế
-- `product.attribute.value`: -1.00, -0.50, CR39, Progressive...
-- `product.product`: mỗi combination = 1 SKU có stock riêng
+### 2.3. Kết luận: Chọn Hướng B
 
-**Còn cần làm:**
-- Kiểm thử quy trình bán hàng, nhập kho, báo cáo tồn kho chi tiết.
-- Migration data cũ từ `product.lens` (nếu có) sang variants.
-
-## 4. Ghi chú thiết kế quan trọng
-
-- Cache (`_preload_all_data`) được dùng mạnh để tránh query lặp lại khi sync số lượng lớn bản ghi.
-- `cache['attr_ids']`, `cache['attr_val_ids']`, `cache['attr_lines']` được thêm để phục vụ variant management.
-- SPH/CYL từ API được map thành `product.attribute.value` theo tên string (không cần ép float như trước).
-- Module giai đoạn 2: tập trung vào **stock chi tiết từng combination** qua `product.product` variants.
+**Lý do:**
+1. API đã trả 1 CID duy nhất mỗi sản phẩm → đã có SKU tự nhiên
+2. Không cần nhóm nhiều combination dưới 1 template
+3. Specs là field trực tiếp → filter, search, group trong list view dễ dàng
+4. Tồn kho tự nhiên qua `product.product` mặc định, không cần attribute
+5. Không bùng nổ variant
+6. UI gọn gàng, hiểu trực quan
 
 ---
 
-Tài liệu này dùng để giúp dev/AI mới đọc nhanh hiểu được:
-- Module dùng để làm gì.
-- Các model chính là gì và liên kết ra sao.
-- Luồng sync dữ liệu từ Spring Boot sang Odoo.
-- Hiện trạng nghiệp vụ: đã chuyển sang `product.product` variants để quản lý tồn kho từng SKU.
+## 3. Kiến trúc mục tiêu (Hướng B)
+
+### 3.1. Model chính
+
+```
+product.template (1 template = 1 sản phẩm, default_code = CID)
+  ├── Thông tin chung: name, categ_id, brand_id, warranty_id, country_id, seller_ids
+  ├── Giá: list_price, standard_price, x_ws_price, x_or_price
+  ├── Lens specs (field trực tiếp):
+  │   ├── lens_sph_id      → Many2one product.lens.power (type=sph)
+  │   ├── lens_cyl_id      → Many2one product.lens.power (type=cyl)
+  │   ├── lens_add         → Float
+  │   ├── lens_base_curve  → Float
+  │   ├── lens_diameter    → Integer
+  │   ├── lens_prism       → Char
+  │   ├── lens_design1_id  → Many2one product.design
+  │   ├── lens_design2_id  → Many2one product.design
+  │   ├── lens_material_id → Many2one product.lens.material
+  │   ├── lens_index_id    → Many2one product.lens.index
+  │   ├── lens_uv_id       → Many2one product.uv
+  │   ├── lens_cl_hmc_id   → Many2one product.cl
+  │   ├── lens_cl_pho_id   → Many2one product.cl
+  │   ├── lens_cl_tint_id  → Many2one product.cl
+  │   ├── lens_color_int   → Char (Độ đậm màu)
+  │   ├── lens_mir_coating → Char (Màu tráng gương)
+  │   └── lens_coating_ids → Many2many product.coating
+  └── product.product (variant mặc định – 1 duy nhất)
+       ├── SKU / barcode
+       └── stock.quant (tồn kho)
+```
+
+### 3.2. Model bổ trợ (giữ nguyên)
+
+| Model | Mục đích |
+|-------|----------|
+| `product.lens.power` | Giá trị SPH/CYL (VD: -1.00, +2.50) |
+| `product.lens.material` | Vật liệu tròng (CR39, Polycarbonate...) |
+| `product.lens.index` | Chiết suất (1.50, 1.56, 1.60...) |
+| `product.design` | Thiết kế (Single Vision, Progressive...) |
+| `product.uv` | UV Protection |
+| `product.cl` | Color (HMC, Photochromic, Tint) |
+| `product.coating` | Coating layers |
+| `product.brand` | Thương hiệu |
+| `product.warranty` | Bảo hành |
+| `product.country` | Xuất xứ |
+| `product.opt` | Thông số gọng kính (giữ nguyên) |
+
+### 3.3. Model sẽ deprecated
+
+| Model | Lý do |
+|-------|-------|
+| `product.lens` | Thay bằng field trực tiếp trên `product.template`. Giữ lại tạm để tham khảo dữ liệu cũ, xóa sau khi migrate xong. |
+
+---
+
+## 4. Luồng đồng bộ (sau khi refactor)
+
+```
+1. Lấy token từ Spring Boot API
+2. Fetch dữ liệu phân trang (lens/gọng)
+3. Preload cache (products, categories, suppliers, master data)
+4. Với mỗi record API:
+   a. _prepare_base_vals() → tạo vals product.template (bao gồm specs trực tiếp)
+   b. Nếu lens: specs (SPH, CYL, ADD...) đi thẳng vào vals template
+   c. Nếu gọng: _prepare_opt_vals() → product.opt
+5. Batch create/update product.template
+6. Odoo tự sinh 1 product.product (variant mặc định) cho mỗi template
+7. Tồn kho, bán hàng, barcode → thao tác trên product.product variant mặc định
+```
+
+---
+
+## 5. Views mục tiêu (sau khi refactor)
+
+### 5.1. Form sản phẩm – Tabs Lens
+
+> Dữ liệu lấy trực tiếp từ field trên `product.template`, KHÔNG qua `product.lens`.
+
+| Tab | Nội dung |
+|-----|----------|
+| **Thiết kế Lens** | SPH, CYL, ADD, Prism, Base curve, Đường kính, Thiết kế 1, Thiết kế 2 |
+| **Chất liệu Lens** | Chiết suất, Vật liệu |
+| **Tích hợp Lens** | UV, Độ đậm màu, Màu tráng gương, HMC, Pho Col, Tint Col, Coating |
+
+- Chỉ hiển thị khi `is_lens = True` (categ_id.code == '06')
+- Có thể filter, search, group trong tree view theo SPH, CYL, Material...
+
+### 5.2. Tabs Gọng (giữ nguyên)
+- Vẫn dùng `product.opt` qua `opt_ids`
+
+---
+
+## 6. Ghi chú thiết kế quan trọng
+
+- Cache (`_preload_all_data`) vẫn dùng mạnh để tránh query lặp khi sync số lượng lớn.
+- Không dùng `product.attribute` cho lens → tránh bùng nổ variant.
+- Field prefix `lens_` để phân biệt với field gốc Odoo.
+- `product.lens` giữ lại tạm, tabs "(Cũ)" hiện khi còn data, ẩn khi đã migrate xong.
+- Tab "Thuộc tính & biến thể" không cần dùng cho lens (chỉ 1 variant mặc định).
+
+---
+
+> Tài liệu này giúp dev/AI mới hiểu nhanh module, kiến trúc, và lý do thiết kế.

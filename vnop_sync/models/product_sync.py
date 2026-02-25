@@ -223,30 +223,7 @@ class ProductSync(models.Model):
                     if model == 'product.group' and key == 'groups':
                         cache['groups_by_id'][r['id']] = r['id']
 
-        # ─── Cache cho Variant Lens (thay thế product.lens) ─────────────────────
-        # Cache tên attribute (chữ thường) → attribute.id
-        # Ví dụ: {'sph': 1, 'cyl': 2, 'vật liệu': 3, 'thiết kế': 4}
-        cache['attr_ids'] = {}
-        for a in self.env['product.attribute'].search_read([], ['id', 'name']):
-            cache['attr_ids'][a['name'].strip().lower()] = a['id']
-
-        # Cache (attr_id, tên_lower) → attribute_value.id
-        # Ví dụ: {(1, '-1.00'): 101, (1, '-2.00'): 102, (2, '-0.50'): 201}
-        cache['attr_val_ids'] = {}
-        for v in self.env['product.attribute.value'].search_read([], ['id', 'attribute_id', 'name']):
-            key = (v['attribute_id'][0], v['name'].strip().lower())
-            cache['attr_val_ids'][key] = v['id']
-
-        # Cache (tmpl_id, attr_id) → {'id': line_id, 'value_ids': [val_id,...]}
-        # Dùng để biết attribute line nào đã tồn tại trên template nào
-        cache['attr_lines'] = {}
-        for l in self.env['product.template.attribute.line'].search_read(
-            [], ['id', 'product_tmpl_id', 'attribute_id', 'value_ids']
-        ):
-            key = (l['product_tmpl_id'][0], l['attribute_id'][0])
-            cache['attr_lines'][key] = {'id': l['id'], 'value_ids': list(l['value_ids'])}
-
-        # Child Records (giữ lại opt, bỏ lens vì đã dùng variant)
+        # Child Records (giữ lại opt)
         if 'product.opt' in self.env:
             cache['opt_records'] = {o['product_tmpl_id'][0]: o['id'] for o in self.env['product.opt'].search_read([], ['id', 'product_tmpl_id']) if o.get('product_tmpl_id')}
 
@@ -447,191 +424,43 @@ class ProductSync(models.Model):
             'x_or_price': float(dto.get('orPrice') or 0),
             'x_group_type_name': grp_type_name,
         }
-        return vals, cache['products'].get(cid)
 
-    # ════════════════════════════════════════════════════════════════
-    # VARIANT MANAGEMENT – Quản lý biến thể product.product cho Lens
-    # Thay thế mô hình product.lens cũ để hỗ trợ tồn kho từng SKU
-    # ════════════════════════════════════════════════════════════════
+        # ─── Lens specs (Hướng B: field trực tiếp trên template) ──────────
+        if product_type == 'lens':
+            def get_lens_power(field_key, power_type):
+                try:
+                    return cache['lens_powers'][power_type].get(float(item.get(field_key)))
+                except (TypeError, ValueError):
+                    return False
 
-    def _get_or_create_attribute(self, cache, attr_name):
-        """
-        Lấy hoặc tạo product.attribute theo tên.
-        Dùng cache['attr_ids'] để tránh query DB lặp lại.
-        Ví dụ: 'SPH', 'CYL', 'Vật liệu', 'Thiết kế'
-        """
-        key = attr_name.strip().lower()
-        if key in cache['attr_ids']:
-            return cache['attr_ids'][key]
+            design_name = (item.get('design') or '').strip().upper()
+            material_name = (item.get('material') or '').strip().lower()
 
-        # Chưa có trong cache → tạo mới
-        attr = self.env['product.attribute'].create({
-            'name': attr_name,
-            # 'always': Odoo tự tạo variant cho mỗi tổ hợp attribute value
-            'create_variant': 'always',
-        })
-        cache['attr_ids'][key] = attr.id
-        _logger.info(f"🏷️ Tạo attribute mới: '{attr_name}' (id={attr.id})")
-        return attr.id
+            # Coatings – API trả về list DTOs (e.g. [{cid: 'ARC', ...}, ...])
+            coating_ids = []
+            for c in (item.get('coatingdtos') or []):
+                c_cid = (c.get('cid') or '').upper()
+                cid_val = cache.get('coatings', {}).get(c_cid)
+                if cid_val:
+                    coating_ids.append(cid_val)
 
-    def _get_or_create_attr_value(self, cache, attr_id, value_name):
-        """
-        Lấy hoặc tạo product.attribute.value theo (attr_id, value_name).
-        Dùng cache['attr_val_ids'] để tránh query DB lặp lại.
-        Ví dụ: attr 'SPH' + value '-1.00', '-2.00'...
-        """
-        key = (attr_id, value_name.strip().lower())
-        if key in cache['attr_val_ids']:
-            return cache['attr_val_ids'][key]
-
-        # Chưa có → tạo mới cho attribute này
-        val = self.env['product.attribute.value'].create({
-            'attribute_id': attr_id,
-            'name': value_name,
-        })
-        cache['attr_val_ids'][key] = val.id
-        return val.id
-
-    def _ensure_attr_line(self, cache, tmpl_id, attr_id, value_id):
-        """
-        Đảm bảo product.template.attribute.line tồn tại trên template và
-        chứa value_id cần thiết.
-        - Nếu line chưa có → tạo mới với value đó
-        - Nếu line đã có nhưng value chưa trong danh sách → append thêm
-        Khi thêm value mới, Odoo tự động tạo thêm variant tương ứng.
-        """
-        key = (tmpl_id, attr_id)
-        if key in cache['attr_lines']:
-            line_info = cache['attr_lines'][key]
-            if value_id not in line_info['value_ids']:
-                # Append value vào line hiện có (Odoo tự tạo variant mới)
-                self.env['product.template.attribute.line'].browse(line_info['id']).write(
-                    {'value_ids': [(4, value_id)]}
-                )
-                line_info['value_ids'].append(value_id)
-        else:
-            # Tạo attribute line mới cho template này
-            line = self.env['product.template.attribute.line'].create({
-                'product_tmpl_id': tmpl_id,
-                'attribute_id': attr_id,
-                'value_ids': [(4, value_id)],
+            vals.update({
+                'lens_sph_id': get_lens_power('sph', 'sph'),
+                'lens_cyl_id': get_lens_power('cyl', 'cyl'),
+                'lens_add': float(item.get('lensAdd') or 0),
+                'lens_base_curve': float(item.get('base') or 0),
+                'lens_diameter': int(item.get('diameter') or 0),
+                'lens_prism': (item.get('prism') or ''),
+                'lens_design1_id': cache.get('designs', {}).get(design_name) if design_name else False,
+                'lens_material_id': cache['lens_materials'].get(material_name) if material_name else False,
+                'lens_index_id': self._get_id(cache, 'lens_indexes', self._get_val(item, 'indexdto')),
+                'lens_uv_id': self._get_id(cache, 'uvs', self._get_val(item, 'uvdto')),
+                'lens_color_int': (item.get('colorInt') or ''),
+                'lens_mir_coating': (item.get('mirCoating') or ''),
+                'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else False,
             })
-            cache['attr_lines'][key] = {'id': line.id, 'value_ids': [value_id]}
 
-    def _find_variant_by_attrs(self, tmpl_id, attr_value_ids):
-        """
-        Tìm product.product variant khớp đúng với tập attribute value IDs.
-        So sánh bằng set để không phụ thuộc vào thứ tự.
-        Trả về variant.id nếu tìm thấy, False nếu không có.
-        """
-        target = set(attr_value_ids)
-        template = self.env['product.template'].browse(tmpl_id)
-        for variant in template.product_variant_ids:
-            # Lấy tập attribute value IDs thực tế của variant này
-            variant_val_ids = set(
-                variant.product_template_attribute_value_ids
-                .mapped('product_attribute_value_id').ids
-            )
-            if variant_val_ids == target:
-                return variant.id
-        return False
-
-    def _sync_lens_variant(self, tmpl_id, item, cache):
-        """
-        Đồng bộ 1 bản ghi lens từ API thành product.product variant.
-        Thay thế logic tạo product.lens để hỗ trợ tồn kho riêng từng SKU.
-
-        Các attribute chính tạo nên biến thể:
-          - SPH   : Công suất cầu (ví dụ: -1.00, +2.50, 0.00)
-          - CYL   : Công suất trụ (ví dụ: -0.50, -1.00, 0.00)
-          - Vật liệu : Chất liệu tròng (ví dụ: CR39, Polycarbonate, Trivex)
-          - Thiết kế : Kiểu tròng (ví dụ: Single Vision, Progressive)
-
-        Trả về variant_id (product.product.id) tương ứng.
-        """
-        # ─── Thu thập các attribute value từ API ─────────────────────────
-        attr_map = {}  # {tên_attribute: giá_trị}
-
-        # SPH – Công suất cầu
-        sph_val = item.get('sph')
-        if sph_val is not None and str(sph_val).strip():
-            attr_map['SPH'] = str(sph_val).strip()
-
-        # CYL – Công suất trụ
-        cyl_val = item.get('cyl')
-        if cyl_val is not None and str(cyl_val).strip():
-            attr_map['CYL'] = str(cyl_val).strip()
-
-        # Vật liệu tròng kính
-        material_val = (item.get('material') or '').strip()
-        if material_val:
-            attr_map['Vật liệu'] = material_val
-
-        # Thiết kế tròng (Single Vision, Progressive, Bifocal...)
-        design_val = (item.get('design') or '').strip()
-        if design_val:
-            attr_map['Thiết kế'] = design_val
-
-        # Nếu không có attribute nào thì trả về variant mặc định của template
-        if not attr_map:
-            template = self.env['product.template'].browse(tmpl_id)
-            return template.product_variant_id.id
-
-        # ─── Tạo/lấy attribute và value, gán vào template ────────────────
-        attr_value_ids = []
-        for attr_name, value_name in attr_map.items():
-            attr_id = self._get_or_create_attribute(cache, attr_name)
-            value_id = self._get_or_create_attr_value(cache, attr_id, value_name)
-            self._ensure_attr_line(cache, tmpl_id, attr_id, value_id)
-            attr_value_ids.append(value_id)
-
-        # ─── Tìm variant khớp ─────────────────────────────────────────────
-        # Sau khi attribute lines được cập nhật, Odoo tự tạo variant mới.
-        # Ta tìm lại variant có đúng tập attribute values.
-        variant_id = self._find_variant_by_attrs(tmpl_id, attr_value_ids)
-        if not variant_id:
-            _logger.warning(
-                f"⚠️ Không tìm thấy variant cho template {tmpl_id} "
-                f"với {attr_map}. Dùng variant mặc định."
-            )
-            template = self.env['product.template'].browse(tmpl_id)
-            variant_id = template.product_variant_id.id
-
-        return variant_id
-
-    def _prepare_lens_vals(self, item, cache):
-        # Xử lý SPH/CYL: API trả về string, cần ép kiểu float rồi tra cache
-        def get_power_id(val, t):
-            try:
-                fval = float(val)
-            except Exception:
-                return False
-            return cache['lens_powers'][t].get(fval)
-
-        sph_val = item.get('sph')
-        cyl_val = item.get('cyl')
-        design_name = (item.get('design') or '').strip().lower()
-        material_name = (item.get('material') or '').strip().lower()
-
-        v = {
-            'sph_id': get_power_id(sph_val, 'sph'),
-            'cyl_id': get_power_id(cyl_val, 'cyl'),
-            'design_id': cache['lens_designs'].get(design_name),
-            'material_id': cache['lens_materials'].get(material_name),
-            'len_add': item.get('lensAdd', ''),
-            'diameter': item.get('diameter', ''),
-            'corridor': item.get('corridor', ''),
-            'abbe': item.get('abbe', ''),
-            'polarized': item.get('polarized', ''),
-            'prism': item.get('prism', ''),
-            'base_curve': item.get('base', ''),
-            'axis': item.get('axis', ''),
-            'prism_base': item.get('prismBase', ''),
-            'color_int': item.get('colorInt', ''),
-            'mir_coating': item.get('mirCoating', ''),
-        }
-        # Coating/Feature xử lý sau nếu cần
-        return v
+        return vals, cache['products'].get(cid)
 
     def _prepare_opt_vals(self, item, cache):
         v = {
@@ -656,22 +485,18 @@ class ProductSync(models.Model):
     def _process_batch(self, items, cache, product_type, child_model=None):
         """
         Xử lý batch create/update sản phẩm từ API.
-        - Với 'lens': dùng _sync_lens_variant để tạo product.product variant
-          (có tồn kho riêng từng SKU). KHÔNG dùng product.lens nữa.
+        - Với 'lens': lens specs đã được map trực tiếp vào template (Hướng B).
+          Không cần child model hay variant riêng.
         - Với 'opt': vẫn dùng child model product.opt như cũ.
         - Với loại khác: chỉ tạo/update product.template.
         """
         total = len(items)
         success = failed = 0
         to_create, to_update = [], []
-        # Lưu item gốc theo index để xử lý variant sau khi template được tạo
-        items_to_create = []   # list of (idx, item) cho lens create
-        items_to_update = []   # list of (tmpl_id, item) cho lens update
 
-        # child model chỉ dùng cho 'opt', không dùng cho 'lens' nữa
-        has_child = (product_type != 'lens') and child_model and child_model in self.env
-        child_vals_map = {}   # tmpl_id → child_vals (chỉ dùng cho opt)
-        new_child_data = []   # [(idx, child_vals)] cho opt
+        has_child = child_model and child_model in self.env
+        child_vals_map = {}    # tmpl_id → child_vals (cho opt)
+        new_child_data = []    # [(idx, child_vals)] cho opt create
 
         _logger.info(f"🔄 Processing {total} {product_type} items...")
 
@@ -679,28 +504,17 @@ class ProductSync(models.Model):
         for idx, item in enumerate(items):
             try:
                 vals, pid = self._prepare_base_vals(item, cache, product_type)
-
-                if product_type == 'lens':
-                    # Lens: không dùng child_vals, lưu item lại để sync variant sau
-                    if pid:
-                        to_update.append((pid, vals))
-                        items_to_update.append((pid, item))
-                    else:
-                        to_create.append(vals)
-                        items_to_create.append((idx, item))
+                c_vals = {}
+                if has_child and product_type == 'opt':
+                    c_vals = self._prepare_opt_vals(item, cache)
+                if pid:
+                    to_update.append((pid, vals))
+                    if has_child:
+                        child_vals_map[pid] = c_vals
                 else:
-                    # Opt/Accessory: xử lý child model như cũ
-                    c_vals = {}
-                    if has_child and product_type == 'opt':
-                        c_vals = self._prepare_opt_vals(item, cache)
-                    if pid:
-                        to_update.append((pid, vals))
-                        if has_child:
-                            child_vals_map[pid] = c_vals
-                    else:
-                        to_create.append(vals)
-                        if has_child:
-                            new_child_data.append((idx, c_vals))
+                    to_create.append(vals)
+                    if has_child:
+                        new_child_data.append((idx, c_vals))
             except Exception as e:
                 failed += 1
                 _logger.error(f"Prepare error [{product_type}]: {e}")
@@ -710,8 +524,6 @@ class ProductSync(models.Model):
             batch_size = 100
             for i in range(0, len(to_create), batch_size):
                 b_vals = to_create[i:i + batch_size]
-                # Lấy items tương ứng cho đoạn batch này (dùng cho lens variant)
-                b_items = items_to_create[i:i + batch_size] if product_type == 'lens' else []
                 b_child = new_child_data[i:i + batch_size] if has_child else []
                 try:
                     with self.env.cr.savepoint():
@@ -721,19 +533,7 @@ class ProductSync(models.Model):
 
                         for j, rec in enumerate(recs):
                             cache['products'][rec.default_code] = rec.id
-
-                            if product_type == 'lens':
-                                # Tạo variant product.product dựa vào specs của item
-                                _, orig_item = b_items[j]
-                                try:
-                                    self._sync_lens_variant(rec.id, orig_item, cache)
-                                except Exception as ve:
-                                    _logger.error(
-                                        f"❌ Lỗi tạo variant lens cho template "
-                                        f"{rec.default_code}: {ve}"
-                                    )
-                            elif has_child and b_child:
-                                # Opt: tạo child record như cũ
+                            if has_child and b_child:
                                 _, cv = b_child[j]
                                 cv['product_tmpl_id'] = rec.id
                                 self.env[child_model].create(cv)
@@ -744,9 +544,6 @@ class ProductSync(models.Model):
                     _logger.error(f"Batch Create Error [{product_type}]: {e}")
 
         # ─── Bước 3: Batch Update ─────────────────────────────────────────
-        # Ghép (tmpl_id, vals) với item gốc để gọi _sync_lens_variant
-        update_lens_map = {pid: item for pid, item in items_to_update}
-
         for pid, vals in to_update:
             try:
                 with self.env.cr.savepoint():
@@ -754,26 +551,15 @@ class ProductSync(models.Model):
                         tracking_disable=True
                     ).write(vals)
 
-                    if product_type == 'lens':
-                        # Cập nhật/tạo variant cho template đã tồn tại
-                        orig_item = update_lens_map.get(pid, {})
-                        try:
-                            self._sync_lens_variant(pid, orig_item, cache)
-                        except Exception as ve:
-                            _logger.error(
-                                f"❌ Lỗi cập nhật variant lens cho template "
-                                f"{pid}: {ve}"
-                            )
-                    elif has_child and pid in child_vals_map:
-                        # Opt: cập nhật child record như cũ
+                    if has_child and pid in child_vals_map:
                         c_vals = child_vals_map[pid]
                         cmap = cache.get('opt_records', {})
                         if pid in cmap:
                             self.env[child_model].browse(cmap[pid]).write(c_vals)
                         else:
                             c_vals['product_tmpl_id'] = pid
-                            cid = self.env[child_model].create(c_vals).id
-                            cmap[pid] = cid
+                            new_id = self.env[child_model].create(c_vals).id
+                            cmap[pid] = new_id
 
                     success += 1
             except Exception as e:
@@ -806,8 +592,8 @@ class ProductSync(models.Model):
             cfg = self._get_api_config()
             stats = {}
             
-            # Lens – dùng _sync_lens_variant (không cần child_model product.lens nữa)
-            # Mỗi bản ghi lens từ API → 1 product.product variant có tồn kho riêng
+            # Lens – specs đã map trực tiếp vào template (Hướng B)
+            # Mỗi bản ghi lens từ API → 1 product.template + 1 default variant
             items = self._fetch_all_items(cfg['lens_endpoint'], token, 'Lens', limit)
             s, f = self._process_batch(items, cache, 'lens')  # Không truyền child_model
             stats['lens'] = s

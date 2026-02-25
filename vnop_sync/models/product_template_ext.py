@@ -154,40 +154,56 @@ class ProductTemplateExtension(models.Model):
                                          help='Automatically generate product code based on Group, Brand, and Index')
     status_product_id = fields.Many2one('product.status', 'Trạng thái')
 
+    # ==================== LENS SPECS (Hướng B: field trực tiếp trên template) ====================
+    # Thiết kế
+    lens_sph_id = fields.Many2one('product.lens.power', string='SPH',
+        domain="[('type', '=', 'sph')]",
+        help='Công suất cầu (Sphere)')
+    lens_cyl_id = fields.Many2one('product.lens.power', string='CYL',
+        domain="[('type', '=', 'cyl')]",
+        help='Công suất trụ (Cylinder)')
+    lens_add = fields.Float('ADD', digits=(4, 2), help='Addition (thấu kính đa tròng)')
+    lens_base_curve = fields.Float('Base Curve', digits=(4, 2))
+    lens_diameter = fields.Integer('Đường kính')
+    lens_prism = fields.Char('Prism', size=50)
+    lens_design1_id = fields.Many2one('product.design', string='Thiết kế 1')
+    lens_design2_id = fields.Many2one('product.design', string='Thiết kế 2')
+
+    # Chất liệu
+    lens_material_id = fields.Many2one('product.lens.material', string='Vật liệu')
+    lens_index_id = fields.Many2one('product.lens.index', string='Chiết suất')
+
+    # Tích hợp
+    lens_uv_id = fields.Many2one('product.uv', string='UV')
+    lens_cl_hmc_id = fields.Many2one('product.cl', string='HMC')
+    lens_cl_pho_id = fields.Many2one('product.cl', string='Pho Col')
+    lens_cl_tint_id = fields.Many2one('product.cl', string='Tint Col')
+    lens_color_int = fields.Char('Độ đậm màu', size=50)
+    lens_mir_coating = fields.Char('Màu tráng gương', size=50)
+    lens_coating_ids = fields.Many2many(
+        'product.coating',
+        'product_tmpl_coating_rel', 'tmpl_id', 'coating_id',
+        string='Coating'
+    )
+
     # ==================== COMPUTED FIELDS FOR TREE VIEW ====================
-    # Lens fields
-    lens_sph = fields.Char('SPH', compute='_compute_lens_info', store=False, readonly=True)
-    lens_cyl = fields.Char('CYL', compute='_compute_lens_info', store=False, readonly=True)
-    lens_index_name = fields.Char('Index', compute='_compute_lens_info', store=False, readonly=True)
-    lens_add = fields.Char('Add', compute='_compute_lens_info', store=False, readonly=True)
-    
+    # Lens display fields (computed từ field mới, dùng cho tree/search)
+    lens_sph = fields.Char('SPH (hiển thị)', compute='_compute_lens_info', store=False, readonly=True)
+    lens_cyl = fields.Char('CYL (hiển thị)', compute='_compute_lens_info', store=False, readonly=True)
+    lens_index_name = fields.Char('Index (hiển thị)', compute='_compute_lens_info', store=False, readonly=True)
+
     # Opt fields
     opt_model = fields.Char('Model', compute='_compute_opt_info', store=False, readonly=True)
     opt_color = fields.Char('Color', compute='_compute_opt_info', store=False, readonly=True)
     opt_frame_type = fields.Char('Frame Type', compute='_compute_opt_info', store=False, readonly=True)
     opt_shape = fields.Char('Shape', compute='_compute_opt_info', store=False, readonly=True)
-    
-    @api.depends('lens_ids', 'lens_ids.sph_id', 'lens_ids.cyl_id', 'lens_ids.index_id', 'lens_ids.lens_add', 'product_type')
+
+    @api.depends('lens_sph_id', 'lens_cyl_id', 'lens_index_id')
     def _compute_lens_info(self):
         for record in self:
-            sph = ""
-            cyl = ""
-            if record.lens_ids:
-                lens = record.lens_ids[0]
-                if lens.sph_id:
-                    sph = lens.sph_id.name
-                if lens.cyl_id:
-                    cyl = lens.cyl_id.name
-            record.lens_sph = sph
-            record.lens_cyl = cyl
-            # The following fields are not updated in the provided snippet, retaining original logic for them
-            if record.product_type == 'lens' and record.lens_ids:
-                lens = record.lens_ids[0] # Re-assign lens for index_id and len_add
-                record.lens_index_name = lens.index_id.name if lens.index_id else ''
-                record.lens_add = lens.lens_add or ''
-            else:
-                record.lens_index_name = ''
-                record.lens_add = ''
+            record.lens_sph = record.lens_sph_id.name if record.lens_sph_id else ''
+            record.lens_cyl = record.lens_cyl_id.name if record.lens_cyl_id else ''
+            record.lens_index_name = record.lens_index_id.name if record.lens_index_id else ''
     
     @api.depends('opt_ids', 'opt_ids.model', 'opt_ids.color', 'opt_ids.frame_type_id', 'opt_ids.shape_id', 'product_type')
     def _compute_opt_info(self):
@@ -251,10 +267,8 @@ class ProductTemplateExtension(models.Model):
 
         product = super().create(vals)
         
-        # Auto-create lens/opt record if needed
-        if product_type == 'lens' and not product.lens_ids:
-            self.env['product.lens'].create({'product_tmpl_id': product.id})
-        elif product_type == 'opt' and not product.opt_ids:
+        # Auto-create opt record if needed (lens dùng field trực tiếp trên template - Hướng B)
+        if product_type == 'opt' and not product.opt_ids:
             self.env['product.opt'].create({'product_tmpl_id': product.id})
         
         return product
@@ -278,15 +292,12 @@ class ProductTemplateExtension(models.Model):
         return super().write(vals)
 
     def action_create_missing_details(self):
-        """Create missing lens/opt records for products that have product_type but no details"""
-        created_lens = 0
+        """Create missing opt records for products that have product_type but no details.
+        Lens products use direct fields on template (Hướng B), no child records needed."""
         created_opt = 0
         
         for product in self:
-            if product.product_type == 'lens' and not product.lens_ids:
-                self.env['product.lens'].create({'product_tmpl_id': product.id})
-                created_lens += 1
-            elif product.product_type == 'opt' and not product.opt_ids:
+            if product.product_type == 'opt' and not product.opt_ids:
                 self.env['product.opt'].create({'product_tmpl_id': product.id})
                 created_opt += 1
         
@@ -295,7 +306,7 @@ class ProductTemplateExtension(models.Model):
             'tag': 'display_notification',
             'params': {
                 'title': 'Đã tạo records',
-                'message': f'Tạo {created_lens} lens, {created_opt} opt records',
+                'message': f'Tạo {created_opt} opt records (lens dùng field trực tiếp trên template)',
                 'type': 'success',
                 'sticky': False,
             }
@@ -305,12 +316,8 @@ class ProductTemplateExtension(models.Model):
     def cron_create_all_missing_details(self):
         """Cron job to create missing lens/opt records for ALL products"""
         # Create lens records for lens products without details
-        lens_products = self.search([
-            ('product_type', '=', 'lens'),
-            ('lens_ids', '=', False)
-        ])
-        for product in lens_products:
-            self.env['product.lens'].create({'product_tmpl_id': product.id})
+        # Lens products use direct fields on template (Hướng B).
+        # No auto-creation of product.lens records needed.
         
         # Create opt records for opt products without details
         opt_products = self.search([

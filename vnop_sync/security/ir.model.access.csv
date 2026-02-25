@@ -28,3 +28,4 @@ access_product_lens_power_user,product.lens.power user,model_product_lens_power,
 access_product_lens_design_new_user,product.lens.design user,model_product_lens_design,base.group_user,1,1,1,1
 access_product_lens_material_user,product.lens.material user,model_product_lens_material,base.group_user,1,1,1,1
 access_product_lens_feature_user,product.lens.feature user,model_product_lens_feature,base.group_user,1,1,1,1
+access_lens_variant_migration_wizard,lens.variant.migration.wizard user,model_lens_variant_migration_wizard,base.group_system,1,1,1,1

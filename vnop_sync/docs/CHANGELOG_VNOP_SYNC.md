@@ -9,115 +9,86 @@
 | Hạng mục | Trạng thái |
 |---|---|
 | Chuẩn hoá sync & cache (product_sync.py) | ✅ ĐÃ XONG |
-| Model product.lens – fields kỹ thuật & legacy | ✅ ĐÃ XONG |
+| Model product.lens – fields kỹ thuật & legacy | ✅ ĐÃ XONG (sẽ deprecated) |
 | Đồng bộ fields mới từ API (color_int, mir_coating, v.v.) | ✅ ĐÃ XONG |
-| Views sản phẩm – 3 tab Lens (Thiết kế / Chất liệu / Tích hợp) | ✅ ĐÃ XONG |
+| Views sản phẩm – 3 tab Lens (Thiết kế / Chất liệu / Tích hợp) | ✅ ĐÃ XONG (sẽ thay bằng field trực tiếp) |
 | Ẩn menu cấu hình Lens (tạm thời) | ✅ ĐÃ XONG |
 | Phân tích kiến trúc tồn kho lens | ✅ ĐÃ XONG |
-| Chuyển sang `product.product` (variants) | ✅ ĐÃ XONG |
-| Refactor sync logic sang tạo/update variants | ✅ ĐÃ XONG |
-| Migration dữ liệu từ product.lens sang variants | 🟡 CHƯA LÀM (cần chạy thủ công nếu có data cũ) |
-| Kiểm thử bán hàng, nhập kho, báo cáo tồn kho chi tiết | 🟡 CHƯA LÀM |
+| Quyết định kiến trúc: chọn Hướng B | ✅ ĐÃ XONG (2026-02-25) |
+| Tạo wizard migration lens → variant | ✅ ĐÃ XONG (nhưng sẽ thay bằng wizard lens → field) |
+| **HƯỚNG B: Thêm lens specs field trực tiếp lên product.template** | 🔴 CHƯA LÀM |
+| **HƯỚNG B: Refactor sync logic (specs → template field)** | 🔴 CHƯA LÀM |
+| **HƯỚNG B: Cập nhật UI tabs dùng field trực tiếp** | 🔴 CHƯA LÀM |
+| **HƯỚNG B: Migration dữ liệu product.lens → field trên template** | 🔴 CHƯA LÀM |
+| **HƯỚNG B: Cleanup code cũ (variant helpers, product.lens)** | 🔴 CHƯA LÀM |
+| Kiểm thử bán hàng, nhập kho, báo cáo tồn kho | 🔴 CHƯA LÀM |
 
 ---
 
-## 2026-02 – Đợt refactor Lens (giai đoạn 1)
+## 2026-02-25 – Quyết định kiến trúc: Hướng B
+
+### Bối cảnh
+
+- API Spring Boot trả mỗi sản phẩm 1 CID riêng → đã là 1 SKU duy nhất.
+- Hướng A (attribute → variant) gây bùng nổ variant (tích Descartes).
+- Hướng C (giữ product.lens) gây dữ liệu phân tán.
+- **Chọn Hướng B: lens specs là field trực tiếp trên `product.template`.**
+
+### Những gì đã code nhưng sẽ THAY ĐỔI / LOẠI BỎ
+
+| File/Code | Trạng thái |
+|---|---|
+| `_get_or_create_attribute()` | ❌ Sẽ xóa (không dùng attribute) |
+| `_get_or_create_attr_value()` | ❌ Sẽ xóa |
+| `_ensure_attr_line()` | ❌ Sẽ xóa |
+| `_find_variant_by_attrs()` | ❌ Sẽ xóa |
+| `_sync_lens_variant()` | ❌ Sẽ xóa |
+| `cache['attr_ids']`, `cache['attr_val_ids']`, `cache['attr_lines']` | ❌ Sẽ xóa |
+| `lens_variant_migration_wizard.py` | ❌ Sẽ thay bằng wizard dạng field migration |
+| Tabs lens "(Cũ)" hiện tại | ⚠️ Tạm giữ, sẽ thay bằng tabs dùng field trực tiếp |
+
+---
+
+## 2026-02 – Đợt refactor Lens (giai đoạn 1) – ĐÃ XONG
 
 ### ✅ ĐÃ XONG 1 – Chuẩn hoá sync & cache
 - File: `models/product_sync.py`
-- Thêm `_get_api_config()` đọc biến môi trường, gom cấu hình API Spring Boot.
-- Bổ sung `_fetch_paged_api()` + `_fetch_all_items()` để hỗ trợ phân trang (page/size).
-- Thiết lập hệ thống cache `_preload_all_data()`:
-  - `products`: map `default_code` → `product.template.id`.
-  - `categories`, `suppliers`, `taxes`, `groups`, `statuses`.
-  - Master data lens: `lens_powers` (SPH/CYL), `lens_designs`, `lens_materials`.
-  - Child records: `lens_records`, `opt_records` để update/create tối ưu.
-- Chuẩn hoá `_prepare_base_vals()` tạo bộ `vals` chuẩn cho `product.template`.
-- Tách riêng xử lý lens/opt qua `_prepare_lens_vals()` và `_prepare_opt_vals()`.
+- Thêm `_get_api_config()`, `_fetch_paged_api()`, `_fetch_all_items()`, `_preload_all_data()`.
+- Cache: products, categories, suppliers, taxes, groups, statuses, master data lens.
 
-### ✅ ĐÃ XONG 2 – Chuẩn hoá model chi tiết Lens – `product.lens`
+### ✅ ĐÃ XONG 2 – Model product.lens
 - File: `models/product_lens.py`
-- Thêm Many2one cho cấu hình công suất: `sph_id`, `cyl_id` → `product.lens.power`.
-- Liên kết với `product.template` qua `product_tmpl_id`.
-- Bổ sung các trường kỹ thuật và legacy:
-  - Thiết kế: `design1_id`, `design2_id`, `design_id`.
-  - Vật liệu, chiết suất: `material_id`, `index_id`.
-  - Tích hợp/màu sắc/coating: `uv_id`, `cl_hmc_id`, `cl_pho_id`, `cl_tint_id`, `coating_ids`.
-  - Text từ API: `color_int` (Độ đậm màu), `mir_coating` (Màu tráng gương).
-- Sửa imports: `from odoo.exceptions import ValidationError` và `_` từ `odoo`.
+- Fields kỹ thuật: sph_id, cyl_id, axis, lens_add, base_curve, diameter, design1_id, design2_id, material_id, index_id, uv_id, cl_hmc_id, cl_pho_id, cl_tint_id, coating_ids, color_int, mir_coating.
+- **Sẽ deprecated khi Hướng B hoàn thành.**
 
-### ✅ ĐÃ XONG 3 – Đồng bộ fields mới từ API
-- File: `models/product_sync.py` → hàm `_prepare_lens_vals()`
-- Map các trường: `len_add`, `diameter`, `base_curve`, `axis`, `prism`, `prism_base`, `color_int`, `mir_coating`.
-- Chuẩn hoá mapping design/material bằng tên lower-case vào cache.
-
-### ✅ ĐÃ XONG 4 – Views sản phẩm – 3 tab Lens
+### ✅ ĐÃ XONG 3 – Views sản phẩm – 3 tab Lens
 - File: `views/product_template_views.xml`
-- **Tab "Thiết kế Lens"**: SPH, CYL, ADD, Prism, Base curve, Axis, Đường kính, Thiết kế 1, Thiết kế 2.
-- **Tab "Chất liệu Lens"**: Chiết suất (`index_id`), Vật liệu (`material_id`).
-- **Tab "Tích hợp Lens"**: `color_int`, `uv_id`, `cl_hmc_id`, `mir_coating`, `cl_pho_id`, `cl_tint_id`, `coating_ids`.
-- Sửa/xóa các field XML thừa nằm ngoài `<page>` gây lỗi view.
+- Tab "Thiết kế Lens", "Chất liệu Lens", "Tích hợp Lens" (hiện dùng lens_ids → product.lens).
+- **Sẽ thay bằng tabs dùng field trực tiếp khi Hướng B hoàn thành.**
 
-### ✅ ĐÃ XONG 5 – Ẩn menu cấu hình Lens (tạm thời)
-- File: `views/product_lens_config_views.xml`
-- Comment/ẩn các menu cấu hình master-data lens (chủ yếu sync từ hệ thống ngoài).
-- Có thể bật lại khi cần quản trị master trực tiếp trên Odoo.
+### ✅ ĐÃ XONG 4 – Bỏ auto-create product.lens
+- File: `models/product_template_ext.py`
+- Sản phẩm lens mới tạo không còn tự sinh product.lens record.
 
----
-
-## 2026-02 – Phân tích kiến trúc tồn kho
-
-### ✅ ĐÃ XONG – Phân tích & kết luận
-- API `/api/xnk/lens` hiện tại chỉ trả về specs kỹ thuật, không có trường `qty`/`stock` cho từng combination.
-- `product.lens` không phải `product.product` → không có stock quant/move riêng → không quản lý tồn kho chi tiết từng specs.
-- Đội ngũ (anh HuyO) xác nhận cần chuyển sang `product.product` variants để quản lý tồn kho, bán hàng, báo cáo chi tiết.
+### ✅ ĐÃ XONG 5 – Migration Wizard (tạm)
+- File: `wizard/lens_variant_migration_wizard.py`
+- Wizard chuyển product.lens → variant (Hướng A). **Sẽ thay bằng wizard Hướng B.**
 
 ---
 
-## 🟡 CHƯA LÀM – Giai đoạn 2: Chuyển sang product.product (variants)
+## 🔴 CHƯA LÀM – Giai đoạn 2: Hướng B (Field trực tiếp)
 
-> Phần code đã hoàn thành, còn lại là kiểm thử và migration data cũ.
+> Xem chi tiết lộ trình trong `docs/MIGRATION_ROADMAP.md`
 
-| Công việc | Trạng thái |
-|---|---|
-| Phân tích API, xác định dimensions cần làm attributes (SPH, CYL, Material, Index, Coating...) | ✅ ĐÃ XONG |
-| Thiết kế mapping: API field → product.attribute / product.attribute.value | ✅ ĐÃ XONG |
-| Refactor `_prepare_lens_vals()` để tạo/update variants product.product | ✅ ĐÃ XONG |
-| Viết script migration dữ liệu cũ từ product.lens → variants | 🟡 CHƯA LÀM (nếu có data cũ) |
-| Cập nhật views, bán hàng, báo cáo theo variants | 🟡 CHƯA LÀM |
-| Kiểm thử quy trình bán hàng, nhập kho, báo cáo tồn kho chi tiết | 🟡 CHƯA LÀM |
-| Cập nhật tài liệu sau khi hoàn thành giai đoạn 2 | 🟡 CHƯA LÀM |
-
----
-
-## ✅ ĐÃ XONG – Giai đoạn 2: Chuyển sang product.product variants (2026-02)
-
-### Thay đổi chính trong `models/product_sync.py`
-
-**4 hàm helper mới:**
-- `_get_or_create_attribute(cache, attr_name)` – Tạo/lấy `product.attribute` (SPH, CYL, Vật liệu, Thiết kế) theo tên, dùng cache tránh query lặp.
-- `_get_or_create_attr_value(cache, attr_id, value_name)` – Tạo/lấy `product.attribute.value` (ví dụ: -1.00, -0.50, CR39) theo (attr_id, value_name).
-- `_ensure_attr_line(cache, tmpl_id, attr_id, value_id)` – Đảm bảo `product.template.attribute.line` tồn tại trên template và có chứa value. Khi thêm value mới, Odoo tự tạo thêm variant tương ứng.
-- `_find_variant_by_attrs(tmpl_id, attr_value_ids)` – Tìm `product.product` variant khớp đúng tập attribute value IDs (so sánh theo set).
-
-**Hàm chính mới:**
-- `_sync_lens_variant(tmpl_id, item, cache)` – Thay thế logic tạo `product.lens`. Với mỗi bản ghi lens từ API: tạo attributes (SPH, CYL, Vật liệu, Thiết kế) → tạo values → gán vào attribute line của template → tìm/trả về variant `product.product` có tồn kho riêng.
-
-**Cache mở rộng trong `_preload_all_data`:**
-- `cache['attr_ids']` – Map tên attribute (lower) → attribute.id
-- `cache['attr_val_ids']` – Map (attr_id, value_lower) → attribute_value.id
-- `cache['attr_lines']` – Map (tmpl_id, attr_id) → {id, value_ids}
-
-**`_process_batch` refactored:**
-- Với `product_type = 'lens'`: KHÔNG tạo `product.lens` nữa, thay bằng gọi `_sync_lens_variant` sau khi template được create/update.
-- Với `product_type = 'opt'`: giữ nguyên child model approach.
-- `_run_sync`: bỏ `'product.lens'` khỏi tham số gọi `_process_batch` cho lens.
-
-**Kết quả:**
-- Mỗi combination (SPH, CYL, Vật liệu, Thiết kế) từ API → 1 `product.product` variant.
-- Variant hiện diện trong tab "Attributes & Variants" chuẩn Odoo trên form sản phẩm.
-- Tồn kho có thể quản lý riêng từng SKU (từng combination specs).
+| Bước | Công việc | File |
+|------|-----------|------|
+| B1 | Thêm lens_* fields lên product.template | product_template_ext.py |
+| B2 | Refactor sync: specs → template vals | product_sync.py |
+| B3 | Cập nhật UI tabs | product_template_views.xml |
+| B4 | Migration: product.lens → template fields | wizard mới |
+| B5 | Cleanup: xóa variant helpers, xóa product.lens | product_sync.py, product_lens.py |
+| B6 | Test: sync, UI, tồn kho, bán hàng | manual |
 
 ---
 
-> File này cập nhật khi: thêm field mới, thay đổi model/luồng sync, hoặc bắt đầu triển khai giai đoạn 2.
+> File này cập nhật khi: thay đổi model, luồng sync, hoặc hoàn thành bước trong lộ trình Hướng B.
