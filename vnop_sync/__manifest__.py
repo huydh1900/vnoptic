@@ -1,6 +1,6 @@
 {
     'name': 'Product Sync from Server',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.0.1',
     'category': 'Inventory',
     'depends': ['base', 'stock', 'product', 'account', 'hr'],
     'data': [
