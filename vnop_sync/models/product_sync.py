@@ -515,8 +515,6 @@ class ProductSync(models.Model):
 
         return vals, cache['products'].get(cid)
 
-<<<<<<< HEAD
-=======
     def _prepare_lens_vals(self, item, cache):
         # Xử lý SPH/CYL: API trả về string, cần ép kiểu float rồi tra cache
         def get_power_id(val, t):
@@ -556,7 +554,6 @@ class ProductSync(models.Model):
         # Coating/Feature xử lý sau nếu cần
         return v
 
->>>>>>> dev
     def _prepare_opt_vals(self, item, cache):
         v = {
             'season': item.get('season', ''), 'model': item.get('model', ''), 'serial': item.get('serial', ''),
@@ -620,6 +617,7 @@ class ProductSync(models.Model):
             for i in range(0, len(to_create), batch_size):
                 b_vals = to_create[i:i + batch_size]
                 b_child = new_child_data[i:i + batch_size] if has_child else []
+                b_child_refs = b_child
                 try:
                     with self.env.cr.savepoint():
                         recs = self.env['product.template'].with_context(
@@ -628,32 +626,18 @@ class ProductSync(models.Model):
 
                         for j, rec in enumerate(recs):
                             cache['products'][rec.default_code] = rec.id
-<<<<<<< HEAD
-                            if has_child and b_child:
-                                _, cv = b_child[j]
-                                cv['product_tmpl_id'] = rec.id
-                                self.env[child_model].create(cv)
-
                         success += len(recs)
                 except Exception as e:
                     failed += len(b_vals)
                     _logger.error(f"Batch Create Error [{product_type}]: {e}")
-=======
-                        success += len(recs)
-                except Exception as e:
-                    failed += len(b_vals)
-                    _logger.error(f"Batch Create Error: {e}")
-                    b_child_refs = []  # bỏ qua child nếu product batch lỗi
                     continue
 
                 # Tạo child records riêng lẻ (savepoint độc lập)
                 if has_child and b_child_refs:
-                    recs_list = list(recs)
-                    for j, rec in enumerate(recs_list):
+                    for j, rec in enumerate(recs):
                         if j >= len(b_child_refs):
                             break
                         _, cv = b_child_refs[j]
-                        # Bỏ qua nếu cv rỗng (guard: tránh insert chỉ có product_tmpl_id)
                         if not cv:
                             _logger.warning(f"⚠️ Bỏ qua child record rỗng cho product {rec.id}")
                             continue
@@ -663,8 +647,6 @@ class ProductSync(models.Model):
                                 self.env[child_model].create(cv)
                         except Exception as e:
                             _logger.error(f"Child Create Error product {rec.id}: {e}")
-
->>>>>>> dev
 
         # ─── Bước 3: Batch Update ─────────────────────────────────────────
         for pid, vals in to_update:
