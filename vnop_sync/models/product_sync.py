@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+import time
+import random
 import requests
 import urllib3
 from collections import defaultdict
@@ -80,8 +82,8 @@ class ProductSync(models.Model):
             'service_username': username,
             'service_password': password,
             'ssl_verify': os.getenv('SSL_VERIFY', 'False').lower() == 'true',
-            'login_timeout': int(os.getenv('LOGIN_TIMEOUT', '30')),
-            'api_timeout': int(os.getenv('API_TIMEOUT', '300')),
+            'login_timeout': int(os.getenv('LOGIN_TIMEOUT', '300')),
+            'api_timeout': int(os.getenv('API_TIMEOUT', '9999')),
         }
 
     def _get_access_token(self):
@@ -101,52 +103,103 @@ class ProductSync(models.Model):
         except Exception as e:
             raise UserError(_(f"Authentication failed: {str(e)}"))
 
-    def _fetch_paged_api(self, endpoint, token, page=0, size=100):
+    def _make_session(self):
+        """Tạo mới requests.Session (không cache trên self vì Odoo ORM không cho phép)."""
+        from requests.adapters import HTTPAdapter
+        session = requests.Session()
+        session.mount('https://', HTTPAdapter(max_retries=0))
+        session.mount('http://', HTTPAdapter(max_retries=0))
+        return session
+
+    def _fetch_paged_api(self, endpoint, token, page=0, size=100, max_retries=5, session=None):
         config = self._get_api_config()
         url = f"{config['base_url']}{endpoint}?page={page}&size={size}"
-        try:
-            response = requests.get(
-                url, headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
-                verify=config['ssl_verify'], timeout=config['api_timeout']
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            raise UserError(_(f"API request failed: {str(e)}"))
+        headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
 
-    def _fetch_all_items(self, endpoint, token, label, limit=None):
+        for attempt in range(1, max_retries + 1):
+            # Tạo session mới nếu chưa có hoặc sau khi retry
+            _session = session if (session and attempt == 1) else self._make_session()
+            try:
+                response = _session.get(
+                    url, headers=headers,
+                    verify=config['ssl_verify'],
+                    timeout=config['api_timeout']
+                )
+                response.raise_for_status()
+                return response.json()
+            except (requests.exceptions.ConnectTimeout,
+                    requests.exceptions.ReadTimeout,
+                    requests.exceptions.ConnectionError) as e:
+                if attempt == max_retries:
+                    raise UserError(_(f"API request failed after {max_retries} retries: {str(e)}"))
+                wait = min(2 ** attempt + random.uniform(0, 2), 60)  # cap 60s
+                _logger.warning(
+                    f"⚠️ Timeout/Connection error trang {page} (lần {attempt}/{max_retries}). "
+                    f"Thử lại sau {wait:.1f}s... Lỗi: {e}"
+                )
+                time.sleep(wait)
+            except Exception as e:
+                raise UserError(_(f"API request failed: {str(e)}"))
+
+    def _fetch_all_items(self, endpoint, token, label, limit=None, page_delay=0.3):
+        """Lấy toàn bộ dữ liệu phân trang với retry & delay giữa các trang.
+        
+        Args:
+            page_delay: Giây tạm nghỉ giữa mỗi trang để tránh server quá tải (mặc định 0.3s).
+        """
         items = []
         page = 0
         total_elements = 0
         config = self._get_api_config()
         
-        _logger.info(f"🔍 [DEBUG] Bắt đầu lấy dữ liệu {label} từ: {config['base_url']}{endpoint}")
-        
+        _logger.info(f"🔍 Bắt đầu lấy dữ liệu {label} từ: {config['base_url']}{endpoint}")
+
+        # Tạo session một lần duy nhất cho toàn bộ quá trình phân trang
+        session = self._make_session()
+
         while True:
-            res = self._fetch_paged_api(endpoint, token, page, 100)
+            res = self._fetch_paged_api(endpoint, token, page, 100, session=session)
             
-            # Log metadata của trang đầu tiên để debug
             if page == 0:
                 debug_res = {k: v for k, v in res.items() if k != 'content'}
-                _logger.info(f"🔍 [DEBUG] Metadata API {label} (Trang 0): {debug_res}")
+                _logger.info(f"🔍 Metadata API {label} (Trang 0): {debug_res}")
             
             content = res.get('content', [])
-            if not content: break
+            if not content:
+                break
             items.extend(content)
             
             total_elements = res.get('totalElements', 0)
             total_pages = res.get('totalPages', 1)
             
-            _logger.info(f"📦 {label}: Trang {page + 1}/{total_pages}, Lấy được {len(content)} bản ghi (Tổng đã lấy: {len(items)}/{total_elements})")
+            _logger.info(
+                f"📦 {label}: Trang {page + 1}/{total_pages} | "
+                f"Lấy được {len(content)} bản ghi | Tổng: {len(items)}/{total_elements}"
+            )
+
+            # Cập nhật sync_log định kỳ (mỗi 10 trang) để UI hiển thị tiến độ
+            if page % 10 == 0 and hasattr(self, 'id') and self.id:
+                try:
+                    self.write({'sync_log': f"Đang tải {label}: trang {page + 1}/{total_pages} ({len(items)}/{total_elements} bản ghi)..."})
+                    self.env.cr.commit()
+                except Exception:
+                    pass
             
             if limit and len(items) >= limit:
                 return items[:limit]
             
             page += 1
-            if page >= total_pages: break
+            if page >= total_pages:
+                break
+
+            # Nghỉ một chút giữa các trang để tránh connection timeout do quá tải
+            if page_delay > 0:
+                time.sleep(page_delay)
             
         if total_elements > len(items) and not limit:
-            _logger.warning(f"⚠️ Chú ý: API báo có {total_elements} bản ghi {label} nhưng chỉ lấy được {len(items)}. Kiểm tra lại tham số size hoặc server-side pagination.")
+            _logger.warning(
+                f"⚠️ API báo có {total_elements} bản ghi {label} nhưng chỉ lấy được {len(items)}."
+            )
             
         return items
 
@@ -442,22 +495,27 @@ class ProductSync(models.Model):
         design_name = (item.get('design') or '').strip().lower()
         material_name = (item.get('material') or '').strip().lower()
 
+        def safe_int(val, default=0):
+            try: return int(val) if val not in (None, '', False) else default
+            except Exception: return default
+
+        def safe_float(val, default=0.0):
+            try: return float(val) if val not in (None, '', False) else default
+            except Exception: return default
+
         v = {
             'sph_id': get_power_id(sph_val, 'sph'),
             'cyl_id': get_power_id(cyl_val, 'cyl'),
             'design_id': cache['lens_designs'].get(design_name),
             'material_id': cache['lens_materials'].get(material_name),
-            'len_add': item.get('lensAdd', ''),
-            'diameter': item.get('diameter', ''),
-            'corridor': item.get('corridor', ''),
-            'abbe': item.get('abbe', ''),
-            'polarized': item.get('polarized', ''),
-            'prism': item.get('prism', ''),
-            'base_curve': item.get('base', ''),
-            'axis': item.get('axis', ''),
-            'prism_base': item.get('prismBase', ''),
-            'color_int': item.get('colorInt', ''),
-            'mir_coating': item.get('mirCoating', ''),
+            'lens_add': safe_float(item.get('lensAdd')),   # FIX: len_add → lens_add
+            'diameter': safe_int(item.get('diameter')),     # Integer field
+            'base_curve': safe_float(item.get('base')),
+            'axis': safe_int(item.get('axis')),
+            'corridor': item.get('corridor') or '',
+            'abbe': item.get('abbe') or '',
+            'prism': item.get('prism') or '',
+            'prism_base': item.get('prismBase') or '',
         }
         # Coating/Feature xử lý sau nếu cần
         return v
@@ -522,15 +580,31 @@ class ProductSync(models.Model):
                         recs = self.env['product.template'].with_context(tracking_disable=True).create(b_vals)
                         for j, rec in enumerate(recs):
                             cache['products'][rec.default_code] = rec.id
-                            if has_child:
-                                _, cv = b_child_refs[j]
-                                cv['product_tmpl_id'] = rec.id
-                                self.env[child_model].create(cv)
-                                # Update cache for child if needed (omitted for speed)
                         success += len(recs)
                 except Exception as e:
                     failed += len(b_vals)
                     _logger.error(f"Batch Create Error: {e}")
+                    b_child_refs = []  # bỏ qua child nếu product batch lỗi
+                    continue
+
+                # Tạo child records riêng lẻ (savepoint độc lập)
+                if has_child and b_child_refs:
+                    recs_list = list(recs)
+                    for j, rec in enumerate(recs_list):
+                        if j >= len(b_child_refs):
+                            break
+                        _, cv = b_child_refs[j]
+                        # Bỏ qua nếu cv rỗng (guard: tránh insert chỉ có product_tmpl_id)
+                        if not cv:
+                            _logger.warning(f"⚠️ Bỏ qua child record rỗng cho product {rec.id}")
+                            continue
+                        cv['product_tmpl_id'] = rec.id
+                        try:
+                            with self.env.cr.savepoint():
+                                self.env[child_model].create(cv)
+                        except Exception as e:
+                            _logger.error(f"Child Create Error product {rec.id}: {e}")
+
 
         # Batch Update
         for pid, vals in to_update:
