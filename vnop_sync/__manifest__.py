@@ -12,6 +12,7 @@
         'views/product_template_views.xml',
         'wizard/product_excel_import_views.xml',
         'wizard/lens_variant_migration_wizard_views.xml',
+        'wizard/opt_migration_wizard_views.xml',
         'views/product_group_views.xml',
         'views/product_lens_config_views.xml',
         'data/ir_cron_data.xml',

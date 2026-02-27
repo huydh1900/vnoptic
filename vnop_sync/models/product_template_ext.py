@@ -143,7 +143,8 @@ class ProductTemplateExtension(models.Model):
 
     # ==================== LENS/OPT RELATIONSHIPS ====================
     lens_ids = fields.One2many('product.lens', 'product_tmpl_id', 'Lens Details')
-    opt_ids = fields.One2many('product.opt', 'product_tmpl_id', 'Optical Details')
+    # opt_ids giữ lại tạm để migrate dữ liệu cũ, KHÔNG dùng cho logic nghiệp vụ mới
+    opt_ids = fields.One2many('product.opt', 'product_tmpl_id', 'Optical Details (Legacy)')
 
     # ==================== ADDITIONAL FIELDS FOR VIEW ====================
     group_id = fields.Many2one('product.group', string='Nhóm sản phẩm (theo loại)',
@@ -186,17 +187,63 @@ class ProductTemplateExtension(models.Model):
         string='Coating'
     )
 
+    # ==================== OPT SPECS (Hướng B: field trực tiếp trên template) ====================
+    # Thông tin cơ bản
+    opt_season = fields.Char('Season', size=50)
+    opt_model = fields.Char('Model', size=50)
+    opt_serial = fields.Char('Serial', size=50)
+    opt_oem_ncc = fields.Char('OEM NCC', size=50)
+    opt_sku = fields.Char('SKU', size=50)
+    opt_color = fields.Char('Màu sắc', size=50)
+    opt_gender = fields.Selection([
+        ('1', 'Nam'), ('2', 'Nữ'), ('3', 'Unisex')
+    ], string='Giới tính')
+
+    # Kích thước
+    opt_temple_width = fields.Integer('Chiều dài càng (mm)')
+    opt_lens_width = fields.Integer('Chiều rộng tròng (mm)')
+    opt_lens_span = fields.Integer('Khoảng cách tròng (mm)')
+    opt_lens_height = fields.Integer('Chiều cao tròng (mm)')
+    opt_bridge_width = fields.Integer('Cầu mũi (mm)')
+
+    # Màu sắc
+    opt_color_front_id = fields.Many2one('product.cl', string='Màu mặt trước')
+    opt_color_temple_id = fields.Many2one('product.cl', string='Màu càng')
+    opt_color_lens_id = fields.Many2one('product.cl', string='Màu mắt kính')
+
+    # Thiết kế
+    opt_frame_id = fields.Many2one('product.frame', string='Kiểu gọng')
+    opt_frame_type_id = fields.Many2one('product.frame.type', string='Loại gọng')
+    opt_shape_id = fields.Many2one('product.shape', string='Dáng gọng')
+    opt_ve_id = fields.Many2one('product.ve', string='Ve')
+    opt_temple_id = fields.Many2one('product.temple', string='Càng kính')
+
+    # Chất liệu
+    opt_material_ve_id = fields.Many2one('product.material', string='Chất liệu ve')
+    opt_material_temple_tip_id = fields.Many2one('product.material', string='Chất liệu chuôi càng')
+    opt_material_lens_id = fields.Many2one('product.material', string='Chất liệu mắt')
+    opt_materials_front_ids = fields.Many2many(
+        'product.material', 'product_tmpl_material_front_rel',
+        'tmpl_id', 'material_id', string='Chất liệu mặt trước'
+    )
+    opt_materials_temple_ids = fields.Many2many(
+        'product.material', 'product_tmpl_material_temple_rel',
+        'tmpl_id', 'material_id', string='Chất liệu càng'
+    )
+    opt_coating_ids = fields.Many2many(
+        'product.coating', 'product_tmpl_opt_coating_rel',
+        'tmpl_id', 'coating_id', string='Lớp phủ'
+    )
+
     # ==================== COMPUTED FIELDS FOR TREE VIEW ====================
     # Lens display fields (computed từ field mới, dùng cho tree/search)
     lens_sph = fields.Char('SPH (hiển thị)', compute='_compute_lens_info', store=False, readonly=True)
     lens_cyl = fields.Char('CYL (hiển thị)', compute='_compute_lens_info', store=False, readonly=True)
     lens_index_name = fields.Char('Index (hiển thị)', compute='_compute_lens_info', store=False, readonly=True)
 
-    # Opt fields
-    opt_model = fields.Char('Model', compute='_compute_opt_info', store=False, readonly=True)
-    opt_color = fields.Char('Color', compute='_compute_opt_info', store=False, readonly=True)
-    opt_frame_type = fields.Char('Frame Type', compute='_compute_opt_info', store=False, readonly=True)
-    opt_shape = fields.Char('Shape', compute='_compute_opt_info', store=False, readonly=True)
+    # Opt display fields (computed từ field mới, dùng cho tree/search)
+    opt_frame_type = fields.Char('Loại gọng (hiển thị)', compute='_compute_opt_info', store=False, readonly=True)
+    opt_shape = fields.Char('Dáng gọng (hiển thị)', compute='_compute_opt_info', store=False, readonly=True)
 
     @api.depends('lens_sph_id', 'lens_cyl_id', 'lens_index_id')
     def _compute_lens_info(self):
@@ -205,20 +252,11 @@ class ProductTemplateExtension(models.Model):
             record.lens_cyl = record.lens_cyl_id.name if record.lens_cyl_id else ''
             record.lens_index_name = record.lens_index_id.name if record.lens_index_id else ''
     
-    @api.depends('opt_ids', 'opt_ids.model', 'opt_ids.color', 'opt_ids.frame_type_id', 'opt_ids.shape_id', 'product_type')
+    @api.depends('opt_frame_type_id', 'opt_shape_id')
     def _compute_opt_info(self):
         for record in self:
-            if record.product_type == 'opt' and record.opt_ids:
-                opt = record.opt_ids[0]
-                record.opt_model = opt.model or ''
-                record.opt_color = opt.color or ''
-                record.opt_frame_type = opt.frame_type_id.name if opt.frame_type_id else ''
-                record.opt_shape = opt.shape_id.name if opt.shape_id else ''
-            else:
-                record.opt_model = ''
-                record.opt_color = ''
-                record.opt_frame_type = ''
-                record.opt_shape = ''
+            record.opt_frame_type = record.opt_frame_type_id.name if record.opt_frame_type_id else ''
+            record.opt_shape = record.opt_shape_id.name if record.opt_shape_id else ''
 
     # ==================== COMPUTED FIELD FOR PRIMARY SUPPLIER ====================
     primary_supplier_id = fields.Many2one('res.partner', string='Nhà cung cấp chính', 

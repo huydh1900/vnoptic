@@ -513,6 +513,10 @@ class ProductSync(models.Model):
                 'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else False,
             })
 
+        # ─── Opt specs (Hướng B: field trực tiếp trên template) ──────────────────────
+        if product_type == 'opt':
+            vals.update(self._prepare_opt_vals(item, cache))
+
         return vals, cache['products'].get(cid)
 
     def _prepare_lens_vals(self, item, cache):
@@ -555,38 +559,42 @@ class ProductSync(models.Model):
         return v
 
     def _prepare_opt_vals(self, item, cache):
-        v = {
-            'season': item.get('season', ''), 'model': item.get('model', ''), 'serial': item.get('serial', ''),
-            'oem_ncc': item.get('oemNcc', ''), 'sku': item.get('sku', ''), 'color': item.get('color', ''),
-            'gender': str(item.get('gender', '')) if item.get('gender') else False,
-            'temple_width': int(item.get('templeWidth') or 0), 'lens_width': int(item.get('lensWidth') or 0),
-            'lens_span': int(item.get('lensSpan') or 0), 'lens_height': int(item.get('lensHeight') or 0),
-            'bridge_width': int(item.get('bridgeWidth') or 0),
-            'color_lens_id': self._get_id(cache, 'colors', self._get_val(item, 'colorLensdto')),
-            'frame_id': self._get_id(cache, 'frames', self._get_val(item, 'framedto')),
-            'frame_type_id': self._get_id(cache, 'frame_types', self._get_val(item, 'frameTypedto')),
-            'shape_id': self._get_id(cache, 'shapes', self._get_val(item, 'shapedto')),
-            've_id': self._get_id(cache, 'ves', self._get_val(item, 'vedto')),
-            'temple_id': self._get_id(cache, 'temples', self._get_val(item, 'templedto')),
-            'material_ve_id': self._get_id(cache, 'materials', self._get_val(item, 'materialVedto')),
-            'material_temple_tip_id': self._get_id(cache, 'materials', self._get_val(item, 'materialTempleTipdto')),
-            'material_lens_id': self._get_id(cache, 'materials', self._get_val(item, 'materialLensdto')),
+        """Map opt specs từ API trực tiếp vào opt_* fields trên product.template."""
+        return {
+            'opt_season': item.get('season', ''),
+            'opt_model': item.get('model', ''),
+            'opt_serial': item.get('serial', ''),
+            'opt_oem_ncc': item.get('oemNcc', ''),
+            'opt_sku': item.get('sku', ''),
+            'opt_color': item.get('color', ''),
+            'opt_gender': str(item.get('gender', '')) if item.get('gender') else False,
+            'opt_temple_width': int(item.get('templeWidth') or 0),
+            'opt_lens_width': int(item.get('lensWidth') or 0),
+            'opt_lens_span': int(item.get('lensSpan') or 0),
+            'opt_lens_height': int(item.get('lensHeight') or 0),
+            'opt_bridge_width': int(item.get('bridgeWidth') or 0),
+            'opt_color_lens_id': self._get_id(cache, 'colors', self._get_val(item, 'colorLensdto')),
+            'opt_frame_id': self._get_id(cache, 'frames', self._get_val(item, 'framedto')),
+            'opt_frame_type_id': self._get_id(cache, 'frame_types', self._get_val(item, 'frameTypedto')),
+            'opt_shape_id': self._get_id(cache, 'shapes', self._get_val(item, 'shapedto')),
+            'opt_ve_id': self._get_id(cache, 'ves', self._get_val(item, 'vedto')),
+            'opt_temple_id': self._get_id(cache, 'temples', self._get_val(item, 'templedto')),
+            'opt_material_ve_id': self._get_id(cache, 'materials', self._get_val(item, 'materialVedto')),
+            'opt_material_temple_tip_id': self._get_id(cache, 'materials', self._get_val(item, 'materialTempleTipdto')),
+            'opt_material_lens_id': self._get_id(cache, 'materials', self._get_val(item, 'materialLensdto')),
         }
-        return v
 
     def _process_batch(self, items, cache, product_type, child_model=None):
         """
         Xử lý batch create/update sản phẩm từ API.
-        - Với 'lens': lens specs đã được map trực tiếp vào template (Hướng B).
-          Không cần child model hay variant riêng.
-        - Với 'opt': vẫn dùng child model product.opt như cũ.
-        - Với loại khác: chỉ tạo/update product.template.
+        - Lens và Opt: specs đã được map trực tiếp vào template (Hướng B).
+        - Accessory và các loại khác: chỉ tạo/update product.template.
         """
         total = len(items)
         success = failed = 0
         to_create, to_update = [], []
 
-        has_child = child_model and child_model in self.env
+        has_child = False  # Hướng B: không còn dùng child model cho lens hay opt
         child_vals_map = {}    # tmpl_id → child_vals (cho opt)
         new_child_data = []    # [(idx, child_vals)] cho opt create
 
@@ -705,9 +713,9 @@ class ProductSync(models.Model):
             stats['failed'] = f
             self.env.cr.commit()
             
-            # Opt
+            # Opt – specs đã map trực tiếp vào template (Hướng B)
             items = self._fetch_all_items(cfg['opts_endpoint'], token, 'Optical', limit)
-            s, f = self._process_batch(items, cache, 'opt', 'product.opt')
+            s, f = self._process_batch(items, cache, 'opt')  # Không dùng child_model
             stats['opt'] = s
             stats['failed'] += f
             self.env.cr.commit()
