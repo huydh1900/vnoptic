@@ -28,6 +28,20 @@
             
             <!-- Removed product_type selection from header -->
             
+            <!-- Add Giá & Bảo hành into general_information tab -->
+            <xpath expr="//sheet/notebook/page[@name='general_information']" position="inside">
+                <group string="Giá &amp; Bảo hành" invisible="not is_opt">
+                    <group>
+                        <field name="don_vi_nguyen_te" string="Đơn vị nguyên tệ" options="{'no_create': True}"/>
+                        <field name="x_or_price" string="Giá nhập kho"/>
+                        <field name="x_ws_price" string="Giá bán sỉ"/>
+                        <field name="gia_si_theo_phan_tram" string="Giá sỉ theo %" readonly="1" invisible="1"/>
+                        <field name="x_ws_price_max" string="Giá sỉ tối đa"/>
+                        <field name="x_ws_price_min" string="Giá sỉ tối thiểu"/>
+                    </group>
+                </group>
+            </xpath>
+
             <!-- Add Product General Info Section -->
             <xpath expr="//sheet/notebook/page[@name='general_information']/group" position="before">
                 <group string="Phân loại sản phẩm">
@@ -144,16 +158,15 @@
                       invisible="not is_opt">
                     <group string="Thông tin chung">
                         <group>
-                            <field name="short_code"/>
+                            <field name="default_code" string="Mã sản phẩm"/>
                             <field name="opt_season"/>
                             <field name="opt_model"/>
                             <field name="opt_serial"/>
                             <field name="opt_sku"/>
                         </group>
                         <group>
-                            <field name="opt_color"/>
-                            <field name="opt_oem_ncc"/>
-                            <field name="opt_gender"/>
+                            <field name="opt_color" string="Mã màu"/>
+                            <field name="opt_oem_ncc" string="Mã gốc NCC"/>
                         </group>
                     </group>
                 </page>
@@ -170,6 +183,7 @@
                         <group>
                             <field name="opt_ve_id" options="{'no_create': True}"/>
                             <field name="opt_temple_id" options="{'no_create': True}"/>
+                            <field name="opt_gender" string="Giới tính"/>
                         </group>
                     </group>
                 </page>
@@ -199,9 +213,9 @@
                       invisible="not is_opt">
                     <group string="Màu sắc">
                         <group>
-                            <field name="opt_color_front_id" options="{'no_create': True}"/>
-                            <field name="opt_color_temple_id" options="{'no_create': True}"/>
-                            <field name="opt_color_lens_id" options="{'no_create': True}"/>
+                            <field name="opt_color_front_id" string="Màu mặt trước" options="{'no_create': True}"/>
+                            <field name="opt_color_temple_id" string="Màu càng kính" options="{'no_create': True}"/>
+                            <field name="opt_color_lens_id" string="Màu mắt kính (trường mắt)" options="{'no_create': True}"/>
                         </group>
                     </group>
                 </page>
@@ -231,8 +245,9 @@
                                    options="{'no_create': True}"/>
                         </group>
                         <group>
-                            <field name="manufacturer_months" readonly="1"/>
-                            <field name="company_months" readonly="1"/>
+                            <field name="manufacturer_months" string="Bảo hành hãng (tháng)"/>
+                            <field name="company_months" string="Bảo hành công ty (tháng)"/>
+                            <field name="bao_hanh_ban_le" string="Bảo hành bán lẻ (tháng)"/>
                         </group>
                     </group>
                 </page>
@@ -253,77 +268,7 @@
                     </group>
                 </page>
 
-                <!-- Tab Gọng 8: Thông tin chi tiết (chuẩn RS) -->
-                <page string="Thông tin chi tiết" name="frame_detail_information"
-                      invisible="not is_opt">
-                    <group string="Thông tin gọng">
-                        <group>
-                            <field name="opt_oem_ncc" string="Mã gốc NCC"/>
-                            <field name="opt_sku" string="SKU"/>
-                            <field name="opt_serial" string="Serial"/>
-                            <field name="opt_model" string="Model"/>
-                            <field name="opt_color" string="Mã màu"/>
-                            <field name="opt_season" string="Season"/>
-                        </group>
-                    </group>
-                    <group string="Thiết kế">
-                        <group>
-                            <field name="opt_frame_type_id" string="Loại gọng" options="{'no_create': True}"/>
-                            <field name="opt_frame_id" string="Kiểu loại" options="{'no_create': True}"/>
-                            <field name="opt_gender" string="Giới tính"/>
-                            <field name="opt_shape_id" string="Kiểu dáng" options="{'no_create': True}"/>
-                            <field name="opt_ve_id" string="Ve" options="{'no_create': True}"/>
-                            <field name="opt_temple_id" string="Chuôi càng" options="{'no_create': True}"/>
-                        </group>
-                    </group>
-                    <group string="Vật liệu">
-                        <group>
-                            <field name="opt_materials_front_ids" string="Vật liệu mặt trước"
-                                   widget="many2many_tags" options="{'no_create': True}"/>
-                            <field name="opt_materials_temple_ids" string="Vật liệu càng"
-                                   widget="many2many_tags" options="{'no_create': True}"/>
-                            <field name="opt_material_ve_id" string="Vật liệu ve" options="{'no_create': True}"/>
-                            <field name="opt_material_temple_tip_id" string="Vật liệu chuôi càng" options="{'no_create': True}"/>
-                            <field name="opt_material_lens_id" string="Vật liệu mắt kính" options="{'no_create': True}"/>
-                            <field name="opt_coating_ids" string="Lớp mạ"
-                                   widget="many2many_tags" options="{'no_create': True}"/>
-                        </group>
-                    </group>
-                    <group string="Màu sắc">
-                        <group>
-                            <field name="opt_color_front_id" string="Màu mặt trước" options="{'no_create': True}"/>
-                            <field name="opt_color_temple_id" string="Màu càng kính" options="{'no_create': True}"/>
-                            <field name="opt_color_lens_id" string="Màu mắt kính" options="{'no_create': True}"/>
-                        </group>
-                    </group>
-                    <group string="Kích thước (mm)">
-                        <group>
-                            <field name="opt_temple_width" string="Dài gọng"/>
-                            <field name="dai_mat" string="Dài mắt"/>
-                            <field name="ngang_mat" string="Ngang mắt"/>
-                            <field name="opt_lens_height" string="Cao mắt"/>
-                            <field name="opt_bridge_width" string="Dài cầu"/>
-                        </group>
-                    </group>
-                    <group string="Giá &amp; Bảo hành">
-                        <group>
-                            <field name="x_or_price" string="Giá nguyên tệ"/>
-                            <field name="don_vi_nguyen_te" string="Đơn vị nguyên tệ" options="{'no_create': True}"/>
-                            <field name="standard_price" string="Giá nhập kho"/>
-                            <field name="x_ws_price_max" string="Giá sỉ tối đa"/>
-                            <field name="x_ws_price_min" string="Giá sỉ tối thiểu"/>
-                            <field name="gia_si_theo_phan_tram" string="Giá sỉ theo %"/>
-                            <field name="list_price" string="Giá bán lẻ"/>
-                        </group>
-                        <group>
-                            <field name="manufacturer_months" string="Bảo hành hãng (tháng)" readonly="1"/>
-                            <field name="company_months" string="Bảo hành công ty (tháng)" readonly="1"/>
-                            <field name="bao_hanh_ban_le" string="Bảo hành bán lẻ (tháng)"/>
-                        </group>
-                    </group>
-                </page>
-
-                <!-- Tab Legacy: product.opt cũ (chỉ hiện khi còn dữ liệu chưa migrate) -->
+                <!-- Tab Legacy: product.opt cũ (chỉ hiện khi còn dữ liệu chưa migrate)
                 <page string="⚠ Dữ liệu Cũ (product.opt)" name="product_opt_legacy"
                       invisible="not is_opt or not opt_ids">
                     <div class="alert alert-warning" role="alert">
@@ -342,7 +287,7 @@
                         </list>
                     </field>
                 </page>
-                
+                 -->
             </xpath>
         </field>
     </record>

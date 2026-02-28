@@ -280,6 +280,12 @@ class ProductSync(models.Model):
         if 'product.opt' in self.env:
             cache['opt_records'] = {o['product_tmpl_id'][0]: o['id'] for o in self.env['product.opt'].search_read([], ['id', 'product_tmpl_id']) if o.get('product_tmpl_id')}
 
+        # Also index colors by name for fallback (colorLensdto from API may have no cid)
+        if 'product.cl' in self.env:
+            for r in self.env['product.cl'].search_read([], ['id', 'name']):
+                if r.get('name'):
+                    cache['colors'].setdefault(r['name'].upper(), r['id'])
+
         return cache
 
     def _get_val(self, item, key, subkey='cid'):
@@ -287,6 +293,37 @@ class ProductSync(models.Model):
 
     def _get_id(self, cache, key, val):
         return cache.get(key, {}).get(val.upper(), False) if val else False
+
+    def _get_id_with_fallback(self, cache, key, dto):
+        """Lookup id by cid first, then name as fallback.
+        If not found and DTO has name, auto-create a product.cl record."""
+        if not dto:
+            return False
+        cid = (dto.get('cid') or '').strip().upper()
+        name = (dto.get('name') or '').strip()
+        name_upper = name.upper()
+
+        found = (cache.get(key, {}).get(cid) if cid else None) \
+             or (cache.get(key, {}).get(name_upper) if name_upper else None)
+        if found:
+            return found
+
+        # Auto-create product.cl record if we have at least a name
+        if name and key == 'colors':
+            try:
+                vals = {'name': name}
+                if cid:
+                    vals['cid'] = cid
+                rec = self.env['product.cl'].create(vals)
+                rid = rec.id
+                if cid:
+                    cache.setdefault(key, {})[cid] = rid
+                cache.setdefault(key, {})[name_upper] = rid
+                _logger.info(f"✅ Auto-created product.cl cid={cid!r} name={name!r}")
+                return rid
+            except Exception as e:
+                _logger.warning(f"⚠️ Không tạo được product.cl cid={cid!r} name={name!r}: {e}")
+        return False
 
     def _get_or_create(self, cache, cache_key, model_name, dto):
         if not dto: return False
@@ -456,6 +493,15 @@ class ProductSync(models.Model):
                     status_id = ns.id
                     cache['statuses'][status_key] = status_id
 
+        # Currency lookup for don_vi_nguyen_te
+        currency_zone_cid = (dto.get('currencyZoneDTO') or {}).get('cid', '')
+        don_vi_nguyen_te_id = False
+        if currency_zone_cid:
+            currency = self.env['res.currency'].search(
+                [('name', '=', currency_zone_cid.upper())], limit=1
+            )
+            don_vi_nguyen_te_id = currency.id if currency else False
+
         # Basic Vals
         vals = {
             'name': dto.get('fullname') or 'Unknown',
@@ -466,7 +512,7 @@ class ProductSync(models.Model):
             'uom_id': self.env.ref('uom.product_uom_unit').id,
             'uom_po_id': self.env.ref('uom.product_uom_unit').id,
             'list_price': float(dto.get('rtPrice') or 0),
-            'standard_price': float(dto.get('orPrice') or 0),
+            'standard_price': float(dto.get('wsPriceMin') or 0),  # Giá sỉ tối thiểu VND
             'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else False,
             'seller_ids': seller_vals if seller_vals else False,
             'product_type': product_type,
@@ -488,7 +534,21 @@ class ProductSync(models.Model):
             'x_currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
             'x_currency_zone_value': float((dto.get('currencyZoneDTO') or {}).get('value') or 0),
             'x_ws_price': float(dto.get('wsPrice') or 0),
-            'x_or_price': float(dto.get('orPrice') or 0),
+            'x_ws_price_min': float(dto.get('wsPriceMin') or 0),
+            'x_ws_price_max': float(dto.get('wsPriceMax') or 0),
+            # x_or_price = giá nhập kho quy VND: orPrice (ngoại tệ) * tỷ giá
+            'x_or_price': float(dto.get('orPrice') or 0) * float((dto.get('currencyZoneDTO') or {}).get('value') or 1),
+            'don_vi_nguyen_te': don_vi_nguyen_te_id,
+            'manufacturer_months': int(
+                (dto.get('warrantydto') or {}).get('manufacturerMonths')
+                or dto.get('manufacturerWarrantyMonths')
+                or 0
+            ),
+            'company_months': int(
+                (dto.get('warrantydto') or {}).get('companyMonths')
+                or dto.get('companyWarrantyMonths')
+                or 0
+            ),
             'x_group_type_name': grp_type_name,
         }
 
@@ -646,7 +706,7 @@ class ProductSync(models.Model):
             'opt_lens_span': int(item.get('lensSpan') or 0),
             'opt_lens_height': int(item.get('lensHeight') or 0),
             'opt_bridge_width': int(item.get('bridgeWidth') or 0),
-            'opt_color_lens_id': self._get_id(cache, 'colors', self._get_val(item, 'colorLensdto')),
+            'opt_color_lens_id': self._get_id_with_fallback(cache, 'colors', item.get('colorLensdto')),
             'opt_frame_id': self._get_id(cache, 'frames', self._get_val(item, 'framedto')),
             'opt_frame_type_id': self._get_id(cache, 'frame_types', self._get_val(item, 'frameTypedto')),
             'opt_shape_id': self._get_id(cache, 'shapes', self._get_val(item, 'shapedto')),
@@ -656,8 +716,8 @@ class ProductSync(models.Model):
             'opt_material_temple_tip_id': self._get_id(cache, 'materials', self._get_val(item, 'materialTempleTipdto')),
             'opt_material_lens_id': self._get_id(cache, 'materials', self._get_val(item, 'materialLensdto')),
             # ─── Mỹ thuật màu sắc (cơ bản) ────────────────────────────────────────────
-            'opt_color_front_id': self._get_id(cache, 'colors', self._get_val(item, 'colorFrontdto')),
-            'opt_color_temple_id': self._get_id(cache, 'colors', self._get_val(item, 'colorTempledto')),
+            'opt_color_front_id': self._get_id_with_fallback(cache, 'colors', item.get('colorFrontdto')),
+            'opt_color_temple_id': self._get_id_with_fallback(cache, 'colors', item.get('colorTempledto')),
             # ─── Chất liệu Many2many ─────────────────────────────────────────────────────
             'opt_materials_front_ids': self._resolve_m2m_ids(
                 item.get('materialFrontdtos'), 'materials', cache,
@@ -676,11 +736,6 @@ class ProductSync(models.Model):
             # ─── RS adapter: field mới chuẩn hóa theo RS (dai_mat, ngang_mat, ...) ───
             'dai_mat': float(item.get('lensLength') or item.get('daiMat') or 0),
             'ngang_mat': float(item.get('lensWidth') or item.get('nangMat') or 0),
-            'gia_si_theo_phan_tram': float(
-                (item.get('productdto') or {}).get('wsPricePct')
-                or item.get('giaSiTheoPhanTram')
-                or 0
-            ),
             'bao_hanh_ban_le': int(
                 (item.get('productdto') or {}).get('retailWarrantyMonths')
                 or item.get('baoHanhBanLe')

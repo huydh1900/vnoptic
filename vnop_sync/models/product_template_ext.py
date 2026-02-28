@@ -206,6 +206,7 @@ class ProductTemplateExtension(models.Model):
     opt_temple_width = fields.Integer('Chiều dài càng (mm)')
     opt_lens_width = fields.Integer('Chiều rộng tròng (mm)')
     opt_lens_span = fields.Integer('Khoảng cách tròng (mm)')
+    opt_lens_span = fields.Integer('Khoảng cách tròng (mm)')
     opt_lens_height = fields.Integer('Chiều cao tròng (mm)')
     opt_bridge_width = fields.Integer('Cầu mũi (mm)')
 
@@ -254,16 +255,16 @@ class ProductTemplateExtension(models.Model):
         help='Chọn chính sách bảo hành áp dụng cho sản phẩm'
     )
     manufacturer_months = fields.Integer(
-        related='warranty_template_id.manufacturer_months',
         string='Bảo hành NSX (tháng)',
-        readonly=True,
+        default=0,
         store=True,
+        help='Số tháng bảo hành do nhà sản xuất cung cấp (tự động lấy từ warranty_id hoặc sync API)'
     )
     company_months = fields.Integer(
-        related='warranty_template_id.company_months',
         string='Bảo hành công ty (tháng)',
-        readonly=True,
+        default=0,
         store=True,
+        help='Số tháng bảo hành do công ty cam kết thêm (tự động lấy từ warranty_id hoặc sync API)'
     )
 
     # ==================== RS FRAME FIELDS (field mới, không trùng opt_*) ====================
@@ -278,12 +279,21 @@ class ProductTemplateExtension(models.Model):
         digits=(6, 2),
         help='Chiều ngang mắt kính – RS field: ngang_mat'
     )
-    # Giá
+    # Giá sỉ theo % = list_price * x_ws_price / 100 (computed, readonly)
     gia_si_theo_phan_tram = fields.Float(
-        'Giá sỉ theo % (RS)',
-        digits=(6, 2),
-        help='Tỷ lệ % chiết khấu sỉ – RS field: gia_si_theo_phan_tram'
+        'Giá sỉ theo %',
+        digits=(10, 2),
+        compute='_compute_gia_si_theo_phan_tram',
+        store=True,
+        readonly=True,
+        help='Số tiền chiết khấu sỉ = Giá bán lẻ × Tỷ lệ sỉ% / 100'
     )
+
+    @api.depends('list_price', 'x_ws_price')
+    def _compute_gia_si_theo_phan_tram(self):
+        for record in self:
+            record.gia_si_theo_phan_tram = record.list_price * record.x_ws_price / 100.0
+
     # Đơn vị nguyên tệ
     don_vi_nguyen_te = fields.Many2one(
         'res.currency',
