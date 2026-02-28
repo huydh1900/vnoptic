@@ -118,6 +118,13 @@ class ProductTemplateExtension(models.Model):
         help="Product group type from API - for reference only"
     )
 
+    lens_template_key = fields.Char(
+        'Lens Template Key',
+        index=True,
+        copy=False,
+        help='Key gom template lens (CID + Index + Material + Coating + Diameter + Brand)'
+    )
+
     # ==================== PRODUCT TYPE (for sync categorization) ====================
     product_type = fields.Selection([
         ('lens', 'Tròng kính'),
