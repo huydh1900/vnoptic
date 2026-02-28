@@ -140,8 +140,7 @@
                      ══════════════════════════════════════════════════════════ -->
 
                 <!-- Tab Gọng 1: Thông tin cơ bản -->
-                <page string="Thông tin Gọng" name="product_opt_info"
-                      invisible="not is_opt">
+                    <page string="Thông tin Gọng" name="product_opt_info">
                     <group string="Thông tin chung">
                         <group>
                             <field name="short_code"/>
@@ -159,8 +158,7 @@
                 </page>
 
                 <!-- Tab Gọng 2: Thiết kế -->
-                <page string="Thiết kế Gọng" name="product_opt_design"
-                      invisible="not is_opt">
+                    <page string="Thiết kế Gọng" name="product_opt_design">
                     <group string="Kiểu dáng">
                         <group>
                             <field name="opt_frame_id" options="{'no_create': True}"/>
@@ -175,8 +173,7 @@
                 </page>
 
                 <!-- Tab Gọng 3: Chất liệu -->
-                <page string="Chất liệu Gọng" name="product_opt_material"
-                      invisible="not is_opt">
+                    <page string="Chất liệu Gọng" name="product_opt_material">
                     <group string="Chất liệu">
                         <group>
                             <field name="opt_materials_front_ids" widget="many2many_tags"
@@ -195,8 +192,7 @@
                 </page>
 
                 <!-- Tab Gọng 4: Màu sắc -->
-                <page string="Màu sắc Gọng" name="product_opt_color"
-                      invisible="not is_opt">
+                    <page string="Màu sắc Gọng" name="product_opt_color">
                     <group string="Màu sắc">
                         <group>
                             <field name="opt_color_front_id" options="{'no_create': True}"/>
@@ -207,8 +203,7 @@
                 </page>
 
                 <!-- Tab Gọng 5: Kích thước -->
-                <page string="Kích thước Gọng" name="product_opt_size"
-                      invisible="not is_opt">
+                    <page string="Kích thước Gọng" name="product_opt_size">
                     <group string="Kích thước (mm)">
                         <group>
                             <field name="opt_temple_width"/>
@@ -223,25 +218,21 @@
                 </page>
 
                 <!-- Tab Gọng 6: Bảo hành -->
-                <page string="Bảo hành Gọng" name="product_opt_warranty"
-                      invisible="not is_opt">
+                    <page string="Bảo hành Gọng" name="product_opt_warranty">
                     <group string="Chính sách bảo hành">
                         <group>
                             <field name="warranty_template_id"
                                    options="{'no_create': True}"/>
                         </group>
                         <group>
-                            <field name="warranty_template_id.manufacturer_months"
-                                   string="Bảo hành NSX (tháng)" readonly="1"/>
-                            <field name="warranty_template_id.company_months"
-                                   string="Bảo hành công ty (tháng)" readonly="1"/>
+                            <field name="manufacturer_months" readonly="1"/>
+                            <field name="company_months" readonly="1"/>
                         </group>
                     </group>
                 </page>
 
                 <!-- Tab Gọng 7: Phụ kiện đi kèm -->
-                <page string="Phụ kiện đi kèm" name="product_opt_accessories"
-                      invisible="not is_opt">
+                    <page string="Phụ kiện đi kèm" name="product_opt_accessories">
                     <group string="Phụ kiện">
                         <group>
                             <field name="has_box"/>
@@ -256,8 +247,8 @@
                 </page>
 
                 <!-- Tab Legacy: product.opt cũ (chỉ hiện khi còn dữ liệu chưa migrate) -->
-                <page string="⚠ Dữ liệu Cũ (product.opt)" name="product_opt_legacy"
-                      invisible="not is_opt or not opt_ids">
+                    <page string="⚠ Dữ liệu Cũ (product.opt)" name="product_opt_legacy"
+                        invisible="not opt_ids">
                     <div class="alert alert-warning" role="alert">
                         <strong>⚠️ Dữ liệu Legacy:</strong> Tab này hiển thị dữ liệu cũ từ model <em>product.opt</em>.
                         Hãy chạy wizard <b>Migrate Opt Data → Fields</b> (menu Cấu hình) để chuyển

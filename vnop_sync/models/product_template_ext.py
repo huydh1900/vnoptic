@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
+import logging
 from odoo import models, fields, api
+
+_logger = logging.getLogger(__name__)
 
 
 class ProductCategory(models.Model):
@@ -22,13 +25,38 @@ class ProductTemplateExtension(models.Model):
     is_lens = fields.Boolean(compute='_compute_product_kind', store=True)
     is_opt = fields.Boolean(compute='_compute_product_kind', store=True)
 
-    @api.depends('categ_id', 'categ_id.code')
+    @api.depends('product_type')
     def _compute_product_kind(self):
         for record in self:
-            code = record.categ_id.code
-            # 06 = Lens, 27 = Opt (Frame)
-            record.is_lens = (code == '06')
-            record.is_opt = (code == '27')
+            record.is_opt = record.product_type == 'opt'
+            record.is_lens = record.product_type == 'lens'
+            _logger.warning(
+                "[VNOPTIC] compute is_opt/is_lens: id=%s name=%s product_type=%s is_opt=%s is_lens=%s",
+                record.id,
+                record.name,
+                record.product_type,
+                record.is_opt,
+                record.is_lens,
+            )
+
+    def read(self, fields=None, load='_classic_read'):
+        res = super().read(fields=fields, load=load)
+        try:
+            params = self.env.context.get('params') or {}
+            if params.get('view_type') == 'form':
+                if not fields or any(f in (fields or []) for f in ('is_opt', 'is_lens', 'product_type')):
+                    for rec in self:
+                        _logger.warning(
+                            "[VNOPTIC] form read: id=%s name=%s product_type=%s is_opt=%s is_lens=%s",
+                            rec.id,
+                            rec.name,
+                            rec.product_type,
+                            rec.is_opt,
+                            rec.is_lens,
+                        )
+        except Exception:
+            pass
+        return res
 
     # Keep product_type for now but make it computed or optional if needed
     # For now we just add the new logic alongside
@@ -243,6 +271,7 @@ class ProductTemplateExtension(models.Model):
     # ==================== SHORT CODE ====================
     short_code = fields.Char(
         string='Mã viết tắt',
+        required=True,
         index=True,
         copy=False,
         help='Mã viết tắt duy nhất cho sản phẩm gọng kính'
@@ -253,6 +282,18 @@ class ProductTemplateExtension(models.Model):
         'product.warranty.template',
         string='Chính sách bảo hành',
         help='Chọn chính sách bảo hành áp dụng cho sản phẩm'
+    )
+    manufacturer_months = fields.Integer(
+        related='warranty_template_id.manufacturer_months',
+        string='Bảo hành NSX (tháng)',
+        readonly=True,
+        store=True,
+    )
+    company_months = fields.Integer(
+        related='warranty_template_id.company_months',
+        string='Bảo hành công ty (tháng)',
+        readonly=True,
+        store=True,
     )
 
     # ==================== ACCESSORIES ====================
