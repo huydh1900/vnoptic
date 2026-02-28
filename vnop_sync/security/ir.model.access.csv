@@ -32,3 +32,4 @@ access_product_warranty_template_user,product.warranty.template user,model_produ
 access_product_warranty_template_manager,product.warranty.template manager,model_product_warranty_template,base.group_system,1,1,1,1
 access_lens_variant_migration_wizard,lens.variant.migration.wizard user,model_lens_variant_migration_wizard,base.group_system,1,1,1,1
 access_opt_migration_wizard,opt.migration.wizard user,model_opt_migration_wizard,base.group_system,1,1,1,1
+access_lens_cleanup_wizard,lens.cleanup.wizard user,model_lens_cleanup_wizard,base.group_system,1,1,1,1

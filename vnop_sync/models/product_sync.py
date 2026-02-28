@@ -4,6 +4,7 @@ import json
 import os
 import time
 import random
+import re
 import requests
 import urllib3
 from collections import defaultdict
@@ -379,13 +380,83 @@ class ProductSync(models.Model):
     def _resolve_lens_coatings(self, item, cache):
         coating_ids = []
         coating_codes = []
-        for c in (item.get('coatingdtos') or []):
+        raw_coatings = (
+            item.get('coatingdtos')
+            or item.get('coatingDtos')
+            or item.get('coatingDTOs')
+            or item.get('coatingdto')
+            or item.get('coatingDto')
+            or item.get('coatingDTO')
+            or item.get('coatings')
+            or item.get('coating')
+            or item.get('coatingCode')
+            or item.get('coatingName')
+            or []
+        )
+
+        normalized = []
+        if isinstance(raw_coatings, dict):
+            normalized = [raw_coatings]
+        elif isinstance(raw_coatings, str):
+            # e.g. "HMC, BlueCut"
+            normalized = [{'name': c.strip()} for c in raw_coatings.split(',') if c.strip()]
+        elif isinstance(raw_coatings, (list, tuple)):
+            for item_c in raw_coatings:
+                if isinstance(item_c, dict):
+                    normalized.append(item_c)
+                elif isinstance(item_c, str) and item_c.strip():
+                    normalized.append({'name': item_c.strip()})
+
+        for c in normalized:
             c_cid = (c.get('cid') or '').strip().upper()
+            c_name = (c.get('name') or '').strip()
             if c_cid:
                 coating_codes.append(c_cid)
-            cid_val = cache.get('coatings', {}).get(c_cid)
-            if cid_val:
-                coating_ids.append(cid_val)
+            elif c_name:
+                coating_codes.append(c_name.upper())
+
+            coating_id = False
+            if c_cid:
+                coating_id = cache.get('coatings', {}).get(c_cid)
+            if not coating_id and c_name:
+                coating_id = cache.get('coatings', {}).get(c_name.upper())
+
+            if not coating_id and (c_cid or c_name):
+                # Fallback DB lookup (cache có thể stale nếu data mới được tạo bên ngoài sync)
+                domain = []
+                if c_cid:
+                    domain = [('cid', '=', c_cid)]
+                elif c_name:
+                    domain = [('name', '=', c_name)]
+                found = self.env['product.coating'].search(domain, limit=1) if domain else False
+                if found:
+                    coating_id = found.id
+                    if c_cid:
+                        cache.setdefault('coatings', {})[c_cid] = coating_id
+                    if c_name:
+                        cache.setdefault('coatings', {})[c_name.upper()] = coating_id
+
+            if not coating_id and c_name:
+                # Tạo mới để đảm bảo x_coating_id có dữ liệu khi RS chỉ trả name
+                try:
+                    create_vals = {'name': c_name}
+                    if c_cid and 'cid' in self.env['product.coating']._fields:
+                        create_vals['cid'] = c_cid
+                    rec = self.env['product.coating'].create(create_vals)
+                    coating_id = rec.id
+                    if c_cid:
+                        cache.setdefault('coatings', {})[c_cid] = coating_id
+                    cache.setdefault('coatings', {})[c_name.upper()] = coating_id
+                    _logger.info("✅ Auto-created product.coating cid=%s name=%s", c_cid or None, c_name)
+                except Exception as e:
+                    _logger.warning("⚠️ Không tạo được product.coating cid=%s name=%s: %s", c_cid or None, c_name, e)
+
+            if coating_id:
+                coating_ids.append(coating_id)
+
+        if not normalized:
+            _logger.info("🔎 _resolve_lens_coatings: no coating payload found in known keys")
+
         return coating_ids, coating_codes
 
     def _build_lens_template_key(self, item, coating_codes):
@@ -399,6 +470,42 @@ class ProductSync(models.Model):
         return lens_variant_utils.build_lens_template_key(
             cid, index_code, material_code, coating_codes, diameter, brand_code
         )
+
+    def _cleanup_lens_template_variants(self, tmpl):
+        """Chuẩn hoá lens template: xóa attribute lines và giữ 1 variant duy nhất."""
+        if not tmpl:
+            return
+
+        # 1) Xóa toàn bộ thuộc tính biến thể (SPH/CYL/ADD cũ)
+        if tmpl.attribute_line_ids:
+            attr_count = len(tmpl.attribute_line_ids)
+            tmpl.with_context(tracking_disable=True).write({
+                'attribute_line_ids': [(5, 0, 0)]
+            })
+            _logger.info("🧹 Lens cleanup tmpl=%s: removed attribute lines=%s", tmpl.id, attr_count)
+
+        # 2) Giữ đúng 1 variant
+        variants = tmpl.product_variant_ids.sorted('id')
+        if len(variants) <= 1:
+            return
+
+        keep_variant = tmpl.product_variant_id or variants[0]
+        extra_variants = variants - keep_variant
+        if not extra_variants:
+            return
+
+        try:
+            extra_count = len(extra_variants)
+            extra_variants.with_context(tracking_disable=True, active_test=False).unlink()
+            _logger.info(
+                "🧹 Lens cleanup tmpl=%s: removed extra variants=%s keep=%s",
+                tmpl.id, extra_count, keep_variant.id
+            )
+        except Exception as e:
+            _logger.warning(
+                "⚠️ Lens cleanup tmpl=%s: cannot unlink extra variants (%s). Error: %s",
+                tmpl.id, len(extra_variants), e
+            )
 
     def _get_or_create_lens_template(self, item, cache):
         coating_ids, coating_codes = self._resolve_lens_coatings(item, cache)
@@ -414,48 +521,31 @@ class ProductSync(models.Model):
         if tmpl_id:
             tmpl = self.env['product.template'].browse(tmpl_id)
             tmpl.write(vals)
+            self._cleanup_lens_template_variants(tmpl)
+            _logger.info(
+                "🔍 Lens [UPDATE] %s | material=%s | index=%s | coating=%s | design1=%s",
+                tmpl.name,
+                tmpl.x_material_id.name if tmpl.x_material_id else None,
+                tmpl.x_refractive_index_id.name if tmpl.x_refractive_index_id else None,
+                tmpl.x_coating_id.name if tmpl.x_coating_id else None,
+                tmpl.lens_design1_id.name if tmpl.lens_design1_id else None,
+            )
             return tmpl
 
         tmpl = self.env['product.template'].with_context(tracking_disable=True).create(vals)
+        self._cleanup_lens_template_variants(tmpl)
         cache.setdefault('lens_templates', {})[template_key] = tmpl.id
         if tmpl.default_code:
             cache['products'][tmpl.default_code] = tmpl.id
+        _logger.info(
+            "🔍 Lens [CREATE] %s | material=%s | index=%s | coating=%s | design1=%s",
+            tmpl.name,
+            tmpl.x_material_id.name if tmpl.x_material_id else None,
+            tmpl.x_refractive_index_id.name if tmpl.x_refractive_index_id else None,
+            tmpl.x_coating_id.name if tmpl.x_coating_id else None,
+            tmpl.lens_design1_id.name if tmpl.lens_design1_id else None,
+        )
         return tmpl
-
-    def _get_or_create_lens_variant(self, template, item):
-        sph = lens_variant_utils.format_power_value(item.get('sph'))
-        cyl = lens_variant_utils.format_power_value(item.get('cyl'))
-        if not sph or not cyl:
-            _logger.warning(
-                f"⚠️ Lens variant bỏ qua: thiếu SPH/CYL (tmpl_id={template.id})."
-            )
-            return False
-
-        add_raw = item.get('lensAdd')
-        add_val = lens_variant_utils.format_power_value(add_raw)
-
-        attr_sph = lens_variant_utils.get_or_create_attribute(self.env, 'SPH')
-        attr_cyl = lens_variant_utils.get_or_create_attribute(self.env, 'CYL')
-        attr_add = lens_variant_utils.get_or_create_attribute(self.env, 'ADD') if add_val else False
-
-        val_sph = lens_variant_utils.get_or_create_attribute_value(self.env, attr_sph, sph)
-        val_cyl = lens_variant_utils.get_or_create_attribute_value(self.env, attr_cyl, cyl)
-        val_add = lens_variant_utils.get_or_create_attribute_value(self.env, attr_add, add_val) if attr_add else False
-
-        lens_variant_utils.ensure_attribute_line(template, attr_sph, [val_sph.id])
-        lens_variant_utils.ensure_attribute_line(template, attr_cyl, [val_cyl.id])
-        if attr_add and val_add:
-            lens_variant_utils.ensure_attribute_line(template, attr_add, [val_add.id])
-
-        value_ids = [val_sph.id, val_cyl.id]
-        if val_add:
-            value_ids.append(val_add.id)
-
-        variant = lens_variant_utils.find_variant_by_values(template, value_ids)
-        if variant:
-            return variant
-
-        return lens_variant_utils.create_variant(template, value_ids)
 
     def _get_default_stock_location(self):
         # Prefer warehouse stock location for current company
@@ -545,13 +635,13 @@ class ProductSync(models.Model):
         )
 
     def _sync_lens_stock(self, token, cfg, cache):
-        # Update stock.quant for existing variants only
+        # Update stock.quant for template default variant only (aggregate by template key)
         records = self._fetch_lens_stock(token, cfg)
         total = len(records)
         updated = 0
         skipped = 0
-        missing_variant = 0
         missing_template = 0
+        missing_variant = 0
 
         location = self._get_default_stock_location()
         if not location:
@@ -560,16 +650,22 @@ class ProductSync(models.Model):
 
         _logger.info(f"📦 Lens stock records: {total}")
 
+        qty_by_template = defaultdict(int)
         for rec in records:
             try:
-                # Safe cast quantity from API (None -> 0, string -> int)
                 try:
                     qty_val = int(float(rec.get('quantity') or 0))
                 except (TypeError, ValueError):
                     qty_val = 0
-
-                # Resolve template by key (no creation)
                 template_key = self._build_lens_template_key_from_stock(rec)
+                if not template_key:
+                    continue
+                qty_by_template[template_key] += qty_val
+            except Exception as e:
+                _logger.warning(f"⚠️ Lỗi xử lý record tồn kho lens: {e}")
+
+        for template_key, qty_val in qty_by_template.items():
+            try:
                 tmpl_id = cache.get('lens_templates', {}).get(template_key)
                 if not tmpl_id:
                     tmpl = self.env['product.template'].search([
@@ -581,19 +677,12 @@ class ProductSync(models.Model):
                     missing_template += 1
                     continue
 
-                # Find variant; do not create attributes/variants
                 tmpl = self.env['product.template'].browse(tmpl_id)
-                variant = self._get_lens_variant(
-                    tmpl,
-                    rec.get('sph'),
-                    rec.get('cyl'),
-                    rec.get('add') or rec.get('ADD')
-                )
+                variant = tmpl.product_variant_id
                 if not variant:
                     missing_variant += 1
                     continue
 
-                # Upsert quant at default internal location
                 quant = self.env['stock.quant'].search([
                     ('product_id', '=', variant.id),
                     ('location_id', '=', location.id)
@@ -822,10 +911,57 @@ class ProductSync(models.Model):
             'x_group_type_name': grp_type_name,
         }
 
-        # ─── Lens specs (template-level only; SPH/CYL/ADD -> variant) ─────
+        # ─── Lens specs (template-level only; no variants) ────────────────
         if product_type == 'lens':
-            design_name = (item.get('design') or '').strip().upper()
-            material_name = (item.get('material') or '').strip().lower()
+            def safe_float(val):
+                if val in (None, '', False):
+                    return None
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    return None
+
+            def safe_int(val):
+                if val in (None, '', False):
+                    return None
+                try:
+                    return int(str(val).replace('mm', '').replace('MM', '').strip())
+                except (TypeError, ValueError):
+                    return None
+
+            def pick_value(source, keys):
+                for key in keys:
+                    if key in source:
+                        val = source.get(key)
+                        if val not in (None, '', False):
+                            return val
+                return None
+
+            def extract_number(raw):
+                if isinstance(raw, dict):
+                    raw = raw.get('value') or raw.get('val') or raw.get('name') or raw.get('cid')
+                return raw
+
+            def extract_label(value):
+                if isinstance(value, dict):
+                    return (value.get('name') or value.get('cid') or '').strip()
+                if isinstance(value, (list, tuple)):
+                    labels = [extract_label(v) for v in value]
+                    labels = [l for l in labels if l]
+                    return ', '.join(labels)
+                if value in (None, '', False):
+                    return ''
+                return str(value).strip()
+
+            def first_non_empty(*values):
+                for val in values:
+                    if isinstance(val, dict):
+                        text = extract_label(val)
+                    else:
+                        text = str(val).strip() if val not in (None, '', False) else ''
+                    if text:
+                        return text
+                return ''
 
             if coating_ids is None:
                 coating_ids, coating_codes = self._resolve_lens_coatings(item, cache)
@@ -835,19 +971,224 @@ class ProductSync(models.Model):
             if lens_template_key is None:
                 lens_template_key = self._build_lens_template_key(item, coating_codes)
 
-            vals.update({
+            design_1 = first_non_empty(
+                item.get('design1'),
+                item.get('design'),
+                item.get('design_1'),
+                item.get('design1dto'),
+                item.get('designdto')
+            )
+            design_2 = first_non_empty(
+                item.get('design2'),
+                item.get('design_2'),
+                item.get('design2dto')
+            )
+            raw_index = (
+                item.get('indexdto')
+                or item.get('indexDto')
+                or item.get('indexDTO')
+                or item.get('lensIndexdto')
+                or item.get('lensIndexDto')
+                or item.get('refractiveIndexDto')
+                or (item.get('productdto') or {}).get('indexdto')
+                or (item.get('productdto') or {}).get('indexDto')
+                or (item.get('productdto') or {}).get('refractiveIndexDto')
+                or {}
+            )
+            if isinstance(raw_index, dict):
+                index_dto = raw_index
+            else:
+                index_dto = {'name': str(raw_index).strip()} if raw_index not in (None, '', False) else {}
+
+            if not index_dto:
+                index_name = first_non_empty(
+                    item.get('index'),
+                    item.get('refractiveIndex'),
+                    item.get('chietSuat'),
+                    (item.get('productdto') or {}).get('index'),
+                    (item.get('productdto') or {}).get('refractiveIndex')
+                )
+
+                # Fallback cuối: parse từ fullname (vd: "... 1.67 ...")
+                if not index_name:
+                    fullname = (item.get('productdto') or {}).get('fullname') or ''
+                    match = re.search(r'\b1\.\d{2}\b', fullname)
+                    if match:
+                        index_name = match.group(0)
+
+                if index_name:
+                    index_dto = {'name': index_name}
+
+            uv_dto = item.get('uvdto') or {}
+            hmc_val = item.get('hmcDto') or item.get('hmcdto') or item.get('hmc') or item.get('HMC')
+            pho_val = item.get('phoDto') or item.get('phodto') or item.get('photochromicDto') or item.get('photochromic') or item.get('PHO')
+            tint_val = item.get('tintDto') or item.get('tintdto') or item.get('tint') or item.get('TINT')
+            coating_label = ', '.join(coating_codes) if coating_codes else extract_label(item.get('coatingdtos') or [])
+
+            sph_raw = pick_value(item, ['sph', 'SPH', 'sphValue', 'sphVal', 'sphDTO', 'sphDto', 'sphdto'])
+            cyl_raw = pick_value(item, ['cyl', 'CYL', 'cylValue', 'cylVal', 'cylDTO', 'cylDto', 'cyldto'])
+            add_raw = pick_value(item, ['lensAdd', 'add', 'ADD', 'addValue', 'addVal', 'addDTO', 'addDto', 'adddto'])
+            axis_raw = pick_value(item, ['axis', 'Axis', 'AXIS'])
+
+            # ── Helper: get-or-create Many2one master data for lens ────────────────────
+            def _goc_design(name_raw):
+                """Get or create product.design by name."""
+                nm = str(name_raw or '').strip()
+                _logger.info("🔎 _goc_design called with=%s", nm or None)
+                if not nm:
+                    return False
+                key = nm.upper()
+                cid = cache.get('designs', {}).get(key)
+                if cid:
+                    _logger.info("✅ _goc_design cache hit name=%s id=%s", nm, cid)
+                    return cid
+                found = self.env['product.design'].search([('name', '=', nm)], limit=1)
+                if found:
+                    cache.setdefault('designs', {})[key] = found.id
+                    _logger.info("✅ _goc_design search hit name=%s id=%s", nm, found.id)
+                    return found.id
+                try:
+                    rec = self.env['product.design'].create({'name': nm})
+                    cache.setdefault('designs', {})[key] = rec.id
+                    _logger.info("✅ _goc_design created name=%s id=%s", nm, rec.id)
+                    return rec.id
+                except Exception as e:
+                    _logger.warning(f"⚠️ Không tạo được product.design name={nm!r}: {e}")
+                    return False
+
+            def _goc_material(name_raw):
+                """Get or create product.lens.material by name."""
+                nm = str(name_raw or '').strip()
+                _logger.info("🔎 _goc_material called with=%s", nm or None)
+                if not nm:
+                    return False
+                key_lower = nm.lower()
+                cid = cache.get('lens_materials', {}).get(key_lower)
+                if cid:
+                    _logger.info("✅ _goc_material cache hit name=%s id=%s", nm, cid)
+                    return cid
+                found = self.env['product.lens.material'].search([('name', '=', nm)], limit=1)
+                if found:
+                    cache.setdefault('lens_materials', {})[key_lower] = found.id
+                    _logger.info("✅ _goc_material search hit name=%s id=%s", nm, found.id)
+                    return found.id
+                try:
+                    rec = self.env['product.lens.material'].create({'name': nm})
+                    cache.setdefault('lens_materials', {})[key_lower] = rec.id
+                    _logger.info("✅ _goc_material created name=%s id=%s", nm, rec.id)
+                    return rec.id
+                except Exception as e:
+                    _logger.warning(f"⚠️ Không tạo được product.lens.material name={nm!r}: {e}")
+                    return False
+
+            def _goc_index(dto):
+                """Get or create product.lens.index from indexdto."""
+                if not dto:
+                    _logger.info("🔎 _goc_index called with empty dto")
+                    return False
+                cid = (dto.get('cid') or '').strip().upper()
+                name = (dto.get('name') or dto.get('value') or cid or '').strip()
+                _logger.info("🔎 _goc_index called cid=%s name=%s", cid or None, name or None)
+                if cid:
+                    cached = cache.get('lens_indexes', {}).get(cid)
+                    if cached:
+                        _logger.info("✅ _goc_index cache hit by cid=%s id=%s", cid, cached)
+                        return cached
+                if name:
+                    cached = cache.get('lens_indexes', {}).get(name.upper())
+                    if cached:
+                        _logger.info("✅ _goc_index cache hit by name=%s id=%s", name, cached)
+                        return cached
+                found = False
+                if cid:
+                    found = self.env['product.lens.index'].search([('cid', '=', cid)], limit=1)
+                if not found and name:
+                    found = self.env['product.lens.index'].search([('name', '=', name)], limit=1)
+                if found:
+                    if cid:
+                        cache.setdefault('lens_indexes', {})[cid] = found.id
+                    if name:
+                        cache.setdefault('lens_indexes', {})[name.upper()] = found.id
+                    _logger.info("✅ _goc_index search hit cid=%s name=%s id=%s", cid or None, name or None, found.id)
+                    return found.id
+                if not name:
+                    return False
+                try:
+                    create_vals = {'name': name}
+                    if cid and 'cid' in self.env['product.lens.index']._fields:
+                        create_vals['cid'] = cid
+                    rec = self.env['product.lens.index'].create(create_vals)
+                    if cid:
+                        cache.setdefault('lens_indexes', {})[cid] = rec.id
+                    cache.setdefault('lens_indexes', {})[name.upper()] = rec.id
+                    _logger.info("✅ _goc_index created cid=%s name=%s id=%s", cid or None, name, rec.id)
+                    return rec.id
+                except Exception as e:
+                    _logger.warning(f"⚠️ Không tạo được product.lens.index cid={cid!r} name={name!r}: {e}")
+                    return False
+
+            # Resolve Many2one IDs (get-or-create)
+            d1_id = _goc_design(design_1)
+            d2_id = _goc_design(design_2)
+            material_raw = first_non_empty(item.get('material'), item.get('materialdto'))
+            mat_id = _goc_material(material_raw)
+            idx_id = _goc_index(index_dto)
+            # First coating as the primary Many2one coating
+            coat_id = coating_ids[0] if coating_ids else False
+
+            _logger.info(
+                "🔍 Lens mapping candidates | design1=%s | design2=%s | material=%s | index_cid=%s | index_name=%s | coating_ids=%s",
+                design_1 or None,
+                design_2 or None,
+                material_raw or None,
+                (index_dto.get('cid') or None),
+                (index_dto.get('name') or index_dto.get('value') or None),
+                coating_ids,
+            )
+
+            lens_display_vals = {
                 'lens_base_curve': float(item.get('base') or 0),
                 'lens_diameter': int(str(item.get('diameter') or 0).replace('mm', '').replace('MM', '').strip() or 0),
                 'lens_prism': (item.get('prism') or ''),
-                'lens_design1_id': cache.get('designs', {}).get(design_name) if design_name else False,
-                'lens_material_id': cache['lens_materials'].get(material_name) if material_name else False,
-                'lens_index_id': self._get_id(cache, 'lens_indexes', self._get_val(item, 'indexdto')),
+                # Many2one chuẩn (get-or-create)
+                'lens_design1_id': d1_id,
+                'lens_design2_id': d2_id,
+                'lens_material_id': mat_id,
+                'lens_index_id': idx_id,
                 'lens_uv_id': self._get_id(cache, 'uvs', self._get_val(item, 'uvdto')),
                 'lens_color_int': (item.get('colorInt') or ''),
                 'lens_mir_coating': (item.get('mirCoating') or ''),
                 'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else False,
                 'lens_template_key': lens_template_key,
-            })
+                # x_* Many2one (chuẩn hóa – thay thế char trùng lặp)
+                'x_material_id': mat_id,
+                'x_refractive_index_id': idx_id,
+                'x_coating_id': coat_id,
+                # SPH / CYL / ADD display-only (float, không tạo variant)
+                'x_sph': safe_float(extract_number(sph_raw)),
+                'x_cyl': safe_float(extract_number(cyl_raw)),
+                'x_add': safe_float(extract_number(add_raw)),
+                'x_axis': safe_int(axis_raw),
+                'x_prism': extract_label(item.get('prism')),
+                'x_prism_base': extract_label(item.get('prismBase') or item.get('prism_base')),
+                # Label chars (giữ để tương thích, không dùng làm nguồn dữ liệu chính)
+                'x_material': extract_label(item.get('material')),
+                'x_refractive_index': extract_label(index_dto.get('name') or index_dto.get('value') or index_dto.get('cid')),
+                'x_uv': extract_label(uv_dto.get('name') or uv_dto.get('cid')),
+                'x_coating': coating_label,
+                'x_hmc': extract_label(hmc_val),
+                'x_photochromic': extract_label(pho_val),
+                'x_tinted': extract_label(tint_val),
+                'x_mir_coating': extract_label(item.get('mirCoating')),
+                'x_diameter': safe_int(item.get('diameter')),
+                # x_design_1 / x_design_2 ĐÃ XÓA – dùng lens_design1_id / lens_design2_id
+            }
+
+            for key, value in list(lens_display_vals.items()):
+                if value is None:
+                    lens_display_vals.pop(key)
+
+            vals.update(lens_display_vals)
 
         # ─── Opt specs (Hướng B: field trực tiếp trên template) ──────────────────────
         if product_type == 'opt':
@@ -1009,13 +1350,12 @@ class ProductSync(models.Model):
         total = len(items)
         success = failed = 0
 
-        _logger.info(f"🔄 Processing {total} lens items (variant-based)...")
+        _logger.info(f"🔄 Processing {total} lens items (template-based)...")
 
         for idx, item in enumerate(items):
             try:
                 tmpl = self._get_or_create_lens_template(item, cache)
-                variant = self._get_or_create_lens_variant(tmpl, item)
-                if not variant:
+                if not tmpl:
                     failed += 1
                     continue
                 success += 1
@@ -1164,7 +1504,7 @@ class ProductSync(models.Model):
             stats = {}
             
             # Lens – specs đã map trực tiếp vào template (Hướng B)
-            # Mỗi bản ghi lens từ API → 1 product.template + 1 default variant
+            # Mỗi bản ghi lens từ API → 1 product.template (default variant duy nhất)
             items = self._fetch_all_items(cfg['lens_endpoint'], token, 'Lens', limit)
             s, f = self._process_batch(items, cache, 'lens')  # Không truyền child_model
             stats['lens'] = s

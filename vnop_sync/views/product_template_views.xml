@@ -7,6 +7,9 @@
         <field name="inherit_id" ref="product.product_template_search_view"/>
         <field name="priority">101</field>
         <field name="arch" type="xml">
+            <xpath expr="//field[@name='attribute_line_ids']" position="attributes">
+                <attribute name="domain">['|', ('product_tmpl_id.product_type', '!=', 'lens'), ('attribute_id.name', 'not in', ('SPH','CYL','ADD'))]</attribute>
+            </xpath>
             <xpath expr="//field[@name='name']" position="after">
                 <field name="short_code" string="Mã viết tắt" filter_domain="[('short_code', 'ilike', self)]"/>
             </xpath>
@@ -25,12 +28,17 @@
                 <field name="is_lens" invisible="1"/>
                 <field name="is_opt" invisible="1"/>
             </xpath>
+
+            <!-- Ẩn tab Thuộc tính & Biến thể cho lens (không dùng SPH/CYL/ADD variant) -->
+            <xpath expr="//page[.//field[@name='attribute_line_ids']]" position="attributes">
+                <attribute name="invisible">is_lens</attribute>
+            </xpath>
             
             <!-- Removed product_type selection from header -->
             
             <!-- Add Giá & Bảo hành into general_information tab -->
             <xpath expr="//sheet/notebook/page[@name='general_information']" position="inside">
-                <group string="Giá &amp; Bảo hành" invisible="not is_opt">
+                <group string="Giá &amp; Bảo hành">
                     <group>
                         <field name="don_vi_nguyen_te" string="Đơn vị nguyên tệ" options="{'no_create': True}"/>
                         <field name="x_or_price" string="Giá nhập kho"/>
@@ -74,55 +82,47 @@
                 <!-- Tab 1: Thiết kế Tròng -->
                 <page string="Thiết kế Tròng" name="lens_design_tab"
                       invisible="not is_lens">
-                    <group string="Công suất">
+                    <group string="Thiết kế (Many2one)">
                         <group>
-                            <field name="lens_sph_id" options="{'no_create': True}"/>
-                            <field name="lens_cyl_id" options="{'no_create': True}"/>
-                            <field name="lens_add"/>
-                            <field name="lens_prism"/>
-                        </group>
-                        <group>
-                            <field name="lens_base_curve"/>
-                            <field name="lens_diameter"/>
+                            <field name="lens_design1_id" string="Thiết kế 1"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_design2_id" string="Thiết kế 2"
+                                   options="{'no_create': False}"/>
                         </group>
                     </group>
-                    <group string="Kiểu thiết kế">
+                    <group string="Công suất (hiển thị từ RS)">
                         <group>
-                            <field name="lens_design1_id" options="{'no_create': True}"/>
-                            <field name="lens_design2_id" options="{'no_create': True}"/>
+                            <field name="x_sph" string="SPH"/>
+                            <field name="x_cyl" string="CYL"/>
+                            <field name="x_add" string="ADD"/>
+                            <field name="x_axis" string="Axis"/>
                         </group>
-                    </group>
-                </page>
-
-                <!-- Tab 2: Chất liệu Tròng -->
-                <page string="Chất liệu Tròng" name="lens_material_tab"
-                      invisible="not is_lens">
-                    <group string="Chất liệu &amp; Chiết suất">
                         <group>
-                            <field name="lens_material_id" options="{'no_create': True}"/>
-                            <field name="lens_index_id" options="{'no_create': True}"/>
+                            <field name="x_prism" string="Prism"/>
+                            <field name="x_prism_base" string="Prism Base"/>
+                            <field name="x_diameter" string="Đường kính (mm)"/>
                         </group>
                     </group>
                 </page>
 
-                <!-- Tab 3: Tích hợp Tròng -->
-                <page string="Tích hợp Tròng" name="lens_integration_tab"
+                <!-- Tab 2: Chất liệu & Tích hợp Tròng -->
+                <page string="Chất liệu &amp; Tích hợp Tròng" name="lens_material_tab"
                       invisible="not is_lens">
-                    <group string="Màu &amp; Phủ">
+                    <group string="Chất liệu &amp; Tích hợp">
                         <group>
-                            <field name="lens_uv_id" options="{'no_create': True}"/>
-                            <field name="lens_cl_hmc_id" options="{'no_create': True}"/>
-                            <field name="lens_cl_pho_id" options="{'no_create': True}"/>
-                            <field name="lens_cl_tint_id" options="{'no_create': True}"/>
+                            <field name="x_material_id" string="Vật liệu"
+                                   options="{'no_create': False}"/>
+                            <field name="x_refractive_index_id" string="Chiết suất"
+                                   options="{'no_create': False}"/>
+                            <field name="x_uv" string="UV"/>
+                            <field name="x_coating_id" string="Lớp tráng chính"
+                                   options="{'no_create': False}"/>
                         </group>
                         <group>
-                            <field name="lens_color_int"/>
-                            <field name="lens_mir_coating"/>
+                            <field name="x_hmc" string="HMC"/>
+                            <field name="x_photochromic" string="Photochromic"/>
+                            <field name="x_tinted" string="Tinted"/>
                         </group>
-                    </group>
-                    <group string="Coating">
-                        <field name="lens_coating_ids" widget="many2many_tags"
-                               options="{'no_create': True}" nolabel="1"/>
                     </group>
                 </page>
 

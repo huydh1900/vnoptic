@@ -197,6 +197,37 @@ class ProductTemplateExtension(models.Model):
         string='Coating'
     )
 
+    # ==================== LENS SPECS (Custom display-only fields) ====================
+    x_sph = fields.Float('SPH', digits=(6, 2), help='Lens sphere power (display only)')
+    x_cyl = fields.Float('CYL', digits=(6, 2), help='Lens cylinder power (display only)')
+    x_add = fields.Float('ADD', digits=(6, 2), help='Lens add power (display only)')
+    x_axis = fields.Integer('Axis', help='Lens axis (display only)')
+    x_prism = fields.Char('Prism', size=50, help='Lens prism (display only)')
+    x_prism_base = fields.Char('Prism Base', size=50, help='Lens prism base (display only)')
+    x_material = fields.Char('Vật liệu (label)', help='Lens material label (display only)')
+    x_refractive_index = fields.Char('Chiết suất (label)', help='Refractive index label (display only)')
+    x_uv = fields.Char('UV', help='UV protection (display only)')
+    x_coating = fields.Char('Lớp tráng (label)', help='Coating label (display only)')
+    x_hmc = fields.Char('HMC', help='HMC coating (display only)')
+    x_photochromic = fields.Char('Photochromic', help='Photochromic info (display only)')
+    x_tinted = fields.Char('Tinted', help='Tinted info (display only)')
+    x_mir_coating = fields.Char('Màu tráng gương', help='Mirror coating (display only)')
+    x_diameter = fields.Integer('Đường kính', help='Lens diameter (display only)')
+
+    # Many2one fields chuẩn hoá (thay thế char x_design_1/x_design_2)
+    x_material_id = fields.Many2one(
+        'product.lens.material', string='Vật liệu',
+        help='Chất liệu tròng – Many2one chuẩn, dùng thay x_material char'
+    )
+    x_refractive_index_id = fields.Many2one(
+        'product.lens.index', string='Chiết suất',
+        help='Chiết suất tròng – Many2one chuẩn, dùng thay x_refractive_index char'
+    )
+    x_coating_id = fields.Many2one(
+        'product.coating', string='Lớp tráng chính',
+        help='Coating chính – Many2one chuẩn, dùng thay x_coating char'
+    )
+
     # ==================== OPT SPECS (Hướng B: field trực tiếp trên template) ====================
     # Thông tin cơ bản
     opt_season = fields.Char('Season', size=50)
