@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-import logging
 from odoo import models, fields, api
-
-_logger = logging.getLogger(__name__)
 
 
 class ProductCategory(models.Model):
@@ -30,33 +27,6 @@ class ProductTemplateExtension(models.Model):
         for record in self:
             record.is_opt = record.product_type == 'opt'
             record.is_lens = record.product_type == 'lens'
-            _logger.warning(
-                "[VNOPTIC] compute is_opt/is_lens: id=%s name=%s product_type=%s is_opt=%s is_lens=%s",
-                record.id,
-                record.name,
-                record.product_type,
-                record.is_opt,
-                record.is_lens,
-            )
-
-    def read(self, fields=None, load='_classic_read'):
-        res = super().read(fields=fields, load=load)
-        try:
-            params = self.env.context.get('params') or {}
-            if params.get('view_type') == 'form':
-                if not fields or any(f in (fields or []) for f in ('is_opt', 'is_lens', 'product_type')):
-                    for rec in self:
-                        _logger.warning(
-                            "[VNOPTIC] form read: id=%s name=%s product_type=%s is_opt=%s is_lens=%s",
-                            rec.id,
-                            rec.name,
-                            rec.product_type,
-                            rec.is_opt,
-                            rec.is_lens,
-                        )
-        except Exception:
-            pass
-        return res
 
     # Keep product_type for now but make it computed or optional if needed
     # For now we just add the new logic alongside
@@ -294,6 +264,37 @@ class ProductTemplateExtension(models.Model):
         string='Bảo hành công ty (tháng)',
         readonly=True,
         store=True,
+    )
+
+    # ==================== RS FRAME FIELDS (field mới, không trùng opt_*) ====================
+    # Kích thước bổ sung
+    dai_mat = fields.Float(
+        'Dài mắt (mm)',
+        digits=(6, 2),
+        help='Chiều dài mắt kính – RS field: dai_mat'
+    )
+    ngang_mat = fields.Float(
+        'Ngang mắt (mm)',
+        digits=(6, 2),
+        help='Chiều ngang mắt kính – RS field: ngang_mat'
+    )
+    # Giá
+    gia_si_theo_phan_tram = fields.Float(
+        'Giá sỉ theo % (RS)',
+        digits=(6, 2),
+        help='Tỷ lệ % chiết khấu sỉ – RS field: gia_si_theo_phan_tram'
+    )
+    # Đơn vị nguyên tệ
+    don_vi_nguyen_te = fields.Many2one(
+        'res.currency',
+        string='Đơn vị nguyên tệ',
+        help='Loại tiền tệ nhập hàng – RS field: don_vi_nguyen_te'
+    )
+    # Bảo hành bán lẻ
+    bao_hanh_ban_le = fields.Integer(
+        'Bảo hành bán lẻ (tháng)',
+        default=0,
+        help='Số tháng bảo hành cam kết với khách bán lẻ – RS field: bao_hanh_ban_le'
     )
 
     # ==================== ACCESSORIES ====================

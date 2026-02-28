@@ -673,6 +673,19 @@ class ProductSync(models.Model):
                 # Không tự create coating – là master data phải có sẵn
                 model_name=None, log_label='coatingdtos'
             ),
+            # ─── RS adapter: field mới chuẩn hóa theo RS (dai_mat, ngang_mat, ...) ───
+            'dai_mat': float(item.get('lensLength') or item.get('daiMat') or 0),
+            'ngang_mat': float(item.get('lensWidth') or item.get('nangMat') or 0),
+            'gia_si_theo_phan_tram': float(
+                (item.get('productdto') or {}).get('wsPricePct')
+                or item.get('giaSiTheoPhanTram')
+                or 0
+            ),
+            'bao_hanh_ban_le': int(
+                (item.get('productdto') or {}).get('retailWarrantyMonths')
+                or item.get('baoHanhBanLe')
+                or 0
+            ),
         }
 
     def _process_batch(self, items, cache, product_type, child_model=None):
