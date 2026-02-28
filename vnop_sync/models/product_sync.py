@@ -318,7 +318,20 @@ class ProductSync(models.Model):
     def _prepare_base_vals(self, item, cache, product_type):
         dto = item.get('productdto') or {}
         cid = (dto.get('cid') or '').strip()
-        if not cid: raise ValueError("Missing CID")
+        if not cid:
+            raise ValueError("Missing CID")
+
+        # Gọng kính: mỗi màu = 1 template riêng, key định danh BẮT BUỘC là model-color
+        default_code = cid
+        if product_type == 'opt':
+            model_code = (item.get('model') or '').strip()
+            color_code = (item.get('color') or '').strip()
+            if not model_code or not color_code:
+                raise ValueError(
+                    f"⚠️ Bỏ qua gọng cid={cid}: thiếu model='{model_code}' hoặc color='{color_code}'. "
+                    f"default_code không thể xác định duy nhất."
+                )
+            default_code = f"{model_code}-{color_code}"
         
         # Category Logic with Code (for product code generation)
         grp_dto = dto.get('groupdto') or {}
@@ -446,8 +459,9 @@ class ProductSync(models.Model):
         # Basic Vals
         vals = {
             'name': dto.get('fullname') or 'Unknown',
-            'default_code': cid,
+            'default_code': default_code,
             'type': 'consu',
+            'is_storable': product_type == 'opt',  # Gọng = storable, lens/accessory = consumable
             'categ_id': categ_id,
             'uom_id': self.env.ref('uom.product_uom_unit').id,
             'uom_po_id': self.env.ref('uom.product_uom_unit').id,
@@ -502,7 +516,7 @@ class ProductSync(models.Model):
                 'lens_cyl_id': get_lens_power('cyl', 'cyl'),
                 'lens_add': float(item.get('lensAdd') or 0),
                 'lens_base_curve': float(item.get('base') or 0),
-                'lens_diameter': int(item.get('diameter') or 0),
+                'lens_diameter': int(str(item.get('diameter') or 0).replace('mm', '').replace('MM', '').strip() or 0),
                 'lens_prism': (item.get('prism') or ''),
                 'lens_design1_id': cache.get('designs', {}).get(design_name) if design_name else False,
                 'lens_material_id': cache['lens_materials'].get(material_name) if material_name else False,
@@ -517,7 +531,7 @@ class ProductSync(models.Model):
         if product_type == 'opt':
             vals.update(self._prepare_opt_vals(item, cache))
 
-        return vals, cache['products'].get(cid)
+        return vals, cache['products'].get(default_code)
 
     def _prepare_lens_vals(self, item, cache):
         # Xử lý SPH/CYL: API trả về string, cần ép kiểu float rồi tra cache
@@ -534,7 +548,8 @@ class ProductSync(models.Model):
         material_name = (item.get('material') or '').strip().lower()
 
         def safe_int(val, default=0):
-            try: return int(val) if val not in (None, '', False) else default
+            if val in (None, '', False): return default
+            try: return int(str(val).replace('mm', '').replace('MM', '').strip() or default)
             except Exception: return default
 
         def safe_float(val, default=0.0):
@@ -600,6 +615,15 @@ class ProductSync(models.Model):
 
         _logger.info(f"🔄 Processing {total} {product_type} items...")
 
+        # DEBUG: Log cấu trúc item đầu tiên để xác nhận field names từ API
+        if items:
+            first_item = items[0]
+            _logger.info(f"🔍 DEBUG [{product_type}] item keys at root: {list(first_item.keys())}")
+            dto0 = first_item.get('productdto') or {}
+            _logger.info(f"🔍 DEBUG [{product_type}] productdto keys: {list(dto0.keys())}")
+            _logger.info(f"🔍 DEBUG [{product_type}] model={first_item.get('model')!r}, color={first_item.get('color')!r}")
+            _logger.info(f"🔍 DEBUG [{product_type}] cid={dto0.get('cid')!r}")
+
         # ─── Bước 1: Chuẩn bị dữ liệu ────────────────────────────────────
         for idx, item in enumerate(items):
             try:
@@ -617,7 +641,8 @@ class ProductSync(models.Model):
                         new_child_data.append((idx, c_vals))
             except Exception as e:
                 failed += 1
-                _logger.error(f"Prepare error [{product_type}]: {e}")
+                import traceback
+                _logger.error(f"Prepare error [{product_type}] idx={idx}: {e}\n{traceback.format_exc()}")
 
         # ─── Bước 2: Batch Create ─────────────────────────────────────────
         if to_create:
@@ -637,7 +662,8 @@ class ProductSync(models.Model):
                         success += len(recs)
                 except Exception as e:
                     failed += len(b_vals)
-                    _logger.error(f"Batch Create Error [{product_type}]: {e}")
+                    import traceback
+                    _logger.error(f"Batch Create Error [{product_type}]: {e}\n{traceback.format_exc()}")
                     continue
 
                 # Tạo child records riêng lẻ (savepoint độc lập)
