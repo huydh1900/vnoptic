@@ -19,8 +19,8 @@ class ProductTemplateExtension(models.Model):
     ]
 
     # Computed fields to replace product_type for UI logic
-    is_lens = fields.Boolean(compute='_compute_product_kind', store=True)
-    is_opt = fields.Boolean(compute='_compute_product_kind', store=True)
+    is_lens = fields.Boolean(compute='_compute_product_kind', store=False)
+    is_opt = fields.Boolean(compute='_compute_product_kind', store=False)
 
     @api.depends('product_type')
     def _compute_product_kind(self):
