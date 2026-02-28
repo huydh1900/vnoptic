@@ -110,14 +110,15 @@ class InventoryStatistic(models.TransientModel):
         where_clause += " AND pt.index_id = %(index_id)s"
         sql_query = f"""
             SELECT 
-                CASE WHEN pl.sph ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN CAST(pl.sph AS NUMERIC) ELSE 0 END as sph_val,
-                CASE WHEN pl.cyl ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN CAST(pl.cyl AS NUMERIC) ELSE 0 END as cyl_val,
+                COALESCE(lp_sph.value, 0) as sph_val,
+                COALESCE(lp_cyl.value, 0) as cyl_val,
                 sq.location_id,
                 SUM(sq.quantity) as qty
             FROM stock_quant sq
             JOIN product_product pp ON sq.product_id = pp.id
             JOIN product_template pt ON pp.product_tmpl_id = pt.id
-            JOIN product_lens pl ON pl.product_tmpl_id = pt.id
+            LEFT JOIN product_lens_power lp_sph ON pt.lens_sph_id = lp_sph.id
+            LEFT JOIN product_lens_power lp_cyl ON pt.lens_cyl_id = lp_cyl.id
             {where_clause}
             GROUP BY 1, 2, 3
         """

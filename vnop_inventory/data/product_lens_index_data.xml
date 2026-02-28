@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="lens_index_156" model="product.lens.index">
+            <field name="name">1.56</field>
+            <field name="cid">1.56</field>
+            <field name="description">Chiết suất 1.56</field>
+            <field name="activated">True</field>
+        </record>
+
+        <record id="lens_index_160" model="product.lens.index">
+            <field name="name">1.60</field>
+            <field name="cid">1.60</field>
+            <field name="description">Chiết suất 1.60</field>
+            <field name="activated">True</field>
+        </record>
+
+        <record id="lens_index_167" model="product.lens.index">
+            <field name="name">1.67</field>
+            <field name="cid">1.67</field>
+            <field name="description">Chiết suất 1.67</field>
+            <field name="activated">True</field>
+        </record>
+
+        <record id="lens_index_174" model="product.lens.index">
+            <field name="name">1.74</field>
+            <field name="cid">1.74</field>
+            <field name="description">Chiết suất 1.74</field>
+            <field name="activated">True</field>
+        </record>
+
+        <record id="lens_index_159" model="product.lens.index">
+            <field name="name">1.59</field>
+            <field name="cid">1.59</field>
+            <field name="description">Polycarbonate</field>
+            <field name="activated">True</field>
+        </record>
+    </data>
+</odoo>
