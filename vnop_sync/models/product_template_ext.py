@@ -13,6 +13,11 @@ class ProductCategory(models.Model):
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
 
+    _sql_constraints = [
+        ('short_code_unique', 'unique(short_code)',
+         'Mã viết tắt phải là duy nhất.'),
+    ]
+
     # Computed fields to replace product_type for UI logic
     is_lens = fields.Boolean(compute='_compute_product_kind', store=True)
     is_opt = fields.Boolean(compute='_compute_product_kind', store=True)
@@ -234,6 +239,27 @@ class ProductTemplateExtension(models.Model):
         'product.coating', 'product_tmpl_opt_coating_rel',
         'tmpl_id', 'coating_id', string='Lớp phủ'
     )
+
+    # ==================== SHORT CODE ====================
+    short_code = fields.Char(
+        string='Mã viết tắt',
+        index=True,
+        copy=False,
+        help='Mã viết tắt duy nhất cho sản phẩm gọng kính'
+    )
+
+    # ==================== WARRANTY TEMPLATE (Hướng A – ERP chuẩn) ====================
+    warranty_template_id = fields.Many2one(
+        'product.warranty.template',
+        string='Chính sách bảo hành',
+        help='Chọn chính sách bảo hành áp dụng cho sản phẩm'
+    )
+
+    # ==================== ACCESSORIES ====================
+    has_box = fields.Boolean('Có hộp', default=False)
+    has_cleaning_cloth = fields.Boolean('Có khăn lau', default=False)
+    has_warranty_card = fields.Boolean('Có thẻ bảo hành', default=False)
+    accessory_note = fields.Text('Ghi chú phụ kiện')
 
     # ==================== COMPUTED FIELDS FOR TREE VIEW ====================
     # Lens display fields (computed từ field mới, dùng cho tree/search)

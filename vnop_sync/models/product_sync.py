@@ -573,6 +573,64 @@ class ProductSync(models.Model):
         # Coating/Feature xử lý sau nếu cần
         return v
 
+    def _resolve_m2m_ids(self, dtos, cache_key, cache, model_name=None, log_label=''):
+        """Giải quyết list DTO từ API → danh sách Odoo IDs cho Many2many.
+
+        Args:
+            dtos       : list DTO từ API (mỗi phần tử là dict có 'cid' / 'name').
+            cache_key  : key trong dict cache (ví dụ 'materials', 'coatings').
+            cache      : dict cache đang dùng.
+            model_name : nếu có, sẽ tự động create bản ghi chưa tồn tại.
+            log_label  : nhãn log dể debug.
+
+        Returns:
+            Odoo M2M command list: [(6, 0, ids)] nếu có id, [(5, 0, 0)] nếu rỗng.
+        """
+        if not dtos:
+            _logger.debug(f"🔍 M2M [{log_label}]: API không trả list hoặc rỗng.")
+            return [(5, 0, 0)]
+
+        ids = []
+        for dto in dtos:
+            if not isinstance(dto, dict):
+                continue
+            cid = (dto.get('cid') or '').strip().upper()
+            name = (dto.get('name') or '').strip()
+            if not cid and not name:
+                _logger.debug(f"⚠️ M2M [{log_label}]: DTO không có cid/name hợp lệ: {dto}")
+                continue
+
+            # Tìm trong cache
+            rid = cache.get(cache_key, {}).get(cid) if cid else None
+            if not rid and name:
+                rid = cache.get(cache_key, {}).get(name.upper())
+
+            # Tự động create nếu có model_name và chưa tìm thấy
+            if not rid and model_name:
+                try:
+                    model_fields = self.env[model_name]._fields
+                    vals_create = {'name': name or cid}
+                    if 'cid' in model_fields and cid:
+                        vals_create['cid'] = cid
+                    elif 'code' in model_fields and cid:
+                        vals_create['code'] = cid
+                    rec = self.env[model_name].create(vals_create)
+                    rid = rec.id
+                    if cid:
+                        cache.setdefault(cache_key, {})[cid] = rid
+                    if name:
+                        cache.setdefault(cache_key, {})[name.upper()] = rid
+                    _logger.debug(f"✅ M2M [{log_label}]: Tạo mới {model_name} cid={cid!r} name={name!r}")
+                except Exception as e:
+                    _logger.warning(f"⚠️ M2M [{log_label}]: Không tạo được {model_name} cid={cid!r}: {e}")
+
+            if rid:
+                ids.append(rid)
+            else:
+                _logger.debug(f"⚠️ M2M [{log_label}]: Không tìm thấy cid={cid!r} name={name!r} trong cache[{cache_key!r}]")
+
+        return [(6, 0, ids)] if ids else [(5, 0, 0)]
+
     def _prepare_opt_vals(self, item, cache):
         """Map opt specs từ API trực tiếp vào opt_* fields trên product.template."""
         return {
@@ -597,6 +655,24 @@ class ProductSync(models.Model):
             'opt_material_ve_id': self._get_id(cache, 'materials', self._get_val(item, 'materialVedto')),
             'opt_material_temple_tip_id': self._get_id(cache, 'materials', self._get_val(item, 'materialTempleTipdto')),
             'opt_material_lens_id': self._get_id(cache, 'materials', self._get_val(item, 'materialLensdto')),
+            # ─── Mỹ thuật màu sắc (cơ bản) ────────────────────────────────────────────
+            'opt_color_front_id': self._get_id(cache, 'colors', self._get_val(item, 'colorFrontdto')),
+            'opt_color_temple_id': self._get_id(cache, 'colors', self._get_val(item, 'colorTempledto')),
+            # ─── Chất liệu Many2many ─────────────────────────────────────────────────────
+            'opt_materials_front_ids': self._resolve_m2m_ids(
+                item.get('materialFrontdtos'), 'materials', cache,
+                model_name='product.material', log_label='materialFrontdtos'
+            ),
+            'opt_materials_temple_ids': self._resolve_m2m_ids(
+                item.get('materialTempledtos'), 'materials', cache,
+                model_name='product.material', log_label='materialTempledtos'
+            ),
+            # ─── Coating Many2many ──────────────────────────────────────────────────────
+            'opt_coating_ids': self._resolve_m2m_ids(
+                item.get('coatingdtos'), 'coatings', cache,
+                # Không tự create coating – là master data phải có sẵn
+                model_name=None, log_label='coatingdtos'
+            ),
         }
 
     def _process_batch(self, items, cache, product_type, child_model=None):

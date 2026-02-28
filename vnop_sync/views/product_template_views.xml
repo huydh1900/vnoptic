@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <odoo>
+    <!-- Extend product search view to allow searching by short_code -->
+    <record id="product_template_search_inherit_short_code" model="ir.ui.view">
+        <field name="name">product.template.search.inherit.short_code</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_search_view"/>
+        <field name="priority">101</field>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="short_code" string="Mã viết tắt" filter_domain="[('short_code', 'ilike', self)]"/>
+            </xpath>
+        </field>
+    </record>
+
     <record id="product_template_form_inherit_product" model="ir.ui.view">
         <field name="name">product.template.form.inherit.product</field>
         <field name="model">product.template</field>
@@ -131,6 +144,7 @@
                       invisible="not is_opt">
                     <group string="Thông tin chung">
                         <group>
+                            <field name="short_code"/>
                             <field name="opt_season"/>
                             <field name="opt_model"/>
                             <field name="opt_serial"/>
@@ -205,6 +219,39 @@
                             <field name="opt_lens_height"/>
                             <field name="opt_lens_span"/>
                         </group>
+                    </group>
+                </page>
+
+                <!-- Tab Gọng 6: Bảo hành -->
+                <page string="Bảo hành Gọng" name="product_opt_warranty"
+                      invisible="not is_opt">
+                    <group string="Chính sách bảo hành">
+                        <group>
+                            <field name="warranty_template_id"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group>
+                            <field name="warranty_template_id.manufacturer_months"
+                                   string="Bảo hành NSX (tháng)" readonly="1"/>
+                            <field name="warranty_template_id.company_months"
+                                   string="Bảo hành công ty (tháng)" readonly="1"/>
+                        </group>
+                    </group>
+                </page>
+
+                <!-- Tab Gọng 7: Phụ kiện đi kèm -->
+                <page string="Phụ kiện đi kèm" name="product_opt_accessories"
+                      invisible="not is_opt">
+                    <group string="Phụ kiện">
+                        <group>
+                            <field name="has_box"/>
+                            <field name="has_cleaning_cloth"/>
+                            <field name="has_warranty_card"/>
+                        </group>
+                    </group>
+                    <group string="Ghi chú">
+                        <field name="accessory_note" nolabel="1"
+                               placeholder="Ghi chú thêm về phụ kiện..."/>
                     </group>
                 </page>
 
