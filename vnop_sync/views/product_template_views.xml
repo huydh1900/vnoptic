@@ -36,16 +36,18 @@
             
             <!-- Removed product_type selection from header -->
             
-            <!-- Add Giá & Bảo hành into general_information tab -->
-            <xpath expr="//sheet/notebook/page[@name='general_information']" position="inside">
-                <group string="Giá &amp; Bảo hành">
+            <!-- Add Giá & Bảo hành into Sales tab (not general_information) -->
+            <xpath expr="//page[@name='sales']" position="inside">
+                <group string="Giá bán sỉ">
                     <group>
-                        <field name="don_vi_nguyen_te" string="Đơn vị nguyên tệ" options="{'no_create': True}"/>
-                        <field name="x_or_price" string="Giá nhập kho"/>
+                        <field name="don_vi_nguyen_te" string="Đơn vị ngoại tệ" options="{'no_create': True}"/>
+                        <field name="x_or_price" string="Giá nhập kho (quy VNĐ)"/>
+                    </group>
+                    <group>
                         <field name="x_ws_price" string="Giá bán sỉ"/>
-                        <field name="gia_si_theo_phan_tram" string="Giá sỉ theo %" readonly="1" invisible="1"/>
-                        <field name="x_ws_price_max" string="Giá sỉ tối đa"/>
                         <field name="x_ws_price_min" string="Giá sỉ tối thiểu"/>
+                        <field name="x_ws_price_max" string="Giá sỉ tối đa"/>
+                        <field name="gia_si_theo_phan_tram" string="% giá sỉ" readonly="1"/>
                     </group>
                 </group>
             </xpath>
@@ -110,12 +112,13 @@
                       invisible="not is_lens">
                     <group string="Chất liệu &amp; Tích hợp">
                         <group>
-                            <field name="x_material_id" string="Vật liệu"
+                            <field name="lens_material_id" string="Vật liệu"
                                    options="{'no_create': False}"/>
-                            <field name="x_refractive_index_id" string="Chiết suất"
+                            <field name="lens_index_id" string="Chiết suất"
                                    options="{'no_create': False}"/>
-                            <field name="x_uv" string="UV"/>
-                            <field name="x_coating_id" string="Lớp tráng chính"
+                            <field name="lens_uv_id" string="UV"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_coating_ids" string="Coating" widget="many2many_tags"
                                    options="{'no_create': False}"/>
                         </group>
                         <group>

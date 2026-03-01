@@ -175,8 +175,6 @@ class ProductTemplateExtension(models.Model):
         help='Công suất trụ (Cylinder)')
     lens_add = fields.Float('ADD', digits=(4, 2), help='Addition (thấu kính đa tròng)')
     lens_base_curve = fields.Float('Base Curve', digits=(4, 2))
-    lens_diameter = fields.Integer('Đường kính')
-    lens_prism = fields.Char('Prism', size=50)
     lens_design1_id = fields.Many2one('product.design', string='Thiết kế 1')
     lens_design2_id = fields.Many2one('product.design', string='Thiết kế 2')
 
@@ -186,11 +184,7 @@ class ProductTemplateExtension(models.Model):
 
     # Tích hợp
     lens_uv_id = fields.Many2one('product.uv', string='UV')
-    lens_cl_hmc_id = fields.Many2one('product.cl', string='HMC')
-    lens_cl_pho_id = fields.Many2one('product.cl', string='Pho Col')
-    lens_cl_tint_id = fields.Many2one('product.cl', string='Tint Col')
     lens_color_int = fields.Char('Độ đậm màu', size=50)
-    lens_mir_coating = fields.Char('Màu tráng gương', size=50)
     lens_coating_ids = fields.Many2many(
         'product.coating',
         'product_tmpl_coating_rel', 'tmpl_id', 'coating_id',
@@ -204,29 +198,11 @@ class ProductTemplateExtension(models.Model):
     x_axis = fields.Integer('Axis', help='Lens axis (display only)')
     x_prism = fields.Char('Prism', size=50, help='Lens prism (display only)')
     x_prism_base = fields.Char('Prism Base', size=50, help='Lens prism base (display only)')
-    x_material = fields.Char('Vật liệu (label)', help='Lens material label (display only)')
-    x_refractive_index = fields.Char('Chiết suất (label)', help='Refractive index label (display only)')
-    x_uv = fields.Char('UV', help='UV protection (display only)')
-    x_coating = fields.Char('Lớp tráng (label)', help='Coating label (display only)')
     x_hmc = fields.Char('HMC', help='HMC coating (display only)')
     x_photochromic = fields.Char('Photochromic', help='Photochromic info (display only)')
     x_tinted = fields.Char('Tinted', help='Tinted info (display only)')
     x_mir_coating = fields.Char('Màu tráng gương', help='Mirror coating (display only)')
     x_diameter = fields.Integer('Đường kính', help='Lens diameter (display only)')
-
-    # Many2one fields chuẩn hoá (thay thế char x_design_1/x_design_2)
-    x_material_id = fields.Many2one(
-        'product.lens.material', string='Vật liệu',
-        help='Chất liệu tròng – Many2one chuẩn, dùng thay x_material char'
-    )
-    x_refractive_index_id = fields.Many2one(
-        'product.lens.index', string='Chiết suất',
-        help='Chiết suất tròng – Many2one chuẩn, dùng thay x_refractive_index char'
-    )
-    x_coating_id = fields.Many2one(
-        'product.coating', string='Lớp tráng chính',
-        help='Coating chính – Many2one chuẩn, dùng thay x_coating char'
-    )
 
     # ==================== OPT SPECS (Hướng B: field trực tiếp trên template) ====================
     # Thông tin cơ bản
@@ -243,7 +219,6 @@ class ProductTemplateExtension(models.Model):
     # Kích thước
     opt_temple_width = fields.Integer('Chiều dài càng (mm)')
     opt_lens_width = fields.Integer('Chiều rộng tròng (mm)')
-    opt_lens_span = fields.Integer('Khoảng cách tròng (mm)')
     opt_lens_span = fields.Integer('Khoảng cách tròng (mm)')
     opt_lens_height = fields.Integer('Chiều cao tròng (mm)')
     opt_bridge_width = fields.Integer('Cầu mũi (mm)')

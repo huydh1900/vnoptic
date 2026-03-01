@@ -437,7 +437,7 @@ class ProductSync(models.Model):
                         cache.setdefault('coatings', {})[c_name.upper()] = coating_id
 
             if not coating_id and c_name:
-                # Tạo mới để đảm bảo x_coating_id có dữ liệu khi RS chỉ trả name
+                # Tạo mới coating nếu RS chỉ trả name (đưa vào lens_coating_ids)
                 try:
                     create_vals = {'name': c_name}
                     if c_cid and 'cid' in self.env['product.coating']._fields:
@@ -523,11 +523,11 @@ class ProductSync(models.Model):
             tmpl.write(vals)
             self._cleanup_lens_template_variants(tmpl)
             _logger.info(
-                "🔍 Lens [UPDATE] %s | material=%s | index=%s | coating=%s | design1=%s",
+                "🔍 Lens [UPDATE] %s | material=%s | index=%s | coatings=%s | design1=%s",
                 tmpl.name,
-                tmpl.x_material_id.name if tmpl.x_material_id else None,
-                tmpl.x_refractive_index_id.name if tmpl.x_refractive_index_id else None,
-                tmpl.x_coating_id.name if tmpl.x_coating_id else None,
+                tmpl.lens_material_id.name if tmpl.lens_material_id else None,
+                tmpl.lens_index_id.name if tmpl.lens_index_id else None,
+                ', '.join(tmpl.lens_coating_ids.mapped('name')) or None,
                 tmpl.lens_design1_id.name if tmpl.lens_design1_id else None,
             )
             return tmpl
@@ -538,11 +538,11 @@ class ProductSync(models.Model):
         if tmpl.default_code:
             cache['products'][tmpl.default_code] = tmpl.id
         _logger.info(
-            "🔍 Lens [CREATE] %s | material=%s | index=%s | coating=%s | design1=%s",
+            "🔍 Lens [CREATE] %s | material=%s | index=%s | coatings=%s | design1=%s",
             tmpl.name,
-            tmpl.x_material_id.name if tmpl.x_material_id else None,
-            tmpl.x_refractive_index_id.name if tmpl.x_refractive_index_id else None,
-            tmpl.x_coating_id.name if tmpl.x_coating_id else None,
+            tmpl.lens_material_id.name if tmpl.lens_material_id else None,
+            tmpl.lens_index_id.name if tmpl.lens_index_id else None,
+            ', '.join(tmpl.lens_coating_ids.mapped('name')) or None,
             tmpl.lens_design1_id.name if tmpl.lens_design1_id else None,
         )
         return tmpl
@@ -871,7 +871,7 @@ class ProductSync(models.Model):
             'uom_id': self.env.ref('uom.product_uom_unit').id,
             'uom_po_id': self.env.ref('uom.product_uom_unit').id,
             'list_price': float(dto.get('rtPrice') or 0),
-            'standard_price': float(dto.get('wsPriceMin') or 0),  # Giá sỉ tối thiểu VND
+            'standard_price': float(dto.get('orPrice') or 0) * float((dto.get('currencyZoneDTO') or {}).get('value') or 1),  # Giá vốn: orPrice * tỷ giá (= x_or_price)
             'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else False,
             'seller_ids': seller_vals if seller_vals else False,
             'product_type': product_type,
@@ -1023,8 +1023,6 @@ class ProductSync(models.Model):
             hmc_val = item.get('hmcDto') or item.get('hmcdto') or item.get('hmc') or item.get('HMC')
             pho_val = item.get('phoDto') or item.get('phodto') or item.get('photochromicDto') or item.get('photochromic') or item.get('PHO')
             tint_val = item.get('tintDto') or item.get('tintdto') or item.get('tint') or item.get('TINT')
-            coating_label = ', '.join(coating_codes) if coating_codes else extract_label(item.get('coatingdtos') or [])
-
             sph_raw = pick_value(item, ['sph', 'SPH', 'sphValue', 'sphVal', 'sphDTO', 'sphDto', 'sphdto'])
             cyl_raw = pick_value(item, ['cyl', 'CYL', 'cylValue', 'cylVal', 'cylDTO', 'cylDto', 'cyldto'])
             add_raw = pick_value(item, ['lensAdd', 'add', 'ADD', 'addValue', 'addVal', 'addDTO', 'addDto', 'adddto'])
@@ -1133,8 +1131,6 @@ class ProductSync(models.Model):
             material_raw = first_non_empty(item.get('material'), item.get('materialdto'))
             mat_id = _goc_material(material_raw)
             idx_id = _goc_index(index_dto)
-            # First coating as the primary Many2one coating
-            coat_id = coating_ids[0] if coating_ids else False
 
             _logger.info(
                 "🔍 Lens mapping candidates | design1=%s | design2=%s | material=%s | index_cid=%s | index_name=%s | coating_ids=%s",
@@ -1148,8 +1144,6 @@ class ProductSync(models.Model):
 
             lens_display_vals = {
                 'lens_base_curve': float(item.get('base') or 0),
-                'lens_diameter': int(str(item.get('diameter') or 0).replace('mm', '').replace('MM', '').strip() or 0),
-                'lens_prism': (item.get('prism') or ''),
                 # Many2one chuẩn (get-or-create)
                 'lens_design1_id': d1_id,
                 'lens_design2_id': d2_id,
@@ -1157,13 +1151,8 @@ class ProductSync(models.Model):
                 'lens_index_id': idx_id,
                 'lens_uv_id': self._get_id(cache, 'uvs', self._get_val(item, 'uvdto')),
                 'lens_color_int': (item.get('colorInt') or ''),
-                'lens_mir_coating': (item.get('mirCoating') or ''),
                 'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else False,
                 'lens_template_key': lens_template_key,
-                # x_* Many2one (chuẩn hóa – thay thế char trùng lặp)
-                'x_material_id': mat_id,
-                'x_refractive_index_id': idx_id,
-                'x_coating_id': coat_id,
                 # SPH / CYL / ADD display-only (float, không tạo variant)
                 'x_sph': safe_float(extract_number(sph_raw)),
                 'x_cyl': safe_float(extract_number(cyl_raw)),
@@ -1171,17 +1160,12 @@ class ProductSync(models.Model):
                 'x_axis': safe_int(axis_raw),
                 'x_prism': extract_label(item.get('prism')),
                 'x_prism_base': extract_label(item.get('prismBase') or item.get('prism_base')),
-                # Label chars (giữ để tương thích, không dùng làm nguồn dữ liệu chính)
-                'x_material': extract_label(item.get('material')),
-                'x_refractive_index': extract_label(index_dto.get('name') or index_dto.get('value') or index_dto.get('cid')),
-                'x_uv': extract_label(uv_dto.get('name') or uv_dto.get('cid')),
-                'x_coating': coating_label,
+                # HMC / Photochromic / Tinted (char tương thích RS)
                 'x_hmc': extract_label(hmc_val),
                 'x_photochromic': extract_label(pho_val),
                 'x_tinted': extract_label(tint_val),
                 'x_mir_coating': extract_label(item.get('mirCoating')),
                 'x_diameter': safe_int(item.get('diameter')),
-                # x_design_1 / x_design_2 ĐÃ XÓA – dùng lens_design1_id / lens_design2_id
             }
 
             for key, value in list(lens_display_vals.items()):
