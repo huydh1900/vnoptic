@@ -92,11 +92,14 @@
                                    options="{'no_create': False}"/>
                         </group>
                     </group>
-                    <group string="Công suất (hiển thị từ RS)">
+                    <group string="Công suất (Many2one)">
                         <group>
-                            <field name="x_sph" string="SPH"/>
-                            <field name="x_cyl" string="CYL"/>
-                            <field name="x_add" string="ADD"/>
+                            <field name="lens_sph_id" string="SPH"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_cyl_id" string="CYL"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_add_id" string="ADD"
+                                   options="{'no_create': False}"/>
                             <field name="x_axis" string="Axis"/>
                         </group>
                         <group>

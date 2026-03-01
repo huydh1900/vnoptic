@@ -173,7 +173,9 @@ class ProductTemplateExtension(models.Model):
     lens_cyl_id = fields.Many2one('product.lens.power', string='CYL',
         domain="[('type', '=', 'cyl')]",
         help='Công suất trụ (Cylinder)')
-    lens_add = fields.Float('ADD', digits=(4, 2), help='Addition (thấu kính đa tròng)')
+    lens_add_id = fields.Many2one('product.lens.power', string='ADD',
+        domain="[('type', '=', 'add')]",
+        help='Addition (thấu kính đa tròng)')
     lens_base_curve = fields.Float('Base Curve', digits=(4, 2))
     lens_design1_id = fields.Many2one('product.design', string='Thiết kế 1')
     lens_design2_id = fields.Many2one('product.design', string='Thiết kế 2')
@@ -336,7 +338,7 @@ class ProductTemplateExtension(models.Model):
     opt_frame_type = fields.Char('Loại gọng (hiển thị)', compute='_compute_opt_info', store=False, readonly=True)
     opt_shape = fields.Char('Dáng gọng (hiển thị)', compute='_compute_opt_info', store=False, readonly=True)
 
-    @api.depends('lens_sph_id', 'lens_cyl_id', 'lens_index_id')
+    @api.depends('lens_sph_id', 'lens_cyl_id', 'lens_add_id', 'lens_index_id')
     def _compute_lens_info(self):
         for record in self:
             record.lens_sph = record.lens_sph_id.name if record.lens_sph_id else ''
@@ -361,6 +363,87 @@ class ProductTemplateExtension(models.Model):
                 record.primary_supplier_id = record.seller_ids[0].partner_id
             else:
                 record.primary_supplier_id = False
+
+    # ==================== PRODUCT CREATION LOGIC ====================
+    @api.model
+    def migrate_sph_cyl_to_many2one(self):
+        """Bước 3: Migrate x_sph/x_cyl/x_add (float legacy) → lens_sph_id/lens_cyl_id/lens_add_id (Many2one).
+        Có thể gọi từ shell, cron, hoặc nút bấm wizard.
+
+        Sau khi chạy xong, kiểm tra:
+          SELECT count(*) FROM product_template
+          WHERE (x_sph != 0 OR x_cyl != 0 OR x_add != 0)
+            AND (lens_sph_id IS NULL AND lens_cyl_id IS NULL AND lens_add_id IS NULL);
+        phải = 0.
+        """
+        import logging as _logging
+        _log = _logging.getLogger(__name__)
+
+        def _get_or_create_power(env, fval, power_type):
+            if fval is None or fval == 0.0:
+                return False
+            formatted = f"{fval:+.2f}"
+            rec = env['product.lens.power'].search(
+                [('value', '=', fval), ('type', '=', power_type)], limit=1
+            )
+            if rec:
+                return rec.id
+            try:
+                new_rec = env['product.lens.power'].create({
+                    'name': formatted,
+                    'value': fval,
+                    'type': power_type,
+                })
+                _log.info("✅ migrate: created product.lens.power type=%s value=%s id=%s", power_type, formatted, new_rec.id)
+                return new_rec.id
+            except Exception as e:
+                _log.warning("⚠️ migrate: cannot create lens.power type=%s value=%s: %s", power_type, formatted, e)
+                return False
+
+        domain = [
+            ('product_type', '=', 'lens'),
+            '|', '|',
+            ('x_sph', '!=', 0.0),
+            ('x_cyl', '!=', 0.0),
+            ('x_add', '!=', 0.0),
+        ]
+        templates = self.env['product.template'].search(domain)
+        migrated = 0
+        skipped = 0
+        for tmpl in templates:
+            write_vals = {}
+            if tmpl.x_sph and not tmpl.lens_sph_id:
+                pid = _get_or_create_power(self.env, tmpl.x_sph, 'sph')
+                if pid:
+                    write_vals['lens_sph_id'] = pid
+            if tmpl.x_cyl and not tmpl.lens_cyl_id:
+                pid = _get_or_create_power(self.env, tmpl.x_cyl, 'cyl')
+                if pid:
+                    write_vals['lens_cyl_id'] = pid
+            if tmpl.x_add and not tmpl.lens_add_id:
+                pid = _get_or_create_power(self.env, tmpl.x_add, 'add')
+                if pid:
+                    write_vals['lens_add_id'] = pid
+            if write_vals:
+                tmpl.write(write_vals)
+                migrated += 1
+            else:
+                skipped += 1
+
+        _log.warning(
+            "✅ migrate_sph_cyl_to_many2one DONE: migrated=%s, skipped=%s, total=%s",
+            migrated, skipped, len(templates)
+        )
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Migration SPH/CYL/ADD xong',
+                'message': f'Đã migrate {migrated} template. Skipped: {skipped}.',
+                'type': 'success',
+                'sticky': False,
+            }
+        }
 
     # ==================== PRODUCT CREATION LOGIC ====================
     @api.model

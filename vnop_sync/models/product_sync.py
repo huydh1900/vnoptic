@@ -1125,6 +1125,39 @@ class ProductSync(models.Model):
                     _logger.warning(f"⚠️ Không tạo được product.lens.index cid={cid!r} name={name!r}: {e}")
                     return False
 
+            def _goc_power(raw_val, power_type):
+                """Get or create product.lens.power by float value and type (sph/cyl/add)."""
+                if raw_val in (None, '', False):
+                    return False
+                try:
+                    fval = float(raw_val)
+                except (TypeError, ValueError):
+                    return False
+                # Format: "+1.25", "-2.75", "+0.00"
+                formatted = f"{fval:+.2f}"
+                cache_key = f"{power_type}:{formatted}"
+                cached = cache.get('lens_powers_m2o', {}).get(cache_key)
+                if cached:
+                    return cached
+                found = self.env['product.lens.power'].search(
+                    [('value', '=', fval), ('type', '=', power_type)], limit=1
+                )
+                if found:
+                    cache.setdefault('lens_powers_m2o', {})[cache_key] = found.id
+                    return found.id
+                try:
+                    rec = self.env['product.lens.power'].create({
+                        'name': formatted,
+                        'value': fval,
+                        'type': power_type,
+                    })
+                    cache.setdefault('lens_powers_m2o', {})[cache_key] = rec.id
+                    _logger.info("✅ _goc_power created type=%s value=%s id=%s", power_type, formatted, rec.id)
+                    return rec.id
+                except Exception as e:
+                    _logger.warning("⚠️ Không tạo được product.lens.power type=%s value=%s: %s", power_type, formatted, e)
+                    return False
+
             # Resolve Many2one IDs (get-or-create)
             d1_id = _goc_design(design_1)
             d2_id = _goc_design(design_2)
@@ -1153,7 +1186,11 @@ class ProductSync(models.Model):
                 'lens_color_int': (item.get('colorInt') or ''),
                 'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else False,
                 'lens_template_key': lens_template_key,
-                # SPH / CYL / ADD display-only (float, không tạo variant)
+                # SPH / CYL / ADD → Many2one (get-or-create từ product.lens.power)
+                'lens_sph_id': _goc_power(extract_number(sph_raw), 'sph'),
+                'lens_cyl_id': _goc_power(extract_number(cyl_raw), 'cyl'),
+                'lens_add_id': _goc_power(extract_number(add_raw), 'add'),
+                # Giữ lại x_sph/x_cyl/x_add (float legacy) để migrate sau
                 'x_sph': safe_float(extract_number(sph_raw)),
                 'x_cyl': safe_float(extract_number(cyl_raw)),
                 'x_add': safe_float(extract_number(add_raw)),
