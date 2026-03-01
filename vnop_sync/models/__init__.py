@@ -10,3 +10,5 @@ from . import product_warranty
 from . import product_warranty_template
 from . import server_connector
 
+from . import product_template_debug_log
+
