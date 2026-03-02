@@ -298,20 +298,23 @@ class ProductTemplateExtension(models.Model):
         digits=(6, 2),
         help='Chiều ngang mắt kính – RS field: ngang_mat'
     )
-    # Giá sỉ theo % = list_price * x_ws_price / 100 (computed, readonly)
+    # Giá sỉ theo % = x_ws_price / list_price * 100 (computed, readonly)
     gia_si_theo_phan_tram = fields.Float(
         'Giá sỉ theo %',
-        digits=(10, 2),
+        digits=(6, 2),
         compute='_compute_gia_si_theo_phan_tram',
         store=True,
         readonly=True,
-        help='Số tiền chiết khấu sỉ = Giá bán lẻ × Tỷ lệ sỉ% / 100'
+        help='Tỷ lệ giá sỉ so với giá bán lẻ: x_ws_price / list_price × 100'
     )
 
     @api.depends('list_price', 'x_ws_price')
     def _compute_gia_si_theo_phan_tram(self):
         for record in self:
-            record.gia_si_theo_phan_tram = record.list_price * record.x_ws_price / 100.0
+            if record.list_price:
+                record.gia_si_theo_phan_tram = record.x_ws_price / record.list_price * 100.0
+            else:
+                record.gia_si_theo_phan_tram = 0.0
 
     # Đơn vị nguyên tệ
     don_vi_nguyen_te = fields.Many2one(

@@ -974,7 +974,7 @@ class ProductSync(models.Model):
             'status_product_id': status_id,
             'x_currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
             'x_currency_zone_value': float((dto.get('currencyZoneDTO') or {}).get('value') or 0),
-            'x_ws_price': float(dto.get('wsPrice') or 0),
+            'x_ws_price': float(dto.get('wsPrice') or dto.get('wsPriceMax') or 0),
             'x_ws_price_min': float(dto.get('wsPriceMin') or 0),
             'x_ws_price_max': float(dto.get('wsPriceMax') or 0),
             # x_or_price = giá nhập kho quy VND: orPrice (ngoại tệ) * tỷ giá
