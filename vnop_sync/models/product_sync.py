@@ -275,12 +275,12 @@ class ProductSync(models.Model):
             ('temples', 'product.temple', 'cid'),
         ]
         # Chuẩn bị cache cho power, design, material
-        cache['lens_powers'] = {'sph': {}, 'cyl': {}}
+        cache['lens_powers'] = {'sph': {}, 'cyl': {}, 'add': {}}
         if 'product.lens.power' in self.env:
             for r in self.env['product.lens.power'].search_read([], ['id', 'value', 'type']):
                 t = r['type']
                 v = float(r['value'])
-                cache['lens_powers'][t][v] = r['id']
+                cache['lens_powers'].setdefault(t, {})[v] = r['id']
         cache['lens_designs'] = {}
         if 'product.lens.design' in self.env:
             for r in self.env['product.lens.design'].search_read([], ['id', 'name']):
@@ -300,6 +300,20 @@ class ProductSync(models.Model):
                     if val: cache[key][val.upper()] = r['id']
                     if model == 'product.group' and key == 'groups':
                         cache['groups_by_id'][r['id']] = r['id']
+
+        # Also index uvs by name (fallback khi RS chỉ trả name, không có cid)
+        if 'product.uv' in self.env:
+            for r in self.env['product.uv'].search_read([], ['id', 'name']):
+                nm = (r.get('name') or '').strip().upper()
+                if nm:
+                    cache['uvs'].setdefault(nm, r['id'])
+
+        # Also index coatings by name
+        if 'product.coating' in self.env:
+            for r in self.env['product.coating'].search_read([], ['id', 'name']):
+                nm = (r.get('name') or '').strip().upper()
+                if nm:
+                    cache['coatings'].setdefault(nm, r['id'])
 
         # Child Records (giữ lại opt)
         if 'product.opt' in self.env:
@@ -375,6 +389,55 @@ class ProductSync(models.Model):
             return new_id
         except Exception as e:
             _logger.error(f"Failed to create {model_name} for {cid}: {e}")
+            return False
+
+    def _resolve_uv_id(self, uv_dto, cache):
+        """Get-or-create product.uv từ uvdto. Hỗ trợ cả cid lẫn name fallback."""
+        if not uv_dto:
+            return False
+        if isinstance(uv_dto, str):
+            uv_dto = {'name': uv_dto.strip()}
+
+        cid = (uv_dto.get('cid') or '').strip().upper()
+        name = (uv_dto.get('name') or uv_dto.get('value') or cid or '').strip()
+
+        # Tìm trong cache theo cid trước, rồi name
+        if cid:
+            found = cache.get('uvs', {}).get(cid)
+            if found:
+                return found
+        if name:
+            found = cache.get('uvs', {}).get(name.upper())
+            if found:
+                return found
+
+        # Tìm trong DB
+        domain = [('cid', '=', cid)] if cid else ([('name', '=', name)] if name else [])
+        rec = self.env['product.uv'].search(domain, limit=1) if domain else False
+        if not rec and cid and name:
+            rec = self.env['product.uv'].search([('name', '=', name)], limit=1)
+        if rec:
+            if cid:
+                cache.setdefault('uvs', {})[cid] = rec.id
+            if name:
+                cache.setdefault('uvs', {})[name.upper()] = rec.id
+            return rec.id
+
+        # Auto-create nếu có name
+        if not name:
+            return False
+        try:
+            create_vals = {'name': name}
+            if cid and 'cid' in self.env['product.uv']._fields:
+                create_vals['cid'] = cid
+            rec = self.env['product.uv'].create(create_vals)
+            if cid:
+                cache.setdefault('uvs', {})[cid] = rec.id
+            cache.setdefault('uvs', {})[name.upper()] = rec.id
+            _logger.info("✅ Auto-created product.uv cid=%s name=%s id=%s", cid or None, name, rec.id)
+            return rec.id
+        except Exception as e:
+            _logger.warning("⚠️ Không tạo được product.uv cid=%s name=%s: %s", cid or None, name, e)
             return False
 
     def _resolve_lens_coatings(self, item, cache):
@@ -914,7 +977,7 @@ class ProductSync(models.Model):
         # ─── Lens specs (template-level only; no variants) ────────────────
         if product_type == 'lens':
             def safe_float(val):
-                if val in (None, '', False):
+                if val is None or val == '':
                     return None
                 try:
                     return float(val)
@@ -922,7 +985,7 @@ class ProductSync(models.Model):
                     return None
 
             def safe_int(val):
-                if val in (None, '', False):
+                if val is None or val == '':
                     return None
                 try:
                     return int(str(val).replace('mm', '').replace('MM', '').strip())
@@ -933,7 +996,9 @@ class ProductSync(models.Model):
                 for key in keys:
                     if key in source:
                         val = source.get(key)
-                        if val not in (None, '', False):
+                        # Dùng `is not None` thay vì `not in (None, '', False)`
+                        # vì 0 == False trong Python → 0.00 (ADD hợp lệ) bị bỏ qua sai
+                        if val is not None and val != '':
                             return val
                 return None
 
@@ -1019,10 +1084,28 @@ class ProductSync(models.Model):
                 if index_name:
                     index_dto = {'name': index_name}
 
-            uv_dto = item.get('uvdto') or {}
-            hmc_val = item.get('hmcDto') or item.get('hmcdto') or item.get('hmc') or item.get('HMC')
-            pho_val = item.get('phoDto') or item.get('phodto') or item.get('photochromicDto') or item.get('photochromic') or item.get('PHO')
-            tint_val = item.get('tintDto') or item.get('tintdto') or item.get('tint') or item.get('TINT')
+            uv_dto = item.get('uvdto') or item.get('uvDto') or item.get('uvDTO') or {}
+            hmc_val = (
+                item.get('hmcDto') or item.get('hmcdto') or item.get('hmcDTO')
+                or item.get('hmc') or item.get('HMC')
+                or item.get('isHmc') or item.get('isHMC')
+                or item.get('hmcCode') or item.get('hmccode')
+                or item.get('hmcValue') or item.get('hmcName')
+            )
+            pho_val = (
+                item.get('phoDto') or item.get('phodto') or item.get('phoDTO')
+                or item.get('photochromicDto') or item.get('photochromic') or item.get('PHO')
+                or item.get('isPhotochromic') or item.get('photochromicCode')
+                or item.get('photochromicValue') or item.get('photochromicName')
+            )
+            tint_val = (
+                item.get('tintDto') or item.get('tintdto') or item.get('tintDTO')
+                or item.get('tint') or item.get('TINT') or item.get('tinted')
+                or item.get('isTinted') or item.get('tintCode')
+                or item.get('tintValue') or item.get('tintName')
+                or item.get('tintLevel')
+                # NOTE: colorInt KHÔNG đưa vào đây — nó đã map vào lens_color_int riêng
+            )
             sph_raw = pick_value(item, ['sph', 'SPH', 'sphValue', 'sphVal', 'sphDTO', 'sphDto', 'sphdto'])
             cyl_raw = pick_value(item, ['cyl', 'CYL', 'cylValue', 'cylVal', 'cylDTO', 'cylDto', 'cyldto'])
             add_raw = pick_value(item, ['lensAdd', 'add', 'ADD', 'addValue', 'addVal', 'addDTO', 'addDto', 'adddto'])
@@ -1127,7 +1210,9 @@ class ProductSync(models.Model):
 
             def _goc_power(raw_val, power_type):
                 """Get or create product.lens.power by float value and type (sph/cyl/add)."""
-                if raw_val in (None, '', False):
+                # Dùng `is None` thay vì `in (None, '', False)` vì 0.0 == False trong Python
+                # → SPH=0.00, CYL=0.00, ADD=0.00 là giá trị hợp lệ, không được bỏ qua
+                if raw_val is None or raw_val == '':
                     return False
                 try:
                     fval = float(raw_val)
@@ -1182,9 +1267,9 @@ class ProductSync(models.Model):
                 'lens_design2_id': d2_id,
                 'lens_material_id': mat_id,
                 'lens_index_id': idx_id,
-                'lens_uv_id': self._get_id(cache, 'uvs', self._get_val(item, 'uvdto')),
-                'lens_color_int': (item.get('colorInt') or ''),
-                'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else False,
+                'lens_uv_id': self._resolve_uv_id(uv_dto, cache) or None,
+                'lens_color_int': (item.get('colorInt') or '') or None,
+                'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else None,
                 'lens_template_key': lens_template_key,
                 # SPH / CYL / ADD → Many2one (get-or-create từ product.lens.power)
                 'lens_sph_id': _goc_power(extract_number(sph_raw), 'sph'),
@@ -1197,16 +1282,18 @@ class ProductSync(models.Model):
                 'x_axis': safe_int(axis_raw),
                 'x_prism': extract_label(item.get('prism')),
                 'x_prism_base': extract_label(item.get('prismBase') or item.get('prism_base')),
-                # HMC / Photochromic / Tinted (char tương thích RS)
-                'x_hmc': extract_label(hmc_val),
-                'x_photochromic': extract_label(pho_val),
-                'x_tinted': extract_label(tint_val),
-                'x_mir_coating': extract_label(item.get('mirCoating')),
+                # HMC / Photochromic / Tinted (char — chỉ set khi RS có dữ liệu, tránh ghi NULL)
+                'x_hmc': extract_label(hmc_val) or None,
+                'x_photochromic': extract_label(pho_val) or None,
+                'x_tinted': extract_label(tint_val) or None,
+                'x_mir_coating': extract_label(item.get('mirCoating')) or None,
                 'x_diameter': safe_int(item.get('diameter')),
             }
 
+            # Lọc các giá trị không hợp lệ ra khỏi vals
+            # Quy tắc: None, False, '' → không ghi vào DB (giữ nguyên giá trị cũ)
             for key, value in list(lens_display_vals.items()):
-                if value is None:
+                if value is None or value is False or value == '':
                     lens_display_vals.pop(key)
 
             vals.update(lens_display_vals)
@@ -1232,12 +1319,12 @@ class ProductSync(models.Model):
         material_name = (item.get('material') or '').strip().lower()
 
         def safe_int(val, default=0):
-            if val in (None, '', False): return default
+            if val is None or val == '': return default
             try: return int(str(val).replace('mm', '').replace('MM', '').strip() or default)
             except Exception: return default
 
         def safe_float(val, default=0.0):
-            try: return float(val) if val not in (None, '', False) else default
+            try: return float(val) if val is not None and val != '' else default
             except Exception: return default
 
         v = {
