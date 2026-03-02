@@ -129,9 +129,12 @@
                                    options="{'no_create': False}"/>
                         </group>
                         <group>
-                            <field name="x_hmc" string="HMC"/>
-                            <field name="x_photochromic" string="Photochromic"/>
-                            <field name="x_tinted" string="Tinted"/>
+                            <field name="lens_cl_hmc_id" string="HMC"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_cl_pho_id" string="Photochromic"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_cl_tint_id" string="Tinted"
+                                   options="{'no_create': False}"/>
                         </group>
                     </group>
                 </page>

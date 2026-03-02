@@ -192,6 +192,10 @@ class ProductTemplateExtension(models.Model):
         'product_tmpl_coating_rel', 'tmpl_id', 'coating_id',
         string='Coating'
     )
+    # Màu sắc HMC / Photochromic / Tinted (từ clhmcdto / clphodto / clTintdto)
+    lens_cl_hmc_id = fields.Many2one('product.cl', string='Màu HMC')
+    lens_cl_pho_id = fields.Many2one('product.cl', string='Màu Photochromic')
+    lens_cl_tint_id = fields.Many2one('product.cl', string='Màu Tinted')
 
     # ==================== LENS SPECS (Custom display-only fields) ====================
     x_sph = fields.Float('SPH', digits=(6, 2), help='Lens sphere power (display only)')
@@ -200,9 +204,9 @@ class ProductTemplateExtension(models.Model):
     x_axis = fields.Integer('Axis', help='Lens axis (display only)')
     x_prism = fields.Char('Prism', size=50, help='Lens prism (display only)')
     x_prism_base = fields.Char('Prism Base', size=50, help='Lens prism base (display only)')
-    x_hmc = fields.Char('HMC', help='HMC coating (display only)')
-    x_photochromic = fields.Char('Photochromic', help='Photochromic info (display only)')
-    x_tinted = fields.Char('Tinted', help='Tinted info (display only)')
+    x_hmc = fields.Char('HMC (legacy)', help='Deprecated – dùng lens_cl_hmc_id')
+    x_photochromic = fields.Char('Photochromic (legacy)', help='Deprecated – dùng lens_cl_pho_id')
+    x_tinted = fields.Char('Tinted (legacy)', help='Deprecated – dùng lens_cl_tint_id')
     x_mir_coating = fields.Char('Màu tráng gương', help='Mirror coating (display only)')
     x_diameter = fields.Integer('Đường kính', help='Lens diameter (display only)')
 

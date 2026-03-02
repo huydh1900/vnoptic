@@ -444,9 +444,11 @@ class ProductSync(models.Model):
         coating_ids = []
         coating_codes = []
         raw_coatings = (
-            item.get('coatingdtos')
+            item.get('coatingsdto')    # API thực tế: coatingsdto (s trước dto)
+            or item.get('coatingdtos')
             or item.get('coatingDtos')
             or item.get('coatingDTOs')
+            or item.get('coatingsdtos')
             or item.get('coatingdto')
             or item.get('coatingDto')
             or item.get('coatingDTO')
@@ -583,6 +585,15 @@ class ProductSync(models.Model):
 
         if tmpl_id:
             tmpl = self.env['product.template'].browse(tmpl_id)
+            _logger.info(
+                "📝 [LENS UPDATE id=%s] uv=%s | coating=%s | cl_hmc=%s | cl_pho=%s | cl_tint=%s",
+                tmpl_id,
+                vals.get('lens_uv_id', 'SKIPPED'),
+                vals.get('lens_coating_ids', 'SKIPPED'),
+                vals.get('lens_cl_hmc_id', 'SKIPPED'),
+                vals.get('lens_cl_pho_id', 'SKIPPED'),
+                vals.get('lens_cl_tint_id', 'SKIPPED'),
+            )
             tmpl.write(vals)
             self._cleanup_lens_template_variants(tmpl)
             _logger.info(
@@ -595,6 +606,14 @@ class ProductSync(models.Model):
             )
             return tmpl
 
+        _logger.info(
+            "📝 [LENS CREATE] uv=%s | coating=%s | cl_hmc=%s | cl_pho=%s | cl_tint=%s",
+            vals.get('lens_uv_id', 'SKIPPED'),
+            vals.get('lens_coating_ids', 'SKIPPED'),
+            vals.get('lens_cl_hmc_id', 'SKIPPED'),
+            vals.get('lens_cl_pho_id', 'SKIPPED'),
+            vals.get('lens_cl_tint_id', 'SKIPPED'),
+        )
         tmpl = self.env['product.template'].with_context(tracking_disable=True).create(vals)
         self._cleanup_lens_template_variants(tmpl)
         cache.setdefault('lens_templates', {})[template_key] = tmpl.id
@@ -1269,6 +1288,22 @@ class ProductSync(models.Model):
                 'lens_index_id': idx_id,
                 'lens_uv_id': self._resolve_uv_id(uv_dto, cache) or None,
                 'lens_color_int': (item.get('colorInt') or '') or None,
+                # Màu sắc HMC / Photochromic / Tinted (get-or-create product.cl)
+                'lens_cl_hmc_id': self._get_id_with_fallback(
+                    cache, 'colors',
+                    item.get('clhmcdto') or item.get('clHmcdto') or item.get('clHMCdto') or item.get('clHmcDto')
+                ) or None,
+                'lens_cl_pho_id': self._get_id_with_fallback(
+                    cache, 'colors',
+                    item.get('clphodto') or item.get('clPhodto') or item.get('clPHOdto') or item.get('clPhoDto')
+                ) or None,
+                'lens_cl_tint_id': self._get_id_with_fallback(
+                    cache, 'colors',
+                    item.get('clTintdto') or item.get('cltintdto') or item.get('clTINTdto') or item.get('clTintDto')
+                ) or None,
+                # Many2many coating:
+                #   coating_ids có phần tử  → [(6, 0, [id,...])] ghi vào DB
+                #   coating_ids rỗng        → None → cleanup loop loại bỏ → giữ dữ liệu cũ
                 'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else None,
                 'lens_template_key': lens_template_key,
                 # SPH / CYL / ADD → Many2one (get-or-create từ product.lens.power)
@@ -1282,19 +1317,28 @@ class ProductSync(models.Model):
                 'x_axis': safe_int(axis_raw),
                 'x_prism': extract_label(item.get('prism')),
                 'x_prism_base': extract_label(item.get('prismBase') or item.get('prism_base')),
-                # HMC / Photochromic / Tinted (char — chỉ set khi RS có dữ liệu, tránh ghi NULL)
-                'x_hmc': extract_label(hmc_val) or None,
-                'x_photochromic': extract_label(pho_val) or None,
-                'x_tinted': extract_label(tint_val) or None,
                 'x_mir_coating': extract_label(item.get('mirCoating')) or None,
                 'x_diameter': safe_int(item.get('diameter')),
             }
 
-            # Lọc các giá trị không hợp lệ ra khỏi vals
-            # Quy tắc: None, False, '' → không ghi vào DB (giữ nguyên giá trị cũ)
-            for key, value in list(lens_display_vals.items()):
-                if value is None or value is False or value == '':
-                    lens_display_vals.pop(key)
+            # ── Cleanup: CHỈ loại bỏ None ──────────────────────────────────────────────
+            # Quy tắc:
+            #   None              → key bị bỏ → ORM không ghi, giữ nguyên dữ liệu cũ
+            #   False             → GIỮ LẠI  → ORM ghi False
+            #   ''                → GIỮ LẠI  → ORM ghi '' (Char field trống)
+            #   [(6, 0, [...])]   → GIỮ LẠI  → ORM cập nhật Many2many
+            for _k, _v in list(lens_display_vals.items()):
+                if _v is None:
+                    lens_display_vals.pop(_k)
+
+            _logger.info(
+                "📝 [LENS VALS] uv=%s | coating=%s | cl_hmc=%s | cl_pho=%s | cl_tint=%s",
+                lens_display_vals.get('lens_uv_id', 'SKIPPED'),
+                lens_display_vals.get('lens_coating_ids', 'SKIPPED'),
+                lens_display_vals.get('lens_cl_hmc_id', 'SKIPPED'),
+                lens_display_vals.get('lens_cl_pho_id', 'SKIPPED'),
+                lens_display_vals.get('lens_cl_tint_id', 'SKIPPED'),
+            )
 
             vals.update(lens_display_vals)
 
@@ -1454,6 +1498,61 @@ class ProductSync(models.Model):
             ),
         }
 
+    def _debug_log_item_structure(self, item, idx):
+        """Log RAW JSON structure của một item từ RS – dùng để phân tích cấu trúc.
+        Bật/tắt bằng biến môi trường LOG_LENS_RAW_STRUCTURE=True.
+        """
+        if os.getenv('LOG_LENS_RAW_STRUCTURE', 'False').lower() != 'true':
+            return
+
+        prefix = f"[RAW ITEM idx={idx}]"
+
+        # ── 1. Full pretty JSON ────────────────────────────────────────────────
+        try:
+            _logger.info("%s FULL JSON:\n%s", prefix,
+                         json.dumps(item, ensure_ascii=False, indent=2, default=str))
+        except Exception as e:
+            _logger.warning("%s Không dump được JSON: %s", prefix, e)
+
+        # ── 2. Danh sách key cấp 1 ────────────────────────────────────────────
+        _logger.info("%s TOP-LEVEL KEYS (%d): %s", prefix, len(item), list(item.keys()))
+
+        # ── 3. Kiểm tra key chứa attribute dạng list/dict ─────────────────────
+        ATTR_KEYS = [
+            'attributes', 'properties', 'lensProperties', 'options',
+            'combos', 'productAttributes', 'specifications', 'flags',
+            'coating', 'coatings', 'coatingdtos', 'coatingDtos',
+            'hmc', 'hmcDto', 'isHmc',
+            'photochromic', 'phoDto', 'isPhotochromic',
+            'tinted', 'tintDto', 'isTinted',
+        ]
+        for k in ATTR_KEYS:
+            if k not in item:
+                continue
+            v = item[k]
+            if isinstance(v, list):
+                _logger.info("%s KEY=%r → list (%d items):", prefix, k, len(v))
+                for i, elem in enumerate(v):
+                    if isinstance(elem, dict):
+                        _logger.info("  [%d] dict keys=%s", i, list(elem.keys()))
+                    else:
+                        _logger.info("  [%d] %s = %r", i, type(elem).__name__, elem)
+            elif isinstance(v, dict):
+                _logger.info("%s KEY=%r → dict keys=%s", prefix, k, list(v.keys()))
+            else:
+                _logger.info("%s KEY=%r → %s = %r", prefix, k, type(v).__name__, v)
+
+        # ── 4. Type map của toàn bộ item ──────────────────────────────────────
+        type_map = []
+        for k, v in item.items():
+            if isinstance(v, list):
+                type_map.append(f"{k}: list[{len(v)}]")
+            elif isinstance(v, dict):
+                type_map.append(f"{k}: dict({len(v)} keys)")
+            else:
+                type_map.append(f"{k}: {type(v).__name__}={v!r}")
+        _logger.info("%s TYPE MAP:\n  %s", prefix, '\n  '.join(type_map))
+
     def _process_lens_variant_items(self, items, cache):
         total = len(items)
         success = failed = 0
@@ -1462,6 +1561,9 @@ class ProductSync(models.Model):
 
         for idx, item in enumerate(items):
             try:
+                # ── Raw structure debug (bật bằng LOG_LENS_RAW_STRUCTURE=True) ──
+                self._debug_log_item_structure(item, idx)
+
                 tmpl = self._get_or_create_lens_template(item, cache)
                 if not tmpl:
                     failed += 1
