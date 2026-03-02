@@ -7,12 +7,13 @@ export class AttachmentPreviewWidget extends Component {
     static props = {};
     setup() {
         super.setup();
-        Component.env.bus.addEventListener(
+        this.attachments = [];
+        this.env.bus.addEventListener(
             "open_attachment_preview",
             ({detail: {attachment_id, attachment_info_list}}) =>
                 this._onAttachmentPreview(attachment_id, attachment_info_list)
         );
-        Component.env.bus.addEventListener("hide_attachment_preview", this.hide);
+        this.env.bus.addEventListener("hide_attachment_preview", () => this.hide());
         this.state = useState({activeIndex: 0});
         this.currentRef = useRef("current");
         this.iframeRef = useRef("iframe");
@@ -35,8 +36,11 @@ export class AttachmentPreviewWidget extends Component {
 
     _onPopoutClick() {
         if (!this.attachments[this.state.activeIndex]) return;
-        // eslint-disable-next-line no-undef
-        window.open(this.attachments[this.state.activeIndex].previewUrl);
+        window.open(
+            this.attachments[this.state.activeIndex].previewUrl,
+            "_blank",
+            "noopener,noreferrer"
+        );
     }
 
     next() {
@@ -60,11 +64,15 @@ export class AttachmentPreviewWidget extends Component {
     }
 
     show() {
-        $(".attachment_preview_widget").removeClass("d-none");
+        if (this.el) {
+            this.el.classList.remove("d-none");
+        }
     }
 
     hide() {
-        $(".attachment_preview_widget").addClass("d-none");
+        if (this.el) {
+            this.el.classList.add("d-none");
+        }
     }
 
     updatePaginator() {
@@ -73,16 +81,22 @@ export class AttachmentPreviewWidget extends Component {
             this.state.activeIndex + 1,
             this.attachments.length
         );
-        $(this.currentRef.el).html(value);
+        if (this.currentRef.el) {
+            this.currentRef.el.textContent = value;
+        }
     }
 
     loadPreview() {
         if (this.attachments.length === 0) {
-            $(this.iframeRef.el).attr("src", "about:blank");
+            if (this.iframeRef.el) {
+                this.iframeRef.el.setAttribute("src", "about:blank");
+            }
             return;
         }
         var att = this.attachments[this.state.activeIndex];
-        $(this.iframeRef.el).attr("src", att.previewUrl);
+        if (this.iframeRef.el) {
+            this.iframeRef.el.setAttribute("src", att.previewUrl);
+        }
     }
 
     setAttachments(attachments, active_attachment_id) {

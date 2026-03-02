@@ -80,8 +80,7 @@ class IrAttachment(models.Model):
         """Adds extension in Store for attachments"""
         res = super()._to_store(store=store, fields=fields, extra_fields=extra_fields)
         attachment_extension = self.get_attachment_extension(self.ids)
-        for attachment in store.data.get("ir.attachment"):
-            store.data["ir.attachment"][attachment]["extension"] = (
-                attachment_extension.get(attachment[0], "")
-            )
+        for key, values in store.data.get("ir.attachment", {}).items():
+            attachment_id = key[0] if isinstance(key, (tuple, list)) else key
+            values["extension"] = attachment_extension.get(attachment_id, "")
         return res

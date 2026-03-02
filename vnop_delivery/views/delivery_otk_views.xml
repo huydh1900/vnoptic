@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-    <record id="view_contract_otk_tree" model="ir.ui.view">
-        <field name="name">contract.otk.tree</field>
-        <field name="model">contract.otk</field>
+    <record id="view_delivery_otk_tree" model="ir.ui.view">
+        <field name="name">delivery.otk.tree</field>
+        <field name="model">delivery.otk</field>
         <field name="arch" type="xml">
             <list decoration-info="state == 'draft'" decoration-primary="state == 'confirmed'"
                   decoration-success="state == 'done'" decoration-danger="state == 'cancel'">
                 <field name="otk_sequence"/>
                 <field name="name"/>
                 <field name="date"/>
+                <field name="delivery_schedule_id"/>
                 <field name="contract_id"/>
                 <field name="total_checked"/>
                 <field name="total_ok"/>
@@ -20,9 +21,9 @@
         </field>
     </record>
 
-    <record id="view_contract_otk_form" model="ir.ui.view">
-        <field name="name">contract.otk.form</field>
-        <field name="model">contract.otk</field>
+    <record id="view_delivery_otk_form" model="ir.ui.view">
+        <field name="name">delivery.otk.form</field>
+        <field name="model">delivery.otk</field>
         <field name="arch" type="xml">
             <form>
                 <header>
@@ -30,24 +31,31 @@
                             invisible="state != 'draft'"/>
                     <button name="action_cancel" type="object" string="Hủy" class="btn-secondary"
                             invisible="state in ('done','cancel')"/>
-                    <button name="action_open_picking_ok" type="object" string="Mở phiếu chuyển đạt"
-                            invisible="state not in ('confirmed','done') or not picking_ok_id"/>
-                    <button name="action_open_picking_ng" type="object" string="Mở phiếu chuyển lỗi"
-                            invisible="state not in ('confirmed','done') or not picking_ng_id"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,done,cancel"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_picking_ok" type="object" class="oe_stat_button"
+                                icon="fa-archive" invisible="not picking_ok_count">
+                            <field name="picking_ok_count" widget="statinfo" string="Phiếu chuyển Kho chính"/>
+                        </button>
+                        <button name="action_open_picking_ng" type="object" class="oe_stat_button"
+                                icon="fa-exclamation-triangle" invisible="not picking_ng_count">
+                            <field name="picking_ng_count" widget="statinfo" string="Phiếu chuyển Kho lỗi"/>
+                        </button>
+                    </div>
                     <group>
                         <group>
                             <field name="otk_sequence" readonly="1"/>
                             <field name="name" readonly="1"/>
+                            <field name="delivery_schedule_id" readonly="1"/>
                             <field name="contract_id" readonly="1"/>
                             <field name="date" readonly="state != 'draft'"/>
                             <field name="company_id" readonly="1"/>
                         </group>
                         <group>
                             <field name="source_location_id" readonly="state != 'draft'"/>
-                            <field name="ok_location_id" readonly="state != 'draft'"/>
+                            <field name="ok_location_id" readonly="1"/>
                             <field name="ng_location_id" readonly="state != 'draft'"/>
                             <field name="picking_type_id" readonly="state != 'draft'"/>
                         </group>
@@ -62,25 +70,18 @@
                     <field name="line_ids" readonly="state != 'draft'">
                         <list editable="bottom" delete="0" create="0">
                             <field name="product_id" readonly="1"/>
-                            <field name="purchase_line_id" readonly="1"/>
-                            <field name="qty_contract" readonly="1"/>
-                            <field name="qty_available_temp" readonly="1"/>
-                            <field name="qty_checked"/>
-                            <field name="qty_ok"/>
-                            <field name="qty_ng" readonly="1"/>
-                            <field name="qty_short" readonly="1"/>
-                            <field name="qty_excess" readonly="1"/>
+                            <field name="qty_contract" readonly="1" sum="Tổng SL theo OTK"/>
+                            <field name="qty_checked" sum="Tổng SL kiểm"/>
+                            <field name="qty_ok" sum="Tổng SL vào Kho chính"/>
+                            <field name="qty_ng" readonly="1" sum="Tổng SL lỗi"/>
+                            <field name="qty_short" readonly="1" sum="Tổng SL thiếu"/>
+                            <field name="qty_excess" readonly="1" sum="Tổng SL thừa"/>
+                            <field name="qty_available_temp" readonly="1" sum="Tổng tồn khả dụng tạm"/>
                         </list>
                     </field>
                 </sheet>
                 <chatter/>
             </form>
         </field>
-    </record>
-
-    <record id="action_contract_otk" model="ir.actions.act_window">
-        <field name="name">Lần OTK</field>
-        <field name="res_model">contract.otk</field>
-        <field name="view_mode">list,form</field>
     </record>
 </odoo>

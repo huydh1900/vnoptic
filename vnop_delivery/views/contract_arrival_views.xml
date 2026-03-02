@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_contract_arrival_tree" model="ir.ui.view">
+        <field name="name">contract.arrival.tree</field>
+        <field name="model">contract.arrival</field>
+        <field name="arch" type="xml">
+            <list string="Các lần về">
+                <field name="name"/>
+                <field name="contract_id"/>
+                <field name="delivery_schedule_id"/>
+                <field name="arrival_date"/>
+                <field name="bill_number"/>
+                <field name="qty_planned_total" sum="Tổng SL kế hoạch"/>
+                <field name="qty_received_total" sum="Tổng SL đã nhận"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_contract_arrival_form" model="ir.ui.view">
+        <field name="name">contract.arrival.form</field>
+        <field name="model">contract.arrival</field>
+        <field name="arch" type="xml">
+            <form string="Lần về">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" readonly="1"/>
+                            <field name="contract_id" readonly="1"/>
+                            <field name="delivery_schedule_id" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="arrival_date" readonly="1"/>
+                            <field name="bill_number" readonly="1"/>
+                            <field name="company_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="qty_planned_total" readonly="1"/>
+                        <field name="qty_received_total" readonly="1"/>
+                    </group>
+                    <field name="line_ids" readonly="1">
+                        <list create="0" delete="0">
+                            <field name="purchase_id"/>
+                            <field name="purchase_line_id"/>
+                            <field name="product_id"/>
+                            <field name="uom_id"/>
+                            <field name="qty_planned" sum="Tổng SL kế hoạch"/>
+                            <field name="qty_received" sum="Tổng SL đã nhận"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_contract_form_arrival_inherit" model="ir.ui.view">
+        <field name="name">contract.form.arrival.inherit</field>
+        <field name="model">contract</field>
+        <field name="inherit_id" ref="vnop_contract.vnoptic_contract_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_arrivals"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-ship"
+                        invisible="not arrival_count">
+                    <field name="arrival_count" widget="statinfo" string="Các lần về"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+</odoo>

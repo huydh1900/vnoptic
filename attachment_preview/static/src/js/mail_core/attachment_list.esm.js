@@ -3,17 +3,17 @@ import {AttachmentList} from "@mail/core/common/attachment_list";
 import {patch} from "@web/core/utils/patch";
 
 patch(AttachmentList.prototype, {
-    _onPreviewAttachment(attachment) {
-        // eslint-disable-next-line no-undef
-        var $target = $(event.currentTarget);
-        var split_screen = $target.attr("data-target") !== "new";
+    _onPreviewAttachment(attachment, ev) {
+        const target = ev?.currentTarget;
+        const split_screen = target?.dataset?.target !== "new";
         showPreview(
             attachment.id,
-            attachment.defaultSource,
+            attachment.defaultSource || attachment.url || attachment.downloadUrl,
             attachment.extension,
-            attachment.filename,
+            attachment.filename || attachment.displayName || attachment.name,
             split_screen,
-            this.previewableAttachments
+            this.previewableAttachments,
+            this.env.bus
         );
     },
 

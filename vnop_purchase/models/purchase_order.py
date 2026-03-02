@@ -19,6 +19,9 @@ class PurchaseOrder(models.Model):
     )
     delivery_schedule_ids = fields.Many2many(
         'delivery.schedule',
+        'delivery_schedule_purchase_rel',
+        'purchase_id',
+        'schedule_id',
         string='Lịch giao hàng'
     )
 
@@ -83,6 +86,11 @@ class PurchaseOrder(models.Model):
 
     def action_view_delivery_schedule(self):
         self.ensure_one()
+        if not self.contract_id:
+            raise UserError(
+                _('Đơn mua %s chưa liên kết hợp đồng. Vui lòng gán hợp đồng trước khi tạo lịch giao.')
+                % self.name
+            )
         return {
             'type': 'ir.actions.act_window',
             'name': _('Lịch giao hàng'),
@@ -101,6 +109,3 @@ class PurchaseOrder(models.Model):
     def _onchange_partner_id_fill_partner_ref(self):
         if self.partner_id:
             self.partner_ref = self.partner_id.ref or False
-
-
-

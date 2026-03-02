@@ -19,6 +19,7 @@
             "attachment_preview/static/src/js/utils.esm.js",
             "attachment_preview/static/src/js/mail_core/attachment_list.esm.js",
             "attachment_preview/static/src/js/web_views/fields/binary_field.esm.js",
+            "attachment_preview/static/src/js/web_views/fields/many2many_binary_preview.esm.js",
             "attachment_preview/static/src/js/web_views/form/form_compiler.esm.js",
             "attachment_preview/static/src/js/web_views/form/form_controller.esm.js",
             "attachment_preview/static/src/js/web_views/form/form_renderer.esm.js",

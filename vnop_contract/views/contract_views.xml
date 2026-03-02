@@ -29,13 +29,6 @@
                        decoration-warning="state == 'waiting'"
                        decoration-success="state == 'approved'"
                        decoration-danger="state == 'cancel'"/>
-                <field name="delivery_state"
-                       widget="badge"
-                       decoration-info="delivery_state == 'expected'"
-                       decoration-warning="delivery_state == 'confirmed_arrival'"
-                       decoration-primary="delivery_state == 'partial'"
-                       decoration-success="delivery_state == 'done'"
-                       decoration-danger="delivery_state == 'cancel'"/>
             </list>
         </field>
     </record>
@@ -71,13 +64,6 @@
                             class="oe_highlight"
                             invisible="state != 'revision_requested'"/>
 
-                    <button name="action_confirm_arrival_auto" type="object" string="Xác nhận hàng về"
-                            class="btn-primary"
-                            invisible="state != 'approved' or delivery_state != 'expected' or not purchase_order_ids"/>
-                    <button name="action_create_otk_session" type="object" string="Tạo OTK lần mới" class="btn-secondary"
-                            invisible="state != 'approved'"/>
-
-
                     <button name="action_cancel"
                             type="object"
                             string="Hủy hợp đồng"
@@ -103,17 +89,6 @@
                                 icon="fa-cubes">
                             <field name="product_count" widget="statinfo" string="Sản phẩm"/>
                         </button>
-
-                        <button name="action_view_receipts" type="object" class="oe_stat_button" icon="fa-truck"
-                                invisible="delivery_state == 'expected'">
-                            <field name="receipt_count_open" widget="statinfo" string="Phiếu nhập kho"/>
-                        </button>
-                        <button name="action_view_otk_sessions" type="object" class="oe_stat_button" icon="fa-tasks">
-                            <field name="otk_session_count" widget="statinfo" string="Lần OTK"/>
-                        </button>
-                        <button name="action_view_otk" type="object" class="oe_stat_button" icon="fa-check-square-o">
-                            <field name="otk_count" widget="statinfo" string="Phiếu chuyển OTK"/>
-                        </button>
                     </div>
 
                     <div class="oe_title">
@@ -127,16 +102,21 @@
                             <field name="number" placeholder="Số hợp đồng..." readonly="state != 'draft'"/>
                             <field name="sign_date" readonly="state != 'draft'"/>
                             <field name="company_id" readonly="state != 'draft'"/>
+                            <field name="contract_direction" readonly="state != 'draft'"/>
                             <field name="type_contract" readonly="state != 'draft'"/>
                             <field name="currency_id" readonly="state != 'draft'"/>
-                            <!--                            <field name="amount_total" widget="monetary" readonly="1"/>-->
-                            <!--                            <field name="total_qty" readonly="1"/>-->
+                            <field name="total_qty" readonly="1"/>
+                            <field name="quantity_uom_id" readonly="state != 'draft'"/>
+                            <field name="amount_total" widget="monetary" readonly="1"/>
                         </group>
 
                         <group string="Nhà cung cấp">
                             <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'" class="vnop_required_hint"/>
                             <field name="partner_ref" readonly="1"/>
-                            <field name="attachment_ids" widget="many2many_binary" readonly="state != 'draft'"/>
+                            <field name="attachment_ids"
+                                   widget="many2many_binary"
+                                   class="vnop_contract_attachment_preview"
+                                   readonly="state != 'draft'"/>
                         </group>
                     </group>
 
@@ -144,16 +124,24 @@
                         <group string="Giao hàng">
                             <field name="incoterm_id" readonly="state != 'draft'"/>
                             <field name="shipment_date" readonly="state != 'draft'" class="vnop_required_hint"/>
-                            <field name="delivery_state" readonly="1"/>
                             <field name="port_of_loading" readonly="state != 'draft'"/>
                             <field name="destination" readonly="state != 'draft'"/>
                             <field name="partial_shipment" readonly="state != 'draft'"/>
                             <field name="origin_country_id" readonly="state != 'draft'"/>
+                            <field name="quality_requirements" readonly="state != 'draft'" placeholder="Yêu cầu chất lượng..."/>
+                            <field name="packing" readonly="state != 'draft'" placeholder="Quy cách đóng gói..."/>
                         </group>
 
                         <group string="Thanh toán / Ngân hàng">
                             <field name="payment_term_id" readonly="state != 'draft'"/>
+                            <field name="remittance" readonly="state != 'draft'" placeholder="Mô tả phương thức thanh toán..."/>
                             <field name="beneficiary_bank_id" readonly="state != 'draft'"/>
+                            <field name="beneficiary_name" readonly="state != 'draft'"/>
+                            <field name="advising_bank_name" readonly="state != 'draft'"/>
+                            <field name="branch_code" readonly="state != 'draft'"/>
+                            <field name="bank_address" readonly="state != 'draft'"/>
+                            <field name="account_no" readonly="state != 'draft'"/>
+                            <field name="swift_code" readonly="state != 'draft'"/>
                         </group>
                     </group>
 
@@ -189,16 +177,6 @@
                                     <field name="qty_remaining" force_save="1" readonly="1"
                                            decoration-danger="qty_remaining > 0"
                                            sum="Tổng SL còn lại"/>
-                                    <field name="otk_qty_checked" readonly="1" sum="OTK thực tế"
-                                           column_invisible="parent.otk_session_count == 0"/>
-                                    <field name="otk_qty_ok" readonly="1" sum="OTK đạt"
-                                           column_invisible="parent.otk_session_count == 0"/>
-                                    <field name="otk_qty_ng" readonly="1" sum="OTK lỗi"
-                                           column_invisible="parent.otk_session_count == 0"/>
-                                    <field name="otk_qty_short" readonly="1" sum="OTK thiếu"
-                                           column_invisible="parent.otk_session_count == 0"/>
-                                    <field name="otk_qty_excess" readonly="1" sum="OTK thừa"
-                                           column_invisible="parent.otk_session_count == 0"/>
                                     <field name="price_unit" force_save="1" readonly="1"/>
                                     <field name="amount_total" widget="monetary" readonly="1" force_save="1"
                                            sum="Tổng giá trị"/>
@@ -208,16 +186,15 @@
                             </field>
                         </page>
 
-                        <page string="Điều khoản">
-                            <field name="terms" nolabel="1" widget="html"
-                                   placeholder="Nhập điều khoản thương mại, thanh toán..."
-                                   readonly="state != 'draft'"/>
-                        </page>
-
-                        <page string="Chất lượng / Đóng gói">
+                        <page string="Chứng từ yêu cầu">
                             <group>
-                                <field name="quality_requirements" readonly="state != 'draft'"/>
-                                <field name="packing" readonly="state != 'draft'"/>
+                                <field name="document_required_ids"
+                                       widget="many2many_tags"
+                                       options="{'no_create_edit': True}"
+                                       readonly="state != 'draft'"/>
+                                <field name="document_note"
+                                       placeholder="Chứng từ khác hoặc yêu cầu chi tiết..."
+                                       readonly="state != 'draft'"/>
                             </group>
                         </page>
 

@@ -12,7 +12,7 @@
                     class="d-flex justify-content-center align-items-center w-100 h-100 border-0 bg-300"
                     t-att-data-id="attachment.id"
                     t-att-data-url="attachment.defaultSource"
-                    t-on-click.stop="() => this._onPreviewAttachment(attachment)"
+                    t-on-click.stop="(ev) => this._onPreviewAttachment(attachment, ev)"
                     t-att-data-original-title="attachment.name"
                     t-attf-title="Preview {{attachment.displayName}} in side panel"
                 >
@@ -24,7 +24,7 @@
                     data-target="new"
                     t-att-data-id="attachment.id"
                     t-att-data-url="attachment.defaultSource"
-                    t-on-click.stop="() => this._onPreviewAttachment(attachment)"
+                    t-on-click.stop="(ev) => this._onPreviewAttachment(attachment, ev)"
                     t-att-data-original-title="attachment.name"
                     t-attf-title="Open preview {{attachment.name}} in a new tab"
                 >

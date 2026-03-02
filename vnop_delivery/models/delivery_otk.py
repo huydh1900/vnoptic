@@ -2,8 +2,8 @@ from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError, UserError
 
 
-class ContractOtk(models.Model):
-    _name = "contract.otk"
+class DeliveryOtk(models.Model):
+    _name = "delivery.otk"
     _description = "Lần kiểm tra chất lượng (OTK)"
     _inherit = ["mail.thread", "mail.activity.mixin"]
     _order = "date desc, id desc"
@@ -44,6 +44,13 @@ class ContractOtk(models.Model):
         default=fields.Datetime.now,
         tracking=True
     )
+    delivery_schedule_id = fields.Many2one(
+        "delivery.schedule",
+        string="Lịch giao",
+        index=True,
+        copy=False,
+        ondelete="set null",
+    )
 
     state = fields.Selection([
         ("draft", "Nháp"),
@@ -65,7 +72,7 @@ class ContractOtk(models.Model):
 
     ok_location_id = fields.Many2one(
         "stock.location",
-        string="Vị trí đạt (Kho OK)",
+        string="Vị trí Kho chính",
         required=True,
     )
 
@@ -83,7 +90,7 @@ class ContractOtk(models.Model):
 
     picking_ok_id = fields.Many2one(
         "stock.picking",
-        string="Phiếu chuyển kho OK",
+        string="Phiếu chuyển Kho chính",
         readonly=True,
         copy=False
     )
@@ -96,7 +103,7 @@ class ContractOtk(models.Model):
     )
 
     line_ids = fields.One2many(
-        "contract.otk.line",
+        "delivery.otk.line",
         "otk_id",
         string="Chi tiết kiểm tra",
         copy=False
@@ -109,7 +116,7 @@ class ContractOtk(models.Model):
     )
 
     total_ok = fields.Float(
-        string="Tổng số lượng đạt",
+        string="Tổng số lượng vào Kho chính",
         compute="_compute_totals",
         store=True
     )
@@ -119,6 +126,8 @@ class ContractOtk(models.Model):
         compute="_compute_totals",
         store=True
     )
+    picking_ok_count = fields.Integer(string="Phiếu Kho chính", compute="_compute_picking_counts")
+    picking_ng_count = fields.Integer(string="Phiếu Kho lỗi", compute="_compute_picking_counts")
 
     _sql_constraints = [
         ("name_company_unique", "unique(name, company_id)", "Số OTK phải là duy nhất trong từng công ty."),
@@ -130,7 +139,7 @@ class ContractOtk(models.Model):
         seq = self.env["ir.sequence"]
         for vals in vals_list:
             if vals.get("name", _("Mới")) == _("Mới"):
-                vals["name"] = seq.next_by_code("contract.otk.seq") or _("Mới")
+                vals["name"] = seq.next_by_code("delivery.otk.seq") or _("Mới")
 
         records = super().create(vals_list)
 
@@ -147,7 +156,7 @@ class ContractOtk(models.Model):
             self.env.cr.execute(
                 """
                 SELECT COALESCE(MAX(otk_sequence), 0)
-                FROM contract_otk
+                FROM delivery_otk
                 WHERE contract_id = %s
                 """,
                 (rec.contract_id.id,),
@@ -163,6 +172,12 @@ class ContractOtk(models.Model):
             rec.total_ok = sum(rec.line_ids.mapped("qty_ok"))
             rec.total_ng = sum(rec.line_ids.mapped("qty_ng"))
 
+    @api.depends("picking_ok_id", "picking_ng_id")
+    def _compute_picking_counts(self):
+        for rec in self:
+            rec.picking_ok_count = 1 if rec.picking_ok_id else 0
+            rec.picking_ng_count = 1 if rec.picking_ng_id else 0
+
     def _prepare_picking_vals(self, otk_type):
         self.ensure_one()
         dest = self.ok_location_id if otk_type == "ok" else self.ng_location_id
@@ -174,9 +189,17 @@ class ContractOtk(models.Model):
             "origin": self.name,
             "company_id": self.company_id.id,
             "contract_id": self.contract_id.id,
-            "contract_otk_id": self.id,
+            "delivery_otk_id": self.id,
             "otk_type": otk_type,
         }
+
+    def _get_company_main_stock_location(self):
+        self.ensure_one()
+        warehouse = self.env["stock.warehouse"].search([("company_id", "=", self.company_id.id)], limit=1)
+        main_location = warehouse.lot_stock_id
+        if not main_location:
+            raise UserError(_("Không tìm thấy Kho chính WH/Stock để xác nhận OTK."))
+        return main_location
 
     def _validate_tracking_lines(self, line):
         if line.product_id.tracking == "none":
@@ -189,7 +212,7 @@ class ContractOtk(models.Model):
         if not fields.Float.is_zero(checked_sum - line.qty_checked, precision_rounding=line.uom_id.rounding):
             raise ValidationError(_("Tổng SL kiểm theo lô phải bằng SL kiểm của %s.") % line.product_id.display_name)
         if not fields.Float.is_zero(ok_sum - line.qty_ok, precision_rounding=line.uom_id.rounding):
-            raise ValidationError(_("Tổng SL đạt theo lô phải bằng SL đạt của %s.") % line.product_id.display_name)
+            raise ValidationError(_("Tổng SL vào Kho chính theo lô phải bằng SL vào Kho chính của %s.") % line.product_id.display_name)
 
     def action_confirm(self):
         StockPicking = self.env["stock.picking"]
@@ -200,9 +223,12 @@ class ContractOtk(models.Model):
         for rec in self:
             if rec.state != "draft":
                 continue
+            main_location = rec._get_company_main_stock_location()
+            if rec.ok_location_id != main_location:
+                rec.ok_location_id = main_location
             lines = rec.line_ids.filtered(lambda l: l.qty_checked or l.qty_ok)
             if not lines:
-                raise UserError(_("Vui lòng nhập ít nhất một dòng có SL kiểm hoặc SL đạt."))
+                raise UserError(_("Vui lòng nhập ít nhất một dòng có SL kiểm hoặc SL vào Kho chính."))
 
             for line in lines:
                 line._lock_related_quants_for_update()
@@ -254,21 +280,49 @@ class ContractOtk(models.Model):
 
     def action_open_picking_ok(self):
         self.ensure_one()
+        pickings = self.env["stock.picking"].search([
+            ("delivery_otk_id", "=", self.id),
+            ("otk_type", "=", "ok"),
+        ])
+        if len(pickings) == 1:
+            return {
+                "type": "ir.actions.act_window",
+                "res_model": "stock.picking",
+                "name": _("Phiếu chuyển Kho chính"),
+                "view_mode": "form",
+                "res_id": pickings.id,
+                "target": "current",
+            }
         return {
             "type": "ir.actions.act_window",
             "res_model": "stock.picking",
-            "view_mode": "form",
-            "res_id": self.picking_ok_id.id,
+            "name": _("Phiếu chuyển Kho chính"),
+            "view_mode": "list,form",
+            "domain": [("delivery_otk_id", "=", self.id), ("otk_type", "=", "ok")],
             "target": "current",
         }
 
     def action_open_picking_ng(self):
         self.ensure_one()
+        pickings = self.env["stock.picking"].search([
+            ("delivery_otk_id", "=", self.id),
+            ("otk_type", "=", "ng"),
+        ])
+        if len(pickings) == 1:
+            return {
+                "type": "ir.actions.act_window",
+                "res_model": "stock.picking",
+                "name": _("Phiếu chuyển Kho lỗi"),
+                "view_mode": "form",
+                "res_id": pickings.id,
+                "target": "current",
+            }
         return {
             "type": "ir.actions.act_window",
             "res_model": "stock.picking",
-            "view_mode": "form",
-            "res_id": self.picking_ng_id.id,
+            "name": _("Phiếu chuyển Kho lỗi"),
+            "view_mode": "list,form",
+            "domain": [("delivery_otk_id", "=", self.id), ("otk_type", "=", "ng")],
             "target": "current",
         }
 
@@ -279,32 +333,32 @@ class ContractOtk(models.Model):
             rec.state = "cancel"
 
 
-class ContractOtkLine(models.Model):
-    _name = "contract.otk.line"
+class DeliveryOtkLine(models.Model):
+    _name = "delivery.otk.line"
     _description = "Line lần OTK"
 
-    otk_id = fields.Many2one("contract.otk", string="Lần OTK", required=True, ondelete="cascade")
+    otk_id = fields.Many2one("delivery.otk", string="Lần OTK", required=True, ondelete="cascade")
     contract_id = fields.Many2one(string="Hợp đồng", related="otk_id.contract_id", store=True, index=True)
     purchase_line_id = fields.Many2one("purchase.order.line", string="Dòng đơn mua", required=True)
     purchase_id = fields.Many2one(string="Đơn mua", related="purchase_line_id.order_id", store=True)
     product_id = fields.Many2one(string="Sản phẩm", related="purchase_line_id.product_id", store=True)
     uom_id = fields.Many2one(string="Đơn vị tính", related="purchase_line_id.product_uom", store=True)
     contract_line_id = fields.Many2one("contract.line", string="Dòng hợp đồng")
-    qty_contract = fields.Float(string="SL hợp đồng")
+    qty_contract = fields.Float(string="SL giao")
 
-    qty_available_temp = fields.Float(string="Tồn khả dụng tạm", compute="_compute_qty_available_temp")
+    qty_available_temp = fields.Float(string="Tồn khả dụng", compute="_compute_qty_available_temp")
     qty_checked = fields.Float(string="SL kiểm", default=0.0)
     qty_ok = fields.Float(string="Đạt", default=0.0)
     qty_ng = fields.Float(string="Lỗi", compute="_compute_qty_ng", store=True)
 
     qty_checked_total_before = fields.Float(string="Tổng SL kiểm trước", compute="_compute_totals_before_after")
-    qty_ok_total_before = fields.Float(string="Tổng SL đạt trước", compute="_compute_totals_before_after")
+    qty_ok_total_before = fields.Float(string="Tổng SL vào Kho chính trước", compute="_compute_totals_before_after")
     qty_ng_total_before = fields.Float(string="Tổng SL lỗi trước", compute="_compute_totals_before_after")
     qty_checked_total_after = fields.Float(string="Tổng SL kiểm sau", compute="_compute_totals_before_after")
     qty_short = fields.Float(string="Thiếu", compute="_compute_totals_before_after")
     qty_excess = fields.Float(string="Thừa", compute="_compute_totals_before_after")
 
-    lot_line_ids = fields.One2many("contract.otk.line.lot", "otk_line_id", copy=False)
+    lot_line_ids = fields.One2many("delivery.otk.line.lot", "otk_line_id", copy=False)
 
     @api.depends("qty_checked", "qty_ok")
     def _compute_qty_ng(self):
@@ -399,9 +453,9 @@ class ContractOtkLine(models.Model):
     def _check_business_rules(self):
         for line in self:
             if line.qty_checked < 0 or line.qty_ok < 0:
-                raise ValidationError(_("SL kiểm/SL đạt không được âm."))
+                raise ValidationError(_("SL kiểm/SL vào Kho chính không được âm."))
             if line.qty_ok > line.qty_checked:
-                raise ValidationError(_("SL đạt không được lớn hơn SL kiểm."))
+                raise ValidationError(_("SL vào Kho chính không được lớn hơn SL kiểm."))
 
     @api.constrains("lot_line_ids", "product_id", "qty_checked")
     def _check_unique_lot_and_serial(self):
@@ -430,7 +484,7 @@ class ContractOtkLine(models.Model):
             "location_id": self.otk_id.source_location_id.id,
             "location_dest_id": dest_location.id,
             "contract_id": self.contract_id.id,
-            "contract_otk_line_id": self.id,
+            "delivery_otk_line_id": self.id,
         }
 
     def _prepare_move_line_vals(self, move, qty, lot, done_field):
@@ -447,14 +501,14 @@ class ContractOtkLine(models.Model):
         }
 
 
-class ContractOtkLineLot(models.Model):
-    _name = "contract.otk.line.lot"
+class DeliveryOtkLineLot(models.Model):
+    _name = "delivery.otk.line.lot"
     _description = "Chi tiết lô dòng OTK"
 
-    otk_line_id = fields.Many2one("contract.otk.line", required=True, ondelete="cascade")
+    otk_line_id = fields.Many2one("delivery.otk.line", required=True, ondelete="cascade")
     lot_id = fields.Many2one("stock.lot", required=True)
     qty_checked = fields.Float(string="Số lượng kiểm", default=0.0)
-    qty_ok = fields.Float(string="Đạt", default=0.0)
+    qty_ok = fields.Float(string="Vào Kho chính", default=0.0)
     qty_ng = fields.Float(string="Lỗi", compute="_compute_qty_ng", store=True)
 
     @api.depends("qty_checked", "qty_ok")
@@ -468,7 +522,7 @@ class ContractOtkLineLot(models.Model):
             if rec.qty_checked < 0 or rec.qty_ok < 0:
                 raise ValidationError(_("Số lượng theo lô phải lớn hơn hoặc bằng 0."))
             if rec.qty_ok > rec.qty_checked:
-                raise ValidationError(_("SL đạt theo lô không được lớn hơn SL kiểm theo lô."))
+                raise ValidationError(_("SL vào Kho chính theo lô không được lớn hơn SL kiểm theo lô."))
             if rec.otk_line_id.product_id.tracking == "serial":
                 if rec.qty_checked not in (0.0, 1.0) or rec.qty_ok not in (0.0, 1.0):
                     raise ValidationError(_("Sản phẩm quản lý theo serial chỉ cho phép SL lô là 0 hoặc 1."))

@@ -1,0 +1,84 @@
+.o_form_view {
+    position: relative;
+    --vnop-chatter-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --vnop-chatter-duration: 0.32s;
+
+    .o-mail-Form-chatter.o-aside {
+        overflow: hidden;
+        contain: layout paint;
+        will-change: width, padding, flex-basis;
+        transition:
+            width var(--vnop-chatter-duration) var(--vnop-chatter-ease),
+            padding var(--vnop-chatter-duration) var(--vnop-chatter-ease),
+            flex-basis var(--vnop-chatter-duration) var(--vnop-chatter-ease);
+
+        .o-mail-Chatter {
+            will-change: opacity, transform;
+            transition:
+                opacity calc(var(--vnop-chatter-duration) * 0.75) ease,
+                transform var(--vnop-chatter-duration) var(--vnop-chatter-ease);
+        }
+    }
+
+    .o_form_view_container,
+    .o_form_renderer,
+    .o_form_sheet_bg {
+        transition:
+            width var(--vnop-chatter-duration) var(--vnop-chatter-ease),
+            max-width var(--vnop-chatter-duration) var(--vnop-chatter-ease),
+            padding var(--vnop-chatter-duration) var(--vnop-chatter-ease);
+    }
+
+    .o_vnop_chatter_toggle_handle {
+        position: absolute;
+        top: 150px;
+        right: 0;
+        z-index: 6;
+        width: 30px;
+        height: 56px;
+        border-radius: 8px 0 0 8px;
+        border-right: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+        padding: 0;
+    }
+
+    &.o_vnop_chatter_collapsed {
+        .o_form_view_container {
+            width: auto !important;
+        }
+
+        .o_form_renderer,
+        .o_form_sheet_bg {
+            max-width: 100% !important;
+        }
+
+        .o_form_sheet_bg {
+            margin-right: 0 !important;
+            --formView-sheetBg-padding-right: var(--formView-sheetBg-padding-x);
+        }
+
+        .o-mail-Form-chatter.o-aside {
+            width: 0 !important;
+            min-width: 0 !important;
+            flex: 0 0 0 !important;
+            padding: 0 !important;
+
+            .o-mail-Chatter {
+                opacity: 0;
+                pointer-events: none;
+                transform: translateX(14px);
+            }
+        }
+    }
+}
+
+@include media-breakpoint-down(xl) {
+    .o_form_view {
+        .o_vnop_chatter_toggle_handle {
+            display: none !important;
+        }
+    }
+}

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="contract_document_type_invoice" model="contract.document.type">
+        <field name="name">Invoice</field>
+    </record>
+    <record id="contract_document_type_packing_list" model="contract.document.type">
+        <field name="name">Packing List</field>
+    </record>
+    <record id="contract_document_type_detail_packing_list" model="contract.document.type">
+        <field name="name">Detail Packing List</field>
+    </record>
+    <record id="contract_document_type_co" model="contract.document.type">
+        <field name="name">C/O giảm thuế</field>
+    </record>
+</odoo>
+

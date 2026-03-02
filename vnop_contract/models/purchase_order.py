@@ -1,9 +1,19 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models, api
+from odoo import fields, models, api, _
+from odoo.exceptions import ValidationError
 
 
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
+
+    contract_id = fields.Many2one(
+        "contract",
+        string="Hợp đồng",
+        compute="_compute_contract_id",
+        inverse="_inverse_contract_id",
+        store=True,
+        copy=False,
+    )
 
     contract_ids = fields.Many2many(
         "contract",
@@ -14,18 +24,34 @@ class PurchaseOrder(models.Model):
         copy=False,
     )
 
+    @api.depends("contract_ids")
+    def _compute_contract_id(self):
+        for order in self:
+            order.contract_id = order.contract_ids[:1].id or False
+
+    def _inverse_contract_id(self):
+        for order in self:
+            if order.contract_id:
+                order.contract_ids = [(6, 0, [order.contract_id.id])]
+            else:
+                order.contract_ids = [(5, 0, 0)]
+
+    @api.constrains("contract_ids")
+    def _check_single_contract(self):
+        for order in self:
+            if len(order.contract_ids) > 1:
+                raise ValidationError(_("Mỗi đơn mua chỉ được liên kết một hợp đồng."))
+
     def _get_preferred_contract(self):
         self.ensure_one()
-        if len(self.contract_ids) == 1:
-            return self.contract_ids
-        return self.contract_ids[:1]
+        return self.contract_id
 
     def _sync_contract_to_pickings(self):
         for order in self:
             preferred_contract = order._get_preferred_contract()
             pending_pickings = order.picking_ids.filtered(lambda p: p.state not in ("done", "cancel"))
-            pending_pickings.write({"contract_id": preferred_contract.id or False})
-            pending_pickings.move_ids_without_package.write({"contract_id": preferred_contract.id or False})
+            pending_pickings.write({"contract_id": preferred_contract.id if preferred_contract else False})
+            pending_pickings.move_ids_without_package.write({"contract_id": preferred_contract.id if preferred_contract else False})
 
     def button_confirm(self):
         res = super().button_confirm()
@@ -34,7 +60,7 @@ class PurchaseOrder(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        if "contract_ids" in vals:
+        if "contract_ids" in vals or "contract_id" in vals:
             self._sync_contract_to_pickings()
         return res
 

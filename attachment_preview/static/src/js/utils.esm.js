@@ -1,5 +1,3 @@
-import {Component} from "@odoo/owl";
-
 export function canPreview(extension) {
     const supported_extensions = [
         "odt",
@@ -12,6 +10,22 @@ export function canPreview(extension) {
         "otp",
         "fods",
         "ots",
+        "docx",
+        "xlsx",
+        "xlsm",
+        "xltx",
+        "xltm",
+        "png",
+        "jpg",
+        "jpeg",
+        "gif",
+        "webp",
+        "bmp",
+        "svg",
+        "txt",
+        "csv",
+        "log",
+        "md",
     ];
     return supported_extensions.includes(extension);
 }
@@ -22,42 +36,21 @@ export function getUrl(
     attachment_extension,
     attachment_title
 ) {
-    var url = "";
-    if (attachment_url) {
-        if (attachment_url.slice(0, 21) === "/web/static/lib/pdfjs") {
-            // eslint-disable-next-line no-undef
-            url = (window.location.origin || "") + attachment_url;
-        } else {
-            url =
-                // eslint-disable-next-line no-undef
-                (window.location.origin || "") +
-                "/attachment_preview/static/lib/ViewerJS/index.html" +
-                "?type=" +
-                encodeURIComponent(attachment_extension) +
-                "&title=" +
-                encodeURIComponent(attachment_title) +
-                "&zoom=automatic" +
-                "#" +
-                // eslint-disable-next-line no-undef
-                attachment_url.replace(window.location.origin, "");
-        }
-        return url;
+    const base = window.location.origin || "";
+    const params = new URLSearchParams();
+    if (attachment_id) {
+        params.set("aid", String(attachment_id));
+    } else if (attachment_url) {
+        const normalized = attachment_url.replace(base, "");
+        params.set("src", normalized);
     }
-    url =
-        // eslint-disable-next-line no-undef
-        (window.location.origin || "") +
-        "/attachment_preview/static/lib/ViewerJS/index.html" +
-        "?type=" +
-        encodeURIComponent(attachment_extension) +
-        "&title=" +
-        encodeURIComponent(attachment_title) +
-        "&zoom=automatic" +
-        "#" +
-        "/web/content/" +
-        attachment_id +
-        "?model%3Dir.attachment";
-
-    return url;
+    if (attachment_extension) {
+        params.set("ext", attachment_extension);
+    }
+    if (attachment_title) {
+        params.set("title", attachment_title);
+    }
+    return `${base}/attachment_preview/view?${params.toString()}`;
 }
 
 export function showPreview(
@@ -66,22 +59,24 @@ export function showPreview(
     attachment_extension,
     attachment_title,
     split_screen,
-    attachment_info_list
+    attachment_info_list,
+    bus = null
 ) {
-    if (split_screen && attachment_info_list) {
-        Component.env.bus.trigger("open_attachment_preview", {
+    if (split_screen && attachment_info_list && bus) {
+        bus.trigger("open_attachment_preview", {
             attachment_id,
             attachment_info_list,
         });
     } else {
-        // eslint-disable-next-line no-undef
         window.open(
             getUrl(
                 attachment_id,
                 attachment_url,
                 attachment_extension,
                 attachment_title
-            )
+            ),
+            "_blank",
+            "noopener,noreferrer"
         );
     }
 }

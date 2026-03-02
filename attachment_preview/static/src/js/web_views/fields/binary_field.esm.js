@@ -10,17 +10,17 @@ patch(BinaryField.prototype, {
     setup() {
         super.setup();
         this.orm = useService("orm");
-        onMounted(this._preview_onMounted);
+        onMounted(() => this._preview_onMounted());
     },
 
     async _preview_onMounted() {
         if (this.props.record.resId) {
-            var extension = await this.orm.call(
+            const extension = await this.orm.call(
                 "ir.attachment",
                 "get_binary_extension",
                 [
                     this.props.record.resModel,
-                    this.props.record.evalContext.id,
+                    this.props.record.resId,
                     this.props.name,
                     this.props.fileNameField,
                 ]
@@ -32,21 +32,24 @@ patch(BinaryField.prototype, {
     },
 
     _renderPreviewButton(extension) {
-        // Add a button same as standard fa-download one.
-        var dl_button = $(this.__owl__.bdom.parentEl).find("button.fa-download");
-        if (dl_button.length !== 1) return;
-        var preview_button = $("<button/>");
-        preview_button.addClass("btn btn-secondary fa fa-external-link");
-        preview_button.attr("data-tooltip", "Preview");
-        preview_button.attr("aria-label", "Preview");
-        preview_button.attr("title");
-        preview_button.attr("data-extension", extension);
-        dl_button.after(preview_button);
-        preview_button.on("click", this._onPreview.bind(this));
+        const root = this.el;
+        if (!root) return;
+        const dlButton = root.querySelector("button.fa-download");
+        if (!dlButton) return;
+        if (root.querySelector("button.o_attachment_preview_button")) return;
+
+        const previewButton = document.createElement("button");
+        previewButton.className =
+            "btn btn-secondary fa fa-external-link o_attachment_preview_button";
+        previewButton.setAttribute("data-tooltip", _t("Preview"));
+        previewButton.setAttribute("aria-label", _t("Preview"));
+        previewButton.setAttribute("title", _t("Preview"));
+        previewButton.dataset.extension = extension;
+        previewButton.addEventListener("click", this._onPreview.bind(this));
+        dlButton.insertAdjacentElement("afterend", previewButton);
     },
 
     _onPreview(event) {
-        console.log(event)
         showPreview(
             null,
             sprintf(
@@ -55,10 +58,11 @@ patch(BinaryField.prototype, {
                 this.props.name,
                 this.props.record.resId
             ),
-            $(event.currentTarget).attr("data-extension"),
+            event.currentTarget.dataset.extension,
             sprintf(_t("Preview %s"), this.fileName),
             false,
-            null
+            null,
+            this.env.bus
         );
         event.stopPropagation();
     },

@@ -11,7 +11,7 @@
                         <setting string="Vị trí nguồn OTK">
                             <field name="otk_source_location_id"/>
                         </setting>
-                        <setting string="Vị trí đạt OTK">
+                        <setting string="Vị trí Kho chính">
                             <field name="otk_ok_location_id"/>
                         </setting>
                         <setting string="Vị trí lỗi OTK">

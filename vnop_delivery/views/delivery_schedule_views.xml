@@ -5,19 +5,18 @@
         <field name="arch" type="xml">
             <list string="Lịch giao hàng">
                 <field name="bill_number"/>
-                <field name="contract_id"/>
+                <field name="purchase_ids" widget="many2many_tags"/>
+                <field name="contract_ids" widget="many2many_tags"/>
                 <field name="partner_id"/>
                 <field name="delivery_datetime"/>
-                <field name="purchase_ids" widget="many2many_tags"/>
+                <field name="qty_planned_total"/>
+                <field name="qty_received_total"/>
                 <field name="declaration_date"/>
                 <field name="declaration_number"/>
-                <field name="total_declaration_amount"/>
                 <field name="state"
                        widget="badge"
                        decoration-info="state == 'draft'"
-                       decoration-warning="state == 'confirmed'"
-                       decoration-success="state == 'done'"
-                       decoration-danger="state == 'cancel'"/>
+                       decoration-success="state == 'confirmed'"/>
             </list>
         </field>
     </record>
@@ -35,22 +34,32 @@
                             class="oe_highlight"/>
                     <button name="action_create_receipt"
                             type="object"
-                            string="Tạo phiếu nhập kho tạm"
-                            invisible="state != 'confirmed' or picking_ids"
+                            string="Tạo phiếu nhập kho"
+                            invisible="state != 'confirmed'"
                             class="oe_highlight"
                             icon="fa-sign-in"/>
+                    <button name="action_create_otk_sessions"
+                            type="object"
+                            string="Tạo OTK theo lịch"
+                            invisible="state != 'confirmed'"
+                            class="btn-secondary"/>
 
-                    <field name="state" widget="statusbar"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,confirmed"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_contract" type="object"
                                 icon="fa-file-text-o"
-                                string="Hợp đồng" invisible="not contract_id"/>
+                                string="Hợp đồng" invisible="not contract_ids"/>
                         <button name="action_view_pickings" type="object"
                                 icon="fa-truck"
-                                invisible="not purchase_ids or state == 'draft'">
+                                invisible="not purchase_ids">
                             <field name="picking_count" widget="statinfo" string="Phiếu nhập kho"/>
+                        </button>
+                        <button name="action_view_otk_sessions" type="object"
+                                icon="fa-check-square-o">
+                            <field name="otk_session_count" widget="statinfo" string="Lần OTK"/>
                         </button>
                     </div>
 
@@ -67,11 +76,11 @@
                                    domain="[('supplier_rank','>',0)]" options="{'no_create': True}"
                                    readonly="context.get('from_purchase')"/>
                             <field name="partner_ref"/>
-                            <field name="contract_id"
-                                   domain="[('partner_id', '=', partner_id), ('state', '=', 'approved')]"
-                                   options="{'no_create': True}"/>
                             <field name="purchase_ids"
-                                   widget="many2many_tags"/>
+                                   widget="many2many_tags"
+                                   domain="[('partner_id', '=', partner_id), ('state', 'in', ('purchase', 'done')), ('contract_id', '!=', False)]"
+                                   readonly="state != 'draft'"/>
+                            <field name="contract_ids" widget="many2many_tags" readonly="1"/>
                             <field name="delivery_datetime"/>
                             <field name="description" placeholder="Nhập ghi chú nội bộ hoặc hướng dẫn giao hàng..."/>
                             <field name="create_date" readonly="1" string="Thời gian tạo"/>
@@ -79,12 +88,12 @@
                         <group name="customs_info" string="Thông tin Hải quan">
                             <field name="declaration_number"/>
                             <field name="declaration_date"/>
-                            <!--                            <field name="picking_id"/>-->
+                            <field name="total_declaration_amount"/>
                         </group>
                     </group>
 
                     <group>
-                        <group string="Phí bổ sung">
+                        <group string="Phí bổ sung &amp; tổng quan">
                             <label for="insurance_fee"/>
                             <div class="o_row">
                                 <field name="insurance_fee"/>
@@ -95,12 +104,32 @@
                                 <field name="environment_fee"/>
                                 <span>VND</span>
                             </div>
-                        </group>
-                        <group string="Tổng kết">
-                            <field name="total_declaration_amount" class="oe_subtotal_footer_separator"
-                                   widget="monetary"/>
+                            <field name="qty_planned_total" readonly="1"/>
+                            <field name="qty_received_total" readonly="1"/>
                         </group>
                     </group>
+
+                    <notebook>
+                        <page string="Chi tiết hàng giao">
+                            <field name="allocation_ids">
+                                <list editable="bottom" create="0">
+                                    <field name="purchase_line_id" column_invisible="1"/>
+                                    <field name="purchase_id" readonly="1"/>
+                                    <field name="contract_id"
+                                           domain="[('id', '=', purchase_id.contract_id)]"
+                                           options="{'no_create': True}"/>
+                                    <field name="product_id" readonly="1"/>
+                                    <field name="uom_id" readonly="1"/>
+                                    <field name="qty_po" readonly="1"/>
+                                    <field name="qty_planned"/>
+                                    <field name="qty_received" readonly="1" invisible="qty_received == 0"/>
+                                    <field name="qty_passed" readonly="1" invisible="qty_passed == 0"/>
+                                    <field name="qty_failed" readonly="1" invisible="qty_failed == 0"/>
+                                    <field name="qty_remaining_to_receive" readonly="1" invisible="qty_remaining_to_receive == 0"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
 
                 </sheet>
                 <chatter/>
@@ -133,7 +162,6 @@
                     string="Lịch giao hàng">
                 <field name="bill_number"/>
                 <field name="partner_id"/>
-                <field name="contract_id"/>
                 <field name="state"/>
             </gantt>
         </field>
