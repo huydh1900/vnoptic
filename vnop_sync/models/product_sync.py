@@ -365,6 +365,56 @@ class ProductSync(models.Model):
                 _logger.warning(f"⚠️ Không tạo được product.cl cid={cid!r} name={name!r}: {e}")
         return False
 
+    # Mapping: cache key → (model name) cho các master data opt
+    _MASTER_MODEL_MAP = {
+        'frames':      'product.frame',
+        'frame_types': 'product.frame.type',
+        'shapes':      'product.shape',
+        'ves':         'product.ve',
+        'temples':     'product.temple',
+        'materials':   'product.material',
+    }
+
+    def _get_or_create_master(self, cache, cache_key, dto):
+        """Tra cứu id master data từ cache theo cid, sau đó fallback sang name.
+        Nếu không tìm thấy, tự động tạo mới bản ghi trong Odoo và cập nhật cache.
+        Áp dụng cho: frames, frame_types, shapes, ves, temples, materials.
+        """
+        if not dto or not isinstance(dto, dict):
+            return False
+
+        cid = (dto.get('cid') or '').strip().upper()
+        name = (dto.get('name') or '').strip()
+        name_upper = name.upper()
+
+        # 1. Tra cứu cache: cid trước, name sau
+        found = (cache.get(cache_key, {}).get(cid) if cid else None) \
+             or (cache.get(cache_key, {}).get(name_upper) if name_upper else None)
+        if found:
+            return found
+
+        # 2. Auto-create nếu không tìm thấy
+        model_name = self._MASTER_MODEL_MAP.get(cache_key)
+        if not model_name or not (name or cid):
+            _logger.debug(f"⚠️ _get_or_create_master: không tìm thấy và không tạo được [{cache_key}] cid={cid!r} name={name!r}")
+            return False
+
+        try:
+            vals = {'name': name or cid}
+            if cid:
+                vals['cid'] = cid
+            rec = self.env[model_name].create(vals)
+            rid = rec.id
+            if cid:
+                cache.setdefault(cache_key, {})[cid] = rid
+            if name_upper:
+                cache.setdefault(cache_key, {})[name_upper] = rid
+            _logger.info(f"✅ Auto-created [{model_name}] cid={cid!r} name={name!r} → id={rid}")
+            return rid
+        except Exception as e:
+            _logger.warning(f"⚠️ Không tạo được [{model_name}] cid={cid!r} name={name!r}: {e}")
+            return False
+
     def _color_dto_to_list(self, dto):
         """Chuyển single color DTO (dict) thành list để dùng với _resolve_m2m_ids."""
         if not dto:
@@ -1528,14 +1578,16 @@ class ProductSync(models.Model):
             'opt_lens_height': int(item.get('lensHeight') or 0),
             'opt_bridge_width': int(item.get('bridgeWidth') or 0),
             'opt_color_lens_id': self._get_id_with_fallback(cache, 'colors', item.get('colorLensdto')),
-            'opt_frame_id': self._get_id(cache, 'frames', self._get_val(item, 'framedto')),
-            'opt_frame_type_id': self._get_id(cache, 'frame_types', self._get_val(item, 'frameTypedto')),
-            'opt_shape_id': self._get_id(cache, 'shapes', self._get_val(item, 'shapedto')),
-            'opt_ve_id': self._get_id(cache, 'ves', self._get_val(item, 'vedto')),
-            'opt_temple_id': self._get_id(cache, 'temples', self._get_val(item, 'templedto')),
-            'opt_material_ve_id': self._get_id(cache, 'materials', self._get_val(item, 'materialVedto')),
-            'opt_material_temple_tip_id': self._get_id(cache, 'materials', self._get_val(item, 'materialTempleTipdto')),
-            'opt_material_lens_id': self._get_id(cache, 'materials', self._get_val(item, 'materialLensdto')),
+            # ─── Thiết kế gọng – auto-create nếu chưa có bản ghi master ──────────────
+            'opt_frame_id': self._get_or_create_master(cache, 'frames', item.get('framedto')),
+            'opt_frame_type_id': self._get_or_create_master(cache, 'frame_types', item.get('frameTypedto')),
+            'opt_shape_id': self._get_or_create_master(cache, 'shapes', item.get('shapedto')),
+            'opt_ve_id': self._get_or_create_master(cache, 'ves', item.get('vedto')),
+            'opt_temple_id': self._get_or_create_master(cache, 'temples', item.get('templedto')),
+            # ─── Chất liệu gọng – auto-create nếu chưa có bản ghi master ─────────────
+            'opt_material_ve_id': self._get_or_create_master(cache, 'materials', item.get('materialVedto')),
+            'opt_material_temple_tip_id': self._get_or_create_master(cache, 'materials', item.get('materialTempleTipdto')),
+            'opt_material_lens_id': self._get_or_create_master(cache, 'materials', item.get('materialLensdto')),
             # ─── Màu sắc (Many2one giữ lại tương thích, M2M mới bên dưới) ───────────────
             'opt_color_front_id': self._get_or_create_color_by_string(
                 item.get('colorFront'), cache),
