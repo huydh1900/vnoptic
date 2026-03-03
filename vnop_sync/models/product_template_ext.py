@@ -230,9 +230,19 @@ class ProductTemplateExtension(models.Model):
     opt_bridge_width = fields.Integer('Cầu mũi (mm)')
 
     # Màu sắc
+    # Màu sắc - Many2one (giữ tương thích legacy)
     opt_color_front_id = fields.Many2one('product.cl', string='Màu mặt trước')
     opt_color_temple_id = fields.Many2one('product.cl', string='Màu càng')
     opt_color_lens_id = fields.Many2one('product.cl', string='Màu mắt kính')
+    # Màu sắc - Many2many (mới, hỗ trợ nhiều màu)
+    opt_color_front_ids = fields.Many2many(
+        'product.cl', 'product_tmpl_color_front_rel',
+        'tmpl_id', 'cl_id', string='Màu mặt trước (M2M)'
+    )
+    opt_color_temple_ids = fields.Many2many(
+        'product.cl', 'product_tmpl_color_temple_rel',
+        'tmpl_id', 'cl_id', string='Màu càng kính (M2M)'
+    )
 
     # Thiết kế
     opt_frame_id = fields.Many2one('product.frame', string='Kiểu gọng')

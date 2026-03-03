@@ -34,9 +34,9 @@
                 <field name="is_opt" invisible="1"/>
             </xpath>
 
-            <!-- Ẩn tab Thuộc tính & Biến thể cho lens (không dùng SPH/CYL/ADD variant) -->
+            <!-- Ẩn tab Thuộc tính & Biến thể cho lens và gọng kính -->
             <xpath expr="//page[.//field[@name='attribute_line_ids']]" position="attributes">
-                <attribute name="invisible">is_lens</attribute>
+                <attribute name="invisible">is_lens or is_opt</attribute>
             </xpath>
             
             <!-- Removed product_type selection from header -->
@@ -171,7 +171,6 @@
                       invisible="not is_opt">
                     <group string="Thông tin chung">
                         <group>
-                            <field name="default_code" string="Mã sản phẩm"/>
                             <field name="opt_season"/>
                             <field name="opt_model"/>
                             <field name="opt_serial"/>
@@ -190,8 +189,8 @@
                     <group string="Kiểu dáng">
                         <group>
                             <field name="opt_frame_id" options="{'no_create': True}"/>
-                            <field name="opt_frame_type_id" options="{'no_create': True}"/>
-                            <field name="opt_shape_id" options="{'no_create': True}"/>
+                            <field name="opt_frame_type_id" string="Kiểu loại" options="{'no_create': True}"/>
+                            <field name="opt_shape_id" string="Kiểu dáng" options="{'no_create': True}"/>
                         </group>
                         <group>
                             <field name="opt_ve_id" options="{'no_create': True}"/>
@@ -201,41 +200,38 @@
                     </group>
                 </page>
 
-                <!-- Tab Gọng 3: Chất liệu -->
-                <page string="Chất liệu Gọng" name="product_opt_material"
+                <!-- Tab Gọng 3: Vật liệu -->
+                <page string="Vật liệu Gọng" name="product_opt_material"
                       invisible="not is_opt">
-                    <group string="Chất liệu">
+                    <group string="Vật liệu">
                         <group>
-                            <field name="opt_materials_front_ids" widget="many2many_tags"
+                            <field name="opt_materials_front_ids" string="Mặt trước" widget="many2many_tags"
                                    options="{'no_create': True}"/>
-                            <field name="opt_materials_temple_ids" widget="many2many_tags"
+                            <field name="opt_materials_temple_ids" string="Càng" widget="many2many_tags"
                                    options="{'no_create': True}"/>
-                            <field name="opt_material_temple_tip_id" options="{'no_create': True}"/>
+                            <field name="opt_material_temple_tip_id" string="Chuôi càng" options="{'no_create': True}"/>
                         </group>
                         <group>
-                            <field name="opt_material_lens_id" options="{'no_create': True}"/>
-                            <field name="opt_material_ve_id" options="{'no_create': True}"/>
-                            <field name="opt_coating_ids" widget="many2many_tags"
+                            <field name="opt_material_lens_id" string="Mắt kính" options="{'no_create': True}"/>
+                            <field name="opt_material_ve_id" string="Ve kính" options="{'no_create': True}"/>
+                            <field name="opt_coating_ids" string="Lớp mạ" widget="many2many_tags"
                                    options="{'no_create': True}"/>
                         </group>
                     </group>
                 </page>
 
-                <!-- Tab Gọng 4: Màu sắc -->
-                <page string="Màu sắc Gọng" name="product_opt_color"
+                <!-- Tab Gọng 4: Màu sắc và Kích thước -->
+                <page string="Màu sắc và kích thước Gọng" name="product_opt_color_size"
                       invisible="not is_opt">
                     <group string="Màu sắc">
                         <group>
-                            <field name="opt_color_front_id" string="Màu mặt trước" options="{'no_create': True}"/>
-                            <field name="opt_color_temple_id" string="Màu càng kính" options="{'no_create': True}"/>
+                            <field name="opt_color_front_ids" string="Màu mặt trước"
+                                   widget="many2many_tags" options="{'no_create': True}"/>
+                            <field name="opt_color_temple_ids" string="Màu càng kính"
+                                   widget="many2many_tags" options="{'no_create': True}"/>
                             <field name="opt_color_lens_id" string="Màu mắt kính (trường mắt)" options="{'no_create': True}"/>
                         </group>
                     </group>
-                </page>
-
-                <!-- Tab Gọng 5: Kích thước -->
-                <page string="Kích thước Gọng" name="product_opt_size"
-                      invisible="not is_opt">
                     <group string="Kích thước (mm)">
                         <group>
                             <field name="opt_temple_width"/>

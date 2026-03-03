@@ -263,7 +263,8 @@ class ProductSync(models.Model):
             ('groups', 'product.group', 'cid'),
             ('groups', 'product.group', 'name'),
             ('designs', 'product.design', 'name'),
-            ('materials', 'product.material', 'name'),
+            ('materials', 'product.material', 'cid'),   # Index CID trước (API dùng cid)
+            ('materials', 'product.material', 'name'),  # Fallback theo name
             ('uvs', 'product.uv', 'cid'),
             ('coatings', 'product.coating', 'cid'),
             ('colors', 'product.cl', 'cid'),
@@ -364,6 +365,46 @@ class ProductSync(models.Model):
                 _logger.warning(f"⚠️ Không tạo được product.cl cid={cid!r} name={name!r}: {e}")
         return False
 
+    def _color_dto_to_list(self, dto):
+        """Chuyển single color DTO (dict) thành list để dùng với _resolve_m2m_ids."""
+        if not dto:
+            return []
+        if isinstance(dto, dict):
+            return [dto]
+        if isinstance(dto, list):
+            return dto
+        return []
+
+    def _get_or_create_color_by_string(self, color_str, cache):
+        """Tra cứu hoặc tạo mới product.cl từ plain string (ví dụ: 'BLACK+GUN')."""
+        if not color_str or not isinstance(color_str, str):
+            return False
+        name = color_str.strip()
+        name_upper = name.upper()
+        rid = cache.get('colors', {}).get(name_upper)
+        if rid:
+            return rid
+        try:
+            rec = self.env['product.cl'].create({'name': name})
+            cache.setdefault('colors', {})[name_upper] = rec.id
+            _logger.info(f"✅ Auto-created product.cl name={name!r} id={rec.id}")
+            return rec.id
+        except Exception as e:
+            _logger.warning(f"⚠️ Không tạo được product.cl name={name!r}: {e}")
+            return False
+
+    def _resolve_color_string_to_m2m(self, color_str, cache, log_label=''):
+        """Chuyển plain color string → M2M command cho opt_color_*_ids.
+        API trả về 'BLACK+GUN' thay vì DTO → cần xử lý riêng.
+        """
+        if not color_str or not isinstance(color_str, str):
+            return [(5, 0, 0)]
+        rid = self._get_or_create_color_by_string(color_str, cache)
+        if rid:
+            _logger.debug(f"🔍 [{log_label}]: map string {color_str!r} → cl.id={rid}")
+            return [(6, 0, [rid])]
+        return [(5, 0, 0)]
+
     def _get_or_create(self, cache, cache_key, model_name, dto):
         if not dto: return False
         cid = dto.get('cid')
@@ -439,6 +480,31 @@ class ProductSync(models.Model):
         except Exception as e:
             _logger.warning("⚠️ Không tạo được product.uv cid=%s name=%s: %s", cid or None, name, e)
             return False
+
+    def _resolve_opt_material_dtos(self, item, key_variants, cache, log_label=''):
+        """Giống _resolve_m2m_ids nhưng thử nhiều key variant từ API (camelCase khác nhau).
+        key_variants: list các key cần thử theo thứ tự ưu tiên.
+        """
+        raw = None
+        for key in key_variants:
+            raw = item.get(key)
+            if raw is not None:
+                _logger.debug(f"🔍 [{log_label}]: tìm thấy key={key!r}, value={raw!r}")
+                break
+
+        if not raw:
+            _logger.debug(f"🔍 [{log_label}]: API không trả dữ liệu (thử: {key_variants})")
+            return [(5, 0, 0)]
+
+        # Nếu API trả về single dict thay vì list → bọc thành list
+        if isinstance(raw, dict):
+            raw = [raw]
+        elif not isinstance(raw, list):
+            _logger.debug(f"⚠️ [{log_label}]: kiểu dữ liệu không mong đợi: {type(raw)}")
+            return [(5, 0, 0)]
+
+        return self._resolve_m2m_ids(raw, 'materials', cache,
+                                     model_name='product.material', log_label=log_label)
 
     def _resolve_lens_coatings(self, item, cache):
         coating_ids = []
@@ -1470,23 +1536,39 @@ class ProductSync(models.Model):
             'opt_material_ve_id': self._get_id(cache, 'materials', self._get_val(item, 'materialVedto')),
             'opt_material_temple_tip_id': self._get_id(cache, 'materials', self._get_val(item, 'materialTempleTipdto')),
             'opt_material_lens_id': self._get_id(cache, 'materials', self._get_val(item, 'materialLensdto')),
-            # ─── Mỹ thuật màu sắc (cơ bản) ────────────────────────────────────────────
-            'opt_color_front_id': self._get_id_with_fallback(cache, 'colors', item.get('colorFrontdto')),
-            'opt_color_temple_id': self._get_id_with_fallback(cache, 'colors', item.get('colorTempledto')),
-            # ─── Chất liệu Many2many ─────────────────────────────────────────────────────
-            'opt_materials_front_ids': self._resolve_m2m_ids(
-                item.get('materialFrontdtos'), 'materials', cache,
-                model_name='product.material', log_label='materialFrontdtos'
+            # ─── Màu sắc (Many2one giữ lại tương thích, M2M mới bên dưới) ───────────────
+            'opt_color_front_id': self._get_or_create_color_by_string(
+                item.get('colorFront'), cache),
+            'opt_color_temple_id': self._get_or_create_color_by_string(
+                item.get('colorTemple'), cache),
+            # ─── Chất liệu Many2many – key thực tế từ API: materialsFrontdto / materialsTempledto
+            'opt_materials_front_ids': self._resolve_opt_material_dtos(
+                item,
+                ['materialsFrontdto', 'materialsFrontDto',       # ✅ key thực tế
+                 'materialFrontdtos', 'materialFrontDtos',       # fallback cũ
+                 'materialFrontdto',  'materialFrontDto'],
+                cache, log_label='materialsFront'
             ),
-            'opt_materials_temple_ids': self._resolve_m2m_ids(
-                item.get('materialTempledtos'), 'materials', cache,
-                model_name='product.material', log_label='materialTempledtos'
+            'opt_materials_temple_ids': self._resolve_opt_material_dtos(
+                item,
+                ['materialsTempledto', 'materialsTempleDto',     # ✅ key thực tế
+                 'materialTempledtos', 'materialTempleDtos',     # fallback cũ
+                 'materialTempledto',  'materialTempleDto'],
+                cache, log_label='materialsTemple'
             ),
-            # ─── Coating Many2many ──────────────────────────────────────────────────────
+            # ─── Coating Many2many – key thực tế: coatingsdto ──────────────────────────
             'opt_coating_ids': self._resolve_m2m_ids(
-                item.get('coatingdtos'), 'coatings', cache,
-                # Không tự create coating – là master data phải có sẵn
-                model_name=None, log_label='coatingdtos'
+                item.get('coatingsdto')                          # ✅ key thực tế
+                or item.get('coatingdtos') or item.get('coatingDtos'),
+                'coatings', cache,
+                model_name=None, log_label='coatingsdto'
+            ),
+            # ─── Màu sắc Many2many – API trả plain string, không phải DTO ──────────────
+            'opt_color_front_ids': self._resolve_color_string_to_m2m(
+                item.get('colorFront'), cache, log_label='colorFront'
+            ),
+            'opt_color_temple_ids': self._resolve_color_string_to_m2m(
+                item.get('colorTemple'), cache, log_label='colorTemple'
             ),
             # ─── RS adapter: field mới chuẩn hóa theo RS (dai_mat, ngang_mat, ...) ───
             'dai_mat': float(item.get('lensLength') or item.get('daiMat') or 0),
@@ -1500,7 +1582,7 @@ class ProductSync(models.Model):
 
     def _debug_log_item_structure(self, item, idx):
         """Log RAW JSON structure của một item từ RS – dùng để phân tích cấu trúc.
-        Bật/tắt bằng biến môi trường LOG_LENS_RAW_STRUCTURE=True.
+        Bật/tắt bằng biến môi trường LOG_LENS_RAW_STRUCTURE=True (áp dụng cả lens lẫn opt).
         """
         if os.getenv('LOG_LENS_RAW_STRUCTURE', 'False').lower() != 'true':
             return
@@ -1521,10 +1603,18 @@ class ProductSync(models.Model):
         ATTR_KEYS = [
             'attributes', 'properties', 'lensProperties', 'options',
             'combos', 'productAttributes', 'specifications', 'flags',
-            'coating', 'coatings', 'coatingdtos', 'coatingDtos',
+            'coating', 'coatings', 'coatingdtos', 'coatingDtos', 'coatingsdto',
             'hmc', 'hmcDto', 'isHmc',
             'photochromic', 'phoDto', 'isPhotochromic',
             'tinted', 'tintDto', 'isTinted',
+            # OPT material keys
+            'materialFrontdtos', 'materialFrontDtos', 'materialFrontdto', 'materialFrontDto',
+            'materialTempledtos', 'materialTempleDtos', 'materialTempledto', 'materialTempleDto',
+            'materialVedto', 'materialVeDto', 'materialLensdto', 'materialLensDto',
+            'materialTempleTipdto', 'materialTempleTipDto',
+            # OPT color keys
+            'colorFrontdto', 'colorFrontDto', 'colorTempledto', 'colorTempleDto',
+            'colorFrontdtos', 'colorFrontDtos', 'colorTempledtos', 'colorTempleDtos',
         ]
         for k in ATTR_KEYS:
             if k not in item:
@@ -1609,6 +1699,9 @@ class ProductSync(models.Model):
         # ─── Bước 1: Chuẩn bị dữ liệu ────────────────────────────────────
         for idx, item in enumerate(items):
             try:
+                # Log RAW structure cho opt (bật bằng LOG_LENS_RAW_STRUCTURE=True)
+                if product_type == 'opt':
+                    self._debug_log_item_structure(item, idx)
                 vals, pid = self._prepare_base_vals(item, cache, product_type)
                 c_vals = {}
                 if has_child and product_type == 'opt':
