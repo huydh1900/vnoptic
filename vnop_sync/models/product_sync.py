@@ -226,6 +226,13 @@ class ProductSync(models.Model):
         _logger.info("📦 Pre-loading existing data...")
         cache = {'products': {}, 'categories': {}, 'suppliers': {}, 'taxes': {}, 'groups': {}, 'groups_by_id': {}, 'statuses': {}}
         
+        # Currencies (ALL – kể cả inactive, vì Odoo 18 có VND mặc định nhưng inactive)
+        cache['acc_currency'] = {}
+        for cur in self.env['res.currency'].with_context(active_test=False).search_read(
+            [], ['id', 'name', 'symbol', 'active']
+        ):
+            cache['acc_currency'][cur['name'].upper()] = cur['id']
+
         # Products
         for p in self.env['product.template'].search_read([('default_code', '!=', False)], ['id', 'default_code']):
             cache['products'][p['default_code']] = p['id']
@@ -325,6 +332,27 @@ class ProductSync(models.Model):
             for r in self.env['product.cl'].search_read([], ['id', 'name']):
                 if r.get('name'):
                     cache['colors'].setdefault(r['name'].upper(), r['id'])
+
+        # Accessory colors: product.color (KHÁC product.cl dành cho lens/opt)
+        cache['acc_colors'] = {}
+        if 'product.color' in self.env:
+            for r in self.env['product.color'].search_read([], ['id', 'name', 'cid']):
+                if r.get('cid'):
+                    cache['acc_colors'][r['cid'].upper()] = r['id']
+                if r.get('name'):
+                    cache['acc_colors'].setdefault(r['name'].upper(), r['id'])
+
+        # Accessory shapes (product.shape) — index thêm theo name ngoài cid
+        if 'product.shape' in self.env:
+            for r in self.env['product.shape'].search_read([], ['id', 'name']):
+                if r.get('name'):
+                    cache['shapes'].setdefault(r['name'].upper(), r['id'])
+
+        # Accessory designs (product.design) — index thêm theo cid ngoài name
+        if 'product.design' in self.env:
+            for r in self.env['product.design'].search_read([], ['id', 'cid', 'name']):
+                if r.get('cid'):
+                    cache['designs'].setdefault(r['cid'].upper(), r['id'])
 
         return cache
 
@@ -481,6 +509,199 @@ class ProductSync(models.Model):
         except Exception as e:
             _logger.error(f"Failed to create {model_name} for {cid}: {e}")
             return False
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # ACCESSORY-ONLY helper — KHÔNG dùng cho lens/opt
+    # ─────────────────────────────────────────────────────────────────────────
+    def _acc_get_or_create_ref(
+        self, field, raw_input, cache, cache_key, model_name,
+        name_field='name', code_field='cid', required=False, sku='N/A'
+    ):
+        """Safe get-or-create cho các field liên kết của accessory.
+        Hoàn toàn độc lập với logic lens/opt. Chỉ gọi từ _process_accessory_batch.
+
+        Returns:
+            (id_or_False, error_str_or_None)
+        """
+        import traceback as _tb_acc
+
+        action = 'init'
+        input_repr = repr(raw_input)[:80]
+
+        # ── 1. Chuẩn hoá input ────────────────────────────────────────────────
+        EMPTY_VALS = (None, '', 'N/A', 'n/a', 'NA', 'na')
+        if raw_input in EMPTY_VALS:
+            if required:
+                msg = "input is None/empty/N/A"
+                _logger.warning(
+                    "[ACC_SYNC][REF] field=%s input=%s action=skip result=None error=%s sku=%s",
+                    field, input_repr, msg, sku
+                )
+                return False, msg
+            _logger.debug(
+                "[ACC_SYNC][REF] field=%s input=empty action=skip sku=%s", field, sku
+            )
+            return False, None
+
+        if isinstance(raw_input, dict):
+            cid = (raw_input.get('cid') or raw_input.get('code') or '').strip()
+            name = (raw_input.get('name') or raw_input.get('value') or '').strip()
+        elif isinstance(raw_input, str):
+            cid = raw_input.strip().upper()
+            name = raw_input.strip()
+        else:
+            cid = str(raw_input).strip().upper()
+            name = str(raw_input).strip()
+
+        if not cid and not name:
+            if required:
+                msg = "empty cid and name after normalise"
+                _logger.warning(
+                    "[ACC_SYNC][REF] field=%s input=%s action=skip result=None error=%s sku=%s",
+                    field, input_repr, msg, sku
+                )
+                return False, msg
+            return False, None
+
+        try:
+            # ── 2. Tìm trong cache ─────────────────────────────────────────────
+            action = 'cache'
+            rid = None
+            if cid:
+                rid = cache.get(cache_key, {}).get(cid.upper())
+            if not rid and name:
+                rid = cache.get(cache_key, {}).get(name.upper())
+            if rid:
+                _logger.debug(
+                    "[ACC_SYNC][REF] field=%s input=%s action=cache result=%s sku=%s",
+                    field, input_repr, rid, sku
+                )
+                return rid, None
+
+            # ── 3. Tìm trong DB ────────────────────────────────────────────────
+            action = 'search'
+            model_fields = self.env[model_name]._fields
+            domain = []
+            if cid and code_field in model_fields:
+                domain = [(code_field, '=', cid)]
+            elif name:
+                domain = [(name_field, '=', name)]
+            if domain:
+                # Với res.currency: search cả record inactive (VND mặc định của Odoo bị inactive)
+                env_search = (
+                    self.env[model_name].with_context(active_test=False)
+                    if model_name == 'res.currency'
+                    else self.env[model_name]
+                )
+                rec = env_search.search(domain, limit=1)
+                if not rec and cid and name and name_field in model_fields:
+                    rec = env_search.search(
+                        [(name_field, '=', name)], limit=1
+                    )
+                # Nếu currency đang inactive → kích hoạt để dùng được
+                if rec and model_name == 'res.currency' and not rec.active:
+                    try:
+                        rec.with_context(tracking_disable=True).write({'active': True})
+                        _logger.info(
+                            '[ACC_SYNC][REF] field=%s input=%s action=activate_currency '
+                            'result=%s sku=%s', field, input_repr, rec.id, sku
+                        )
+                    except Exception as _act_err:
+                        _logger.warning(
+                            '[ACC_SYNC][REF] field=%s cannot activate currency %s: %s',
+                            field, cid or name, _act_err
+                        )
+                if rec:
+                    rid = rec.id
+                    if cid:
+                        cache.setdefault(cache_key, {})[cid.upper()] = rid
+                    if name:
+                        cache.setdefault(cache_key, {})[name.upper()] = rid
+                    _logger.info(
+                        "[ACC_SYNC][REF] field=%s input=%s action=search result=%s sku=%s",
+                        field, input_repr, rid, sku
+                    )
+                    return rid, None
+
+            # ── 4. Tạo mới ────────────────────────────────────────────────────
+            action = 'create'
+            create_vals = {name_field: name or cid}
+            if (code_field and code_field != name_field
+                    and code_field in model_fields and cid):
+                create_vals[code_field] = cid
+            # Nếu tạo currency thì luôn truyền symbol (required not-null)
+            if model_name == 'res.currency':
+                create_vals['symbol'] = cid or name or 'VND'
+
+            try:
+                with self.env.cr.savepoint():
+                    rec = self.env[model_name].create(create_vals)
+                    rid = rec.id
+                if cid:
+                    cache.setdefault(cache_key, {})[cid.upper()] = rid
+                if name:
+                    cache.setdefault(cache_key, {})[name.upper()] = rid
+                _logger.info(
+                    "[ACC_SYNC][REF] field=%s input=%s action=create result=%s sku=%s",
+                    field, input_repr, rid, sku
+                )
+                return rid, None
+
+            except Exception as create_err:
+                err_str = str(create_err).lower()
+                is_dup = any(k in err_str for k in ('unique', 'duplicate', 'integrity'))
+                if is_dup:
+                    _logger.warning(
+                        "[ACC_SYNC][REF] field=%s input=%s action=create "
+                        "error=integrity/duplicate → retry_search sku=%s",
+                        field, input_repr, sku
+                    )
+                    # Retry search after integrity error (another process created it)
+                    retry_dom = []
+                    if cid and code_field in model_fields:
+                        retry_dom = [(code_field, '=', cid)]
+                    elif name:
+                        retry_dom = [(name_field, '=', name)]
+                    if retry_dom:
+                        rec = self.env[model_name].search(retry_dom, limit=1)
+                        if rec:
+                            rid = rec.id
+                            if cid:
+                                cache.setdefault(cache_key, {})[cid.upper()] = rid
+                            if name:
+                                cache.setdefault(cache_key, {})[name.upper()] = rid
+                            _logger.info(
+                                "[ACC_SYNC][REF] field=%s input=%s "
+                                "action=search_retry result=%s sku=%s",
+                                field, input_repr, rid, sku
+                            )
+                            return rid, None
+
+                # Không recover được
+                if required:
+                    _logger.warning(
+                        "[ACC_SYNC][REF] field=%s input=%s action=%s "
+                        "result=None error=%s sku=%s",
+                        field, input_repr, action, create_err, sku
+                    )
+                    return False, str(create_err)
+                else:
+                    _logger.warning(
+                        "[ACC_SYNC][REF] field=%s input=%s action=%s "
+                        "result=None error=%s sku=%s (optional→set None)",
+                        field, input_repr, action, create_err, sku
+                    )
+                    return False, None
+
+        except Exception as outer_err:
+            _logger.warning(
+                "[ACC_SYNC][REF] field=%s input=%s action=%s "
+                "result=None error=%s sku=%s",
+                field, input_repr, action, outer_err, sku
+            )
+            if required:
+                return False, str(outer_err)
+            return False, None
 
     def _resolve_uv_id(self, uv_dto, cache):
         """Get-or-create product.uv từ uvdto. Hỗ trợ cả cid lẫn name fallback."""
@@ -988,6 +1209,61 @@ class ProductSync(models.Model):
                 cache['groups'][g_name.upper()] = grp_id
                 cache['groups_by_id'][grp_id] = grp_id
 
+        # Currency lookup (cần trước seller_ids để truyền currency_id đúng)
+        currency_zone_cid = (dto.get('currencyZoneDTO') or {}).get('cid', '')
+        currency_id = False
+        if currency_zone_cid:
+            _cur_key = f'currency_{currency_zone_cid.upper()}'
+            if _cur_key in cache.setdefault('misc', {}):
+                currency_id = cache['misc'][_cur_key]
+            else:
+                # Ưu tiên dùng cache acc_currency đã preload (bao gồm cả inactive)
+                _cached_cur_id = cache.get('acc_currency', {}).get(currency_zone_cid.upper())
+                if _cached_cur_id:
+                    currency_id = _cached_cur_id
+                    _logger.info(f"✅ Found currency in cache: {currency_zone_cid.upper()} (id={currency_id})")
+                else:
+                    # Fallback: search trực tiếp, bắt buộc dùng active_test=False để tìm cả VND inactive
+                    _cur = self.env['res.currency'].with_context(active_test=False).search([
+                        '|',
+                        ('name', '=', currency_zone_cid.upper()),
+                        ('symbol', '=', currency_zone_cid.upper())
+                    ], limit=1)
+                    if _cur:
+                        currency_id = _cur.id
+                        # Nếu currency đang inactive, kích hoạt để dùng được
+                        if not _cur.active:
+                            try:
+                                _cur.write({'active': True})
+                                _logger.info(f"✅ Activated inactive currency: {currency_zone_cid.upper()} (id={currency_id})")
+                            except Exception as e:
+                                _logger.warning(f"⚠️ Không kích hoạt được currency {currency_zone_cid!r}: {e}")
+                    else:
+                        try:
+                            with self.env.cr.savepoint():
+                                _cur = self.env['res.currency'].create({
+                                    'name': currency_zone_cid.upper(),
+                                    'symbol': currency_zone_cid.upper(),
+                                    'position': 'after',
+                                    'active': True,
+                                    'rounding': 0.01,
+                                })
+                                currency_id = _cur.id
+                                _logger.info(f"✅ Auto-created currency: {currency_zone_cid.upper()} (id={currency_id})")
+                        except Exception as e:
+                            _logger.warning(f"⚠️ Không tạo được currency {currency_zone_cid!r}: {e}")
+                            # Recover: search lại sau khi lỗi (có thể do race condition)
+                            _cur_existing = self.env['res.currency'].with_context(active_test=False).search([
+                                ('name', '=', currency_zone_cid.upper())
+                            ], limit=1)
+                            if _cur_existing:
+                                currency_id = _cur_existing.id
+                                _logger.info(f"✅ Recovered currency after error: {currency_zone_cid.upper()} (id={currency_id})")
+                    # Cập nhật cache để lần sau không cần search lại
+                    if currency_id:
+                        cache.setdefault('acc_currency', {})[currency_zone_cid.upper()] = currency_id
+                cache['misc'][_cur_key] = currency_id
+
         # Supplier Logic - Using seller_ids (Odoo standard)
         seller_vals = []
         s_dto = dto.get('supplierdto') or {}
@@ -1006,14 +1282,17 @@ class ProductSync(models.Model):
                     })
                     sup_id = sup.id
                     cache['suppliers'][s_cid.upper()] = sup_id
-                
-                # Prepare seller_ids values (will be added to product)
+
+                # Prepare seller_ids values — truyền currency_id đúng theo sản phẩm
+                # currency_id là NOT NULL trong DB → dùng company currency làm fallback nếu không tìm được
                 if sup_id:
+                    _seller_currency_id = currency_id or self.env.company.currency_id.id
                     seller_vals.append((0, 0, {
                         'partner_id': sup_id,
-                        'price': float(dto.get('orPrice') or 0),  # Supplier price
+                        'price': float(dto.get('orPrice') or 0),
                         'min_qty': 1.0,
                         'delay': 1,
+                        'currency_id': _seller_currency_id,
                     }))
 
         # Tax (Purchase tax for suppliers)
@@ -1046,15 +1325,6 @@ class ProductSync(models.Model):
                     ns = self.env['product.status'].create({'name': status_name})
                     status_id = ns.id
                     cache['statuses'][status_key] = status_id
-
-        # Currency lookup for don_vi_nguyen_te
-        currency_zone_cid = (dto.get('currencyZoneDTO') or {}).get('cid', '')
-        don_vi_nguyen_te_id = False
-        if currency_zone_cid:
-            currency = self.env['res.currency'].search(
-                [('name', '=', currency_zone_cid.upper())], limit=1
-            )
-            don_vi_nguyen_te_id = currency.id if currency else False
 
         is_storable = product_type in ['opt', 'lens']
         product_kind = 'consu'
@@ -1095,7 +1365,6 @@ class ProductSync(models.Model):
             'x_ws_price_max': float(dto.get('wsPriceMax') or 0),
             # x_or_price = giá nhập kho quy VND: orPrice (ngoại tệ) * tỷ giá
             'x_or_price': float(dto.get('orPrice') or 0) * float((dto.get('currencyZoneDTO') or {}).get('value') or 1),
-            'don_vi_nguyen_te': don_vi_nguyen_te_id,
             'manufacturer_months': int(
                 (dto.get('warrantydto') or {}).get('manufacturerMonths')
                 or dto.get('manufacturerWarrantyMonths')
@@ -1720,6 +1989,351 @@ class ProductSync(models.Model):
 
         return success, failed
 
+    def _process_accessory_batch(self, items, cache):
+        """Xử lý accessories: mỗi record một savepoint độc lập + logging đầy đủ.
+        HOÀN TOÀN TÁCH BIỆT khỏi lens/opt. Không sửa bất kỳ helper nào lens/opt dùng.
+        """
+        import json as _json_acc
+        import traceback as _tb_acc
+
+        self._load_env()
+        log_raw   = os.getenv('LOG_ACCESSORY_RAW_STRUCTURE', 'False').lower() == 'true'
+        log_debug = os.getenv('LOG_ACCESSORY_DEBUG',         'False').lower() == 'true'
+        raw_limit = int(os.getenv('LOG_RAW_SAMPLE_LIMIT',   '3'))
+
+        total   = len(items)
+        success = 0
+        skipped = 0
+        errors  = 0
+        raw_logged = 0
+        err_by_step = {'currency': 0, 'map': 0, 'create': 0, 'write': 0, 'other': 0}
+
+        _logger.info(
+            "[ACC_SYNC] Starting batch: total=%d "
+            "log_raw=%s log_debug=%s raw_limit=%d",
+            total, log_raw, log_debug, raw_limit
+        )
+        # [ACC_SYNC][FETCH] — dữ liệu đã được fetch trước, log tổng ở đây
+        _logger.info(
+            "[ACC_SYNC][FETCH] status=pre-fetched duration_ms=N/A items=%d", total
+        )
+
+        for idx, item in enumerate(items):
+            dto  = item.get('productdto') or {}
+            cid  = (dto.get('cid') or '').strip()
+            sku  = cid or f'idx_{idx}'
+            ext_id = (dto.get('id') or dto.get('externalId') or cid or f'idx_{idx}')
+            name = dto.get('fullname') or dto.get('name') or 'Unknown'
+
+            _logger.info(
+                "[ACC_SYNC][START] idx=%d ext_id=%s sku=%s name=%s",
+                idx, ext_id, sku, name
+            )
+
+            step = 'init'
+            try:
+                with self.env.cr.savepoint():
+
+                    # ── RAW_KEYS ────────────────────────────────────────────────
+                    if log_debug:
+                        _logger.info(
+                            "[ACC_SYNC][RAW_KEYS] idx=%d keys=%s",
+                            idx, list(item.keys())
+                        )
+
+                    # ── RAW_JSON sample (giới hạn raw_limit record + truncate 2KB) ──
+                    if log_raw and raw_logged < raw_limit:
+                        try:
+                            raw_str = _json_acc.dumps(
+                                item, ensure_ascii=False, default=str
+                            )
+                            if len(raw_str) > 2048:
+                                raw_str = raw_str[:2048] + '...(truncated)'
+                            _logger.info(
+                                "[ACC_SYNC][RAW_JSON] idx=%d:\n%s", idx, raw_str
+                            )
+                            raw_logged += 1
+                        except Exception as _je:
+                            _logger.warning(
+                                "[ACC_SYNC] json dump error idx=%d: %s", idx, _je
+                            )
+
+                    # ── MAP_IN ──────────────────────────────────────────────────
+                    cz_dto = dto.get('currencyZoneDTO') or {}
+                    _logger.info(
+                        "[ACC_SYNC][MAP_IN] sku=%s important_fields={"
+                        "currency=%s, brand=%s, country=%s, warranty=%s, "
+                        "uom=unit, category=%s, price=%s, cost=%s, barcode=%s}",
+                        sku,
+                        cz_dto.get('cid') or 'N/A',
+                        (dto.get('tmdto')      or {}).get('cid') or 'N/A',
+                        (dto.get('codto')      or {}).get('cid') or 'N/A',
+                        (dto.get('warrantydto') or {}).get('cid') or 'N/A',
+                        (dto.get('groupdto')   or {}).get('name') or 'N/A',
+                        dto.get('rtPrice', 0),
+                        dto.get('orPrice', 0),
+                        dto.get('barcode') or 'N/A',
+                    )
+
+                    # ── currency: bắt buộc ──────────────────────────────────────
+                    step = 'ref_currency'
+                    cur_code = (cz_dto.get('cid') or '').strip()
+                    _cur_id, _cur_err = self._acc_get_or_create_ref(
+                        'currency',
+                        cur_code or (cz_dto if cz_dto else None),
+                        cache, 'acc_currency', 'res.currency',
+                        name_field='name', code_field='name',
+                        required=True, sku=sku
+                    )
+                    if _cur_err and not _cur_id:
+                        raise ValueError(
+                            f"currency invalid/not-creatable: {_cur_err}"
+                        )
+
+                    # ── brand: optional ─────────────────────────────────────────
+                    step = 'ref_brand'
+                    self._acc_get_or_create_ref(
+                        'brand', dto.get('tmdto'), cache, 'brands', 'product.brand',
+                        name_field='name', code_field='cid',
+                        required=False, sku=sku
+                    )
+
+                    # ── country: optional ───────────────────────────────────────
+                    step = 'ref_country'
+                    self._acc_get_or_create_ref(
+                        'country', dto.get('codto'), cache, 'countries',
+                        'product.country',
+                        name_field='name', code_field='cid',
+                        required=False, sku=sku
+                    )
+
+                    # ── warranty: optional ──────────────────────────────────────
+                    step = 'ref_warranty'
+                    self._acc_get_or_create_ref(
+                        'warranty', dto.get('warrantydto'), cache, 'warranties',
+                        'product.warranty',
+                        name_field='name', code_field='cid',
+                        required=False, sku=sku
+                    )
+
+                    # ── map vals (dùng hàm chung — không sửa) ──────────────────
+                    step = 'map'
+                    vals, pid = self._prepare_base_vals(item, cache, 'accessory')
+
+                    # ── Accessory-specific field mapping (chỉ cho accessory) ──────────
+                    step = 'acc_fields'
+                    _fdbg = os.getenv('LOG_ACCESSORY_FIELD_DEBUG', 'False').lower() == 'true'
+
+                    # Helper: an toàn safe_float
+                    def _sf(v):
+                        try:
+                            return float(v) if v not in (None, '', False) else 0.0
+                        except (TypeError, ValueError):
+                            return 0.0
+
+                    # Helper: thử nhiều key từ item/dto
+                    def _pick(*keys):
+                        for k in keys:
+                            v = item.get(k)
+                            if v is not None:
+                                return v
+                            v = dto.get(k)
+                            if v is not None:
+                                return v
+                        return None
+
+                    # ── Đọc raw values từ RS ─────────────────────────────────────
+                    raw_design   = _pick('designdto',  'designDto',  'design')
+                    raw_shape    = _pick('shapedto',   'shapeDto',   'shape')
+                    raw_material = _pick('materialdto', 'materialDto', 'material')
+                    raw_color    = _pick('colordto',   'colorDto',   'color',
+                                        'acc_color', 'accColor')
+                    raw_width  = _pick('width',  'accWidth',  'acc_width',  'chieu_rong')
+                    raw_length = _pick('length', 'accLength', 'acc_length', 'chieu_dai')
+                    raw_height = _pick('height', 'accHeight', 'acc_height', 'chieu_cao')
+                    raw_head   = _pick('head',   'accHead',   'acc_head',   'dau')
+                    raw_body   = _pick('body',   'accBody',   'acc_body',   'than')
+
+                    if _fdbg:
+                        _logger.info(
+                            "[ACC_FIELD][RAW] sku=%s design=%r shape=%r "
+                            "material=%r color=%r "
+                            "width=%r length=%r height=%r head=%r body=%r",
+                            sku,
+                            raw_design, raw_shape, raw_material, raw_color,
+                            raw_width, raw_length, raw_height, raw_head, raw_body,
+                        )
+
+                    # ── Resolve Many2one IDs (accessory-specific) ────────────────
+                    acc_design_id, _ = self._acc_get_or_create_ref(
+                        'design_id', raw_design, cache, 'designs',
+                        'product.design',
+                        name_field='name', code_field='cid',
+                        required=False, sku=sku
+                    )
+                    acc_shape_id, _ = self._acc_get_or_create_ref(
+                        'shape_id', raw_shape, cache, 'shapes',
+                        'product.shape',
+                        name_field='name', code_field='cid',
+                        required=False, sku=sku
+                    )
+                    acc_material_id, _ = self._acc_get_or_create_ref(
+                        'material_id', raw_material, cache, 'materials',
+                        'product.material',
+                        name_field='name', code_field='cid',
+                        required=False, sku=sku
+                    )
+                    # color_id → product.color (KHÁC product.cl của lens)
+                    acc_color_id, _ = self._acc_get_or_create_ref(
+                        'color_id', raw_color, cache, 'acc_colors',
+                        'product.color',
+                        name_field='name', code_field='cid',
+                        required=False, sku=sku
+                    )
+
+                    # ── Cập nhật vals với các field phụ kiện ───────────────────────
+                    acc_field_vals = {
+                        'design_id':   acc_design_id or False,
+                        'shape_id':    acc_shape_id  or False,
+                        'material_id': acc_material_id or False,
+                        'color_id':    acc_color_id  or False,
+                        'acc_width':   _sf(raw_width),
+                        'acc_length':  _sf(raw_length),
+                        'acc_height':  _sf(raw_height),
+                        'acc_head':    _sf(raw_head),
+                        'acc_body':    _sf(raw_body),
+                    }
+                    vals.update(acc_field_vals)
+
+                    if _fdbg:
+                        _logger.info(
+                            "[ACC_FIELD][MAPPED] sku=%s "
+                            "design_id=%s shape_id=%s material_id=%s color_id=%s "
+                            "acc_width=%s acc_length=%s acc_height=%s "
+                            "acc_head=%s acc_body=%s",
+                            sku,
+                            acc_design_id, acc_shape_id, acc_material_id, acc_color_id,
+                            _sf(raw_width), _sf(raw_length), _sf(raw_height),
+                            _sf(raw_head), _sf(raw_body),
+                        )
+
+                    # ── MAP_OUT ─────────────────────────────────────────────────
+                    _logger.info(
+                        "[ACC_SYNC][MAP_OUT] sku=%s mapped_vals={"
+                        "default_code=%s, name=%s, type=%s, is_storable=%s, "
+                        "categ_id=%s, brand_id=%s, country_id=%s, warranty_id=%s, "
+                        "list_price=%s, standard_price=%s}",
+                        sku,
+                        vals.get('default_code'),
+                        vals.get('name'),
+                        vals.get('type'),
+                        vals.get('is_storable'),
+                        vals.get('categ_id'),
+                        vals.get('brand_id'),
+                        vals.get('country_id'),
+                        vals.get('warranty_id'),
+                        vals.get('list_price'),
+                        vals.get('standard_price'),
+                    )
+
+                    # ── create / write ──────────────────────────────────────────
+                    if pid:
+                        step = 'write'
+                        saved_rec = self.env['product.template'].browse(pid).with_context(
+                            tracking_disable=True
+                        )
+                        saved_rec.write(vals)
+                        if log_debug:
+                            _logger.info(
+                                "[ACC_SYNC][WRITE_OK] sku=%s tmpl_id=%s", sku, pid
+                            )
+                    else:
+                        step = 'create'
+                        saved_rec = self.env['product.template'].with_context(
+                            tracking_disable=True
+                        ).create(vals)
+                        cache['products'][saved_rec.default_code] = saved_rec.id
+                        if log_debug:
+                            _logger.info(
+                                "[ACC_SYNC][CREATE_OK] sku=%s new_tmpl_id=%s",
+                                sku, saved_rec.id
+                            )
+
+                    # ── Readback log (chỉ khi LOG_ACCESSORY_FIELD_DEBUG=True) ──
+                    if _fdbg:
+                        try:
+                            rb = saved_rec
+                            _logger.info(
+                                "[ACC_FIELD][ODB_READBACK] sku=%s tmpl_id=%s "
+                                "design_id=%s(%s) shape_id=%s(%s) "
+                                "material_id=%s(%s) color_id=%s(%s) "
+                                "acc_width=%s acc_length=%s acc_height=%s "
+                                "acc_head=%s acc_body=%s",
+                                sku, rb.id,
+                                rb.design_id.id if rb.design_id else None,
+                                rb.design_id.name if rb.design_id else None,
+                                rb.shape_id.id if rb.shape_id else None,
+                                rb.shape_id.name if rb.shape_id else None,
+                                rb.material_id.id if rb.material_id else None,
+                                rb.material_id.name if rb.material_id else None,
+                                rb.color_id.id if rb.color_id else None,
+                                rb.color_id.name if rb.color_id else None,
+                                rb.acc_width, rb.acc_length, rb.acc_height,
+                                rb.acc_head, rb.acc_body,
+                            )
+                        except Exception as _rb_err:
+                            _logger.warning("[ACC_FIELD][READBACK_ERR] sku=%s err=%s", sku, _rb_err)
+
+                    success += 1
+
+            except Exception as exc:
+                errors  += 1
+                skipped += 1
+
+                # Phân loại step để thống kê
+                step_key = step.replace('ref_', '')
+                if step_key in err_by_step:
+                    err_by_step[step_key] += 1
+                else:
+                    err_by_step['other'] += 1
+
+                # Log raw JSON của record lỗi (lần đầu)
+                if log_raw and raw_logged < raw_limit:
+                    try:
+                        raw_str = _json_acc.dumps(
+                            item, ensure_ascii=False, default=str
+                        )
+                        if len(raw_str) > 2048:
+                            raw_str = raw_str[:2048] + '...(truncated)'
+                        _logger.info(
+                            "[ACC_SYNC][RAW_JSON] ERROR_SAMPLE idx=%d:\n%s",
+                            idx, raw_str
+                        )
+                        raw_logged += 1
+                    except Exception:
+                        pass
+
+                _logger.exception(
+                    "[ACC_SYNC][ERROR] sku=%s step=%s err=%s", sku, step, exc
+                )
+                _logger.warning("[ACC_SYNC][SKIP] sku=%s", sku)
+
+        # ── Tổng kết ────────────────────────────────────────────────────────────
+        _logger.info(
+            "[ACC_SYNC][SUMMARY] total=%d success=%d skipped=%d errors=%d",
+            total, success, skipped, errors
+        )
+        _logger.info(
+            "[ACC_SYNC][ERROR_BY_STEP] currency=%d map=%d create=%d write=%d other=%d",
+            err_by_step.get('currency', 0),
+            err_by_step.get('map',      0),
+            err_by_step.get('create',   0),
+            err_by_step.get('write',    0),
+            err_by_step.get('other',    0),
+        )
+
+        return success, errors
+
     def _process_batch(self, items, cache, product_type, child_model=None):
         """
         Xử lý batch create/update sản phẩm từ API.
@@ -1728,6 +2342,11 @@ class ProductSync(models.Model):
         """
         if product_type == 'lens':
             return self._process_lens_variant_items(items, cache)
+
+        # Accessory: xử lý per-record với savepoint riêng + logging đầy đủ
+        # KHÔNG thay đổi gì ở đây liên quan lens/opt
+        if product_type == 'accessory':
+            return self._process_accessory_batch(items, cache)
 
         total = len(items)
         success = failed = 0
@@ -1747,29 +2366,42 @@ class ProductSync(models.Model):
             _logger.info(f"🔍 DEBUG [{product_type}] productdto keys: {list(dto0.keys())}")
             _logger.info(f"🔍 DEBUG [{product_type}] model={first_item.get('model')!r}, color={first_item.get('color')!r}")
             _logger.info(f"🔍 DEBUG [{product_type}] cid={dto0.get('cid')!r}")
+            if product_type == 'accessory':
+                import json as _json
+                _logger.info(f"🧩 ACCESSORY FULL ITEM SAMPLE:\n{_json.dumps(first_item, ensure_ascii=False, default=str, indent=2)}")
 
         # ─── Bước 1: Chuẩn bị dữ liệu ────────────────────────────────────
         for idx, item in enumerate(items):
             try:
-                # Log RAW structure cho opt (bật bằng LOG_LENS_RAW_STRUCTURE=True)
-                if product_type == 'opt':
-                    self._debug_log_item_structure(item, idx)
-                vals, pid = self._prepare_base_vals(item, cache, product_type)
-                c_vals = {}
-                if has_child and product_type == 'opt':
-                    c_vals = self._prepare_opt_vals(item, cache)
-                if pid:
-                    to_update.append((pid, vals))
-                    if has_child:
-                        child_vals_map[pid] = c_vals
-                else:
-                    to_create.append(vals)
-                    if has_child:
-                        new_child_data.append((idx, c_vals))
+                with self.env.cr.savepoint():
+                    # Log RAW structure cho opt (bật bằng LOG_LENS_RAW_STRUCTURE=True)
+                    if product_type == 'opt':
+                        self._debug_log_item_structure(item, idx)
+                    vals, pid = self._prepare_base_vals(item, cache, product_type)
+                    c_vals = {}
+                    # Log currency_id cho từng phụ kiện
+                    if product_type == 'accessory':
+                        _cur_code = (item.get('productdto') or {}).get('currencyZoneDTO', {}).get('cid', '')
+                        _cur_id = vals.get('currency_id') or 'N/A'
+                        _logger.info(f"🔸 Accessory idx={idx} currency_code={_cur_code} currency_id={_cur_id} default_code={vals.get('default_code')}")
+                    if has_child and product_type == 'opt':
+                        c_vals = self._prepare_opt_vals(item, cache)
+                    if pid:
+                        to_update.append((pid, vals))
+                        if has_child:
+                            child_vals_map[pid] = c_vals
+                    else:
+                        to_create.append(vals)
+                        if has_child:
+                            new_child_data.append((idx, c_vals))
             except Exception as e:
                 failed += 1
                 import traceback
-                _logger.error(f"Prepare error [{product_type}] idx={idx}: {e}\n{traceback.format_exc()}")
+                dto = item.get('productdto') or {}
+                _dc = (dto.get('cid') or '').strip() or 'N/A'
+                _logger.error(
+                    f"Prepare error [{product_type}] idx={idx} default_code={_dc}: {e}\n{traceback.format_exc()}"
+                )
 
         # ─── Bước 2: Batch Create ─────────────────────────────────────────
         if to_create:

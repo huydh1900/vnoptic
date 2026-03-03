@@ -118,6 +118,17 @@ class ProductTemplateExtension(models.Model):
         help="Product group type from API - for reference only"
     )
 
+    # ==================== ACCESSORY FIELDS ====================
+    design_id = fields.Many2one('product.design', string='Thiết kế')
+    shape_id = fields.Many2one('product.shape', string='Hình dáng')
+    material_id = fields.Many2one('product.material', string='Chất liệu')
+    color_id = fields.Many2one('product.color', string='Màu sắc')
+    acc_width = fields.Float('Chiều rộng')
+    acc_length = fields.Float('Chiều dài')
+    acc_height = fields.Float('Chiều cao')
+    acc_head = fields.Float('Đầu')
+    acc_body = fields.Float('Thân')
+
     lens_template_key = fields.Char(
         'Lens Template Key',
         index=True,
@@ -326,12 +337,6 @@ class ProductTemplateExtension(models.Model):
             else:
                 record.gia_si_theo_phan_tram = 0.0
 
-    # Đơn vị nguyên tệ
-    don_vi_nguyen_te = fields.Many2one(
-        'res.currency',
-        string='Đơn vị nguyên tệ',
-        help='Loại tiền tệ nhập hàng – RS field: don_vi_nguyen_te'
-    )
     # Bảo hành bán lẻ
     bao_hanh_ban_le = fields.Integer(
         'Bảo hành bán lẻ (tháng)',

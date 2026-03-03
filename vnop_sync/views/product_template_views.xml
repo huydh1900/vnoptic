@@ -45,7 +45,6 @@
             <xpath expr="//page[@name='sales']" position="inside">
                 <group string="Thông tin giá">
                     <group>
-                        <field name="don_vi_nguyen_te" string="Đơn vị ngoại tệ" options="{'no_create': True}" invisible="1"/>
                         <field name="x_or_price" string="Giá nhập kho (quy VNĐ)" invisible="1"/>
                     </group>
                     <group>
@@ -246,8 +245,8 @@
                 </page>
 
                 <!-- Tab Gọng 6: Bảo hành -->
-                <page string="Bảo hành Gọng" name="product_opt_warranty"
-                      invisible="not is_opt">
+                    <page string="Bảo hành Gọng" name="product_opt_warranty"
+                          invisible="1">
                     <group string="Chính sách bảo hành">
                         <group>
                             <field name="warranty_template_id"
@@ -277,7 +276,29 @@
                     </group>
                 </page>
 
-              
+                <!-- Tabs Phụ kiện / Sản phẩm khác (không phải lens/opt) -->
+                <page string="Thiết kế" name="accessory_design_tab" invisible="is_lens or is_opt">
+                    <group>
+                        <field name="design_id"/>
+                        <field name="shape_id"/>
+                    </group>
+                </page>
+                <page string="Vật liệu &amp; Màu sắc" name="accessory_material_color_tab" invisible="is_lens or is_opt">
+                    <group>
+                        <field name="material_id"/>
+                        <field name="color_id"/>
+                    </group>
+                </page>
+                <page string="Kích thước" name="accessory_size_tab" invisible="is_lens or is_opt">
+                    <group>
+                        <field name="acc_width" string="Chiều rộng"/>
+                        <field name="acc_length" string="Chiều dài"/>
+                        <field name="acc_height" string="Chiều cao"/>
+                        <field name="acc_head" string="Đầu"/>
+                        <field name="acc_body" string="Thân"/>
+                    </group>
+                </page>
+
             </xpath>
         </field>
     </record>

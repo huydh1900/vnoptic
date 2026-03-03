@@ -1,0 +1,9 @@
+from odoo import models, fields
+
+class ProductMaterial(models.Model):
+    _name = 'product.material'
+    _description = 'Chất liệu phụ kiện'
+    name = fields.Char('Tên chất liệu', required=True)
+    code = fields.Char('Mã chất liệu')
+    cid = fields.Char('Mã đồng bộ', index=True)
+    active = fields.Boolean(default=True)
