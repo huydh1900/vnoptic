@@ -28,3 +28,10 @@ access_product_lens_power_user,product.lens.power user,model_product_lens_power,
 access_product_lens_design_new_user,product.lens.design user,model_product_lens_design,base.group_user,1,1,1,1
 access_product_lens_material_user,product.lens.material user,model_product_lens_material,base.group_user,1,1,1,1
 access_product_lens_feature_user,product.lens.feature user,model_product_lens_feature,base.group_user,1,1,1,1
+access_product_warranty_template_user,product.warranty.template user,model_product_warranty_template,base.group_user,1,0,0,0
+access_product_color_user,product.color user,model_product_color,base.group_user,1,1,1,1
+access_product_color_manager,product.color manager,model_product_color,base.group_system,1,1,1,1
+access_product_warranty_template_manager,product.warranty.template manager,model_product_warranty_template,base.group_system,1,1,1,1
+access_lens_variant_migration_wizard,lens.variant.migration.wizard user,model_lens_variant_migration_wizard,base.group_system,1,1,1,1
+access_opt_migration_wizard,opt.migration.wizard user,model_opt_migration_wizard,base.group_system,1,1,1,1
+access_lens_cleanup_wizard,lens.cleanup.wizard user,model_lens_cleanup_wizard,base.group_system,1,1,1,1

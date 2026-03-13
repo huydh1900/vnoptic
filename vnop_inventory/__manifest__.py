@@ -19,7 +19,8 @@
     # Danh sách các file data (view, security, data...)
     'data': [
         'security/ir.model.access.csv',          # Phân quyền truy cập
-    'views/inventory_statistic_view.xml',    # Giao diện dashboard
+        'data/product_lens_index_data.xml',      # Thêm data chiết suất
+        'views/inventory_statistic_view.xml',    # Giao diện dashboard
     ],
     
     # Cấu hình APP
@@ -27,4 +28,5 @@
     'application': False,  # <--- FALSE: Không hiện icon App ngoài màn hình chính (theo yêu cầu)
     'auto_install': False,
     'license': 'LGPL-3',
+    'post_init_hook': 'post_init_hook',
 }

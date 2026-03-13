@@ -10,7 +10,8 @@ class LensPower(models.Model):
     value = fields.Float('Numeric Value', required=True, digits=(4, 2))
     type = fields.Selection([
         ('sph', 'SPH'),
-        ('cyl', 'CYL')
+        ('cyl', 'CYL'),
+        ('add', 'ADD'),
     ], string='Type', required=True, index=True)
     active = fields.Boolean('Active', default=True)
 

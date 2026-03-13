@@ -6,3 +6,4 @@ from . import import_validator
 from . import field_mapper
 from . import product_code_utils
 from . import excel_template_generator
+from . import lens_variant_utils

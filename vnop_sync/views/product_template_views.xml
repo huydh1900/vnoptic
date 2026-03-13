@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <odoo>
-    <!-- Keep the attribute search domain customization without relying on the legacy short_code field -->
+    <!-- Extend product search view to allow searching by short_code -->
     <record id="product_template_search_inherit_short_code" model="ir.ui.view">
-        <field name="name">product.template.search.inherit.attributes</field>
+        <field name="name">product.template.search.inherit.short_code</field>
         <field name="model">product.template</field>
         <field name="inherit_id" ref="product.product_template_search_view"/>
         <field name="priority">101</field>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='attribute_line_ids']" position="attributes">
                 <attribute name="domain">['|', ('product_tmpl_id.product_type', '!=', 'lens'), ('attribute_id.name', 'not in', ('SPH','CYL','ADD'))]</attribute>
+            </xpath>
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="short_code" string="Mã viết tắt" filter_domain="[('short_code', 'ilike', self)]"/>
             </xpath>
         </field>
     </record>

@@ -282,9 +282,10 @@ class ProductTemplateExtension(models.Model):
     # ==================== SHORT CODE ====================
     short_code = fields.Char(
         string='Mã viết tắt',
+        required=True,
         index=True,
         copy=False,
-        help='Field legacy giữ lại để tương thích dữ liệu cũ. Mã sản phẩm chuẩn hiện dùng default_code.'
+        help='Mã viết tắt duy nhất cho sản phẩm gọng kính'
     )
 
     # ==================== WARRANTY TEMPLATE (Hướng A – ERP chuẩn) ====================

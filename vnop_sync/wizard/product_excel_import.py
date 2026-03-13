@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError
-from ..utils import excel_reader, data_cache, import_validator, excel_template_generator, product_code_utils
+from ..utils import excel_reader, data_cache, import_validator, excel_template_generator, product_code_utils, lens_variant_utils
 
 _logger = logging.getLogger(__name__)
 
@@ -491,6 +491,9 @@ class ProductExcelImport(models.TransientModel):
         """
         if not rows:
             return 0
+
+        if product_type == 'lens':
+            return self._create_lens_variants_from_rows(rows, cache)
         
         # Phase 1: Prepare code generation requests
         code_requests = []
@@ -532,8 +535,100 @@ class ProductExcelImport(models.TransientModel):
         _logger.debug(f"Batch created {len(products)} products")
         
         return len(products)
+
+    def _resolve_lens_coating_ids_from_row(self, row_data, cache):
+        raw = row_data.get('Coating') or row_data.get('Coatings') or ''
+        if not raw:
+            return [], []
+
+        parts = [p.strip() for p in str(raw).split(',') if p.strip()]
+        coating_ids = []
+        coating_codes = []
+        for code in parts:
+            coating_codes.append(code)
+            rec = cache.get_coating(code)
+            if rec:
+                coating_ids.append(rec.id)
+        return coating_ids, coating_codes
+
+    def _build_lens_template_key_from_row(self, row_data, coating_codes):
+        cid = row_data.get('CID') or row_data.get('Cid') or row_data.get('ID') or row_data.get('Id') or ''
+        index_code = row_data.get('Index') or ''
+        material_code = row_data.get('Material') or ''
+        diameter = row_data.get('Diameter') or ''
+        brand_code = row_data.get('TradeMark') or ''
+        return lens_variant_utils.build_lens_template_key(
+            cid, index_code, material_code, coating_codes, diameter, brand_code
+        )
+
+    def _get_or_create_lens_template_from_row(self, row_data, cache):
+        coating_ids, coating_codes = self._resolve_lens_coating_ids_from_row(row_data, cache)
+        template_key = self._build_lens_template_key_from_row(row_data, coating_codes)
+
+        tmpl = self.env['product.template'].search(
+            [('lens_template_key', '=', template_key)], limit=1
+        )
+
+        vals = self._prepare_product_vals(row_data, 'lens', cache, use_lens_ids=False)
+        vals.update({
+            'lens_template_key': template_key,
+            'lens_index_id': cache.get_lens_index(row_data.get('Index')).id if row_data.get('Index') else False,
+            'lens_material_id': cache.get_material(row_data.get('Material')).id if row_data.get('Material') else False,
+            'lens_diameter': int(row_data.get('Diameter') or 0),
+            'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else False,
+        })
+
+        if tmpl:
+            tmpl.write(vals)
+            return tmpl
+
+        return self.env['product.template'].create(vals)
+
+    def _get_or_create_lens_variant_from_row(self, template, row_data):
+        sph = lens_variant_utils.format_power_value(row_data.get('SPH'))
+        cyl = lens_variant_utils.format_power_value(row_data.get('CYL'))
+        if not sph or not cyl:
+            return False
+
+        add_raw = row_data.get('ADD')
+        add_val = lens_variant_utils.format_power_value(add_raw)
+
+        attr_sph = lens_variant_utils.get_or_create_attribute(self.env, 'SPH')
+        attr_cyl = lens_variant_utils.get_or_create_attribute(self.env, 'CYL')
+        attr_add = lens_variant_utils.get_or_create_attribute(self.env, 'ADD') if add_val else False
+
+        val_sph = lens_variant_utils.get_or_create_attribute_value(self.env, attr_sph, sph)
+        val_cyl = lens_variant_utils.get_or_create_attribute_value(self.env, attr_cyl, cyl)
+        val_add = lens_variant_utils.get_or_create_attribute_value(self.env, attr_add, add_val) if attr_add else False
+
+        lens_variant_utils.ensure_attribute_line(template, attr_sph, [val_sph.id])
+        lens_variant_utils.ensure_attribute_line(template, attr_cyl, [val_cyl.id])
+        if attr_add and val_add:
+            lens_variant_utils.ensure_attribute_line(template, attr_add, [val_add.id])
+
+        value_ids = [val_sph.id, val_cyl.id]
+        if val_add:
+            value_ids.append(val_add.id)
+
+        variant = lens_variant_utils.find_variant_by_values(template, value_ids)
+        if variant:
+            return variant
+
+        return lens_variant_utils.create_variant(template, value_ids)
+
+    def _create_lens_variants_from_rows(self, rows, cache):
+        created_count = 0
+
+        for row_data in rows:
+            tmpl = self._get_or_create_lens_template_from_row(row_data, cache)
+            variant = self._get_or_create_lens_variant_from_row(tmpl, row_data)
+            if not variant:
+                continue
+            created_count += 1
+
+        return created_count
     
-    def _prepare_product_vals(self, row_data, product_type, cache):
+    def _prepare_product_vals(self, row_data, product_type, cache, use_lens_ids=True):
         """
         Prepare product values dictionary from row data.
         Extracted from _create_product for reuse in batch operations.
@@ -543,7 +638,8 @@ class ProductExcelImport(models.TransientModel):
             'x_eng_name': row_data.get('EngName'),
             'x_trade_name': row_data.get('TradeName'),
             'product_type': product_type,
-            'type': 'product',  # Stockable product
+            'type': 'consu',
+            'is_storable': product_type in ['lens', 'opt'],
         }
         
         # Group (required)
@@ -616,7 +712,7 @@ class ProductExcelImport(models.TransientModel):
             product_vals['image_1920'] = row_data['Image']
         
         # Create lens/opt specific data
-        if product_type == 'lens':
+        if product_type == 'lens' and use_lens_ids:
             product_vals['lens_ids'] = [(0, 0, self._prepare_lens_vals(row_data, cache))]
         elif product_type == 'opt':
             product_vals['opt_ids'] = [(0, 0, self._prepare_opt_vals(row_data, cache))]
@@ -630,7 +726,8 @@ class ProductExcelImport(models.TransientModel):
             'x_eng_name': row_data.get('EngName'),
             'x_trade_name': row_data.get('TradeName'),
             'product_type': product_type,
-            'type': 'product',  # Stockable product
+            'type': 'consu',
+            'is_storable': product_type in ['lens', 'opt'],
         }
         
         # Group (required)

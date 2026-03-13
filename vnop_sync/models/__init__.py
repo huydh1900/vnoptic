@@ -7,5 +7,12 @@ from . import product_template_ext
 from . import product_brand
 from . import product_country
 from . import product_warranty
+from . import product_warranty_template
 from . import server_connector
+from . import product_design
+from . import product_shape
+from . import product_material
+from . import product_color
+
+from . import product_template_debug_log
 

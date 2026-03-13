@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 import logging
-from odoo import models, fields, api
+
+from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
@@ -63,14 +63,16 @@ class ProductLens(models.Model):
     uv_id = fields.Many2one('product.uv', string='UV')
     
     # 10. Color/Coating specific fields (Legacy)
+    color_int = fields.Char('Độ đậm màu', size=50)
+    mir_coating = fields.Char('Màu tráng gương', size=50)
     cl_hmc_id = fields.Many2one('product.cl', string='HMC')
-    cl_pho_id = fields.Many2one('product.cl', string='Photochromic')
-    cl_tint_id = fields.Many2one('product.cl', string='Tint')
+    cl_pho_id = fields.Many2one('product.cl', string='Pho Col (Photochromic)')
+    cl_tint_id = fields.Many2one('product.cl', string='Tint Col')
     
     # 11. Coatings (Lớp trắng/Lớp phủ)
     coating_ids = fields.Many2many(
         'product.coating', 'lens_coating_rel',
-        'lens_id', 'coating_id', string='Lớp trắng'
+        'lens_id', 'coating_id', string='Coating'
     )
     
     # 12. Features (New Config-Driven, for future use)
@@ -90,18 +92,16 @@ class ProductLens(models.Model):
     @api.constrains('cyl_id', 'axis')
     def _check_axis(self):
         for rec in self:
-            # If CYL is selected and not 0.00
-            if rec.cyl_id and rec.cyl_id.value != 0:
-                if not rec.axis and rec.axis != 0:
-                     # Note: 0 is valid axis, but None/False is not if CYL exists
-                     # However, Integer field defaults to 0. So we check if it was explicitly set?
-                     # Odoo Integer field 0 is False-like in some contexts but 0 is a value.
-                     # Let's assume 0-180 range check handles validity.
-                     # But requirement says "If cyl != 0 -> axis required".
-                     pass 
-                
-            if rec.axis < 0 or rec.axis > 180:
-                raise ValidationError(_("Axis must be between 0 and 180 (received %s).") % rec.axis)
+            axis_val = rec.axis
+
+            # If CYL is selected and not 0.00 => Axis is required
+            if rec.cyl_id and float(rec.cyl_id.value or 0.0) != 0.0:
+                if axis_val is False:
+                    raise ValidationError(_("Axis is required when CYL is set."))
+
+            # Only validate range if axis is set
+            if axis_val is not False and (axis_val < 0 or axis_val > 180):
+                raise ValidationError(_("Axis must be between 0 and 180 (received %s).") % axis_val)
 
     @api.constrains('design_id', 'lens_add')
     def _check_add(self):
