@@ -1,30 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Preview Line Tree View -->
-    <record id="view_product_excel_preview_line_tree" model="ir.ui.view">
-        <field name="name">product.excel.preview.line.tree</field>
-        <field name="model">product.excel.preview.line</field>
-        <field name="arch" type="xml">
-            <list string="Preview Data" create="false" edit="false" delete="false" 
-                  decoration-danger="has_error==True">
-                <field name="row_number"/>
-                <field name="generated_code" string="Mã tự động"/>
-                <field name="full_name"/>
-                <field name="group"/>
-                <field name="brand"/>
-                <field name="index"/>
-                <field name="design1"/>
-                <field name="material"/>
-                <field name="sku"/>
-                <field name="frame_type"/>
-                <field name="retail_price" sum="Total"/>
-                <field name="wholesale_price"/>
-                <field name="has_error" invisible="1"/>
-                <field name="error_message" optional="hide"/>
-            </list>
-        </field>
-    </record>
-    
     <!-- Form View - Full Page for Import -->
     <record id="view_product_excel_import_form" model="ir.ui.view">
         <field name="name">product.excel.import.form</field>
@@ -84,7 +59,8 @@
                     
                     <!-- PREVIEW STATE -->
                     <notebook invisible="state != 'preview'">
-                        <page string="Xem trước dữ liệu">
+                        <!-- Preview pages cho từng loại -->
+                        <page string="Preview Lens" invisible="product_type != 'lens'">
                             <group>
                                 <field name="product_type" readonly="1" string="Loại sản phẩm"/>
                             </group>
@@ -92,20 +68,175 @@
                             <field name="preview_line_ids" nolabel="1">
                                 <list string="Preview Data" create="false" edit="false" delete="false"
                                       decoration-danger="has_error==True" limit="20">
-                                    <field name="row_number"/>
+                                    <field name="row_number" string="Row #"/>
                                     <field name="generated_code" string="Mã tự động"/>
-                                    <field name="full_name"/>
-                                    <field name="group"/>
-                                    <field name="brand"/>
-                                    <field name="index"/>
-                                    <field name="design1"/>
-                                    <field name="material"/>
-                                    <field name="sku"/>
-                                    <field name="frame_type"/>
-                                    <field name="retail_price" sum="Total"/>
-                                    <field name="wholesale_price"/>
-                                    <field name="has_error" invisible="1"/>
-                                    <field name="error_message" optional="hide"/>
+                                    <field name="group" string="Nhóm"/>
+                                    <field name="image" widget="image" string="Ảnh"/>
+                                    <field name="full_name" string="Tên đầy đủ"/>
+                                    <field name="eng_name" string="Tên tiếng Anh"/>
+                                    <field name="trade_name" string="Tên thương mại"/>
+                                    <field name="unit" string="Đơn vị"/>
+                                    <field name="brand" string="Thương hiệu"/>
+                                    <field name="supplier" string="Nhà cung cấp"/>
+                                    <field name="country" string="Xuất xứ"/>
+                                    <field name="supplier_warranty" string="Bảo hành NCC"/>
+                                    <field name="warranty" string="Bảo hành công ty"/>
+                                    <field name="warranty_retail" string="Bảo hành bán lẻ"/>
+                                    <field name="accessory" string="Phụ kiện"/>
+                                    <field name="origin_price" string="Giá nguyên tệ"/>
+                                    <field name="currency" string="Đơn vị nguyên tệ"/>
+                                    <field name="cost_price" string="Giá nhập kho"/>
+                                    <field name="retail_price" sum="Total" string="Giá bán lẻ"/>
+                                    <field name="wholesale_price" string="Giá sỉ theo %"/>
+                                    <field name="wholesale_price_max" string="Giá sỉ tối đa"/>
+                                    <field name="wholesale_price_min" string="Giá sỉ tối thiểu"/>
+                                    <field name="use" string="Công dụng" class="o_preview_long_text"/>
+                                    <field name="guide" string="Hướng dẫn" class="o_preview_long_text"/>
+                                    <field name="warning" string="Cảnh báo" class="o_preview_long_text"/>
+                                    <field name="preserve" string="Bảo quản" class="o_preview_long_text"/>
+                                    <field name="description" string="Mô tả" class="o_preview_long_text"/>
+                                    <field name="note" string="Ghi chú" class="o_preview_long_text"/>
+                                    <field name="sph" string="SPH"/>
+                                    <field name="cyl" string="CYL"/>
+                                    <field name="add" string="ADD"/>
+                                    <field name="axis" string="AXIS"/>
+                                    <field name="prism" string="Lăng kính"/>
+                                    <field name="prismbase" string="Đáy lăng kính"/>
+                                    <field name="lens_base" string="Độ cong kính"/>
+                                    <field name="abbe" string="Chỉ số tán sắc"/>
+                                    <field name="polarized" string="Phân cực"/>
+                                    <field name="diameter" string="Đường kính"/>
+                                    <field name="design1" string="Thiết kế 1"/>
+                                    <field name="design2" string="Thiết kế 2"/>
+                                    <field name="lens_material" string="Vật liệu"/>
+                                    <field name="index" string="Chiết suất"/>
+                                    <field name="uv" string="UV"/>
+                                    <field name="lens_coating" string="Lớp phủ"/>
+                                    <field name="hmc" string="HMC"/>
+                                    <field name="pho" string="PHOTOCHROMIC"/>
+                                    <field name="tind" string="TINTED"/>
+                                    <field name="color_int" string="Độ đậm màu"/>
+                                    <field name="corridor" string="Corridor"/>
+                                    <field name="mir_coating" string="MIR COATING"/>
+                                    <field name="has_error" string="Trạng thái"/>
+                                    <field name="error_message" string="Ghi chú lỗi" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Preview Opt" invisible="product_type != 'opt'">
+                            <group>
+                                <field name="product_type" readonly="1" string="Loại sản phẩm"/>
+                            </group>
+                            <separator string="Dữ liệu từ Excel (20 dòng/trang)"/>
+                            <field name="preview_line_ids" nolabel="1">
+                                <list string="Preview Data" create="false" edit="false" delete="false"
+                                      decoration-danger="has_error==True" limit="20">
+                                    <field name="row_number" string="Row #"/>
+                                    <field name="generated_code" string="Mã tự động"/>
+                                    <field name="group" string="Nhóm"/>
+                                    <field name="image" widget="image" string="Ảnh"/>
+                                    <field name="full_name" string="Tên đầy đủ"/>
+                                    <field name="eng_name" string="Tên tiếng Anh"/>
+                                    <field name="trade_name" string="Tên thương mại"/>
+                                    <field name="unit" string="Đơn vị"/>
+                                    <field name="brand" string="Thương hiệu"/>
+                                    <field name="supplier" string="Nhà cung cấp"/>
+                                    <field name="country" string="Xuất xứ"/>
+                                    <field name="supplier_warranty" string="Bảo hành NCC"/>
+                                    <field name="warranty" string="Bảo hành công ty"/>
+                                    <field name="warranty_retail" string="Bảo hành bán lẻ"/>
+                                    <field name="accessory" string="Phụ kiện"/>
+                                    <field name="origin_price" string="Giá nguyên tệ"/>
+                                    <field name="currency" string="Đơn vị nguyên tệ"/>
+                                    <field name="cost_price" string="Giá nhập kho"/>
+                                    <field name="retail_price" sum="Total" string="Giá bán lẻ"/>
+                                    <field name="wholesale_price" string="Giá sỉ theo %"/>
+                                    <field name="wholesale_price_max" string="Giá sỉ tối đa"/>
+                                    <field name="wholesale_price_min" string="Giá sỉ tối thiểu"/>
+                                    <field name="use" string="Công dụng" class="o_preview_long_text"/>
+                                    <field name="guide" string="Hướng dẫn" class="o_preview_long_text"/>
+                                    <field name="warning" string="Cảnh báo" class="o_preview_long_text"/>
+                                    <field name="preserve" string="Bảo quản" class="o_preview_long_text"/>
+                                    <field name="description" string="Mô tả" class="o_preview_long_text"/>
+                                    <field name="note" string="Ghi chú" class="o_preview_long_text"/>
+                                    <field name="sku" string="SKU"/>
+                                    <field name="model" string="Model"/>
+                                    <field name="model_supplier" string="Mã gốc NCC"/>
+                                    <field name="serial" string="Serial"/>
+                                    <field name="color_code" string="Mã màu"/>
+                                    <field name="season" string="Season"/>
+                                    <field name="frame" string="Loại gọng"/>
+                                    <field name="gender" string="Giới tính"/>
+                                    <field name="frame_type" string="Kiểu loại"/>
+                                    <field name="opt_shape" string="Kiểu dáng"/>
+                                    <field name="ve" string="Ve"/>
+                                    <field name="temple" string="Càng kính"/>
+                                    <field name="material_ve" string="Chất liệu ve"/>
+                                    <field name="material_temple_tip" string="Chất liệu chuôi càng"/>
+                                    <field name="material_lens" string="Chất liệu tròng"/>
+                                    <field name="material_opt_front" string="Chất liệu mặt trước"/>
+                                    <field name="material_opt_temple" string="Chất liệu càng"/>
+                                    <field name="color_lens" string="Màu tròng"/>
+                                    <field name="opt_coating" string="Lớp phủ"/>
+                                    <field name="color_opt_front" string="Màu mặt trước"/>
+                                    <field name="color_opt_temple" string="Màu càng"/>
+                                    <field name="lens_width" string="Dài mắt"/>
+                                    <field name="bridge_width" string="Cầu kính"/>
+                                    <field name="temple_width" string="Dài càng"/>
+                                    <field name="lens_height" string="Cao tròng"/>
+                                    <field name="lens_span" string="Ngang mắt"/>
+                                    <field name="has_error" string="Trạng thái"/>
+                                    <field name="error_message" string="Ghi chú lỗi" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Preview Accessory" invisible="product_type != 'accessory'">
+                            <group>
+                                <field name="product_type" readonly="1" string="Loại sản phẩm"/>
+                            </group>
+                            <separator string="Dữ liệu từ Excel (20 dòng/trang)"/>
+                            <field name="preview_line_ids" nolabel="1">
+                                <list string="Preview Data" create="false" edit="false" delete="false"
+                                      decoration-danger="has_error==True" limit="20">
+                                    <field name="row_number" string="Row #"/>
+                                    <field name="generated_code" string="Mã tự động"/>
+                                    <field name="group" string="Nhóm"/>
+                                    <field name="image" widget="image" string="Ảnh"/>
+                                    <field name="full_name" string="Tên đầy đủ"/>
+                                    <field name="eng_name" string="Tên tiếng Anh"/>
+                                    <field name="trade_name" string="Tên thương mại"/>
+                                    <field name="unit" string="Đơn vị"/>
+                                    <field name="brand" string="Thương hiệu"/>
+                                    <field name="supplier" string="Nhà cung cấp"/>
+                                    <field name="country" string="Xuất xứ"/>
+                                    <field name="supplier_warranty" string="Bảo hành NCC"/>
+                                    <field name="warranty" string="Bảo hành công ty"/>
+                                    <field name="warranty_retail" string="Bảo hành bán lẻ"/>
+                                    <field name="accessory" string="Phụ kiện"/>
+                                    <field name="origin_price" string="Giá nguyên tệ"/>
+                                    <field name="currency" string="Đơn vị nguyên tệ"/>
+                                    <field name="cost_price" string="Giá nhập kho"/>
+                                    <field name="retail_price" sum="Total" string="Giá bán lẻ"/>
+                                    <field name="wholesale_price" string="Giá sỉ theo %"/>
+                                    <field name="wholesale_price_max" string="Giá sỉ tối đa"/>
+                                    <field name="wholesale_price_min" string="Giá sỉ tối thiểu"/>
+                                    <field name="use" string="Công dụng" class="o_preview_long_text"/>
+                                    <field name="guide" string="Hướng dẫn" class="o_preview_long_text"/>
+                                    <field name="warning" string="Cảnh báo" class="o_preview_long_text"/>
+                                    <field name="preserve" string="Bảo quản" class="o_preview_long_text"/>
+                                    <field name="description" string="Mô tả" class="o_preview_long_text"/>
+                                    <field name="note" string="Ghi chú" class="o_preview_long_text"/>
+                                    <field name="design" string="Thiết kế"/>
+                                    <field name="accessory_shape" string="Hình dáng"/>
+                                    <field name="accessory_material" string="Chất liệu"/>
+                                    <field name="accessory_color" string="Màu sắc"/>
+                                    <field name="width" string="Chiều rộng"/>
+                                    <field name="length" string="Chiều dài"/>
+                                    <field name="height" string="Chiều cao"/>
+                                    <field name="head" string="Đầu"/>
+                                    <field name="body" string="Thân"/>
+                                    <field name="has_error" string="Trạng thái"/>
+                                    <field name="error_message" string="Ghi chú lỗi" optional="hide"/>
                                 </list>
                             </field>
                         </page>

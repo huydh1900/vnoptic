@@ -11,6 +11,102 @@ from ..utils import excel_reader, data_cache, import_validator, excel_template_g
 _logger = logging.getLogger(__name__)
 
 
+PREVIEW_COMMON_FIELD_MAP = [
+    ('group', 'Group', 'text'),
+    ('image', 'Image', 'binary'),
+    ('full_name', 'FullName', 'text'),
+    ('eng_name', 'EngName', 'text'),
+    ('trade_name', 'TradeName', 'text'),
+    ('unit', 'Unit', 'text'),
+    ('brand', 'TradeMark', 'text'),
+    ('supplier', 'Supplier', 'text'),
+    ('country', 'Country', 'text'),
+    ('supplier_warranty', 'Supplier_Warranty', 'text'),
+    ('warranty', 'Warranty', 'text'),
+    ('warranty_retail', 'Warranty_Retail', 'text'),
+    ('accessory', 'Accessory', 'text'),
+    ('origin_price', 'Origin_Price', 'float'),
+    ('currency', 'Currency', 'text'),
+    ('cost_price', 'Cost_Price', 'float'),
+    ('retail_price', 'Retail_Price', 'float'),
+    ('wholesale_price', 'Wholesale_Price', 'float'),
+    ('wholesale_price_max', 'Wholesale_Price_Max', 'float'),
+    ('wholesale_price_min', 'Wholesale_Price_Min', 'float'),
+    ('use', 'Use', 'text'),
+    ('guide', 'Guide', 'text'),
+    ('warning', 'Warning', 'text'),
+    ('preserve', 'Preserve', 'text'),
+    ('description', 'Description', 'text'),
+    ('note', 'Note', 'text'),
+]
+
+PREVIEW_TYPE_FIELD_MAP = {
+    'lens': [
+        ('sph', 'SPH', 'text'),
+        ('cyl', 'CYL', 'text'),
+        ('add', 'ADD', 'text'),
+        ('axis', 'AXIS', 'text'),
+        ('prism', 'PRISM', 'text'),
+        ('prismbase', 'PRISMBASE', 'text'),
+        ('lens_base', 'BASE', 'text'),
+        ('abbe', 'Abbe', 'text'),
+        ('polarized', 'Polarized', 'text'),
+        ('diameter', 'Diameter', 'text'),
+        ('design1', 'Design1', 'text'),
+        ('design2', 'Design2', 'text'),
+        ('lens_material', 'Material', 'text'),
+        ('index', 'Index', 'text'),
+        ('uv', 'Uv', 'text'),
+        ('lens_coating', 'Coating', 'text'),
+        ('hmc', 'HMC', 'text'),
+        ('pho', 'PHO', 'text'),
+        ('tind', 'TIND', 'text'),
+        ('color_int', 'ColorInt', 'text'),
+        ('corridor', 'Corridor', 'text'),
+        ('mir_coating', 'MirCoating', 'text'),
+    ],
+    'opt': [
+        ('sku', 'Sku', 'text'),
+        ('model', 'Model', 'text'),
+        ('model_supplier', 'Model_Supplier', 'text'),
+        ('serial', 'Serial', 'text'),
+        ('color_code', 'Color_Code', 'text'),
+        ('season', 'Season', 'text'),
+        ('frame', 'Frame', 'text'),
+        ('gender', 'Gender', 'text'),
+        ('frame_type', 'Frame_Type', 'text'),
+        ('opt_shape', 'Shape', 'text'),
+        ('ve', 'Ve', 'text'),
+        ('temple', 'Temple', 'text'),
+        ('material_ve', 'Material_Ve', 'text'),
+        ('material_temple_tip', 'Material_TempleTip', 'text'),
+        ('material_lens', 'Material_Lens', 'text'),
+        ('material_opt_front', 'Material_Opt_Front', 'text'),
+        ('material_opt_temple', 'Material_Opt_Temple', 'text'),
+        ('color_lens', 'Color_Lens', 'text'),
+        ('opt_coating', 'Coating', 'text'),
+        ('color_opt_front', 'Color_Opt_Front', 'text'),
+        ('color_opt_temple', 'Color_Opt_Temple', 'text'),
+        ('lens_width', 'Lens_Width', 'text'),
+        ('bridge_width', 'Bridge_Width', 'text'),
+        ('temple_width', 'Temple_Width', 'text'),
+        ('lens_height', 'Lens_Height', 'text'),
+        ('lens_span', 'Lens_Span', 'text'),
+    ],
+    'accessory': [
+        ('design', 'Design', 'text'),
+        ('accessory_shape', 'Shape', 'text'),
+        ('accessory_material', 'Material', 'text'),
+        ('accessory_color', 'Color', 'text'),
+        ('width', 'Width', 'text'),
+        ('length', 'Length', 'text'),
+        ('height', 'Height', 'text'),
+        ('head', 'Head', 'text'),
+        ('body', 'Body', 'text'),
+    ],
+}
+
+
 class ProductExcelImport(models.TransientModel):
     _name = 'product.excel.import'
     _description = 'Import Products from Excel'
@@ -434,33 +530,15 @@ class ProductExcelImport(models.TransientModel):
             else:
                 generated_code = 'Thiếu Nhóm/Thương hiệu'
             
-            # Build preview line
             line_vals = {
                 'row_number': idx,
-                'full_name': row_data.get('FullName', ''),
-                'eng_name': row_data.get('EngName', ''),
-                'trade_name': row_data.get('TradeName', ''),
-                'group': row_data.get('Group', ''),
-                'brand': row_data.get('TradeMark', ''),
                 'generated_code': generated_code,
-                'retail_price': float(row_data.get('Retail_Price', 0) or 0),
-                'wholesale_price': float(row_data.get('Wholesale_Price', 0) or 0),
-                'cost_price': float(row_data.get('Cost_Price', 0) or 0),
             }
-            
-            # Add type-specific fields
-            if product_type == 'lens':
-                line_vals.update({
-                    'index': row_data.get('Index', ''),
-                    'design1': row_data.get('Design1', ''),
-                    'material': row_data.get('Material', ''),
-                })
-            elif product_type == 'opt':
-                line_vals.update({
-                    'sku': row_data.get('Sku', ''),
-                    'model': row_data.get('Model', ''),
-                    'frame_type': row_data.get('Frame_Type', ''),
-                })
+            line_vals.update(self._build_preview_field_values(row_data, PREVIEW_COMMON_FIELD_MAP))
+            line_vals.update(self._build_preview_field_values(
+                row_data,
+                PREVIEW_TYPE_FIELD_MAP.get(product_type, [])
+            ))
             
             # Add errors if any
             excel_row = row_data.get('_excel_row', idx)
@@ -471,6 +549,26 @@ class ProductExcelImport(models.TransientModel):
             preview_lines.append((0, 0, line_vals))
         
         return preview_lines
+
+    def _build_preview_field_values(self, row_data, field_map):
+        values = {}
+        for preview_field, excel_field, value_type in field_map:
+            raw_value = row_data.get(excel_field)
+            if value_type == 'float':
+                values[preview_field] = self._safe_preview_float(raw_value)
+            elif value_type == 'binary':
+                values[preview_field] = raw_value or False
+            else:
+                values[preview_field] = raw_value or ''
+        return values
+
+    def _safe_preview_float(self, value):
+        if value in (None, '', False):
+            return 0.0
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
     
     def _create_products_batch(self, rows, product_type, cache):
         """
