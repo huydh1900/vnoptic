@@ -3,6 +3,7 @@
 import base64
 import json
 import logging
+import re
 from datetime import datetime
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError
@@ -671,8 +672,8 @@ class ProductExcelImport(models.TransientModel):
         vals.update({
             'lens_template_key': template_key,
             'lens_index_id': cache.get_lens_index(row_data.get('Index')).id if row_data.get('Index') else False,
-            'lens_material_id': cache.get_material(row_data.get('Material')).id if row_data.get('Material') else False,
-            'lens_diameter': int(row_data.get('Diameter') or 0),
+            'lens_material_id': cache.get_lens_material(row_data.get('Material')).id if row_data.get('Material') else False,
+            'x_diameter': self._safe_int_from_text(row_data.get('Diameter')),
             'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else False,
         })
 
@@ -775,7 +776,7 @@ class ProductExcelImport(models.TransientModel):
         if row_data.get('Currency'):
             currency = cache.get_currency(row_data['Currency'])
             if currency:
-                product_vals['currency_zone_id'] = currency.id
+                product_vals['x_currency_zone_code'] = currency.name
         
         # Prices
         product_vals['x_or_price'] = float(row_data.get('Origin_Price', 0) or 0)
@@ -786,8 +787,6 @@ class ProductExcelImport(models.TransientModel):
         product_vals['x_ws_price_min'] = float(row_data.get('Wholesale_Price_Min', 0) or 0)
         
         # Text fields
-        if row_data.get('Unit'):
-            product_vals['unit'] = row_data['Unit']
         if row_data.get('Use'):
             product_vals['x_uses'] = row_data['Use']
         if row_data.get('Guide'):
@@ -816,6 +815,22 @@ class ProductExcelImport(models.TransientModel):
             product_vals['opt_ids'] = [(0, 0, self._prepare_opt_vals(row_data, cache))]
         
         return product_vals
+
+    def _safe_int_from_text(self, value):
+        """Parse integer-like values from Excel text (e.g. '72mm', '70/28mm')."""
+        if value in (None, '', False):
+            return 0
+        if isinstance(value, (int, float)):
+            return int(value)
+
+        text = str(value).strip()
+        if not text:
+            return 0
+
+        match = re.search(r'\d+', text)
+        if match:
+            return int(match.group(0))
+        return 0
     
     def _create_product(self, row_data, product_type, cache):
 
@@ -863,7 +878,7 @@ class ProductExcelImport(models.TransientModel):
         if row_data.get('Currency'):
             currency = cache.get_currency(row_data['Currency'])
             if currency:
-                product_vals['currency_zone_id'] = currency.id
+                product_vals['x_currency_zone_code'] = currency.name
         
         # Prices
         product_vals['x_or_price'] = float(row_data.get('Origin_Price', 0) or 0)
@@ -874,8 +889,6 @@ class ProductExcelImport(models.TransientModel):
         product_vals['x_ws_price_min'] = float(row_data.get('Wholesale_Price_Min', 0) or 0)
         
         # Text fields
-        if row_data.get('Unit'):
-            product_vals['unit'] = row_data['Unit']
         if row_data.get('Use'):
             product_vals['x_uses'] = row_data['Use']
         if row_data.get('Guide'):
@@ -952,7 +965,7 @@ class ProductExcelImport(models.TransientModel):
                 lens_vals['design2_id'] = design.id
         
         if row_data.get('Material'):
-            material = cache.get_material(row_data['Material'])
+            material = cache.get_lens_material(row_data['Material'])
             if material:
                 lens_vals['material_id'] = material.id
         
