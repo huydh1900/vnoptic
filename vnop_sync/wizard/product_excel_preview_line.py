@@ -8,6 +8,11 @@ class ProductExcelPreviewLine(models.TransientModel):
     _order = 'row_number'
     
     wizard_id = fields.Many2one('product.excel.import', string='Wizard', required=True, ondelete='cascade')
+    product_type = fields.Selection(
+        related='wizard_id.product_type',
+        string='Loại sản phẩm',
+        readonly=True,
+    )
     row_number = fields.Integer('Row #', readonly=True)
     
     # Common fields
