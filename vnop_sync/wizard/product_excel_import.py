@@ -3,12 +3,109 @@
 import base64
 import json
 import logging
+import re
 from datetime import datetime
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError
 from ..utils import excel_reader, data_cache, import_validator, excel_template_generator, product_code_utils, lens_variant_utils
 
 _logger = logging.getLogger(__name__)
+
+
+PREVIEW_COMMON_FIELD_MAP = [
+    ('group', 'Group', 'text'),
+    ('image', 'Image', 'binary'),
+    ('full_name', 'FullName', 'text'),
+    ('eng_name', 'EngName', 'text'),
+    ('trade_name', 'TradeName', 'text'),
+    ('unit', 'Unit', 'text'),
+    ('brand', 'TradeMark', 'text'),
+    ('supplier', 'Supplier', 'text'),
+    ('country', 'Country', 'text'),
+    ('supplier_warranty', 'Supplier_Warranty', 'text'),
+    ('warranty', 'Warranty', 'text'),
+    ('warranty_retail', 'Warranty_Retail', 'text'),
+    ('accessory', 'Accessory', 'text'),
+    ('origin_price', 'Origin_Price', 'float'),
+    ('currency', 'Currency', 'text'),
+    ('cost_price', 'Cost_Price', 'float'),
+    ('retail_price', 'Retail_Price', 'float'),
+    ('wholesale_price', 'Wholesale_Price', 'float'),
+    ('wholesale_price_max', 'Wholesale_Price_Max', 'float'),
+    ('wholesale_price_min', 'Wholesale_Price_Min', 'float'),
+    ('use', 'Use', 'text'),
+    ('guide', 'Guide', 'text'),
+    ('warning', 'Warning', 'text'),
+    ('preserve', 'Preserve', 'text'),
+    ('description', 'Description', 'text'),
+    ('note', 'Note', 'text'),
+]
+
+PREVIEW_TYPE_FIELD_MAP = {
+    'lens': [
+        ('sph', 'SPH', 'text'),
+        ('cyl', 'CYL', 'text'),
+        ('add', 'ADD', 'text'),
+        ('axis', 'AXIS', 'text'),
+        ('prism', 'PRISM', 'text'),
+        ('prismbase', 'PRISMBASE', 'text'),
+        ('lens_base', 'BASE', 'text'),
+        ('abbe', 'Abbe', 'text'),
+        ('polarized', 'Polarized', 'text'),
+        ('diameter', 'Diameter', 'text'),
+        ('design1', 'Design1', 'text'),
+        ('design2', 'Design2', 'text'),
+        ('lens_material', 'Material', 'text'),
+        ('index', 'Index', 'text'),
+        ('uv', 'Uv', 'text'),
+        ('lens_coating', 'Coating', 'text'),
+        ('hmc', 'HMC', 'text'),
+        ('pho', 'PHO', 'text'),
+        ('tind', 'TIND', 'text'),
+        ('color_int', 'ColorInt', 'text'),
+        ('corridor', 'Corridor', 'text'),
+        ('mir_coating', 'MirCoating', 'text'),
+    ],
+    'opt': [
+        ('sku', 'Sku', 'text'),
+        ('model', 'Model', 'text'),
+        ('model_supplier', 'Model_Supplier', 'text'),
+        ('serial', 'Serial', 'text'),
+        ('color_code', 'Color_Code', 'text'),
+        ('season', 'Season', 'text'),
+        ('frame', 'Frame', 'text'),
+        ('gender', 'Gender', 'text'),
+        ('frame_type', 'Frame_Type', 'text'),
+        ('opt_shape', 'Shape', 'text'),
+        ('ve', 'Ve', 'text'),
+        ('temple', 'Temple', 'text'),
+        ('material_ve', 'Material_Ve', 'text'),
+        ('material_temple_tip', 'Material_TempleTip', 'text'),
+        ('material_lens', 'Material_Lens', 'text'),
+        ('material_opt_front', 'Material_Opt_Front', 'text'),
+        ('material_opt_temple', 'Material_Opt_Temple', 'text'),
+        ('color_lens', 'Color_Lens', 'text'),
+        ('opt_coating', 'Coating', 'text'),
+        ('color_opt_front', 'Color_Opt_Front', 'text'),
+        ('color_opt_temple', 'Color_Opt_Temple', 'text'),
+        ('lens_width', 'Lens_Width', 'text'),
+        ('bridge_width', 'Bridge_Width', 'text'),
+        ('temple_width', 'Temple_Width', 'text'),
+        ('lens_height', 'Lens_Height', 'text'),
+        ('lens_span', 'Lens_Span', 'text'),
+    ],
+    'accessory': [
+        ('design', 'Design', 'text'),
+        ('accessory_shape', 'Shape', 'text'),
+        ('accessory_material', 'Material', 'text'),
+        ('accessory_color', 'Color', 'text'),
+        ('width', 'Width', 'text'),
+        ('length', 'Length', 'text'),
+        ('height', 'Height', 'text'),
+        ('head', 'Head', 'text'),
+        ('body', 'Body', 'text'),
+    ],
+}
 
 
 class ProductExcelImport(models.TransientModel):
@@ -434,33 +531,15 @@ class ProductExcelImport(models.TransientModel):
             else:
                 generated_code = 'Thiếu Nhóm/Thương hiệu'
             
-            # Build preview line
             line_vals = {
                 'row_number': idx,
-                'full_name': row_data.get('FullName', ''),
-                'eng_name': row_data.get('EngName', ''),
-                'trade_name': row_data.get('TradeName', ''),
-                'group': row_data.get('Group', ''),
-                'brand': row_data.get('TradeMark', ''),
                 'generated_code': generated_code,
-                'retail_price': float(row_data.get('Retail_Price', 0) or 0),
-                'wholesale_price': float(row_data.get('Wholesale_Price', 0) or 0),
-                'cost_price': float(row_data.get('Cost_Price', 0) or 0),
             }
-            
-            # Add type-specific fields
-            if product_type == 'lens':
-                line_vals.update({
-                    'index': row_data.get('Index', ''),
-                    'design1': row_data.get('Design1', ''),
-                    'material': row_data.get('Material', ''),
-                })
-            elif product_type == 'opt':
-                line_vals.update({
-                    'sku': row_data.get('Sku', ''),
-                    'model': row_data.get('Model', ''),
-                    'frame_type': row_data.get('Frame_Type', ''),
-                })
+            line_vals.update(self._build_preview_field_values(row_data, PREVIEW_COMMON_FIELD_MAP))
+            line_vals.update(self._build_preview_field_values(
+                row_data,
+                PREVIEW_TYPE_FIELD_MAP.get(product_type, [])
+            ))
             
             # Add errors if any
             excel_row = row_data.get('_excel_row', idx)
@@ -471,6 +550,26 @@ class ProductExcelImport(models.TransientModel):
             preview_lines.append((0, 0, line_vals))
         
         return preview_lines
+
+    def _build_preview_field_values(self, row_data, field_map):
+        values = {}
+        for preview_field, excel_field, value_type in field_map:
+            raw_value = row_data.get(excel_field)
+            if value_type == 'float':
+                values[preview_field] = self._safe_preview_float(raw_value)
+            elif value_type == 'binary':
+                values[preview_field] = raw_value or False
+            else:
+                values[preview_field] = raw_value or ''
+        return values
+
+    def _safe_preview_float(self, value):
+        if value in (None, '', False):
+            return 0.0
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
     
     def _create_products_batch(self, rows, product_type, cache):
         """
@@ -531,6 +630,10 @@ class ProductExcelImport(models.TransientModel):
         
         # Phase 4: Batch create products
         products = self.env['product.template'].create(all_product_vals)
+
+        # Phase 5: Upsert vendor lines from Excel without creating duplicates on re-import.
+        for product, row_data in zip(products, rows):
+            self._upsert_supplierinfo(product, row_data, cache)
         
         _logger.debug(f"Batch created {len(products)} products")
         
@@ -570,21 +673,19 @@ class ProductExcelImport(models.TransientModel):
         )
 
         vals = self._prepare_product_vals(row_data, 'lens', cache, use_lens_ids=False)
-        vals.update({
-            'lens_template_key': template_key,
-            'lens_index_id': cache.get_lens_index(row_data.get('Index')).id if row_data.get('Index') else False,
-            'lens_material_id': cache.get_material(row_data.get('Material')).id if row_data.get('Material') else False,
-            'lens_diameter': int(row_data.get('Diameter') or 0),
-            'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else False,
-        })
+        vals['lens_template_key'] = template_key
+        vals.update(self._prepare_lens_template_vals(row_data, cache, coating_ids=coating_ids))
 
         if tmpl:
             tmpl.write(vals)
+            self._upsert_supplierinfo(tmpl, row_data, cache)
             return tmpl
 
-        return self.env['product.template'].create(vals)
+        tmpl = self.env['product.template'].create(vals)
+        self._upsert_supplierinfo(tmpl, row_data, cache)
+        return tmpl
 
-    def _get_or_create_lens_variant_from_row(self, template, row_data):
+    def _get_or_create_lens_variant_from_row(self, template, row_data, cache=None):
         sph = lens_variant_utils.format_power_value(row_data.get('SPH'))
         cyl = lens_variant_utils.format_power_value(row_data.get('CYL'))
         if not sph or not cyl:
@@ -616,14 +717,35 @@ class ProductExcelImport(models.TransientModel):
 
         return lens_variant_utils.create_variant(template, value_ids)
 
+    def _create_lens_record_for_variant(self, variant, row_data, cache):
+        """Create/update product.lens record for a variant"""
+        if not variant:
+            return None
+        
+        lens_vals = self._prepare_lens_vals(row_data, cache)
+        lens_vals['product_id'] = variant.id
+        lens_vals['product_tmpl_id'] = variant.product_tmpl_id.id
+        
+        # Find or create lens record for this variant
+        existing_lens = self.env['product.lens'].search(
+            [('product_id', '=', variant.id)], limit=1
+        )
+        
+        if existing_lens:
+            existing_lens.write(lens_vals)
+            return existing_lens
+        
+        return self.env['product.lens'].create(lens_vals)
+    
     def _create_lens_variants_from_rows(self, rows, cache):
         created_count = 0
 
         for row_data in rows:
             tmpl = self._get_or_create_lens_template_from_row(row_data, cache)
-            variant = self._get_or_create_lens_variant_from_row(tmpl, row_data)
+            variant = self._get_or_create_lens_variant_from_row(tmpl, row_data, cache)
             if not variant:
                 continue
+            
             created_count += 1
 
         return created_count
@@ -646,6 +768,10 @@ class ProductExcelImport(models.TransientModel):
         group = cache.get_group(row_data.get('Group'))
         if group:
             product_vals['group_id'] = group.id
+
+        categ_id = self._resolve_category_id(product_type, group)
+        if categ_id:
+            product_vals['categ_id'] = categ_id
         
         # Brand (required)
         brand = cache.get_brand(row_data.get('TradeMark'))
@@ -653,22 +779,14 @@ class ProductExcelImport(models.TransientModel):
             product_vals['brand_id'] = brand.id
         
         # Optional foreign keys
-        # Supplier - use seller_ids (Odoo standard)
-        if row_data.get('Supplier'):
-            supplier = cache.get_supplier(row_data['Supplier'])
-            if supplier:
-                product_vals['seller_ids'] = [(0, 0, {
-                    'partner_id': supplier.id,
-                    'price': float(row_data.get('Origin_Price', 0) or 0),
-                    'min_qty': 1.0,
-                    'delay': 1,
-                })]
         
         if row_data.get('Country'):
             country = cache.get_country(row_data['Country'])
             if country:
                 product_vals['country_id'] = country.id
         
+        # Always pass explicit value to avoid user/company default warranty leaking into imports.
+        product_vals['warranty_id'] = False
         if row_data.get('Warranty'):
             warranty = cache.get_warranty(row_data['Warranty'])
             if warranty:
@@ -677,7 +795,7 @@ class ProductExcelImport(models.TransientModel):
         if row_data.get('Currency'):
             currency = cache.get_currency(row_data['Currency'])
             if currency:
-                product_vals['currency_zone_id'] = currency.id
+                product_vals['x_currency_zone_code'] = currency.name
         
         # Prices
         product_vals['x_or_price'] = float(row_data.get('Origin_Price', 0) or 0)
@@ -688,8 +806,6 @@ class ProductExcelImport(models.TransientModel):
         product_vals['x_ws_price_min'] = float(row_data.get('Wholesale_Price_Min', 0) or 0)
         
         # Text fields
-        if row_data.get('Unit'):
-            product_vals['unit'] = row_data['Unit']
         if row_data.get('Use'):
             product_vals['x_uses'] = row_data['Use']
         if row_data.get('Guide'):
@@ -702,6 +818,28 @@ class ProductExcelImport(models.TransientModel):
             product_vals['description'] = row_data['Description']
         if row_data.get('Note'):
             product_vals['description_sale'] = row_data['Note']
+
+        # Common columns that map to existing technical fields on product.template.
+        if row_data.get('Unit'):
+            uom_id = self._resolve_uom_id(row_data['Unit'])
+            if uom_id:
+                product_vals['uom_id'] = uom_id
+                product_vals['uom_po_id'] = uom_id
+
+        if row_data.get('Supplier_Warranty'):
+            product_vals['manufacturer_months'] = self._parse_warranty_months(
+                row_data['Supplier_Warranty'], cache=cache
+            )
+
+        if row_data.get('Warranty_Retail'):
+            product_vals['bao_hanh_ban_le'] = self._parse_warranty_months(
+                row_data['Warranty_Retail'], cache=cache
+            )
+
+        if row_data.get('Accessory'):
+            product_vals['x_accessory_total'] = self._parse_accessory_total(
+                row_data['Accessory']
+            )
         
         # Employee assignment
         if self.employee_id:
@@ -710,90 +848,241 @@ class ProductExcelImport(models.TransientModel):
         # Image
         if row_data.get('Image'):
             product_vals['image_1920'] = row_data['Image']
-        
-        # Create lens/opt specific data
-        if product_type == 'lens' and use_lens_ids:
-            product_vals['lens_ids'] = [(0, 0, self._prepare_lens_vals(row_data, cache))]
+
+        # Template-level business mapping by product type
+        if product_type == 'lens':
+            product_vals.update(self._prepare_lens_template_vals(row_data, cache))
         elif product_type == 'opt':
-            product_vals['opt_ids'] = [(0, 0, self._prepare_opt_vals(row_data, cache))]
+            product_vals.update(self._prepare_opt_template_vals(row_data, cache))
+        elif product_type == 'accessory':
+            product_vals.update(self._prepare_accessory_template_vals(row_data, cache))
         
         return product_vals
-    
-    def _create_product(self, row_data, product_type, cache):
 
-        product_vals = {
-            'name': row_data.get('FullName'),
-            'x_eng_name': row_data.get('EngName'),
-            'x_trade_name': row_data.get('TradeName'),
-            'product_type': product_type,
-            'type': 'consu',
-            'is_storable': product_type in ['lens', 'opt'],
+    def _safe_int_from_text(self, value):
+        """Parse integer-like values from Excel text (e.g. '72mm', '70/28mm')."""
+        if value in (None, '', False):
+            return 0
+        if isinstance(value, (int, float)):
+            return int(value)
+
+        text = str(value).strip()
+        if not text:
+            return 0
+
+        match = re.search(r'\d+', text)
+        if match:
+            return int(match.group(0))
+        return 0
+    
+    def _safe_float_from_text(self, value):
+        """Parse float-like values from Excel text (e.g. '1.50', '+1.50', '-0.75')."""
+        if value in (None, '', False):
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        text = str(value).strip()
+        if not text:
+            return 0.0
+
+        try:
+            return float(text)
+        except (ValueError, TypeError):
+            # Try to extract first numeric pattern
+            match = re.search(r'[-+]?\d+\.?\d*', text)
+            if match:
+                try:
+                    return float(match.group(0))
+                except (ValueError, TypeError):
+                    pass
+        return 0.0
+
+    def _parse_non_negative_float(self, value, default=0.0):
+        parsed = self._safe_float_from_text(value)
+        return parsed if parsed >= 0 else default
+
+    def _parse_positive_int(self, value, default=1):
+        parsed = self._safe_int_from_text(value)
+        return parsed if parsed > 0 else default
+
+    def _extract_supplier_terms(self, row_data):
+        """Extract vendor terms with resilient defaults for files without explicit columns."""
+        min_qty_raw = (
+            row_data.get('Min_Qty')
+            or row_data.get('MinQty')
+            or row_data.get('MOQ')
+            or row_data.get('Minimum_Qty')
+        )
+        delay_raw = (
+            row_data.get('Delay')
+            or row_data.get('Lead_Time')
+            or row_data.get('LeadTime')
+        )
+        return {
+            'price': self._parse_non_negative_float(row_data.get('Origin_Price'), default=0.0),
+            'min_qty': float(self._parse_positive_int(min_qty_raw, default=1)),
+            'delay': self._parse_positive_int(delay_raw, default=1),
         }
-        
-        # Group (required)
-        group = cache.get_group(row_data.get('Group'))
-        if group:
-            product_vals['group_id'] = group.id
-        
-        # Brand (required)
-        brand = cache.get_brand(row_data.get('TradeMark'))
-        if brand:
-            product_vals['brand_id'] = brand.id
-        
-        # Optional foreign keys
-        # Supplier - use seller_ids (Odoo standard)
-        if row_data.get('Supplier'):
-            supplier = cache.get_supplier(row_data['Supplier'])
-            if supplier:
-                product_vals['seller_ids'] = [(0, 0, {
-                    'partner_id': supplier.id,
-                    'price': float(row_data.get('Origin_Price', 0) or 0),
-                    'min_qty': 1.0,
-                    'delay': 1,
-                })]
-        
-        if row_data.get('Country'):
-            country = cache.get_country(row_data['Country'])
-            if country:
-                product_vals['country_id'] = country.id
-        
-        if row_data.get('Warranty'):
-            warranty = cache.get_warranty(row_data['Warranty'])
-            if warranty:
-                product_vals['warranty_id'] = warranty.id
-        
+
+    def _upsert_supplierinfo(self, product_tmpl, row_data, cache):
+        """Upsert a single vendor line for a product.template based on import row."""
+        supplier_code = row_data.get('Supplier')
+        if not supplier_code:
+            return
+
+        supplier = cache.get_supplier(supplier_code)
+        if not supplier:
+            return
+
+        currency_id = False
         if row_data.get('Currency'):
             currency = cache.get_currency(row_data['Currency'])
-            if currency:
-                product_vals['currency_zone_id'] = currency.id
-        
-        # Prices
-        product_vals['x_or_price'] = float(row_data.get('Origin_Price', 0) or 0)
-        product_vals['standard_price'] = float(row_data.get('Cost_Price', 0) or 0)
-        product_vals['list_price'] = float(row_data.get('Retail_Price', 0) or 0)
-        product_vals['x_ws_price'] = float(row_data.get('Wholesale_Price', 0) or 0)
-        product_vals['x_ws_price_max'] = float(row_data.get('Wholesale_Price_Max', 0) or 0)
-        product_vals['x_ws_price_min'] = float(row_data.get('Wholesale_Price_Min', 0) or 0)
-        
-        # Text fields
-        if row_data.get('Unit'):
-            product_vals['unit'] = row_data['Unit']
-        if row_data.get('Use'):
-            product_vals['x_uses'] = row_data['Use']
-        if row_data.get('Guide'):
-            product_vals['x_guide'] = row_data['Guide']
-        if row_data.get('Warning'):
-            product_vals['x_warning'] = row_data['Warning']
-        if row_data.get('Preserve'):
-            product_vals['x_preserve'] = row_data['Preserve']
-        if row_data.get('Description'):
-            product_vals['description'] = row_data['Description']
-        if row_data.get('Note'):
-            product_vals['description_sale'] = row_data['Note']
-        
-        # Image
-        if row_data.get('Image'):
-            product_vals['image_1920'] = row_data['Image']
+            currency_id = currency.id if currency else False
+
+        terms = self._extract_supplier_terms(row_data)
+        seller_domain = [
+            ('product_tmpl_id', '=', product_tmpl.id),
+            ('product_id', '=', False),
+            ('partner_id', '=', supplier.id),
+            ('min_qty', '=', terms['min_qty']),
+            ('delay', '=', terms['delay']),
+            ('currency_id', '=', currency_id),
+        ]
+        seller = self.env['product.supplierinfo'].search(seller_domain, limit=1)
+
+        seller_vals = {
+            'partner_id': supplier.id,
+            'product_tmpl_id': product_tmpl.id,
+            'product_id': False,
+            'price': terms['price'],
+            'min_qty': terms['min_qty'],
+            'delay': terms['delay'],
+            'currency_id': currency_id,
+        }
+
+        if seller:
+            # Keep one line per unique vendor key, update price/terms when re-importing.
+            seller.write(seller_vals)
+            return
+
+        self.env['product.supplierinfo'].create(seller_vals)
+
+    def _resolve_uom_id(self, unit_name):
+        """Resolve a Unit string from Excel to uom.uom id."""
+        if unit_name in (None, '', False):
+            return False
+
+        name = str(unit_name).strip()
+        if not name:
+            return False
+
+        uom_model = self.env['uom.uom']
+        uom = uom_model.search([('name', '=', name)], limit=1)
+        if not uom:
+            uom = uom_model.search([('name', 'ilike', name)], limit=1)
+        return uom.id if uom else False
+
+    def _parse_warranty_months(self, raw_value, cache=None):
+        """Parse warranty input to integer months.
+
+        Accepts direct number text (e.g. '12', '12 tháng') or a warranty code/name.
+        Warranty master value is in days, so convert to months when resolving by code.
+        """
+        if raw_value in (None, '', False):
+            return 0
+
+        months = self._safe_int_from_text(raw_value)
+        if months:
+            return months
+
+        if cache:
+            warranty = cache.get_warranty(raw_value)
+            if warranty:
+                days = int(warranty.value or 0)
+                if days <= 0:
+                    return 0
+                return max(1, round(days / 30.0))
+
+        return 0
+
+    def _parse_accessory_total(self, raw_value):
+        """Parse Accessory column to integer x_accessory_total."""
+        if raw_value in (None, '', False):
+            return 0
+
+        numeric_val = self._safe_int_from_text(raw_value)
+        if numeric_val:
+            return numeric_val
+
+        parts = [p.strip() for p in str(raw_value).split(',') if p.strip()]
+        return len(parts)
+
+    def _resolve_category_id(self, product_type, group=None):
+        """Resolve/create product category for imported product.
+
+        Priority:
+        1) product.group name as child category under product-type parent category
+        2) fallback to product-type parent category
+        """
+        cat_model = self.env['product.category']
+        parent_map = {
+            'lens': ('Lens Products', '06'),
+            'opt': ('Optical OPT', '27'),
+            'accessory': ('Accessories', '20'),
+        }
+        parent_name, parent_code = parent_map.get(product_type, ('All Products', False))
+
+        parent = cat_model.search([('name', '=', parent_name), ('parent_id', '=', False)], limit=1)
+        if not parent:
+            parent_vals = {'name': parent_name}
+            if parent_code and 'code' in cat_model._fields:
+                parent_vals['code'] = parent_code
+            parent = cat_model.create(parent_vals)
+
+        if group and group.name:
+            child = cat_model.search([
+                ('name', '=', group.name),
+                ('parent_id', '=', parent.id),
+            ], limit=1)
+            if not child:
+                child_vals = {
+                    'name': group.name,
+                    'parent_id': parent.id,
+                }
+                if parent_code and 'code' in cat_model._fields:
+                    child_vals['code'] = parent_code
+                child = cat_model.create(child_vals)
+            return child.id
+
+        return parent.id
+
+    def _get_or_create_lens_power(self, power_type, raw_value):
+        """Resolve product.lens.power by type/value, create when missing."""
+        if raw_value in (None, '', False):
+            return False
+
+        value = self._safe_float_from_text(raw_value)
+        power_model = self.env['product.lens.power']
+        power = power_model.search([
+            ('type', '=', power_type),
+            ('value', '=', value),
+        ], limit=1)
+        if power:
+            return power
+
+        display = f"{value:+.2f}" if value >= 0 else f"{value:.2f}"
+        return power_model.create({
+            'name': display,
+            'type': power_type,
+            'value': value,
+        })
+    
+    def _create_product(self, row_data, product_type, cache):
+        product_vals = self._prepare_product_vals(row_data, product_type, cache)
+
+        group = cache.get_group(row_data.get('Group'))
+        brand = cache.get_brand(row_data.get('TradeMark'))
         
         # Generate abbreviation code automatically
         lens_index_id = False
@@ -816,28 +1105,43 @@ class ProductExcelImport(models.TransientModel):
             except Exception as e:
                 _logger.warning(f"Could not generate code: {e}")
         
-        # Create lens/opt specific data
-        if product_type == 'lens':
-            product_vals['lens_ids'] = [(0, 0, self._prepare_lens_vals(row_data, cache))]
-        elif product_type == 'opt':
-            product_vals['opt_ids'] = [(0, 0, self._prepare_opt_vals(row_data, cache))]
-        
         # Create product
         product = self.env['product.template'].create(product_vals)
+        self._upsert_supplierinfo(product, row_data, cache)
         
         return product
     
     def _prepare_lens_vals(self, row_data, cache):
         """Prepare lens_ids values"""
         lens_vals = {}
-        
-        # Simple text fields
+
+        # Power fields (Many2one to product.lens.power)
+        sph_power = self._get_or_create_lens_power('sph', row_data.get('SPH'))
+        if sph_power:
+            lens_vals['sph_id'] = sph_power.id
+
+        cyl_power = self._get_or_create_lens_power('cyl', row_data.get('CYL'))
+        if cyl_power:
+            lens_vals['cyl_id'] = cyl_power.id
+
+        # Numeric fields
+        if row_data.get('ADD') not in (None, '', False):
+            lens_vals['lens_add'] = self._safe_float_from_text(row_data.get('ADD'))
+        if row_data.get('AXIS') not in (None, '', False):
+            lens_vals['axis'] = self._safe_int_from_text(row_data.get('AXIS'))
+        if row_data.get('BASE') not in (None, '', False):
+            lens_vals['base_curve'] = self._safe_float_from_text(row_data.get('BASE'))
+        if row_data.get('Diameter') not in (None, '', False):
+            lens_vals['diameter'] = self._safe_int_from_text(row_data.get('Diameter'))
+
+        # Text fields (only fields that exist on product.lens)
         for excel_field, odoo_field in [
-            ('SPH', 'sph'), ('CYL', 'cyl'), ('ADD', 'len_add'),
-            ('AXIS', 'axis'), ('PRISM', 'prism'), ('PRISMBASE', 'prism_base'),
-            ('BASE', 'base'), ('Abbe', 'abbe'), ('Polarized', 'polarized'),
-            ('Diameter', 'diameter'), ('ColorInt', 'color_int'),
-            ('Corridor', 'corridor'), ('MirCoating', 'mir_coating'),
+            ('PRISM', 'prism'),
+            ('PRISMBASE', 'prism_base'),
+            ('Abbe', 'abbe'),
+            ('ColorInt', 'color_int'),
+            ('Corridor', 'corridor'),
+            ('MirCoating', 'mir_coating'),
         ]:
             if row_data.get(excel_field):
                 lens_vals[odoo_field] = row_data[excel_field]
@@ -854,7 +1158,7 @@ class ProductExcelImport(models.TransientModel):
                 lens_vals['design2_id'] = design.id
         
         if row_data.get('Material'):
-            material = cache.get_material(row_data['Material'])
+            material = cache.get_lens_material(row_data['Material'])
             if material:
                 lens_vals['material_id'] = material.id
         
@@ -974,3 +1278,185 @@ class ProductExcelImport(models.TransientModel):
                 opt_vals['coating_ids'] = [(6, 0, coating_ids)]
         
         return opt_vals
+
+    def _prepare_opt_template_vals(self, row_data, cache):
+        """Prepare template-level OPT fields (opt_*) used by current forms."""
+        vals = {}
+
+        text_map = [
+            ('Sku', 'opt_sku'),
+            ('Model', 'opt_model'),
+            ('Model_Supplier', 'opt_oem_ncc'),
+            ('Serial', 'opt_serial'),
+            ('Season', 'opt_season'),
+            ('Color_Code', 'opt_color'),
+        ]
+        for excel_field, odoo_field in text_map:
+            if row_data.get(excel_field):
+                vals[odoo_field] = row_data[excel_field]
+
+        if row_data.get('Gender'):
+            vals['opt_gender'] = str(row_data['Gender'])
+
+        dim_map = [
+            ('Lens_Width', 'opt_lens_width'),
+            ('Bridge_Width', 'opt_bridge_width'),
+            ('Temple_Width', 'opt_temple_width'),
+            ('Lens_Height', 'opt_lens_height'),
+            ('Lens_Span', 'opt_lens_span'),
+        ]
+        for excel_field, odoo_field in dim_map:
+            if row_data.get(excel_field):
+                vals[odoo_field] = self._safe_int_from_text(row_data[excel_field])
+
+        fk_map = [
+            ('Frame', 'opt_frame_id', cache.get_frame),
+            ('Frame_Type', 'opt_frame_type_id', cache.get_frame_type),
+            ('Shape', 'opt_shape_id', cache.get_shape),
+            ('Ve', 'opt_ve_id', cache.get_ve),
+            ('Temple', 'opt_temple_id', cache.get_temple),
+            ('Material_Ve', 'opt_material_ve_id', cache.get_material),
+            ('Material_TempleTip', 'opt_material_temple_tip_id', cache.get_material),
+            ('Material_Lens', 'opt_material_lens_id', cache.get_material),
+            ('Color_Lens', 'opt_color_lens_id', cache.get_color),
+            ('Color_Opt_Front', 'opt_color_front_id', cache.get_color),
+            ('Color_Opt_Temple', 'opt_color_temple_id', cache.get_color),
+        ]
+        for excel_field, odoo_field, getter in fk_map:
+            if row_data.get(excel_field):
+                record = getter(row_data[excel_field])
+                if record:
+                    vals[odoo_field] = record.id
+
+        if vals.get('opt_color_front_id'):
+            vals['opt_color_front_ids'] = [(6, 0, [vals['opt_color_front_id']])]
+        if vals.get('opt_color_temple_id'):
+            vals['opt_color_temple_ids'] = [(6, 0, [vals['opt_color_temple_id']])]
+
+        if row_data.get('Material_Opt_Front'):
+            material_ids = []
+            for mat_code in str(row_data['Material_Opt_Front']).split(','):
+                material = cache.get_material(mat_code.strip())
+                if material:
+                    material_ids.append(material.id)
+            if material_ids:
+                vals['opt_materials_front_ids'] = [(6, 0, material_ids)]
+
+        if row_data.get('Material_Opt_Temple'):
+            material_ids = []
+            for mat_code in str(row_data['Material_Opt_Temple']).split(','):
+                material = cache.get_material(mat_code.strip())
+                if material:
+                    material_ids.append(material.id)
+            if material_ids:
+                vals['opt_materials_temple_ids'] = [(6, 0, material_ids)]
+
+        if row_data.get('Coating'):
+            coating_ids = []
+            for coating_code in str(row_data['Coating']).split(','):
+                coating = cache.get_coating(coating_code.strip())
+                if coating:
+                    coating_ids.append(coating.id)
+            if coating_ids:
+                vals['opt_coating_ids'] = [(6, 0, coating_ids)]
+
+        return vals
+
+    def _prepare_lens_template_vals(self, row_data, cache, coating_ids=None):
+        """Prepare template-level Lens fields (lens_* and x_*) used by current forms."""
+        vals = {}
+
+        sph_power = self._get_or_create_lens_power('sph', row_data.get('SPH'))
+        cyl_power = self._get_or_create_lens_power('cyl', row_data.get('CYL'))
+        add_power = self._get_or_create_lens_power('add', row_data.get('ADD'))
+
+        vals.update({
+            'x_sph': self._safe_float_from_text(row_data.get('SPH')),
+            'x_cyl': self._safe_float_from_text(row_data.get('CYL')),
+            'x_add': self._safe_float_from_text(row_data.get('ADD')),
+            'x_axis': self._safe_int_from_text(row_data.get('AXIS')) if row_data.get('AXIS') not in (None, '', False) else False,
+            'x_prism': row_data.get('PRISM') or '',
+            'x_prism_base': row_data.get('PRISMBASE') or '',
+            'x_mir_coating': row_data.get('MirCoating') or '',
+            'x_diameter': self._safe_int_from_text(row_data.get('Diameter')),
+            'lens_color_int': row_data.get('ColorInt') or '',
+            'lens_base_curve': self._safe_float_from_text(row_data.get('BASE')),
+            'lens_sph_id': sph_power.id if sph_power else False,
+            'lens_cyl_id': cyl_power.id if cyl_power else False,
+            'lens_add_id': add_power.id if add_power else False,
+        })
+
+        if row_data.get('Design1'):
+            design_1 = cache.get_design(row_data.get('Design1'))
+            vals['lens_design1_id'] = design_1.id if design_1 else False
+
+        if row_data.get('Design2'):
+            design_2 = cache.get_design(row_data.get('Design2'))
+            vals['lens_design2_id'] = design_2.id if design_2 else False
+
+        if row_data.get('Material'):
+            material = cache.get_lens_material(row_data.get('Material'))
+            vals['lens_material_id'] = material.id if material else False
+
+        if row_data.get('Index'):
+            index = cache.get_lens_index(row_data.get('Index'))
+            vals['lens_index_id'] = index.id if index else False
+
+        if row_data.get('Uv'):
+            uv = cache.get_uv(row_data.get('Uv'))
+            vals['lens_uv_id'] = uv.id if uv else False
+
+        if row_data.get('HMC'):
+            hmc = cache.get_color(row_data.get('HMC'))
+            vals['lens_cl_hmc_id'] = hmc.id if hmc else False
+
+        if row_data.get('PHO'):
+            pho = cache.get_color(row_data.get('PHO'))
+            vals['lens_cl_pho_id'] = pho.id if pho else False
+
+        if row_data.get('TIND'):
+            tint = cache.get_color(row_data.get('TIND'))
+            vals['lens_cl_tint_id'] = tint.id if tint else False
+
+        if coating_ids is None:
+            coating_ids, _coating_codes = self._resolve_lens_coating_ids_from_row(row_data, cache)
+        vals['lens_coating_ids'] = [(6, 0, coating_ids)] if coating_ids else False
+
+        return vals
+
+    def _prepare_accessory_template_vals(self, row_data, cache):
+        """Prepare template-level Accessory fields."""
+        vals = {}
+
+        if row_data.get('Design'):
+            design = cache.get_design(row_data['Design'])
+            if design:
+                vals['design_id'] = design.id
+
+        if row_data.get('Shape'):
+            shape = cache.get_shape(row_data['Shape'])
+            if shape:
+                vals['shape_id'] = shape.id
+
+        if row_data.get('Material'):
+            material = cache.get_material(row_data['Material'])
+            if material:
+                vals['material_id'] = material.id
+
+        if row_data.get('Color'):
+            color = cache.get_accessory_color(row_data['Color'])
+            if color:
+                vals['color_id'] = color.id
+
+        numeric_map = [
+            ('Width', 'acc_width'),
+            ('Length', 'acc_length'),
+            ('Height', 'acc_height'),
+            ('Head', 'acc_head'),
+            ('Body', 'acc_body'),
+        ]
+        for excel_field, odoo_field in numeric_map:
+            if row_data.get(excel_field) not in (None, '', False):
+                vals[odoo_field] = self._safe_float_from_text(row_data[excel_field])
+
+        return vals

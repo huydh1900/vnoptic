@@ -5,6 +5,12 @@ Data validation for Excel import
 from . import field_mapper
 
 
+def _normalize_text(value):
+    if value in (None, False):
+        return ''
+    return ' '.join(str(value).strip().split())
+
+
 def validate_required_fields(row_data, product_type):
     """
     Validate that all required fields are present
@@ -20,7 +26,7 @@ def validate_required_fields(row_data, product_type):
     required_fields = field_mapper.get_required_fields(product_type)
     
     for field in required_fields:
-        if field not in row_data or not row_data[field]:
+        if field not in row_data or not _normalize_text(row_data[field]):
             errors.append(f"Required field '{field}' is missing or empty")
     
     return errors
@@ -115,7 +121,7 @@ def validate_foreign_keys(cache, row_data, product_type):
         lens_fk_checks = [
             ('Design1', cache.get_design, 'Design 1'),
             ('Design2', cache.get_design, 'Design 2'),
-            ('Material', cache.get_material, 'Material'),
+            ('Material', cache.get_lens_material, 'Lens Material'),
             ('Index', cache.get_lens_index, 'Lens Index'),
             ('Uv', cache.get_uv, 'UV'),
             ('HMC', cache.get_color, 'HMC Color'),
@@ -197,34 +203,70 @@ def validate_duplicates(env, rows):
     Returns:
         list: List of error messages
     """
+    # NOTE: Kept for backward compatibility with existing callers.
+    return validate_duplicates_by_type(env, rows, product_type='opt')
+
+
+def _build_duplicate_key(row, product_type):
+    name = _normalize_text(row.get('FullName'))
+    if not name:
+        return None
+
+    if product_type == 'lens':
+        # Lens rows can share template name; include optical powers to avoid false positives.
+        sph = _normalize_text(row.get('SPH'))
+        cyl = _normalize_text(row.get('CYL'))
+        add = _normalize_text(row.get('ADD'))
+        axis = _normalize_text(row.get('AXIS'))
+        prism = _normalize_text(row.get('PRISM'))
+        prism_base = _normalize_text(row.get('PRISMBASE'))
+        return ('lens', name.upper(), sph.upper(), cyl.upper(), add.upper(), axis.upper(), prism.upper(), prism_base.upper())
+
+    # For opt/accessory we still guard by product name.
+    return (product_type, name.upper())
+
+
+def validate_duplicates_by_type(env, rows, product_type):
+    """Validate duplicates with product-type-specific business keys."""
     errors = []
-    seen_names = {}
-    
+    seen_keys = {}
+
     # Check duplicates within import list
     for idx, row in enumerate(rows):
-        if 'FullName' in row and row['FullName']:
-            name = row['FullName']
-            excel_row = row.get('_excel_row', idx + 11)
-            
-            if name in seen_names:
-                prev_row = seen_names[name]
-                errors.append(
-                    f"Duplicate product name '{name}' found in rows {prev_row} and {excel_row}"
-                )
-            else:
-                seen_names[name] = excel_row
-    
-    # Check against existing products
-    if seen_names:
-        existing = env['product.template'].search([
-            ('name', 'in', list(seen_names.keys()))
-        ])
-        for product in existing:
-            excel_row = seen_names.get(product.name)
+        duplicate_key = _build_duplicate_key(row, product_type)
+        if not duplicate_key:
+            continue
+
+        excel_row = row.get('_excel_row', idx + 11)
+        if duplicate_key in seen_keys:
+            prev_row = seen_keys[duplicate_key]
+            name = _normalize_text(row.get('FullName'))
             errors.append(
-                f"Product '{product.name}' already exists in database (row {excel_row})"
+                f"Duplicate product key for '{name}' found in rows {prev_row} and {excel_row}"
             )
-    
+        else:
+            seen_keys[duplicate_key] = excel_row
+
+    # Existing database check by name for non-lens only.
+    # Lens imports intentionally allow multiple rows with same template name for variant matrix.
+    if product_type != 'lens':
+        import_names = [_normalize_text(r.get('FullName')) for r in rows if _normalize_text(r.get('FullName'))]
+        if import_names:
+            existing = env['product.template'].search([
+                ('name', 'in', import_names)
+            ])
+            existing_names = {(_normalize_text(p.name)).upper(): p.name for p in existing}
+
+            for idx, row in enumerate(rows):
+                name = _normalize_text(row.get('FullName'))
+                if not name:
+                    continue
+                excel_row = row.get('_excel_row', idx + 11)
+                if name.upper() in existing_names:
+                    errors.append(
+                        f"Product '{name}' already exists in database (row {excel_row})"
+                    )
+
     return errors
 
 
@@ -249,7 +291,7 @@ def validate_all_rows(env, cache, rows, product_type):
     all_warnings = []
     
     # Check for duplicates first
-    dup_errors = validate_duplicates(env, rows)
+    dup_errors = validate_duplicates_by_type(env, rows, product_type)
     for error in dup_errors:
         all_errors.append({
             'row': None,

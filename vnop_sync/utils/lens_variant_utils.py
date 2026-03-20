@@ -76,7 +76,15 @@ def find_variant_by_values(template, value_ids):
 
 
 def create_variant(template, value_ids):
-    return template.env['product.product'].create({
-        'product_tmpl_id': template.id,
-        'product_template_attribute_value_ids': [(6, 0, value_ids)],
-    })
+    # Convert product.attribute.value ids to template-specific ptav ids,
+    # then delegate creation to Odoo core helper to avoid duplicate combinations.
+    combination = template.env['product.template.attribute.value'].search([
+        ('attribute_line_id.product_tmpl_id', '=', template.id),
+        ('product_attribute_value_id', 'in', value_ids),
+    ])
+
+    # Ensure the combination is complete for this variant.
+    if len(combination) != len(set(value_ids)):
+        return False
+
+    return template._create_product_variant(combination)

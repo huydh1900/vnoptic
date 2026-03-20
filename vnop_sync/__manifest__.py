@@ -22,6 +22,12 @@
     'external_dependencies': {
         'python': ['requests', 'Pillow', 'python-dotenv', 'openpyxl', 'xlsxwriter']
     },
+    'assets': {
+        'web.assets_backend': [
+            'vnop_sync/static/src/scss/preview_long_text.scss',
+            'vnop_sync/static/src/js/preview_long_text.js',
+        ],
+    },
     'installable': True,
     'application': True,
     'auto_install': False,
