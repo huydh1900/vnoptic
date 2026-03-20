@@ -41,6 +41,10 @@ class MasterDataCache:
         self.materials_name = {}
         self.materials_alias = {}
 
+        self.accessory_colors_code = {}
+        self.accessory_colors_name = {}
+        self.accessory_colors_alias = {}
+
         self.lens_materials_name = {}
         self.lens_materials_code = {}
         self.lens_materials_alias = {}
@@ -210,6 +214,21 @@ class MasterDataCache:
             if t.cid:
                 self.temples[self._normalize_value(t.cid)] = t
 
+        # Accessory-specific master data
+        for c in self.env['product.color'].search([]):
+            if c.cid:
+                cid_key = self._normalize_value(c.cid)
+                self.accessory_colors_code[cid_key] = c
+                self.accessory_colors_alias[self._normalize_alias(c.cid)] = c
+            if hasattr(c, 'code') and c.code:
+                code_key = self._normalize_value(c.code)
+                self.accessory_colors_code[code_key] = c
+                self.accessory_colors_alias[self._normalize_alias(c.code)] = c
+            if c.name:
+                name_key = self._normalize_value(c.name)
+                self.accessory_colors_name[name_key] = c
+                self.accessory_colors_alias[self._normalize_alias(c.name)] = c
+
     def _normalize_value(self, value):
         """Normalize lookup values so Excel/business shorthand can be resolved consistently."""
         if value in (None, False):
@@ -376,3 +395,12 @@ class MasterDataCache:
     def get_temple(self, cid):
         """Get temple by CID"""
         return self.get(self.temples, cid)
+
+    def get_accessory_color(self, value):
+        """Get accessory color (product.color) by code/cid > name > alias."""
+        return self._resolve_with_priority(
+            value,
+            primary_map=self.accessory_colors_code,
+            secondary_map=self.accessory_colors_name,
+            alias_map=self.accessory_colors_alias,
+        )
