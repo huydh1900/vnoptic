@@ -360,7 +360,7 @@
                         </page>
                         <page string="Raw Data (Debug)" groups="base.group_no_one">
                             <field name="preview_data" widget="ace" 
-                                   options="{'mode': 'json'}" readonly="1" nolabel="1"/>
+                                   readonly="1" nolabel="1"/>
                         </page>
                         <page string="Lỗi validation" 
                               invisible="error_log == False">
