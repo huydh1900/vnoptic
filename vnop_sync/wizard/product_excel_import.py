@@ -7,7 +7,7 @@ import re
 from datetime import datetime
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError
-from ..utils import excel_reader, data_cache, import_validator, excel_template_generator, product_code_utils, lens_variant_utils
+from ..utils import excel_reader, data_cache, import_validator, excel_template_generator, product_code_utils, lens_variant_utils, field_mapper
 
 _logger = logging.getLogger(__name__)
 
@@ -110,48 +110,48 @@ PREVIEW_TYPE_FIELD_MAP = {
 
 class ProductExcelImport(models.TransientModel):
     _name = 'product.excel.import'
-    _description = 'Import Products from Excel'
+    _description = 'Nhập sản phẩm từ Excel'
     
     # File upload
     excel_file = fields.Binary(
-        string='Excel File',
-        help='Upload Excel file with product data'
+        string='File Excel',
+        help='Tải lên file Excel dữ liệu sản phẩm'
     )
-    file_name = fields.Char('File Name')
+    file_name = fields.Char('Tên file')
     
     # Auto-detected product type
     product_type = fields.Selection([
         ('lens', 'Lens'),
         ('opt', 'Optical Product'),
         ('accessory', 'Accessory')
-    ], string='Product Type', readonly=True)
+    ], string='Loại sản phẩm', readonly=True)
     
     # Preview data (One2many for table view with pagination)
     preview_line_ids = fields.One2many(
         'product.excel.preview.line',
         'wizard_id',
-        string='Preview Lines',
+        string='Dữ liệu xem trước',
         readonly=True
     )
     
     # Keep JSON for debugging
     preview_data = fields.Text(
-        string='Preview Data',
+        string='Dữ liệu xem trước (JSON)',
         readonly=True,
-        help='Parsed data from Excel file in JSON format'
+        help='Dữ liệu đã đọc từ file Excel ở dạng JSON'
     )
     
     # Wizard state
     state = fields.Selection([
-        ('upload', 'Upload File'),
-        ('preview', 'Preview Data'),
-        ('done', 'Import Complete')
-    ], string='State', default='upload')
+        ('upload', 'Tải file'),
+        ('preview', 'Xem trước dữ liệu'),
+        ('done', 'Import hoàn tất')
+    ], string='Trạng thái', default='upload')
     
     # Results
-    success_count = fields.Integer('Successful Imports', readonly=True, default=0)
-    error_count = fields.Integer('Errors', readonly=True, default=0)
-    error_log = fields.Text('Error Log', readonly=True)
+    success_count = fields.Integer('Số dòng xử lý thành công', readonly=True, default=0)
+    error_count = fields.Integer('Số dòng lỗi', readonly=True, default=0)
+    error_log = fields.Text('Chi tiết thông báo', readonly=True)
     
     # Template download selection
     template_type = fields.Selection([
@@ -164,7 +164,7 @@ class ProductExcelImport(models.TransientModel):
     employee_id = fields.Many2one(
         'hr.employee',
         string='Nhân viên phụ trách',
-        help='Assign all imported products to this employee'
+        help='Gán nhân viên phụ trách cho toàn bộ sản phẩm import'
     )
     
     @api.onchange('template_type')
@@ -224,7 +224,7 @@ class ProductExcelImport(models.TransientModel):
             return self._create_download_action(template_data, filename)
         except Exception as e:
             _logger.error(f"Error generating lens template: {e}", exc_info=True)
-            raise UserError(_('Error generating template: %s') % str(e))
+            raise UserError(_('Không thể tạo file mẫu import: %s') % str(e))
     
     def action_download_opt_template(self):
         """Download Excel template for Optical products"""
@@ -235,7 +235,7 @@ class ProductExcelImport(models.TransientModel):
             return self._create_download_action(template_data, filename)
         except Exception as e:
             _logger.error(f"Error generating optical template: {e}", exc_info=True)
-            raise UserError(_('Error generating template: %s') % str(e))
+            raise UserError(_('Không thể tạo file mẫu import: %s') % str(e))
     
     def action_download_accessory_template(self):
         """Download Excel template for Accessory products"""
@@ -246,7 +246,7 @@ class ProductExcelImport(models.TransientModel):
             return self._create_download_action(template_data, filename)
         except Exception as e:
             _logger.error(f"Error generating accessory template: {e}", exc_info=True)
-            raise UserError(_('Error generating template: %s') % str(e))
+            raise UserError(_('Không thể tạo file mẫu import: %s') % str(e))
     
     def _create_download_action(self, file_data, filename):
         """Create download action for Excel file"""
@@ -273,7 +273,7 @@ class ProductExcelImport(models.TransientModel):
         self.ensure_one()
         
         if not self.excel_file:
-            raise UserError(_('Please upload an Excel file first.'))
+            raise UserError(_('Vui lòng tải lên file Excel trước khi xem trước dữ liệu.'))
         
         try:
             # Decode file
@@ -293,6 +293,13 @@ class ProductExcelImport(models.TransientModel):
                 parsed_data['rows'],
                 parsed_data['product_type']
             )
+            header_result = self._validate_headers(
+                parsed_data.get('headers', []),
+                parsed_data['product_type']
+            )
+            validation_result['errors'].extend(header_result['errors'])
+            validation_result['warnings'].extend(header_result['warnings'])
+            validation_result['valid'] = len(validation_result['errors']) == 0
             
             # Clear existing preview lines
             self.preview_line_ids.unlink()
@@ -324,22 +331,30 @@ class ProductExcelImport(models.TransientModel):
                 error_lines = []
                 
                 if validation_result['errors']:
-                    error_lines.append('ERRORS:')
+                    error_lines.append('LỖI DỮ LIỆU:')
                     error_lines.append('=' * 60)
                     for err in validation_result['errors']:
-                        row_info = f"Row {err['row']}: " if err['row'] else ""
-                        error_lines.append(f"  {row_info}{err['message']}")
+                        if err['row']:
+                            error_lines.append(f"  Lỗi tại dòng {err['row']}: {err['message']}")
+                        else:
+                            error_lines.append(f"  {err['message']}")
                 
                 if validation_result['warnings']:
-                    error_lines.append('\nWARNINGS:')
+                    error_lines.append('\nCẢNH BÁO:')
                     error_lines.append('=' * 60)
                     for warn in validation_result['warnings']:
-                        row_info = f"Row {warn['row']}: " if warn['row'] else ""
-                        error_lines.append(f"  {row_info}{warn['message']}")
+                        if warn['row']:
+                            error_lines.append(f"  Cảnh báo tại dòng {warn['row']}: {warn['message']}")
+                        else:
+                            error_lines.append(f"  {warn['message']}")
+
+                valid_rows = max(0, len(parsed_data['rows']) - len(validation_result['errors']))
+                error_lines.append('\nTỔNG KẾT XEM TRƯỚC:')
+                error_lines.append(f"  Có {valid_rows} dòng hợp lệ và {len(validation_result['errors'])} dòng lỗi.")
                 
                 self.error_log = '\n'.join(error_lines)
             else:
-                self.error_log = False
+                self.error_log = f"Đọc file import thành công. Có {len(parsed_data['rows'])} dòng hợp lệ và 0 dòng lỗi."
             
             # Store full data in context for import (temporary solution)
             # In production, might want to use ir.attachment or database storage
@@ -359,7 +374,7 @@ class ProductExcelImport(models.TransientModel):
         
         except Exception as e:
             _logger.error(f"Error parsing Excel file: {str(e)}", exc_info=True)
-            raise UserError(_('Error parsing Excel file: %s') % str(e))
+            raise UserError(_('Không thể đọc file import: %s') % str(e))
     
     def action_back_to_upload(self):
         self.ensure_one()
@@ -404,11 +419,18 @@ class ProductExcelImport(models.TransientModel):
             parsed_data['rows'],
             parsed_data['product_type']
         )
+        header_result = self._validate_headers(
+            parsed_data.get('headers', []),
+            parsed_data['product_type']
+        )
+        validation_result['errors'].extend(header_result['errors'])
+        validation_result['warnings'].extend(header_result['warnings'])
+        validation_result['valid'] = len(validation_result['errors']) == 0
         
         if not validation_result['valid']:
             raise UserError(_(
-                'Cannot import: Data validation failed. Please fix errors and try again.\n\n'
-                'See Error Log tab for details.'
+                'Không thể import vì dữ liệu chưa hợp lệ.\n\n'
+                'Vui lòng sửa các lỗi trong tab Chi tiết thông báo rồi thử lại.'
             ))
         
         # Apply optimization context flags
@@ -424,6 +446,9 @@ class ProductExcelImport(models.TransientModel):
         rows = parsed_data['rows']
         product_type = parsed_data['product_type']
         total_rows = len(rows)
+
+        if not rows:
+            raise UserError(_('Không có dữ liệu hợp lệ để import. Vui lòng kiểm tra lại file Excel.'))
         
         _logger.info(f"Starting batch import of {total_rows} {product_type} products...")
         
@@ -454,13 +479,13 @@ class ProductExcelImport(models.TransientModel):
                     
                 except Exception as e:
                     error_count += len(batch_rows)
-                    error_messages.append(f"Batch {batch_num} failed: {str(e)}")
+                    error_messages.append(f"Lỗi lô batch {batch_num}: {str(e)}")
                     _logger.error(f"Error in batch {batch_num}: {str(e)}", exc_info=True)
                     # Continue with next batch
             
             if error_count > 0 and success_count == 0:
                 raise UserError(_(
-                    'Import failed completely. All batches had errors.\n\n%s'
+                    'Import thất bại hoàn toàn. Tất cả batch đều bị lỗi.\n\n%s'
                 ) % '\n'.join(error_messages[:10]))
         
         except Exception as e:
@@ -473,9 +498,12 @@ class ProductExcelImport(models.TransientModel):
         self.error_count = error_count
         
         if error_count > 0:
-            self.error_log = f"Imported {success_count} products with {error_count} errors:\n" + '\n'.join(error_messages[:10])
+            self.error_log = (
+                f"Import hoàn tất một phần: đã xử lý thành công {success_count} dòng, lỗi {error_count} dòng.\n"
+                + '\n'.join(error_messages[:10])
+            )
         else:
-            self.error_log = f"Successfully imported {success_count} products!"
+            self.error_log = f"Import hoàn tất: đã xử lý thành công {success_count} dòng, không có lỗi."
         
         self.state = 'done'
         
@@ -527,7 +555,7 @@ class ProductExcelImport(models.TransientModel):
                     )
                 except Exception as e:
                     _logger.warning(f"Could not generate code for row {idx}: {e}")
-                    generated_code = f"ERROR: {str(e)[:30]}"
+                    generated_code = f"LỖI SINH MÃ: {str(e)[:30]}"
             else:
                 generated_code = 'Thiếu Nhóm/Thương hiệu'
             
@@ -562,6 +590,33 @@ class ProductExcelImport(models.TransientModel):
             else:
                 values[preview_field] = raw_value or ''
         return values
+
+    def _validate_headers(self, headers, product_type):
+        """Validate header mapping and report unsupported/missing columns for users."""
+        result = {'errors': [], 'warnings': []}
+        if not headers:
+            return result
+
+        supported_headers = set(field_mapper.get_field_mapping(product_type).keys())
+        required_headers = set(field_mapper.get_required_fields(product_type))
+
+        for header in headers:
+            if header not in supported_headers:
+                result['warnings'].append({
+                    'row': None,
+                    'field': header,
+                    'message': f"Cột '{header}' không được hỗ trợ trong file import."
+                })
+
+        for header in sorted(required_headers):
+            if header not in headers:
+                result['errors'].append({
+                    'row': None,
+                    'field': header,
+                    'message': f"Thiếu cột bắt buộc '{header}' ({header}) trong file import."
+                })
+
+        return result
 
     def _safe_preview_float(self, value):
         if value in (None, '', False):
