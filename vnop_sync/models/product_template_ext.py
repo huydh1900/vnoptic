@@ -468,44 +468,36 @@ class ProductTemplateExtension(models.Model):
         }
 
     # ==================== PRODUCT CREATION LOGIC ====================
-    @api.model
-    def create(self, vals):
-        # Auto-generate product code if enabled and not provided
-        if vals.get('auto_generate_code', True) and not vals.get('default_code'):
-            categ_id = vals.get('categ_id')  # Changed from group_id
-            brand_id = vals.get('brand_id')
-            index_id = vals.get('index_id')  # For lens products
-            
-            if categ_id and brand_id:  # Changed from group_id
-                from ..utils import product_code_utils
-                try:
-                    code = product_code_utils.generate_product_code(
-                        self.env, categ_id, brand_id, index_id  # Changed from group_id
-                    )
-                    vals['default_code'] = code
-                except Exception as e:
-                    # Log error but don't fail product creation
-                    import logging
-                    _logger = logging.getLogger(__name__)
-                    _logger.warning(f"Failed to auto-generate product code: {e}")
-        
-        product_type = vals.get('product_type', 'lens')
+    @api.model_create_multi
+    def create(self, vals_list):
+        from ..utils import product_code_utils
+        for vals in vals_list:
+            # Auto-generate product code if enabled and not provided
+            if vals.get('auto_generate_code', True) and not vals.get('default_code'):
+                categ_id = vals.get('categ_id')
+                brand_id = vals.get('brand_id')
+                index_id = vals.get('index_id')
+                if categ_id and brand_id:
+                    try:
+                        vals['default_code'] = product_code_utils.generate_product_code(
+                            self.env, categ_id, brand_id, index_id
+                        )
+                    except Exception as e:
+                        _logger.warning(f"Failed to auto-generate product code: {e}")
 
-        if product_type != 'lens':
-            if 'lens_ids' in vals:
-                del vals['lens_ids']
+            product_type = vals.get('product_type', 'lens')
+            if product_type != 'lens':
+                vals.pop('lens_ids', None)
+            if product_type != 'opt':
+                vals.pop('opt_ids', None)
 
-        if product_type != 'opt':
-            if 'opt_ids' in vals:
-                del vals['opt_ids']
+        products = super().create(vals_list)
 
-        product = super().create(vals)
-        
-        # Auto-create opt record if needed (lens dùng field trực tiếp trên template - Hướng B)
-        if product_type == 'opt' and not product.opt_ids:
-            self.env['product.opt'].create({'product_tmpl_id': product.id})
-        
-        return product
+        for product in products:
+            if product.product_type == 'opt' and not product.opt_ids:
+                self.env['product.opt'].create({'product_tmpl_id': product.id})
+
+        return products
 
     def write(self, vals):
         product_type = vals.get('product_type') or self.product_type
