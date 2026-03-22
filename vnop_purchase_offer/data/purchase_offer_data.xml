@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+
+    <record id="seq_purchase_offer" model="ir.sequence">
+        <field name="name">Đề nghị mua hàng</field>
+        <field name="code">purchase.offer</field>
+        <field name="prefix">ĐNMH/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+
+    <record id="ir_cron_purchase_offer_reminder" model="ir.cron">
+        <field name="name">Nhắc việc đề nghị mua hàng</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="model_id" ref="model_purchase_offer"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_process_reminders()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="nextcall" eval="DateTime.now().strftime('%Y-%m-%d %H:%M:%S')"/>
+        <field name="active">True</field>
+    </record>
+
+</odoo>

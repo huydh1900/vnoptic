@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_contract_form_delivery_schedule_button_inherit" model="ir.ui.view">
+        <field name="name">contract.form.delivery.schedule.button.inherit</field>
+        <field name="model">contract</field>
+        <field name="inherit_id" ref="vnop_contract.vnoptic_contract_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_delivery_schedule"
+                        type="object"
+                        class="oe_stat_button"
+                        invisible="state != 'approved'"
+                        icon="fa-calendar">
+                    <field name="delivery_schedule_count" widget="statinfo" string="Lịch giao hàng"/>
+                </button>
+            </xpath>
+            <xpath expr="//button[@name='action_cancel']" position="before">
+                <button name="action_create_delivery_schedule"
+                        type="object"
+                        string="Tạo lịch giao hàng"
+                        class="btn-primary"
+                        invisible="state != 'approved'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

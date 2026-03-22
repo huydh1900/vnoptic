@@ -1,0 +1,444 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_product_excel_preview_line_form" model="ir.ui.view">
+        <field name="name">product.excel.preview.line.form</field>
+        <field name="model">product.excel.preview.line</field>
+        <field name="arch" type="xml">
+            <form string="Chi tiết dòng xem trước" create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group string="Thông tin chung">
+                            <field name="row_number" readonly="1"/>
+                            <field name="product_type" readonly="1"/>
+                            <field name="generated_code" readonly="1"/>
+                            <field name="group" readonly="1"/>
+                            <field name="image" widget="image" readonly="1"/>
+                            <field name="full_name" readonly="1"/>
+                            <field name="eng_name" readonly="1"/>
+                            <field name="trade_name" readonly="1"/>
+                            <field name="unit" readonly="1"/>
+                            <field name="brand" readonly="1"/>
+                            <field name="supplier" readonly="1"/>
+                            <field name="country" readonly="1"/>
+                            <field name="supplier_warranty" readonly="1"/>
+                            <field name="warranty" readonly="1"/>
+                            <field name="warranty_retail" readonly="1"/>
+                            <field name="accessory" readonly="1"/>
+                            <field name="origin_price" readonly="1"/>
+                            <field name="currency" readonly="1"/>
+                            <field name="cost_price" readonly="1"/>
+                            <field name="retail_price" readonly="1"/>
+                            <field name="wholesale_price" readonly="1"/>
+                            <field name="wholesale_price_max" readonly="1"/>
+                            <field name="wholesale_price_min" readonly="1"/>
+                            <field name="use" widget="text" readonly="1"/>
+                            <field name="guide" widget="text" readonly="1"/>
+                            <field name="warning" widget="text" readonly="1"/>
+                            <field name="preserve" widget="text" readonly="1"/>
+                            <field name="description" widget="text" readonly="1"/>
+                            <field name="note" widget="text" readonly="1"/>
+                        </group>
+
+                        <group string="Thông tin Lens" invisible="product_type != 'lens'">
+                            <field name="sph" readonly="1"/>
+                            <field name="cyl" readonly="1"/>
+                            <field name="add" readonly="1"/>
+                            <field name="axis" readonly="1"/>
+                            <field name="prism" readonly="1"/>
+                            <field name="prismbase" readonly="1"/>
+                            <field name="lens_base" readonly="1"/>
+                            <field name="abbe" readonly="1"/>
+                            <field name="polarized" readonly="1"/>
+                            <field name="diameter" readonly="1"/>
+                            <field name="design1" readonly="1"/>
+                            <field name="design2" readonly="1"/>
+                            <field name="lens_material" readonly="1"/>
+                            <field name="index" readonly="1"/>
+                            <field name="uv" readonly="1"/>
+                            <field name="lens_coating" readonly="1"/>
+                            <field name="hmc" readonly="1"/>
+                            <field name="pho" readonly="1"/>
+                            <field name="tind" readonly="1"/>
+                            <field name="color_int" readonly="1"/>
+                            <field name="corridor" readonly="1"/>
+                            <field name="mir_coating" readonly="1"/>
+                        </group>
+
+                        <group string="Thông tin Gọng" invisible="product_type != 'opt'">
+                            <field name="sku" readonly="1"/>
+                            <field name="model" readonly="1"/>
+                            <field name="model_supplier" readonly="1"/>
+                            <field name="serial" readonly="1"/>
+                            <field name="color_code" readonly="1"/>
+                            <field name="season" readonly="1"/>
+                            <field name="frame" readonly="1"/>
+                            <field name="gender" readonly="1"/>
+                            <field name="frame_type" readonly="1"/>
+                            <field name="opt_shape" readonly="1"/>
+                            <field name="ve" readonly="1"/>
+                            <field name="temple" readonly="1"/>
+                            <field name="material_ve" readonly="1"/>
+                            <field name="material_temple_tip" readonly="1"/>
+                            <field name="material_lens" readonly="1"/>
+                            <field name="material_opt_front" readonly="1"/>
+                            <field name="material_opt_temple" readonly="1"/>
+                            <field name="color_lens" readonly="1"/>
+                            <field name="opt_coating" readonly="1"/>
+                            <field name="color_opt_front" readonly="1"/>
+                            <field name="color_opt_temple" readonly="1"/>
+                            <field name="lens_width" readonly="1"/>
+                            <field name="bridge_width" readonly="1"/>
+                            <field name="temple_width" readonly="1"/>
+                            <field name="lens_height" readonly="1"/>
+                            <field name="lens_span" readonly="1"/>
+                        </group>
+
+                        <group string="Thông tin Phụ kiện" invisible="product_type != 'accessory'">
+                            <field name="design" readonly="1"/>
+                            <field name="accessory_shape" readonly="1"/>
+                            <field name="accessory_material" readonly="1"/>
+                            <field name="accessory_color" readonly="1"/>
+                            <field name="width" readonly="1"/>
+                            <field name="length" readonly="1"/>
+                            <field name="height" readonly="1"/>
+                            <field name="head" readonly="1"/>
+                            <field name="body" readonly="1"/>
+                        </group>
+
+                        <group string="Validation">
+                            <field name="has_error" readonly="1"/>
+                            <field name="error_message" widget="text" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Form View - Full Page for Import -->
+    <record id="view_product_excel_import_form" model="ir.ui.view">
+        <field name="name">product.excel.import.form</field>
+        <field name="model">product.excel.import</field>
+        <field name="arch" type="xml">
+            <form string="Import sản phẩm từ Excel">
+                <header>
+                    <!-- Template download buttons -->
+                    <button name="action_download_lens_template" type="object"
+                            string="Mẫu mắt" class="btn-secondary"
+                            invisible="state != 'upload'"/>
+                    <button name="action_download_opt_template" type="object"
+                            string="Mẫu gọng" class="btn-secondary"
+                            invisible="state != 'upload'"/>
+                    <button name="action_download_accessory_template" type="object"
+                            string="Mẫu phụ kiện" class="btn-secondary"
+                            invisible="state != 'upload'"/>
+                    
+                    <!-- Action buttons -->
+                    <button name="action_parse_excel" type="object" 
+                            string="Xem trước" class="btn-primary"
+                            invisible="state != 'upload'"/>
+                    
+                    <button name="action_confirm_import" type="object" 
+                            string="Xác nhận Import" class="btn-primary"
+                            invisible="state != 'preview'"
+                            confirm="Bạn có chắc muốn import các sản phẩm này?"/>
+                    <button name="action_back_to_upload" type="object" 
+                            string="Quay lại" class="btn-secondary"
+                            invisible="state != 'preview'"/>
+                    
+                    <field name="state" widget="statusbar" statusbar_visible="upload,preview,done"/>
+                </header>
+                
+                <sheet>
+                    <!-- UPLOAD STATE -->
+                    <div class="oe_title" invisible="state != 'upload'">
+                        <h1>Import sản phẩm từ Excel</h1>
+                    </div>
+                    
+                    <div invisible="state != 'upload'">
+                        <!-- Upload Section -->
+                        <group>
+                            <group>
+                                <field name="excel_file" filename="file_name" 
+                                       widget="binary" 
+                                       string="Chọn file Excel"/>
+                                <field name="file_name" invisible="1"/>
+                                <field name="template_type" invisible="1"/>
+                                <field name="employee_id" string="Nhân viên phụ trách"/>
+                            </group>
+                            <group invisible="excel_file == False">
+                                <field name="product_type" readonly="1" string="Loại sản phẩm"/>
+                            </group>
+                        </group>
+                    </div>
+                    
+                    <!-- PREVIEW STATE -->
+                    <notebook invisible="state != 'preview'">
+                        <!-- Preview pages cho từng loại -->
+                        <page string="Preview Lens" invisible="product_type != 'lens'">
+                            <group>
+                                <field name="product_type" readonly="1" string="Loại sản phẩm"/>
+                            </group>
+                            <separator string="Dữ liệu từ Excel (20 dòng/trang)"/>
+                            <field name="preview_line_ids" nolabel="1"
+                                context="{'form_view_ref': 'vnop_sync.view_product_excel_preview_line_form'}">
+                                <list string="Preview Data" create="false" edit="false" delete="false"
+                                      decoration-danger="has_error==True" limit="20">
+                                    <field name="row_number" string="Row #"/>
+                                    <field name="generated_code" string="Mã tự động"/>
+                                    <field name="group" string="Nhóm"/>
+                                    <field name="image" widget="image" string="Ảnh"/>
+                                    <field name="full_name" string="Tên đầy đủ"/>
+                                    <field name="eng_name" string="Tên tiếng Anh"/>
+                                    <field name="trade_name" string="Tên thương mại"/>
+                                    <field name="unit" string="Đơn vị"/>
+                                    <field name="brand" string="Thương hiệu"/>
+                                    <field name="supplier" string="Nhà cung cấp"/>
+                                    <field name="country" string="Xuất xứ"/>
+                                    <field name="supplier_warranty" string="Bảo hành NCC"/>
+                                    <field name="warranty" string="Bảo hành công ty"/>
+                                    <field name="warranty_retail" string="Bảo hành bán lẻ"/>
+                                    <field name="accessory" string="Phụ kiện"/>
+                                    <field name="origin_price" string="Giá nguyên tệ"/>
+                                    <field name="currency" string="Đơn vị nguyên tệ"/>
+                                    <field name="cost_price" string="Giá nhập kho"/>
+                                    <field name="retail_price" sum="Total" string="Giá bán lẻ"/>
+                                    <field name="wholesale_price" string="Giá sỉ theo %"/>
+                                    <field name="wholesale_price_max" string="Giá sỉ tối đa"/>
+                                    <field name="wholesale_price_min" string="Giá sỉ tối thiểu"/>
+                                    <field name="use" string="Công dụng" class="o_preview_long_text"/>
+                                    <field name="guide" string="Hướng dẫn" class="o_preview_long_text"/>
+                                    <field name="warning" string="Cảnh báo" class="o_preview_long_text"/>
+                                    <field name="preserve" string="Bảo quản" class="o_preview_long_text"/>
+                                    <field name="description" string="Mô tả" class="o_preview_long_text"/>
+                                    <field name="note" string="Ghi chú" class="o_preview_long_text"/>
+                                    <field name="sph" string="SPH"/>
+                                    <field name="cyl" string="CYL"/>
+                                    <field name="add" string="ADD"/>
+                                    <field name="axis" string="AXIS"/>
+                                    <field name="prism" string="Lăng kính"/>
+                                    <field name="prismbase" string="Đáy lăng kính"/>
+                                    <field name="lens_base" string="Độ cong kính"/>
+                                    <field name="abbe" string="Chỉ số tán sắc"/>
+                                    <field name="polarized" string="Phân cực"/>
+                                    <field name="diameter" string="Đường kính"/>
+                                    <field name="design1" string="Thiết kế 1"/>
+                                    <field name="design2" string="Thiết kế 2"/>
+                                    <field name="lens_material" string="Vật liệu"/>
+                                    <field name="index" string="Chiết suất"/>
+                                    <field name="uv" string="UV"/>
+                                    <field name="lens_coating" string="Lớp phủ"/>
+                                    <field name="hmc" string="HMC"/>
+                                    <field name="pho" string="PHOTOCHROMIC"/>
+                                    <field name="tind" string="TINTED"/>
+                                    <field name="color_int" string="Độ đậm màu"/>
+                                    <field name="corridor" string="Corridor"/>
+                                    <field name="mir_coating" string="MIR COATING"/>
+                                    <field name="has_error" string="Trạng thái"/>
+                                    <field name="error_message" string="Ghi chú lỗi" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Preview Opt" invisible="product_type != 'opt'">
+                            <group>
+                                <field name="product_type" readonly="1" string="Loại sản phẩm"/>
+                            </group>
+                            <separator string="Dữ liệu từ Excel (20 dòng/trang)"/>
+                            <field name="preview_line_ids" nolabel="1"
+                                context="{'form_view_ref': 'vnop_sync.view_product_excel_preview_line_form'}">
+                                <list string="Preview Data" create="false" edit="false" delete="false"
+                                      decoration-danger="has_error==True" limit="20">
+                                    <field name="row_number" string="Row #"/>
+                                    <field name="generated_code" string="Mã tự động"/>
+                                    <field name="group" string="Nhóm"/>
+                                    <field name="image" widget="image" string="Ảnh"/>
+                                    <field name="full_name" string="Tên đầy đủ"/>
+                                    <field name="eng_name" string="Tên tiếng Anh"/>
+                                    <field name="trade_name" string="Tên thương mại"/>
+                                    <field name="unit" string="Đơn vị"/>
+                                    <field name="brand" string="Thương hiệu"/>
+                                    <field name="supplier" string="Nhà cung cấp"/>
+                                    <field name="country" string="Xuất xứ"/>
+                                    <field name="supplier_warranty" string="Bảo hành NCC"/>
+                                    <field name="warranty" string="Bảo hành công ty"/>
+                                    <field name="warranty_retail" string="Bảo hành bán lẻ"/>
+                                    <field name="accessory" string="Phụ kiện"/>
+                                    <field name="origin_price" string="Giá nguyên tệ"/>
+                                    <field name="currency" string="Đơn vị nguyên tệ"/>
+                                    <field name="cost_price" string="Giá nhập kho"/>
+                                    <field name="retail_price" sum="Total" string="Giá bán lẻ"/>
+                                    <field name="wholesale_price" string="Giá sỉ theo %"/>
+                                    <field name="wholesale_price_max" string="Giá sỉ tối đa"/>
+                                    <field name="wholesale_price_min" string="Giá sỉ tối thiểu"/>
+                                    <field name="use" string="Công dụng" class="o_preview_long_text"/>
+                                    <field name="guide" string="Hướng dẫn" class="o_preview_long_text"/>
+                                    <field name="warning" string="Cảnh báo" class="o_preview_long_text"/>
+                                    <field name="preserve" string="Bảo quản" class="o_preview_long_text"/>
+                                    <field name="description" string="Mô tả" class="o_preview_long_text"/>
+                                    <field name="note" string="Ghi chú" class="o_preview_long_text"/>
+                                    <field name="sku" string="SKU"/>
+                                    <field name="model" string="Model"/>
+                                    <field name="model_supplier" string="Mã gốc NCC"/>
+                                    <field name="serial" string="Serial"/>
+                                    <field name="color_code" string="Mã màu"/>
+                                    <field name="season" string="Season"/>
+                                    <field name="frame" string="Loại gọng"/>
+                                    <field name="gender" string="Giới tính"/>
+                                    <field name="frame_type" string="Kiểu loại"/>
+                                    <field name="opt_shape" string="Kiểu dáng"/>
+                                    <field name="ve" string="Ve"/>
+                                    <field name="temple" string="Càng kính"/>
+                                    <field name="material_ve" string="Chất liệu ve"/>
+                                    <field name="material_temple_tip" string="Chất liệu chuôi càng"/>
+                                    <field name="material_lens" string="Chất liệu tròng"/>
+                                    <field name="material_opt_front" string="Chất liệu mặt trước"/>
+                                    <field name="material_opt_temple" string="Chất liệu càng"/>
+                                    <field name="color_lens" string="Màu tròng"/>
+                                    <field name="opt_coating" string="Lớp phủ"/>
+                                    <field name="color_opt_front" string="Màu mặt trước"/>
+                                    <field name="color_opt_temple" string="Màu càng"/>
+                                    <field name="lens_width" string="Dài mắt"/>
+                                    <field name="bridge_width" string="Cầu kính"/>
+                                    <field name="temple_width" string="Dài càng"/>
+                                    <field name="lens_height" string="Cao tròng"/>
+                                    <field name="lens_span" string="Ngang mắt"/>
+                                    <field name="has_error" string="Trạng thái"/>
+                                    <field name="error_message" string="Ghi chú lỗi" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Preview Accessory" invisible="product_type != 'accessory'">
+                            <group>
+                                <field name="product_type" readonly="1" string="Loại sản phẩm"/>
+                            </group>
+                            <separator string="Dữ liệu từ Excel (20 dòng/trang)"/>
+                            <field name="preview_line_ids" nolabel="1"
+                                context="{'form_view_ref': 'vnop_sync.view_product_excel_preview_line_form'}">
+                                <list string="Preview Data" create="false" edit="false" delete="false"
+                                      decoration-danger="has_error==True" limit="20">
+                                    <field name="row_number" string="Row #"/>
+                                    <field name="generated_code" string="Mã tự động"/>
+                                    <field name="group" string="Nhóm"/>
+                                    <field name="image" widget="image" string="Ảnh"/>
+                                    <field name="full_name" string="Tên đầy đủ"/>
+                                    <field name="eng_name" string="Tên tiếng Anh"/>
+                                    <field name="trade_name" string="Tên thương mại"/>
+                                    <field name="unit" string="Đơn vị"/>
+                                    <field name="brand" string="Thương hiệu"/>
+                                    <field name="supplier" string="Nhà cung cấp"/>
+                                    <field name="country" string="Xuất xứ"/>
+                                    <field name="supplier_warranty" string="Bảo hành NCC"/>
+                                    <field name="warranty" string="Bảo hành công ty"/>
+                                    <field name="warranty_retail" string="Bảo hành bán lẻ"/>
+                                    <field name="accessory" string="Phụ kiện"/>
+                                    <field name="origin_price" string="Giá nguyên tệ"/>
+                                    <field name="currency" string="Đơn vị nguyên tệ"/>
+                                    <field name="cost_price" string="Giá nhập kho"/>
+                                    <field name="retail_price" sum="Total" string="Giá bán lẻ"/>
+                                    <field name="wholesale_price" string="Giá sỉ theo %"/>
+                                    <field name="wholesale_price_max" string="Giá sỉ tối đa"/>
+                                    <field name="wholesale_price_min" string="Giá sỉ tối thiểu"/>
+                                    <field name="use" string="Công dụng" class="o_preview_long_text"/>
+                                    <field name="guide" string="Hướng dẫn" class="o_preview_long_text"/>
+                                    <field name="warning" string="Cảnh báo" class="o_preview_long_text"/>
+                                    <field name="preserve" string="Bảo quản" class="o_preview_long_text"/>
+                                    <field name="description" string="Mô tả" class="o_preview_long_text"/>
+                                    <field name="note" string="Ghi chú" class="o_preview_long_text"/>
+                                    <field name="design" string="Thiết kế"/>
+                                    <field name="accessory_shape" string="Hình dáng"/>
+                                    <field name="accessory_material" string="Chất liệu"/>
+                                    <field name="accessory_color" string="Màu sắc"/>
+                                    <field name="width" string="Chiều rộng"/>
+                                    <field name="length" string="Chiều dài"/>
+                                    <field name="height" string="Chiều cao"/>
+                                    <field name="head" string="Đầu"/>
+                                    <field name="body" string="Thân"/>
+                                    <field name="has_error" string="Trạng thái"/>
+                                    <field name="error_message" string="Ghi chú lỗi" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Raw Data (Debug)" groups="base.group_no_one">
+                            <field name="preview_data" widget="ace" 
+                                   readonly="1" nolabel="1"/>
+                        </page>
+                        <page string="Lỗi validation" 
+                              invisible="error_log == False">
+                            <field name="error_log" widget="text" readonly="1" nolabel="1"/>
+                        </page>
+                    </notebook>
+                    
+                    <!-- DONE STATE -->
+                    <group invisible="state != 'done'">
+                        <group>
+                            <field name="success_count" readonly="1" string="Sản phẩm thành công"/>
+                            <field name="error_count" readonly="1" string="Số lỗi"/>
+                        </group>
+                    </group>
+                    <group invisible="state != 'done' or error_log == False">
+                        <separator string="Chi tiết kết quả"/>
+                        <field name="error_log" widget="text" readonly="1" nolabel="1"/>
+                    </group>
+                </sheet>
+                
+                <footer>
+                    <!-- Upload state buttons -->
+                    <button name="action_parse_excel" type="object" 
+                            string="Tiếp: Xem trước" 
+                            invisible="state != 'upload'"
+                            class="btn-primary"
+                            icon="fa-arrow-right"/>
+                    
+                    <!-- Preview state buttons -->
+                    <button name="action_confirm_import" type="object" 
+                            string="Xác nhận Import" 
+                            invisible="state != 'preview'"
+                            class="btn-primary"
+                            icon="fa-check"
+                            confirm="Bạn có chắc muốn import các sản phẩm này? Hành động này không thể hoàn tác."/>
+                    <button name="action_back_to_upload" type="object" 
+                            string="Quay lại" 
+                            invisible="state != 'preview'"
+                            class="btn-secondary"
+                            icon="fa-arrow-left"/>
+                    
+                    <!-- Done state button -->
+                    <button string="Đóng" special="cancel" 
+                            invisible="state != 'done'"
+                            class="btn-primary"/>
+                    
+                    <button string="Hủy" class="btn-secondary" special="cancel"
+                            invisible="state == 'done'"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Action - Full Page (current) -->
+    <record id="action_import_excel_products" model="ir.actions.act_window">
+        <field name="name">Import sản phẩm từ Excel</field>
+        <field name="res_model">product.excel.import</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+        <field name="view_id" ref="view_product_excel_import_form"/>
+    </record>
+    
+    <!-- ==============================================
+         MENU ITEMS FOR DIFFERENT MODULES
+         ============================================== -->
+    
+    <!-- Menu in Sale Module -->
+    <!-- Menu in Sale Module (Moved to vnop_sale) -->
+    <!-- <menuitem id="menu_import_excel_sale" ... /> -->
+    
+    <!-- Menu in Purchase Module (Moved to vnop_purchase) -->
+    <!-- <menuitem id="menu_import_excel_purchase" ... /> -->
+    
+    <!-- Menu in Inventory/Stock Module -->
+    <menuitem id="menu_import_excel_stock"
+              name="Import sản phẩm"
+              parent="stock.menu_stock_inventory_control"
+              action="action_import_excel_products"
+              sequence="99"/>
+    
+</odoo>

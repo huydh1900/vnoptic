@@ -6,7 +6,7 @@
             <list string="Lịch giao hàng">
                 <field name="bill_number"/>
                 <field name="purchase_ids" widget="many2many_tags"/>
-                <field name="contract_ids" widget="many2many_tags"/>
+                <field name="contract_id"/>
                 <field name="partner_id"/>
                 <field name="delivery_datetime"/>
                 <field name="qty_planned_total"/>
@@ -51,7 +51,7 @@
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_contract" type="object"
                                 icon="fa-file-text-o"
-                                string="Hợp đồng" invisible="not contract_ids"/>
+                                string="Hợp đồng" invisible="not contract_id"/>
                         <button name="action_view_pickings" type="object"
                                 icon="fa-truck"
                                 invisible="not purchase_ids">
@@ -72,6 +72,9 @@
 
                     <group>
                         <group name="delivery_info" string="Thông tin vận chuyển">
+                            <field name="contract_id"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"/>
                             <field name="partner_id"
                                    domain="[('supplier_rank','>',0)]" options="{'no_create': True}"
                                    readonly="context.get('from_purchase')"/>
@@ -80,15 +83,21 @@
                                    widget="many2many_tags"
                                    domain="[('partner_id', '=', partner_id), ('state', 'in', ('purchase', 'done')), ('contract_id', '!=', False)]"
                                    readonly="state != 'draft'"/>
-                            <field name="contract_ids" widget="many2many_tags" readonly="1"/>
                             <field name="delivery_datetime"/>
                             <field name="description" placeholder="Nhập ghi chú nội bộ hoặc hướng dẫn giao hàng..."/>
-                            <field name="create_date" readonly="1" string="Thời gian tạo"/>
                         </group>
                         <group name="customs_info" string="Thông tin Hải quan">
                             <field name="declaration_number"/>
                             <field name="declaration_date"/>
                             <field name="total_declaration_amount"/>
+                        </group>
+                        <group name="transport_info" string="Thời gian &amp; vận chuyển thực tế">
+                            <field name="incoterm_id" options="{'no_create': True}"/>
+                            <field name="port_loading"/>
+                            <field name="port_discharge"/>
+                            <field name="etd"/>
+                            <field name="eta"/>
+                            <field name="shipment_type"/>
                         </group>
                     </group>
 
@@ -106,6 +115,13 @@
                             </div>
                             <field name="qty_planned_total" readonly="1"/>
                             <field name="qty_received_total" readonly="1"/>
+                        </group>
+                        <group string="Chi phí dự tính">
+                            <field name="freight_est"/>
+                            <field name="insurance_est"/>
+                            <field name="duty_est"/>
+                            <field name="tax_est"/>
+                            <field name="other_cost_est"/>
                         </group>
                     </group>
 
@@ -128,6 +144,11 @@
                                     <field name="qty_remaining_to_receive" readonly="1" invisible="qty_remaining_to_receive == 0"/>
                                 </list>
                             </field>
+                        </page>
+                        <page string="Thông tin bổ sung">
+                            <group>
+                                <field name="create_date" string="Thời gian tạo" readonly="1"/>
+                            </group>
                         </page>
                     </notebook>
 

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Danh mục sản phẩm cho VnOptic -->
+        
+        <record id="product_category_lens" model="product.category">
+            <field name="name">Tròng kính</field>
+            <field name="code">06</field>
+        </record>
+        
+        <record id="product_category_opt" model="product.category">
+            <field name="name">Gọng kính</field>
+            <field name="code">27</field>
+        </record>
+        
+        <record id="product_category_accessory" model="product.category">
+            <field name="name">Phụ kiện</field>
+            <field name="code">20</field>
+        </record>
+        
+    </data>
+</odoo>

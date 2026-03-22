@@ -1,0 +1,127 @@
+import logging
+
+from odoo import api, fields, models, _
+from odoo.exceptions import ValidationError
+
+_logger = logging.getLogger(__name__)
+
+
+class ProductLens(models.Model):
+    _name = 'product.lens'
+    _description = 'Lens Product Details'
+
+    def _register_hook(self):
+        """Chạy mỗi lần Odoo khởi động: tự động xóa NOT NULL constraint trên diameter
+        để dữ liệu sync từ API không bị lỗi khi trường này NULL."""
+        super()._register_hook()
+        try:
+            self._cr.execute("""
+                SELECT is_nullable
+                FROM information_schema.columns
+                WHERE table_name = 'product_lens' AND column_name = 'diameter'
+            """)
+            row = self._cr.fetchone()
+            if row and row[0] == 'NO':
+                self._cr.execute(
+                    "ALTER TABLE product_lens ALTER COLUMN diameter DROP NOT NULL"
+                )
+                _logger.info("✅ product_lens.diameter: đã bỏ NOT NULL constraint.")
+        except Exception as e:
+            _logger.warning(f"⚠️ Không thể bỏ NOT NULL trên diameter: {e}")
+
+    product_tmpl_id = fields.Many2one('product.template', string='Product Template')
+    product_id = fields.Many2one('product.product', string='Product')
+
+    # 1. Power Configuration (Config-Driven)
+    sph_id = fields.Many2one('product.lens.power', string='SPH', domain="[('type', '=', 'sph')]")
+    cyl_id = fields.Many2one('product.lens.power', string='CYL', domain="[('type', '=', 'cyl')]")
+
+    # 2. Axis (Manual Input, Validated)
+    axis = fields.Integer('Axis (0-180)')
+    
+    # 3. Addition (Manual Input, Validated)
+    lens_add = fields.Float('ADD', digits=(4, 2))
+
+    # 4. Base Curve (Manual Input, Validated)
+    base_curve = fields.Float('Base Curve', digits=(4, 2))
+
+    # 5. Diameter (Manual Input, Validated)
+    diameter = fields.Integer('Diameter')
+
+    # 6. Lens Design (Legacy fields from old system)
+    design1_id = fields.Many2one('product.design', string='Thiết kế 1')
+    design2_id = fields.Many2one('product.design', string='Thiết kế 2')
+    design_id = fields.Many2one('product.lens.design', string='Design (New)')
+
+    # 7. Material (Config-Driven)
+    material_id = fields.Many2one('product.lens.material', string='Vật liệu')
+    
+    # 8. Lens Index (Chiết suất)
+    index_id = fields.Many2one('product.lens.index', string='Chiết suất')
+    
+    # 9. UV Protection
+    uv_id = fields.Many2one('product.uv', string='UV')
+    
+    # 10. Color/Coating specific fields (Legacy)
+    color_int = fields.Char('Độ đậm màu', size=50)
+    mir_coating = fields.Char('Màu tráng gương', size=50)
+    cl_hmc_id = fields.Many2one('product.cl', string='HMC')
+    cl_pho_id = fields.Many2one('product.cl', string='Pho Col (Photochromic)')
+    cl_tint_id = fields.Many2one('product.cl', string='Tint Col')
+    
+    # 11. Coatings (Lớp trắng/Lớp phủ)
+    coating_ids = fields.Many2many(
+        'product.coating', 'lens_coating_rel',
+        'lens_id', 'coating_id', string='Coating'
+    )
+    
+    # 12. Features (New Config-Driven, for future use)
+    feature_ids = fields.Many2many(
+        'product.lens.feature', 'lens_feature_rel', 
+        'lens_id', 'feature_id', string='Features & Coatings (New)'
+    )
+    
+    # Helper fields for display/search if needed
+    corridor = fields.Char('Corridor', size=50) # Keep specialized params
+    abbe = fields.Char('Abbe', size=50)
+    prism = fields.Char('Prism', size=50)
+    prism_base = fields.Char('Prism Base', size=50)
+
+    # --- Validation Logic ---
+
+    @api.constrains('cyl_id', 'axis')
+    def _check_axis(self):
+        for rec in self:
+            axis_val = rec.axis
+
+            # If CYL is selected and not 0.00 => Axis is required
+            if rec.cyl_id and float(rec.cyl_id.value or 0.0) != 0.0:
+                if axis_val is False:
+                    raise ValidationError(_("Axis is required when CYL is set."))
+
+            # Only validate range if axis is set
+            if axis_val is not False and (axis_val < 0 or axis_val > 180):
+                raise ValidationError(_("Axis must be between 0 and 180 (received %s).") % axis_val)
+
+    @api.constrains('design_id', 'lens_add')
+    def _check_add(self):
+        for rec in self:
+            if rec.design_id and rec.design_id.design_type in ['progressive', 'bifocal']:
+                if rec.lens_add <= 0:
+                    raise ValidationError(_("Addition (ADD) is required for Progressive/Bifocal designs."))
+            # Bỏ check single vision vì dữ liệu sync có thể không đầy đủ
+
+    @api.constrains('diameter')
+    def _check_diameter(self):
+        for rec in self:
+            # Chỉ validate nếu diameter được set (> 0), bỏ qua khi sync không có giá trị
+            if rec.diameter and (rec.diameter < 55 or rec.diameter > 90):
+                raise ValidationError(_("Diameter must be between 55 and 90 mm (received %s).") % rec.diameter)
+
+    @api.constrains('base_curve')
+    def _check_base_curve(self):
+        for rec in self:
+            # Chỉ validate nếu base_curve được set, bỏ qua khi sync không có giá trị
+            if rec.base_curve and (rec.base_curve < 4 or rec.base_curve > 9):
+                raise ValidationError(_("Base Curve must be between 4.00 and 9.00 (received %s).") % rec.base_curve)
+

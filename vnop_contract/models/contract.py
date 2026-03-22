@@ -44,12 +44,6 @@ class Contract(models.Model):
         copy=False,
         index=True,
     )
-    contract_direction = fields.Selection(
-        [("purchase", "Mua"), ("sale", "Bán")],
-        string="Loại hợp đồng",
-        default="purchase",
-        tracking=True,
-    )
 
     delivery_state = fields.Selection(
         [
@@ -84,7 +78,17 @@ class Contract(models.Model):
         tracking=True,
     )
     total_qty = fields.Float(
-        string="Tổng số lượng",
+        string="Tổng SL hợp đồng",
+        compute="_compute_totals",
+        store=True,
+    )
+    total_received_qty = fields.Float(
+        string="Tổng SL đã nhận",
+        compute="_compute_totals",
+        store=True,
+    )
+    total_missing_qty = fields.Float(
+        string="Tổng SL còn thiếu",
         compute="_compute_totals",
         store=True,
     )
@@ -92,7 +96,7 @@ class Contract(models.Model):
 
     # ====== Delivery / shipping ======
     incoterm_id = fields.Many2one("account.incoterms", string="Điều kiện giao hàng")
-    shipment_date = fields.Date(string="Ngày dự kiến giao hàng")
+    shipment_date = fields.Date(string="Ngày giao hàng")
     port_of_loading = fields.Char(string="Cảng xuất hàng")
     destination = fields.Char(string="Cảng đích")
     partial_shipment = fields.Boolean(string="Cho phép giao nhiều đợt", default=True)
@@ -152,15 +156,6 @@ class Contract(models.Model):
         store=True,
     )
 
-    document_required_ids = fields.Many2many(
-        "contract.document.type",
-        "contract_document_type_rel",
-        "contract_id",
-        "document_type_id",
-        string="Chứng từ yêu cầu",
-    )
-    document_note = fields.Text(string="Chứng từ khác/ghi chú")
-
     note = fields.Html(string="Ghi chú")
 
     attachment_ids = fields.Many2many(
@@ -171,16 +166,6 @@ class Contract(models.Model):
         string="Chứng từ/Hợp đồng",
     )
 
-    # ====== PO links ======
-    purchase_order_ids = fields.Many2many(
-        "purchase.order",
-        "contract_purchase_order_rel",
-        "contract_id",
-        "purchase_order_id",
-        string="Đơn mua hàng",
-        domain="[('partner_id','=', partner_id), ('state','in',('purchase','done'))]",
-    )
-    purchase_order_count = fields.Integer(string="Số PO", compute="_compute_purchase_order_count")
     receipt_ids = fields.One2many("stock.picking", "contract_id", string="Phiếu nhập kho", readonly=True)
     receipt_count_open = fields.Integer(compute="_compute_receipt_metrics", string="Số phiếu nhập kho")
 
@@ -201,18 +186,19 @@ class Contract(models.Model):
 
     product_count = fields.Integer(string="Số sản phẩm", compute="_compute_product_count")
 
-    def _compute_purchase_order_count(self):
-        for rec in self:
-            rec.purchase_order_count = len(rec.purchase_order_ids)
-
-    @api.depends("line_ids.qty_contract", "line_ids.amount_total")
+    @api.depends("line_ids.product_qty", "line_ids.qty_received", "line_ids.amount_total")
     def _compute_totals(self):
         for rec in self:
-            rec.total_qty = sum(rec.line_ids.mapped("qty_contract"))
+            rec.total_qty = sum(rec.line_ids.mapped("product_qty"))
+            rec.total_received_qty = sum(
+                min(line.qty_received, line.product_qty) for line in rec.line_ids
+            )
+            rec.total_missing_qty = sum(
+                max(line.product_qty - line.qty_received, 0.0) for line in rec.line_ids
+            )
             rec.amount_total = sum(rec.line_ids.mapped("amount_total"))
 
-    @api.depends("purchase_order_ids", "purchase_order_ids.picking_ids", "purchase_order_ids.picking_ids.state",
-                 "receipt_ids", "receipt_ids.state")
+    @api.depends("receipt_ids", "receipt_ids.state")
     def _compute_receipt_metrics(self):
         StockPicking = self.env["stock.picking"]
         for rec in self:
@@ -256,17 +242,6 @@ class Contract(models.Model):
                 "approved_by": self.env.user.id,
             })
 
-    def action_view_delivery_schedule(self):
-        self.ensure_one()
-        return {
-            "type": "ir.actions.act_window",
-            "name": "Lịch giao hàng",
-            "res_model": "delivery.schedule",
-            "view_mode": "list,form",
-            "domain": [("allocation_ids.contract_id", "=", self.id)],
-            "target": "current",
-        }
-
     def action_cancel(self):
         for rec in self:
             rec.write({"state": "cancel"})
@@ -288,47 +263,15 @@ class Contract(models.Model):
             if not rec.partner_id:
                 raise ValidationError(_("Vui lòng chọn Nhà cung cấp trước khi gửi duyệt."))
             if not rec.shipment_date:
-                raise ValidationError(_("Ngày dự kiến giao hàng không được để trống!"))
+                raise ValidationError(_("Ngày giao hàng không được để trống!"))
             rec._check_fifo_valuation()
             rec.write({'state': 'waiting'})
 
     @api.onchange("partner_id")
     def _onchange_partner_id(self):
         self.partner_ref = self.partner_id.ref
-        self.purchase_order_ids = [(5, 0, 0)]
         self.line_ids = [(5, 0, 0)]
         self.beneficiary_bank_id = False
-
-    @api.onchange("purchase_order_ids")
-    def _onchange_purchase_order_ids_build_product_lines(self):
-        """Tự động nạp dòng sản phẩm từ PO, chỉ đề xuất phần còn lại chưa nhận."""
-        for contract in self:
-            line_commands = [(5, 0, 0)]
-
-            for po in contract.purchase_order_ids:
-                for line in po.order_line:
-                    if not line.product_id or line.display_type:
-                        continue
-
-                    qty_remaining = max(line.qty_remaining, 0.0)
-                    if qty_remaining <= 0:
-                        continue
-
-                    line_commands.append((0, 0, {
-                        "product_id": line.product_id.id,
-                        "uom_id": line.product_uom.id,
-                        "currency_id": po.currency_id.id,
-                        "product_qty": line.product_qty,
-                        "qty_received": line.qty_received,
-                        "qty_contract": qty_remaining,
-                        "qty_remaining": qty_remaining,
-                        "price_unit": line.price_unit,
-                        "amount_total": line.price_subtotal,
-                        "purchase_id": po.id,
-                        "purchase_line_id": line.id,
-                    }))
-
-            contract.line_ids = line_commands
 
     def action_view_receipts(self):
         raise UserError(_("Vui lòng thao tác tại Lịch giao hàng."))

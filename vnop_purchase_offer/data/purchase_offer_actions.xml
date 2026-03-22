@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="action_purchase_offer_create_contract" model="ir.actions.server">
+        <field name="name">Tạo hợp đồng</field>
+        <field name="model_id" ref="model_purchase_offer"/>
+        <field name="binding_model_id" ref="model_purchase_offer"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_create_contract()</field>
+    </record>
+</odoo>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="vnop_contract_form_purchase_offer_inherit" model="ir.ui.view">
+        <field name="name">contract.form.purchase.offer.inherit</field>
+        <field name="model">contract</field>
+        <field name="inherit_id" ref="vnop_contract.vnoptic_contract_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_ref']" position="after">
+                <field name="approved_purchase_offer_ids"
+                       widget="many2many_tags"
+                       readonly="state != 'draft'"
+                       options="{'no_create': True}"
+                       domain="[('state', 'in', ('approved', 'converted')), ('partner_id', '=', partner_id), ('company_id', '=', company_id), ('currency_id', '=', currency_id), '|', ('contract_id', '=', False), ('contract_id', '=', id)]"/>
+            </xpath>
+
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_purchase_offers"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-list-alt"
+                        invisible="not purchase_offer_count">
+                    <field name="purchase_offer_count" widget="statinfo" string="Đề nghị mua hàng"/>
+                </button>
+            </xpath>
+
+            <xpath expr="//notebook/page[1]" position="before">
+                <page string="Đề nghị mua hàng" invisible="not purchase_offer_count">
+                    <field name="purchase_offer_ids" readonly="1">
+                        <list create="0" delete="0">
+                            <field name="name"/>
+                            <field name="partner_id"/>
+                            <field name="follow_up_date"/>
+                            <field name="total_qty"/>
+                            <field name="amount_total" widget="monetary"/>
+                            <field name="currency_id" column_invisible="1"/>
+                            <field name="state"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

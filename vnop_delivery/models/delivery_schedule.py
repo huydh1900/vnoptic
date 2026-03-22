@@ -31,6 +31,24 @@ class DeliverySchedule(models.Model):
         string='Mô tả'
     )
 
+    eta = fields.Date(string='ETA (Ngày dự kiến đến)', tracking=True)
+    etd = fields.Date(string='ETD (Ngày dự kiến khởi hành)', tracking=True)
+    shipment_type = fields.Selection([
+        ('air', 'Đường hàng không'),
+        ('sea', 'Đường biển'),
+        ('land', 'Đường bộ'),
+    ], string='Phương thức vận chuyển', tracking=True)
+
+    incoterm_id = fields.Many2one('account.incoterms', string='Điều kiện giao hàng', tracking=True)
+    port_loading = fields.Char(string='Cảng xuất hàng')
+    port_discharge = fields.Char(string='Cảng đích')
+
+    freight_est = fields.Monetary(string='Cước vận chuyển (dự tính)', currency_field='currency_id', default=0)
+    insurance_est = fields.Monetary(string='Phí bảo hiểm (dự tính)', currency_field='currency_id', default=0)
+    duty_est = fields.Monetary(string='Thuế nhập khẩu (dự tính)', currency_field='currency_id', default=0)
+    tax_est = fields.Monetary(string='Thuế VAT (dự tính)', currency_field='currency_id', default=0)
+    other_cost_est = fields.Monetary(string='Chi phí khác (dự tính)', currency_field='currency_id', default=0)
+
     partner_id = fields.Many2one('res.partner', string='Nhà cung cấp', required=True)
     partner_ref = fields.Char(string='Mã NCC', related='partner_id.ref')
 
@@ -47,11 +65,12 @@ class DeliverySchedule(models.Model):
         'purchase_id',
         string='Đơn mua hàng',
     )
-    contract_ids = fields.Many2many(
+    contract_id = fields.Many2one(
         'contract',
-        compute='_compute_contract_ids',
-        string='Hợp đồng liên quan',
-        store=True,
+        string='Hợp đồng',
+        index=True,
+        tracking=True,
+        required=True,
     )
     company_id = fields.Many2one(
         'res.company',
@@ -130,12 +149,6 @@ class DeliverySchedule(models.Model):
             rec.qty_planned_total = sum(rec.allocation_ids.mapped('qty_planned'))
             rec.qty_received_total = sum(rec.allocation_ids.mapped('qty_received'))
 
-    @api.depends('purchase_ids.contract_id', 'allocation_ids.contract_id')
-    def _compute_contract_ids(self):
-        for rec in self:
-            contracts = rec.purchase_ids.mapped('contract_id') | rec.allocation_ids.mapped('contract_id')
-            rec.contract_ids = [(6, 0, contracts.ids)]
-
     def _compute_otk_session_count(self):
         grouped = self.env['delivery.otk'].read_group(
             [('delivery_schedule_id', 'in', self.ids)],
@@ -152,6 +165,8 @@ class DeliverySchedule(models.Model):
 
     def _check_can_move_state(self):
         for rec in self:
+            if not rec.contract_id:
+                raise ValidationError(_('Bạn cần chọn hợp đồng cho lịch giao.'))
             if not rec.partner_id:
                 raise ValidationError(_('Bạn cần chọn nhà cung cấp cho lịch giao.'))
             if not rec.purchase_ids:
@@ -242,6 +257,23 @@ class DeliverySchedule(models.Model):
             partner = rec.purchase_ids[:1].partner_id
             if partner:
                 rec.partner_id = partner
+            purchase_contracts = rec.purchase_ids.mapped("contract_id")
+            if len(purchase_contracts) == 1:
+                rec.contract_id = purchase_contracts.id
+            rec.allocation_ids = rec._build_allocation_commands_from_purchase_ids()
+
+    @api.onchange('contract_id')
+    def _onchange_contract_id(self):
+        for rec in self:
+            if not rec.contract_id:
+                continue
+            rec.partner_id = rec.contract_id.partner_id
+            rec.company_id = rec.contract_id.company_id
+            rec.currency_id = rec.contract_id.currency_id
+            rec.incoterm_id = rec.contract_id.incoterm_id
+            rec.port_loading = rec.contract_id.port_of_loading
+            rec.port_discharge = rec.contract_id.destination
+            rec.purchase_ids = rec.purchase_ids.filtered(lambda po: po.contract_id == rec.contract_id)
             rec.allocation_ids = rec._build_allocation_commands_from_purchase_ids()
 
     def _build_allocation_commands_from_purchase_ids(self):
@@ -274,24 +306,14 @@ class DeliverySchedule(models.Model):
 
     def action_view_contract(self):
         self.ensure_one()
-        if not self.contract_ids:
+        if not self.contract_id:
             raise UserError(_('Lịch giao chưa có hợp đồng liên quan.'))
-        if len(self.contract_ids) == 1:
-            contract = self.contract_ids[0]
-            return {
-                'type': 'ir.actions.act_window',
-                'name': 'Hợp đồng mua hàng',
-                'res_model': 'contract',
-                'view_mode': 'form',
-                'res_id': contract.id,
-                'target': 'current',
-            }
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Hợp đồng mua hàng'),
+            'name': 'Hợp đồng mua hàng',
             'res_model': 'contract',
-            'view_mode': 'list,form',
-            'domain': [('id', 'in', self.contract_ids.ids)],
+            'view_mode': 'form',
+            'res_id': self.contract_id.id,
             'target': 'current',
         }
 
@@ -322,53 +344,49 @@ class DeliverySchedule(models.Model):
         self.ensure_one()
         if self.state != 'confirmed':
             raise UserError(_('Chỉ tạo OTK khi lịch giao ở trạng thái Xác nhận hàng về.'))
-        if not self.contract_ids:
+        if not self.contract_id:
             raise UserError(_('Lịch giao chưa có hợp đồng liên quan.'))
 
         sessions = self.env['delivery.otk']
         received_map = self._get_received_qty_by_purchase_line()
-        for contract in self.contract_ids:
-            source, ok_location, ng_location, picking_type = self._get_default_otk_configuration()
-            if not source or not ok_location or not ng_location or not picking_type:
-                raise UserError(
-                    _('Thiếu cấu hình OTK mặc định của công ty.')
-                )
+        contract = self.contract_id
+        source, ok_location, ng_location, picking_type = self._get_default_otk_configuration()
+        if not source or not ok_location or not ng_location or not picking_type:
+            raise UserError(
+                _('Thiếu cấu hình OTK mặc định của công ty.')
+            )
 
-            line_values = []
-            contract_allocations = self.allocation_ids.filtered(lambda l: l.contract_id == contract)
-            for alloc in contract_allocations:
-                qty_received = received_map.get(alloc.purchase_line_id.id, 0.0)
-                qty_done_otk = self._get_otk_checked_qty(
-                    contract_id=contract.id,
-                    purchase_line_id=alloc.purchase_line_id.id,
-                )
-                qty_to_otk = max(qty_received - qty_done_otk, 0.0)
-                if qty_to_otk <= 0:
-                    continue
-                line_values.append((0, 0, {
-                    'purchase_line_id': alloc.purchase_line_id.id,
-                    'qty_contract': qty_to_otk,
-                }))
-
-            if not line_values:
+        line_values = []
+        for alloc in self.allocation_ids:
+            qty_received = received_map.get(alloc.purchase_line_id.id, 0.0)
+            qty_done_otk = self._get_otk_checked_qty(
+                contract_id=contract.id,
+                purchase_line_id=alloc.purchase_line_id.id,
+            )
+            qty_to_otk = max(qty_received - qty_done_otk, 0.0)
+            if qty_to_otk <= 0:
                 continue
+            line_values.append((0, 0, {
+                'purchase_line_id': alloc.purchase_line_id.id,
+                'qty_contract': qty_to_otk,
+            }))
 
-            session = self.env['delivery.otk'].create({
-                'contract_id': contract.id,
-                'company_id': self.company_id.id,
-                'source_location_id': source.id,
-                'ok_location_id': ok_location.id,
-                'ng_location_id': ng_location.id,
-                'picking_type_id': picking_type.id,
-                'delivery_schedule_id': self.id,
-                'line_ids': line_values,
-            })
-            sessions |= session
-
-        if not sessions:
+        if not line_values:
             if raise_if_empty:
                 raise UserError(_('Không có số lượng đã nhận để tạo phiên OTK.'))
             return False
+
+        session = self.env['delivery.otk'].create({
+            'contract_id': contract.id,
+            'company_id': self.company_id.id,
+            'source_location_id': source.id,
+            'ok_location_id': ok_location.id,
+            'ng_location_id': ng_location.id,
+            'picking_type_id': picking_type.id,
+            'delivery_schedule_id': self.id,
+            'line_ids': line_values,
+        })
+        sessions |= session
 
         if not return_action:
             return sessions
@@ -446,35 +464,35 @@ class DeliverySchedule(models.Model):
 
     def _sync_contract_arrivals(self):
         self.ensure_one()
+        if not self.contract_id:
+            return
         Arrival = self.env["contract.arrival"]
-        for contract in self.contract_ids:
-            arrival = Arrival.search([
-                ("contract_id", "=", contract.id),
-                ("delivery_schedule_id", "=", self.id),
-            ], limit=1)
-            contract_allocations = self.allocation_ids.filtered(
-                lambda line: line.contract_id == contract and line.qty_planned > 0
-            )
-            if not contract_allocations:
-                if arrival:
-                    arrival.unlink()
-                continue
-            line_commands = [(5, 0, 0)] + [
-                (0, 0, {"delivery_schedule_allocation_id": allocation.id})
-                for allocation in contract_allocations
-            ]
-            arrival_vals = {
-                "name": "%s - %s" % (self.bill_number or self.name, contract.number or contract.name),
-                "contract_id": contract.id,
-                "delivery_schedule_id": self.id,
-                "arrival_date": self.delivery_datetime or fields.Date.context_today(self),
-                "bill_number": self.bill_number,
-                "line_ids": line_commands,
-            }
+        contract = self.contract_id
+        arrival = Arrival.search([
+            ("contract_id", "=", contract.id),
+            ("delivery_schedule_id", "=", self.id),
+        ], limit=1)
+        contract_allocations = self.allocation_ids.filtered(lambda line: line.qty_planned > 0)
+        if not contract_allocations:
             if arrival:
-                arrival.write(arrival_vals)
-            else:
-                Arrival.create(arrival_vals)
+                arrival.unlink()
+            return
+        line_commands = [(5, 0, 0)] + [
+            (0, 0, {"delivery_schedule_allocation_id": allocation.id})
+            for allocation in contract_allocations
+        ]
+        arrival_vals = {
+            "name": "%s - %s" % (self.bill_number or self.name, contract.number or contract.name),
+            "contract_id": contract.id,
+            "delivery_schedule_id": self.id,
+            "arrival_date": self.delivery_datetime or fields.Date.context_today(self),
+            "bill_number": self.bill_number,
+            "line_ids": line_commands,
+        }
+        if arrival:
+            arrival.write(arrival_vals)
+        else:
+            Arrival.create(arrival_vals)
 
     @api.onchange('partner_id')
     def _onchange_partner_id(self):

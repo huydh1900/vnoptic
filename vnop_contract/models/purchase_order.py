@@ -78,12 +78,29 @@ class PurchaseOrder(models.Model):
 class PurchaseOrderLine(models.Model):
     _inherit = "purchase.order.line"
 
+    contract_line_ids = fields.One2many(
+        "contract.line",
+        "purchase_line_id",
+        string="Dòng hợp đồng",
+        readonly=True,
+    )
+    contract_line_id = fields.Many2one(
+        "contract.line",
+        string="Dòng hợp đồng",
+        compute="_compute_contract_line_id",
+        readonly=True,
+    )
     qty_remaining = fields.Float(
         string="Số lượng còn lại",
         compute="_compute_qty_remaining",
         store=True,
         digits="Product Unit of Measure",
     )
+
+    @api.depends("contract_line_ids")
+    def _compute_contract_line_id(self):
+        for line in self:
+            line.contract_line_id = line.contract_line_ids[:1].id or False
 
     @api.depends("product_qty", "qty_received")
     def _compute_qty_remaining(self):

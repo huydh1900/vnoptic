@@ -6,17 +6,25 @@
     .o-mail-Form-chatter.o-aside {
         overflow: hidden;
         contain: layout paint;
-        will-change: width, padding, flex-basis;
         transition:
             width var(--vnop-chatter-duration) var(--vnop-chatter-ease),
             padding var(--vnop-chatter-duration) var(--vnop-chatter-ease),
             flex-basis var(--vnop-chatter-duration) var(--vnop-chatter-ease);
 
         .o-mail-Chatter {
-            will-change: opacity, transform;
             transition:
                 opacity calc(var(--vnop-chatter-duration) * 0.75) ease,
                 transform var(--vnop-chatter-duration) var(--vnop-chatter-ease);
+        }
+    }
+
+    &.o_vnop_chatter_animating {
+        .o-mail-Form-chatter.o-aside {
+            will-change: width, padding, flex-basis;
+        }
+
+        .o-mail-Form-chatter.o-aside .o-mail-Chatter {
+            will-change: opacity, transform;
         }
     }
 

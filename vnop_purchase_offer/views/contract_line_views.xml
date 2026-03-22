@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="contract_line_tree_view_purchase_offer_inherit" model="ir.ui.view">
+        <field name="name">contract.line.tree.purchase.offer.inherit</field>
+        <field name="model">contract.line</field>
+        <field name="inherit_id" ref="vnop_contract.contract_line_tree_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list/field[@name='product_id']" position="before">
+                <field name="purchase_offer_id" string="Đề nghị mua hàng" readonly="1"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

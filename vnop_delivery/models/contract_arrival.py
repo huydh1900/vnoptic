@@ -7,10 +7,40 @@ class Contract(models.Model):
 
     arrival_ids = fields.One2many("contract.arrival", "contract_id", string="Các lần về", readonly=True)
     arrival_count = fields.Integer(string="Số lần về", compute="_compute_arrival_count")
+    delivery_schedule_ids = fields.One2many(
+        "delivery.schedule",
+        "contract_id",
+        string="Lịch giao hàng",
+        readonly=True,
+    )
+    delivery_schedule_count = fields.Integer(
+        string="Số lịch giao hàng",
+        compute="_compute_delivery_schedule_count",
+    )
 
     def _compute_arrival_count(self):
         for rec in self:
             rec.arrival_count = len(rec.arrival_ids)
+
+    def _compute_delivery_schedule_count(self):
+        for rec in self:
+            rec.delivery_schedule_count = len(rec.delivery_schedule_ids)
+
+    def action_view_delivery_schedule(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Lịch giao hàng",
+            "res_model": "delivery.schedule",
+            "view_mode": "list,form",
+            "domain": [("contract_id", "=", self.id)],
+            "context": {
+                "default_contract_id": self.id,
+                "default_partner_id": self.partner_id.id,
+                "default_company_id": self.company_id.id,
+            },
+            "target": "current",
+        }
 
     def action_view_arrivals(self):
         self.ensure_one()
@@ -20,6 +50,22 @@ class Contract(models.Model):
             "res_model": "contract.arrival",
             "view_mode": "list,form",
             "domain": [("contract_id", "=", self.id)],
+            "target": "current",
+        }
+
+    def action_create_delivery_schedule(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Tạo lịch giao hàng"),
+            "res_model": "delivery.schedule",
+            "view_mode": "form",
+            "context": {
+                "default_contract_id": self.id,
+                "default_partner_id": self.partner_id.id,
+                "default_company_id": self.company_id.id,
+                "default_delivery_datetime": self.shipment_date,
+            },
             "target": "current",
         }
 
@@ -118,4 +164,3 @@ class ContractArrivalLine(models.Model):
             "Dòng phân bổ đã tồn tại trong lần về này.",
         ),
     ]
-

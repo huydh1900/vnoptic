@@ -16,17 +16,12 @@ class ContractLine(models.Model):
         string="Tiền tệ",
     )
     product_qty = fields.Float(string="SL đặt hàng", digits="Product Unit of Measure")
-    qty_contract = fields.Float(string="SL theo hợp đồng", digits="Product Unit of Measure")
     price_unit = fields.Float(string="Đơn giá", digits="Product Price")
     amount_total = fields.Float(string="Thành tiền")
-    purchase_id = fields.Many2one(
-        "purchase.order",
-        string="Đơn mua",
-    )
     purchase_line_id = fields.Many2one(
         "purchase.order.line",
         string="Dòng PO",
-        domain="[('order_id', '=', purchase_id), ('display_type', '=', False)]",
+        domain="[('display_type', '=', False)]",
     )
 
     qty_received = fields.Float(string="SL đã nhận", related='purchase_line_id.qty_received',
@@ -35,19 +30,18 @@ class ContractLine(models.Model):
     qty_remaining = fields.Float(string="Còn lại", compute="_compute_qty_remaining",
                                  digits="Product Unit of Measure")
 
-    @api.onchange("qty_contract")
-    @api.constrains("qty_contract", "qty_remaining")
-    def _check_qty_contract_not_exceed_remaining(self):
+    @api.constrains("product_qty", "qty_remaining")
+    def _check_product_qty_not_exceed_remaining(self):
         for line in self:
-            if line.qty_contract < 0:
-                raise UserError(_("SL theo hợp đồng không được âm."))
+            if line.product_qty < 0:
+                raise UserError(_("Số lượng không được âm."))
 
             # nếu chưa chọn PO line thì chưa có remaining chuẩn -> bỏ qua
             if not line.purchase_line_id:
                 continue
 
-            if line.qty_contract > line.qty_remaining:
-                raise UserError(_("SL theo hợp đồng không được lớn hơn SL còn lại."))
+            if line.product_qty > line.qty_remaining:
+                raise UserError(_("Số lượng không được lớn hơn SL còn lại."))
 
     @api.depends("purchase_line_id", 'qty_received')
     def _compute_qty_remaining(self):

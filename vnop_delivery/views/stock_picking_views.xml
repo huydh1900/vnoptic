@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="vnop_stock_picking_form_delivery_inherit" model="ir.ui.view">
+        <field name="name">vnop.stock.picking.form.delivery.inherit</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_create_otk_sessions"
+                        type="object"
+                        string="Tạo OTK"
+                        class="btn-secondary"
+                        invisible="state != 'done' or picking_type_code != 'incoming'"/>
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_otk_sessions"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-check-square-o"
+                        invisible="not otk_session_count">
+                    <field name="otk_session_count" widget="statinfo" string="Lần OTK"/>
+                </button>
+            </xpath>
+            <xpath expr="//field[@name='origin']" position="after">
+                <field name="contract_ids" widget="many2many_tags" readonly="1" invisible="not contract_ids"/>
+            </xpath>
+            <xpath expr="//field[@name='move_ids_without_package']/list/field[@name='product_id']" position="after">
+                <field name="contract_id" optional="show" readonly="1"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

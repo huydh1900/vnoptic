@@ -97,12 +97,12 @@ class DeliveryScheduleAllocation(models.Model):
     def _onchange_purchase_line_id_set_contract(self):
         for rec in self:
             if not rec.purchase_line_id:
-                rec.contract_id = False
+                rec.contract_id = rec.schedule_id.contract_id.id or False
                 continue
             order_contract = rec.purchase_line_id.order_id.contract_id
             if rec.contract_id and rec.contract_id == order_contract:
                 continue
-            rec.contract_id = order_contract.id or False
+            rec.contract_id = order_contract.id or rec.schedule_id.contract_id.id or False
 
     @api.depends('schedule_id.picking_ids.state', 'schedule_id.picking_ids.move_ids_without_package.quantity')
     def _compute_receipt_qty(self):
@@ -160,6 +160,12 @@ class DeliveryScheduleAllocation(models.Model):
                 continue
             if rec.contract_id != rec.purchase_line_id.order_id.contract_id:
                 raise ValidationError(_('Hợp đồng phải thuộc cùng đơn mua của dòng PO đã chọn.'))
+
+    @api.constrains('contract_id', 'schedule_id')
+    def _check_contract_matches_schedule(self):
+        for rec in self:
+            if rec.schedule_id.contract_id and rec.contract_id and rec.schedule_id.contract_id != rec.contract_id:
+                raise ValidationError(_('Dòng phân bổ phải thuộc cùng hợp đồng với lịch giao.'))
 
 
 class StockMove(models.Model):

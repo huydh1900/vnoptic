@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="purchase_offer_tree_view" model="ir.ui.view">
+        <field name="name">purchase.offer.tree</field>
+        <field name="model">purchase.offer</field>
+        <field name="arch" type="xml">
+            <list string="Đề nghị mua hàng">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="contract_id"/>
+                <field name="follow_up_date"/>
+                <field name="total_qty"/>
+                <field name="amount_total" widget="monetary"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="state"
+                       widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'waiting_approval'"
+                       decoration-success="state in ('approved', 'converted')"
+                       decoration-danger="state == 'cancelled'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="purchase_offer_form_view" model="ir.ui.view">
+        <field name="name">purchase.offer.form</field>
+        <field name="model">purchase.offer</field>
+        <field name="arch" type="xml">
+            <form string="Đề nghị mua hàng">
+                <header>
+                    <button name="action_submit" type="object" string="Gửi duyệt" class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_approve" type="object" string="Phê duyệt" class="oe_highlight" invisible="state != 'waiting_approval'"/>
+                    <button name="action_create_contract" type="object" string="Tạo hợp đồng" class="oe_highlight" invisible="state != 'approved' or contract_id"/>
+                    <button name="action_view_contract" type="object" string="Mở hợp đồng" invisible="not contract_id"/>
+                    <button name="action_cancel" type="object" string="Hủy" class="btn-secondary" invisible="state in ('cancelled', 'converted')"/>
+                    <button name="action_reset_to_draft" type="object" string="Về nháp" class="btn-secondary" invisible="state == 'draft'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,waiting_approval,approved,converted,cancelled"/>
+                </header>
+
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_contract" type="object" class="oe_stat_button" icon="fa-file-text-o" invisible="not contract_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Hợp đồng</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+
+                    <group string="Thông tin chung" col="4">
+                        <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'"/>
+                        <field name="total_qty" readonly="1"/>
+                        <field name="partner_ref" readonly="1"/>
+                        <field name="amount_total" widget="monetary" readonly="1"/>
+                        <field name="contract_id" readonly="1" invisible="not contract_id"/>
+                        <field name="currency_id" readonly="state != 'draft'"/>
+                        <field name="follow_up_date" readonly="state != 'draft'"/>
+                    </group>
+
+                    <notebook>
+                        <page string="Sản phẩm">
+                            <field name="line_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="product_id"/>
+                                    <field name="description" optional="hide"/>
+                                    <field name="uom_id" optional="hide"/>
+                                    <field name="quantity" sum="Tổng SL dự kiến"/>
+                                    <field name="expected_price"/>
+                                    <field name="subtotal" sum="Tổng giá trị dự kiến"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Ghi chú">
+                            <group>
+                                <field name="note" placeholder="Nhập ghi chú nội bộ..." readonly="state != 'draft'"/>
+                            </group>
+                        </page>
+                        <page string="Thông tin bổ sung">
+                            <group>
+                                <field name="purchaser_id" widget="many2one_avatar_user" readonly="1"/>
+                                <field name="create_date" string="Ngày lập đề nghị" readonly="1"/>
+                                <field name="company_id" readonly="1"/>
+                                <field name="approved_by" widget="many2one_avatar_user" readonly="1"/>
+                                <field name="approved_date" readonly="1"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="purchase_offer_action" model="ir.actions.act_window">
+        <field name="name">Đề nghị mua hàng</field>
+        <field name="res_model">purchase.offer</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="purchase_offer_menu"
+              name="Đề nghị mua hàng"
+              parent="purchase.menu_procurement_management"
+              action="purchase_offer_action"
+              sequence="30"/>
+
+</odoo>
