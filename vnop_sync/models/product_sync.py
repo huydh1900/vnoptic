@@ -1458,6 +1458,7 @@ class ProductSync(models.Model):
                 or 0
             ),
             'x_group_type_name': grp_type_name,
+            'short_code': default_code,
         }
 
         # ─── Lens specs (template-level only; no variants) ────────────────
