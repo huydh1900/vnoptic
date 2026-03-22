@@ -2323,6 +2323,17 @@ class ProductSync(models.Model):
                         vals.get('standard_price'),
                     )
 
+                    categ_id = vals.get('categ_id')
+                    if categ_id:
+                        categ = self.env['product.category'].browse(categ_id)
+                        if not categ.exists():
+                            fallback = self.env.ref('product.product_category_all')
+                            _logger.warning(
+                                "[ACC_SYNC][WARN] sku=%s categ_id=%s không tồn tại → dùng fallback %s",
+                                sku, categ_id, fallback.id
+                            )
+                            vals['categ_id'] = fallback.id
+
                     # ── create / write ──────────────────────────────────────────
                     if pid:
                         step = 'write'
