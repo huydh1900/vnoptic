@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
+import logging
+import unicodedata
+
 from odoo import models, fields, api
+
+
+_logger = logging.getLogger(__name__)
 
 
 class ProductCategory(models.Model):
@@ -13,20 +19,171 @@ class ProductCategory(models.Model):
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
 
+    _CATEGORY_CODE_KIND_MAP = {
+        '06': 'lens',
+        '27': 'opt',
+        '20': 'accessory',
+    }
+    _CATEGORY_XMLID_KIND_MAP = {
+        'vnop_sync.product_category_lens': 'lens',
+        'vnop_sync.product_category_opt': 'opt',
+        'vnop_sync.product_category_accessory': 'accessory',
+    }
+
+    _PRODUCT_KIND_SELECTION = [
+        ('lens', 'Tròng kính'),
+        ('opt', 'Gọng kính'),
+        ('accessory', 'Phụ kiện'),
+        ('unknown', 'Chưa xác định'),
+    ]
+
     _sql_constraints = [
         ('short_code_unique', 'unique(short_code)',
          'Mã viết tắt phải là duy nhất.'),
     ]
 
-    # Computed fields to replace product_type for UI logic
+    # Source of truth for UI visibility and UI-level classification.
+    product_kind_ui = fields.Selection(
+        selection=_PRODUCT_KIND_SELECTION,
+        string='Loại sản phẩm (UI)',
+        compute='_compute_product_kind_ui',
+        store=True,
+        index=True,
+        readonly=True,
+        help='Phân loại suy ra từ danh mục (code 06/27/20 theo cây danh mục).'
+    )
     is_lens = fields.Boolean(compute='_compute_product_kind', store=False)
     is_opt = fields.Boolean(compute='_compute_product_kind', store=False)
 
-    @api.depends('product_type')
+    @api.model
+    def _map_kind_to_product_type(self, kind):
+        if kind == 'lens':
+            return 'lens'
+        if kind == 'opt':
+            return 'opt'
+        if kind == 'accessory':
+            return 'accessory'
+        return False
+
+    @api.model
+    def _normalize_kind_text(self, text):
+        base_text = (text or '').strip().lower()
+        normalized = unicodedata.normalize('NFKD', base_text)
+        return ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+
+    @api.model
+    def _get_kind_from_category_name_legacy(self, category):
+        # Backward-compat alias kept only to avoid accidental external references.
+        return self._get_kind_from_category_name(category)
+        current = category
+        while current:
+            name = self._normalize_kind_text(current.name)
+            if any(token in name for token in ('mat', 'trong', 'lens')):
+                return 'lens'
+            if any(token in name for token in ('gong', 'frame')):
+                return 'opt'
+            if any(token in name for token in ('phu kien', 'accessory')):
+                return 'accessory'
+            current = current.parent_id
+            continue
+            if any(token in name for token in ('tròng', 'trong', 'lens')):
+                return 'lens'
+            if any(token in name for token in ('gọng', 'gong', 'frame')):
+                return 'opt'
+            if any(token in name for token in ('phụ kiện', 'phu kien', 'accessory')):
+                return 'accessory'
+            current = current.parent_id
+        return False
+
+    @api.model
+    def _get_kind_from_category_name(self, category):
+        current = category
+        while current:
+            name = self._normalize_kind_text(current.name)
+            if any(token in name for token in ('mat', 'trong', 'lens')):
+                return 'lens'
+            if any(token in name for token in ('gong', 'frame')):
+                return 'opt'
+            if any(token in name for token in ('phu kien', 'accessory')):
+                return 'accessory'
+            current = current.parent_id
+        return False
+
+    @api.model
+    def _get_kind_from_category_xmlid_tree(self, category):
+        if not category:
+            return False
+
+        ancestor_ids = set()
+        if category.parent_path:
+            ancestor_ids = {
+                int(cid) for cid in category.parent_path.split('/') if cid
+            }
+        ancestor_ids.add(category.id)
+
+        for xmlid, kind in self._CATEGORY_XMLID_KIND_MAP.items():
+            root = self.env.ref(xmlid, raise_if_not_found=False)
+            if root and root.id in ancestor_ids:
+                return kind
+        return False
+
+    @api.model
+    def _get_kind_from_category(self, category):
+        current = category
+        while current:
+            code = (current.code or '').strip()
+            kind = self._CATEGORY_CODE_KIND_MAP.get(code)
+            if kind:
+                return kind
+            current = current.parent_id
+
+        xmlid_kind = self._get_kind_from_category_xmlid_tree(category)
+        if xmlid_kind:
+            return xmlid_kind
+
+        name_kind = self._get_kind_from_category_name(category)
+        if name_kind:
+            return name_kind
+
+        return 'unknown'
+
+    @api.model
+    def _get_kind_from_category_id(self, categ_id):
+        if not categ_id:
+            return 'unknown'
+        category = self.env['product.category'].browse(categ_id)
+        return self._get_kind_from_category(category)
+
+    @api.depends(
+        'categ_id',
+        'categ_id.code',
+        'categ_id.parent_id',
+        'categ_id.parent_id.code',
+        'categ_id.parent_path',
+        'product_type',
+    )
+    def _compute_product_kind_ui(self):
+        for record in self:
+            kind = record._get_kind_from_category(record.categ_id)
+            if kind == 'unknown' and record.product_type in ('lens', 'opt', 'accessory'):
+                kind = record.product_type
+            record.product_kind_ui = kind
+
+    @api.depends('product_kind_ui')
     def _compute_product_kind(self):
         for record in self:
-            record.is_opt = record.product_type == 'opt'
-            record.is_lens = record.product_type == 'lens'
+            record.is_opt = record.product_kind_ui == 'opt'
+            record.is_lens = record.product_kind_ui == 'lens'
+
+    @api.onchange('categ_id')
+    def _onchange_categ_id_sync_product_type(self):
+        """Sync integration field immediately on NewId when category changes."""
+        for record in self:
+            kind = record._get_kind_from_category(record.categ_id)
+            record.product_kind_ui = kind
+            mapped_type = record._map_kind_to_product_type(kind)
+            if mapped_type and record.product_type != mapped_type:
+                record.product_type = mapped_type
 
     # Keep product_type for now but make it computed or optional if needed
     # For now we just add the new logic alongside
@@ -423,7 +580,7 @@ class ProductTemplateExtension(models.Model):
                 return False
 
         domain = [
-            ('product_type', '=', 'lens'),
+            ('product_kind_ui', '=', 'lens'),
             '|', '|',
             ('x_sph', '!=', 0.0),
             ('x_cyl', '!=', 0.0),
@@ -470,6 +627,14 @@ class ProductTemplateExtension(models.Model):
     # ==================== PRODUCT CREATION LOGIC ====================
     @api.model
     def create(self, vals):
+        vals = dict(vals)
+
+        mapped_type = self._map_kind_to_product_type(
+            self._get_kind_from_category_id(vals.get('categ_id'))
+        )
+        if mapped_type:
+            vals['product_type'] = mapped_type
+
         # Auto-generate product code if enabled and not provided
         if vals.get('auto_generate_code', True) and not vals.get('default_code'):
             categ_id = vals.get('categ_id')  # Changed from group_id
@@ -485,8 +650,6 @@ class ProductTemplateExtension(models.Model):
                     vals['default_code'] = code
                 except Exception as e:
                     # Log error but don't fail product creation
-                    import logging
-                    _logger = logging.getLogger(__name__)
                     _logger.warning(f"Failed to auto-generate product code: {e}")
         
         product_type = vals.get('product_type', 'lens')
@@ -502,15 +665,21 @@ class ProductTemplateExtension(models.Model):
         product = super().create(vals)
         
         # Auto-create opt record if needed (lens dùng field trực tiếp trên template - Hướng B)
-        if product_type == 'opt' and not product.opt_ids:
+        if product.product_type == 'opt' and not product.opt_ids:
             self.env['product.opt'].create({'product_tmpl_id': product.id})
         
         return product
 
     def write(self, vals):
-        product_type = vals.get('product_type') or self.product_type
+        vals = dict(vals)
+        if 'categ_id' in vals:
+            mapped_type = self._map_kind_to_product_type(
+                self._get_kind_from_category_id(vals.get('categ_id'))
+            )
+            if mapped_type:
+                vals['product_type'] = mapped_type
 
-        if 'product_type' in vals:
+        if vals.get('product_type') in ('lens', 'opt', 'accessory'):
             if vals['product_type'] != 'lens':
                 if self.lens_ids:
                     self.lens_ids.unlink()
@@ -525,13 +694,37 @@ class ProductTemplateExtension(models.Model):
 
         return super().write(vals)
 
+    @api.model
+    def action_backfill_product_type_from_category(self, limit=None):
+        """Backfill legacy records: align product_type from category-derived kind."""
+        templates = self.search([('categ_id', '!=', False)], limit=limit)
+        updated = 0
+
+        for template in templates:
+            mapped_type = template._map_kind_to_product_type(template.product_kind_ui)
+            if mapped_type and template.product_type != mapped_type:
+                template.write({'product_type': mapped_type})
+                updated += 1
+
+        total = len(templates)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Đồng bộ product_type theo danh mục',
+                'message': f'Đã cập nhật {updated}/{total} sản phẩm.',
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
     def action_create_missing_details(self):
         """Create missing opt records for products that have product_type but no details.
         Lens products use direct fields on template (Hướng B), no child records needed."""
         created_opt = 0
         
         for product in self:
-            if product.product_type == 'opt' and not product.opt_ids:
+            if product.product_kind_ui == 'opt' and not product.opt_ids:
                 self.env['product.opt'].create({'product_tmpl_id': product.id})
                 created_opt += 1
         
@@ -555,7 +748,7 @@ class ProductTemplateExtension(models.Model):
         
         # Create opt records for opt products without details
         opt_products = self.search([
-            ('product_type', '=', 'opt'),
+            ('product_kind_ui', '=', 'opt'),
             ('opt_ids', '=', False)
         ])
         for product in opt_products:

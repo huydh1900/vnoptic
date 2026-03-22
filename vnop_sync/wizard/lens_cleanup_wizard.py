@@ -49,10 +49,10 @@ class LensCleanupWizard(models.TransientModel):
         self.ensure_one()
 
         lens_templates = self.env['product.template'].search(
-            [('product_type', '=', 'lens')]
+            [('product_kind_ui', '=', 'lens')]
         )
         if not lens_templates:
-            raise UserError(_('Không tìm thấy sản phẩm nào có product_type = "lens".'))
+            raise UserError(_('Không tìm thấy sản phẩm nào có product_kind_ui = "lens".'))
 
         total_lens = 0
         total_attr_removed = 0
@@ -170,7 +170,7 @@ class LensCleanupWizard(models.TransientModel):
         """Đếm sơ bộ trước khi cleanup (dry-run info)."""
         self.ensure_one()
         lens_templates = self.env['product.template'].search(
-            [('product_type', '=', 'lens')]
+            [('product_kind_ui', '=', 'lens')]
         )
         total_attr = sum(len(t.attribute_line_ids) for t in lens_templates)
         total_extra_var = sum(
