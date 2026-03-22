@@ -17,6 +17,7 @@
         'wizard/lens_cleanup_wizard_views.xml',
         'views/product_group_views.xml',
         'views/product_lens_config_views.xml',
+        'data/product_category_data.xml',
         'data/ir_cron_data.xml',
     ],
     'external_dependencies': {

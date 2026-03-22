@@ -29,7 +29,7 @@ class LensVariantMigrationWizard(models.TransientModel):
     product_ids = fields.Many2many(
         'product.template',
         string='San pham can migrate',
-        domain=[('product_type', '=', 'lens')],
+        domain=[('product_kind_ui', '=', 'lens')],
         help='Chi hieu luc khi "Migrate tat ca" bi tat.'
     )
     delete_lens_after = fields.Boolean(
@@ -92,12 +92,12 @@ class LensVariantMigrationWizard(models.TransientModel):
 
         if self.migrate_all:
             templates = self.env['product.template'].search([
-                ('product_type', '=', 'lens'),
+                ('product_kind_ui', '=', 'lens'),
                 ('lens_ids', '!=', False),
             ])
         else:
             templates = self.product_ids.filtered(
-                lambda t: t.product_type == 'lens' and t.lens_ids
+                lambda t: t.product_kind_ui == 'lens' and t.lens_ids
             )
 
         if not templates:

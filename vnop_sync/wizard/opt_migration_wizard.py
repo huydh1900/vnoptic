@@ -17,7 +17,7 @@ class OptMigrationWizard(models.TransientModel):
     product_ids = fields.Many2many(
         'product.template',
         string='Sản phẩm cần migrate',
-        domain=[('product_type', '=', 'opt')],
+        domain=[('product_kind_ui', '=', 'opt')],
     )
     delete_opt_after = fields.Boolean(
         'Xoá product.opt sau khi migrate',
@@ -81,12 +81,12 @@ class OptMigrationWizard(models.TransientModel):
 
         if self.migrate_all:
             templates = self.env['product.template'].search([
-                ('product_type', '=', 'opt'),
+                ('product_kind_ui', '=', 'opt'),
                 ('opt_ids', '!=', False),
             ])
         else:
             templates = self.product_ids.filtered(
-                lambda t: t.product_type == 'opt' and t.opt_ids
+                lambda t: t.product_kind_ui == 'opt' and t.opt_ids
             )
 
         if not templates:
