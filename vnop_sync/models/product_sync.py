@@ -362,6 +362,25 @@ class ProductSync(models.Model):
     def _get_id(self, cache, key, val):
         return cache.get(key, {}).get(val.upper(), False) if val else False
 
+    def _extract_rs_product_id(self, item):
+        """Extract stable RS product identifier from payload.
+
+        Priority: productdto.id -> productdto.externalId -> root id/externalId.
+        Return string for robust persistence across mixed payload types.
+        """
+        dto = item.get('productdto') or {}
+        for key in ('id', 'externalId'):
+            value = dto.get(key)
+            if value not in (None, ''):
+                return str(value).strip()
+
+        for key in ('id', 'externalId'):
+            value = item.get(key)
+            if value not in (None, ''):
+                return str(value).strip()
+
+        return False
+
     def _get_id_with_fallback(self, cache, key, dto):
         """Lookup id by cid first, then name as fallback.
         If not found and DTO has name, auto-create a product.cl record."""
@@ -1132,6 +1151,7 @@ class ProductSync(models.Model):
         cid = (dto.get('cid') or '').strip()
         if not cid:
             raise ValueError("Missing CID")
+        rs_product_id = self._extract_rs_product_id(item)
 
         # Gọng kính: mỗi màu = 1 template riêng, key định danh BẮT BUỘC là model-color
         default_code = cid
@@ -1377,6 +1397,10 @@ class ProductSync(models.Model):
             ),
             'x_group_type_name': grp_type_name,
         }
+
+        # Keep RS source identifier independent from default_code business key.
+        if rs_product_id:
+            vals['x_rs_product_id'] = rs_product_id
 
         # ─── Lens specs (template-level only; no variants) ────────────────
         if product_type == 'lens':

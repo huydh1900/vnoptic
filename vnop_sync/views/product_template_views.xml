@@ -35,6 +35,12 @@
                 <field name="is_opt" invisible="1"/>
             </xpath>
 
+            <xpath expr="//field[@name='image_1920']" position="after">
+                <field name="x_qr_image" widget="image" class="oe_avatar oe_inline"
+                       options="{'size': [96, 96]}" readonly="1" nolabel="1"
+                       style="margin-left: -6px;"/>
+            </xpath>
+
             <!-- Ẩn tab Thuộc tính & Biến thể cho lens và gọng kính -->
             <xpath expr="//page[.//field[@name='attribute_line_ids']]" position="attributes">
                 <attribute name="invisible">product_kind_ui in ('lens', 'opt')</attribute>
@@ -62,6 +68,7 @@
                 <group string="Phân loại sản phẩm">
                     <group>
                         <field name="categ_id" string="Danh mục sản phẩm" options="{'no_create': True}"/>
+                        <field name="x_rs_product_id" string="ID sản phẩm"/>
                         <field name="group_id" invisible="1"/>
                         <field name="brand_id"/>
                         <field name="warranty_id" options="{'no_create': True}"/>
@@ -75,6 +82,7 @@
                         <field name="auto_generate_code"/>
                     </group>
                 </group>
+
             </xpath>
             
             <!-- Add custom tabs to notebook -->
