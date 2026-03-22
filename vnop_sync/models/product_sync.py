@@ -240,7 +240,10 @@ class ProductSync(models.Model):
                 product_type, chunk_idx, len(chunk), start + 1, min(start + len(chunk), total)
             )
             try:
-                success, failed = self._process_batch(chunk, cache, product_type, child_model)
+                with self.env.registry.cursor() as chunk_cr:
+                    chunk_env = self.env(cr=chunk_cr)
+                    chunk_self = self.with_env(chunk_env)
+                    success, failed = chunk_self._process_batch(chunk, cache, product_type, child_model)
             except Exception as exc:
                 total_failed += len(chunk)
                 _logger.error(
