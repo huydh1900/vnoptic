@@ -500,21 +500,14 @@ class ProductTemplateExtension(models.Model):
         return products
 
     def write(self, vals):
-        product_type = vals.get('product_type') or self.product_type
-
         if 'product_type' in vals:
-            if vals['product_type'] != 'lens':
-                if self.lens_ids:
-                    self.lens_ids.unlink()
-                if 'lens_ids' in vals:
-                    del vals['lens_ids']
-
-            if vals['product_type'] != 'opt':
-                if self.opt_ids:
-                    self.opt_ids.unlink()
-                if 'opt_ids' in vals:
-                    del vals['opt_ids']
-
+            new_type = vals['product_type']
+            if new_type != 'lens':
+                self.mapped('lens_ids').unlink()
+                vals.pop('lens_ids', None)
+            if new_type != 'opt':
+                self.mapped('opt_ids').unlink()
+                vals.pop('opt_ids', None)
         return super().write(vals)
 
     def action_create_missing_details(self):

@@ -1,8 +1,5 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_delivery_schedule,vnop_delivery.delivery_schedule,model_delivery_schedule,base.group_user,1,1,1,1
-access_delivery_schedule_allocation,vnop_delivery.delivery_schedule.allocation,model_delivery_schedule_allocation,base.group_user,1,1,1,1
-access_contract_arrival,vnop_delivery.contract.arrival,model_contract_arrival,base.group_user,1,1,1,1
-access_contract_arrival_line,vnop_delivery.contract.arrival.line,model_contract_arrival_line,base.group_user,1,1,1,1
 access_delivery_otk_user,vnop_delivery.delivery.otk.user,model_delivery_otk,base.group_user,1,1,1,1
 access_delivery_otk_line_user,vnop_delivery.delivery.otk.line.user,model_delivery_otk_line,base.group_user,1,1,1,1
 access_delivery_otk_line_lot_user,vnop_delivery.delivery.otk.line.lot.user,model_delivery_otk_line_lot,base.group_user,1,1,1,1

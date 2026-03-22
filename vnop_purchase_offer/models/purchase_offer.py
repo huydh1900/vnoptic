@@ -216,29 +216,6 @@ class PurchaseOffer(models.Model):
             "line_ids": [command for rec in self for command in rec._prepare_contract_line_commands()],
         }
 
-    def action_create_contract(self):
-        self._validate_for_contract_creation()
-        contract = self.env["contract"].create(self._prepare_contract_vals())
-        self.write({"contract_id": contract.id, "state": "converted"})
-
-        body = _(
-            "Đề nghị mua hàng đã được gắn vào hợp đồng <a href=\"#\" data-oe-model=\"contract\" data-oe-id=\"%d\">%s</a>."
-        ) % (contract.id, contract.display_name)
-        for rec in self:
-            rec.message_post(body=body)
-
-        contract.message_post(body=_("Hợp đồng được tạo từ các Đề nghị mua hàng: %s") % ", ".join(self.mapped("display_name")))
-        return {
-            "type": "ir.actions.act_window",
-            "res_model": "contract",
-            "view_mode": "form",
-            "res_id": contract.id,
-            "target": "current",
-        }
-
-    def action_convert_to_contract(self):
-        return self.action_create_contract()
-
     def action_view_contract(self):
         self.ensure_one()
         if not self.contract_id:

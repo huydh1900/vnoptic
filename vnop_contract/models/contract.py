@@ -48,7 +48,6 @@ class Contract(models.Model):
     delivery_state = fields.Selection(
         [
             ("expected", "Dự kiến giao"),
-            ("confirmed_arrival", "Xác nhận hàng về"),
             ("partial", "Đã giao 1 phần"),
             ("done", "Đã giao đủ"),
             ("cancel", "Hủy"),
@@ -278,9 +277,6 @@ class Contract(models.Model):
 
     def action_view_otk(self):
         raise UserError(_("Vui lòng thao tác tại Lịch giao hàng."))
-
-    def action_confirm_arrival_auto(self):
-        raise UserError(_("Xác nhận hàng về được thực hiện tại Lịch giao hàng."))
 
     def _check_fifo_valuation(self):
         """Bắt buộc sản phẩm trong hợp đồng dùng FIFO + định giá tự động."""

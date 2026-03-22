@@ -8,7 +8,6 @@
         'data/delivery_otk_sequence.xml',
         'security/ir.model.access.csv',
         'views/contract_views.xml',
-        'views/contract_arrival_views.xml',
         'views/delivery_schedule_views.xml',
         'views/delivery_otk_views.xml',
         'views/stock_picking_views.xml',

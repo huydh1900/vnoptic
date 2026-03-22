@@ -6,13 +6,6 @@ from odoo.exceptions import UserError
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
-    state = fields.Selection(
-        selection_add=[
-            ('need_revision', 'Cần chỉnh sửa')
-        ]
-    )
-    approver_id = fields.Many2one('res.users', string="Người duyệt")
-
     create_date_tmp = fields.Date(
         string='Ngày tạo',
         compute='_compute_create_date_tmp',
@@ -26,7 +19,6 @@ class PurchaseOrder(models.Model):
     )
 
     count_delivery_schedule = fields.Integer(compute='_compute_count_delivery_schedule')
-
 
     def action_rfq_send(self):
         for order in self:
@@ -58,11 +50,6 @@ class PurchaseOrder(models.Model):
     def action_need_revision(self):
         for rec in self:
             rec.write({'state': 'need_revision'})
-
-    def button_submit_rfq(self):
-        if not self.approver_id:
-            raise UserError('Người duyệt không được trống!')
-        self.write({'state': 'to approve'})
 
     @api.depends('create_date')
     def _compute_create_date_tmp(self):

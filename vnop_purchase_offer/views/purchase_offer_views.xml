@@ -31,7 +31,6 @@
                 <header>
                     <button name="action_submit" type="object" string="Gửi duyệt" class="btn-primary" invisible="state != 'draft'"/>
                     <button name="action_approve" type="object" string="Phê duyệt" class="oe_highlight" invisible="state != 'waiting_approval'"/>
-                    <button name="action_create_contract" type="object" string="Tạo hợp đồng" class="oe_highlight" invisible="state != 'approved' or contract_id"/>
                     <button name="action_view_contract" type="object" string="Mở hợp đồng" invisible="not contract_id"/>
                     <button name="action_cancel" type="object" string="Hủy" class="btn-secondary" invisible="state in ('cancelled', 'converted')"/>
                     <button name="action_reset_to_draft" type="object" string="Về nháp" class="btn-secondary" invisible="state == 'draft'"/>

@@ -19,20 +19,10 @@ class StockPicking(models.Model):
         index=True,
         copy=False,
     )
-    contract_ids = fields.Many2many(
-        "contract",
-        compute="_compute_contract_ids",
-        string="Hợp đồng",
-    )
     otk_session_count = fields.Integer(
         compute="_compute_otk_session_count",
         string="Số lần OTK",
     )
-
-    def _compute_contract_ids(self):
-        for picking in self:
-            contracts = picking.contract_id | picking.move_ids_without_package.mapped("contract_id")
-            picking.contract_ids = [(6, 0, contracts.ids)]
 
     def _compute_otk_session_count(self):
         grouped_by_schedule = self.env["delivery.otk"].read_group(
