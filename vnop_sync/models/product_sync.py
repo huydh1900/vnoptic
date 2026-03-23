@@ -249,9 +249,14 @@ class ProductSync(models.Model):
             pid = c['parent_id'][0] if c['parent_id'] else False
             cache['categories'][(c['name'], pid)] = c['id']
 
-        # Suppliers
-        for s in self.env['res.partner'].search_read([('ref', '!=', False)], ['id', 'ref']):
-            cache['suppliers'][s['ref'].upper()] = s['id']
+        # Suppliers (prefer ref as official vendor code; keep compatibility with legacy code)
+        for s in self.env['res.partner'].search_read([
+            '|', ('ref', '!=', False), ('code', '!=', False)
+        ], ['id', 'ref', 'code']):
+            if s.get('ref'):
+                cache['suppliers'][s['ref'].upper()] = s['id']
+            if s.get('code'):
+                cache['suppliers'][s['code'].upper()] = s['id']
             
         # Taxes (Purchase taxes only)
         for t in self.env['account.tax'].search_read([('type_tax_use', '=', 'purchase')], ['id', 'name']):
@@ -951,7 +956,9 @@ class ProductSync(models.Model):
                 vals.get('lens_cl_pho_id', 'SKIPPED'),
                 vals.get('lens_cl_tint_id', 'SKIPPED'),
             )
+            seller_payloads = self._extract_seller_payloads(vals)
             tmpl.write(vals)
+            self._upsert_supplierinfo_payloads(tmpl, seller_payloads)
             self._cleanup_lens_template_variants(tmpl)
             _logger.info(
                 "🔍 Lens [UPDATE] %s | material=%s | index=%s | coatings=%s | design1=%s",
@@ -971,7 +978,9 @@ class ProductSync(models.Model):
             vals.get('lens_cl_pho_id', 'SKIPPED'),
             vals.get('lens_cl_tint_id', 'SKIPPED'),
         )
+        seller_payloads = self._extract_seller_payloads(vals)
         tmpl = self.env['product.template'].with_context(tracking_disable=True).create(vals)
+        self._upsert_supplierinfo_payloads(tmpl, seller_payloads)
         self._cleanup_lens_template_variants(tmpl)
         cache.setdefault('lens_templates', {})[template_key] = tmpl.id
         if tmpl.default_code:
@@ -1231,6 +1240,281 @@ class ProductSync(models.Model):
         uom_cache[cache_key] = uom.id
         return uom.id
 
+    def _rs_pick(self, source, keys):
+        """Return first non-empty value from dict using alias key list."""
+        if not isinstance(source, dict):
+            return False
+        for key in keys:
+            value = source.get(key)
+            if value not in (None, '', False):
+                return value
+        return False
+
+    def _resolve_country_id_any(self, value):
+        """Resolve country from ISO code/name. Return False when uncertain."""
+        if value in (None, '', False):
+            return False
+        country_model = self.env['res.country']
+        raw = str(value).strip()
+        if not raw:
+            return False
+        code = raw.upper()
+
+        country = country_model.search([('code', '=', code)], limit=1)
+        if country:
+            return country.id
+
+        country = country_model.search([('name', '=', raw)], limit=1)
+        if country:
+            return country.id
+
+        country = country_model.search([('name', 'ilike', raw)], limit=1)
+        return country.id if country else False
+
+    def _extract_seller_payloads(self, vals):
+        """Extract supplierinfo payload from sync vals and remove write-unsafe keys."""
+        payloads = vals.pop('_seller_sync_payloads', []) or []
+        seller_cmds = vals.pop('seller_ids', False)
+        if seller_cmds and not payloads:
+            for cmd in seller_cmds:
+                if not isinstance(cmd, (list, tuple)) or len(cmd) < 3:
+                    continue
+                if cmd[0] == 0 and isinstance(cmd[2], dict):
+                    payloads.append(dict(cmd[2]))
+        return payloads
+
+    def _upsert_supplierinfo_payloads(self, product_tmpl, payloads):
+        """Upsert product.supplierinfo to avoid duplicate lines on repeated sync."""
+        if not product_tmpl or not payloads:
+            return
+
+        supplierinfo_model = self.env['product.supplierinfo']
+        for payload in payloads:
+            partner_id = payload.get('partner_id')
+            if not partner_id:
+                continue
+
+            min_qty = float(payload.get('min_qty') or 1.0)
+            delay = int(payload.get('delay') or 1)
+            currency_id = payload.get('currency_id') or False
+
+            domain = [
+                ('product_tmpl_id', '=', product_tmpl.id),
+                ('product_id', '=', False),
+                ('partner_id', '=', partner_id),
+                ('min_qty', '=', min_qty),
+                ('delay', '=', delay),
+                ('currency_id', '=', currency_id),
+            ]
+            seller = supplierinfo_model.search(domain, limit=1)
+            seller_vals = {
+                'partner_id': partner_id,
+                'product_tmpl_id': product_tmpl.id,
+                'product_id': False,
+                'price': float(payload.get('price') or 0.0),
+                'min_qty': min_qty,
+                'delay': delay,
+                'currency_id': currency_id,
+            }
+            if seller:
+                seller.write(seller_vals)
+            else:
+                supplierinfo_model.create(seller_vals)
+
+    def _upsert_supplier_contact(self, partner, supplier_detail):
+        """Store RS contact person as child contact for clean Odoo modeling."""
+        if not partner or not supplier_detail:
+            return
+
+        contact_name = self._rs_pick(supplier_detail, [
+            'contactName', 'contact_name', 'contactPerson', 'contact_person',
+            'contactPersonName', 'personContact', 'nguoiLienHe',
+        ])
+        if not contact_name:
+            return
+
+        contact_phone = self._rs_pick(supplier_detail, [
+            'contactPhone', 'contact_phone', 'contactMobile', 'contact_mobile', 'mobile',
+        ])
+        contact_email = self._rs_pick(supplier_detail, [
+            'contactEmail', 'contact_email', 'email',
+        ])
+
+        contact = self.env['res.partner'].search([
+            ('parent_id', '=', partner.id),
+            ('type', '=', 'contact'),
+            ('name', '=', str(contact_name).strip()),
+        ], limit=1)
+        contact_vals = {
+            'name': str(contact_name).strip(),
+            'parent_id': partner.id,
+            'type': 'contact',
+            'is_company': False,
+        }
+        if contact_phone:
+            contact_vals['phone'] = str(contact_phone).strip()
+        if contact_email:
+            contact_vals['email'] = str(contact_email).strip()
+
+        if contact:
+            contact.write(contact_vals)
+        else:
+            self.env['res.partner'].create(contact_vals)
+
+    def _extract_bank_payload(self, supplier_detail):
+        """Extract bank payload from RS vendor detail using broad aliases."""
+        if not isinstance(supplier_detail, dict):
+            return {}
+
+        bank_obj = supplier_detail.get('bank') if isinstance(supplier_detail.get('bank'), dict) else {}
+        bank_data = supplier_detail.get('bankdto') if isinstance(supplier_detail.get('bankdto'), dict) else {}
+
+        def _pick(keys):
+            return (
+                self._rs_pick(supplier_detail, keys)
+                or self._rs_pick(bank_obj, keys)
+                or self._rs_pick(bank_data, keys)
+            )
+
+        return {
+            'bank_name': _pick(['bankName', 'bank_name', 'name']),
+            'bank_address': _pick(['bankAddress', 'bank_address', 'address']),
+            'bank_account': _pick(['bankAccount', 'bank_account', 'accountNumber', 'account_number', 'accNumber']),
+            'bank_branch': _pick(['bankBranch', 'bank_branch', 'branch', 'branchName']),
+            'bank_swift': _pick(['swiftCode', 'swift_code', 'swift', 'bic', 'bankBic']),
+            'bank_country': _pick(['bankCountry', 'bank_country', 'country', 'countryCode', 'country_code']),
+        }
+
+    def _upsert_supplier_bank_accounts(self, partner, supplier_detail, currency_id=False):
+        """Upsert res.bank and res.partner.bank from RS payload."""
+        if not partner or not supplier_detail:
+            return
+
+        payload = self._extract_bank_payload(supplier_detail)
+        acc_number = payload.get('bank_account')
+        bank_name = payload.get('bank_name')
+        swift_code = payload.get('bank_swift')
+
+        if not any([acc_number, bank_name, swift_code]):
+            return
+
+        country_id = self._resolve_country_id_any(payload.get('bank_country'))
+        bank_domain = []
+        if swift_code:
+            bank_domain = [('bic', '=', str(swift_code).strip())]
+        elif bank_name and country_id:
+            bank_domain = [('name', '=', str(bank_name).strip()), ('country', '=', country_id)]
+        elif bank_name:
+            bank_domain = [('name', '=', str(bank_name).strip())]
+
+        bank = self.env['res.bank'].search(bank_domain, limit=1) if bank_domain else False
+        bank_vals = {}
+        if bank_name:
+            bank_vals['name'] = str(bank_name).strip()
+        if swift_code:
+            bank_vals['bic'] = str(swift_code).strip()
+        if payload.get('bank_address'):
+            bank_vals['street'] = str(payload['bank_address']).strip()
+        if country_id:
+            bank_vals['country'] = country_id
+        if payload.get('bank_branch') and 'bank_branch_name' in self.env['res.bank']._fields:
+            bank_vals['bank_branch_name'] = str(payload['bank_branch']).strip()
+
+        if bank:
+            if bank_vals:
+                bank.write(bank_vals)
+        elif bank_vals.get('name'):
+            bank = self.env['res.bank'].create(bank_vals)
+
+        if not acc_number:
+            return
+
+        account_vals = {
+            'partner_id': partner.id,
+            'acc_number': str(acc_number).strip(),
+        }
+        if bank:
+            account_vals['bank_id'] = bank.id
+        if currency_id and 'currency_id' in self.env['res.partner.bank']._fields:
+            account_vals['currency_id'] = currency_id
+
+        account = self.env['res.partner.bank'].search([
+            ('partner_id', '=', partner.id),
+            ('acc_number', '=', account_vals['acc_number']),
+        ], limit=1)
+        if account:
+            account.write(account_vals)
+        else:
+            self.env['res.partner.bank'].create(account_vals)
+
+    def _upsert_supplier_partner(self, supplier_dto, cache, currency_id=False):
+        """Upsert supplier partner by ref (official code), then enrich contact/bank."""
+        details = supplier_dto.get('supplierDetailDTOS', []) if isinstance(supplier_dto, dict) else []
+        if not details:
+            return False
+
+        detail = details[0] if isinstance(details[0], dict) else {}
+        supplier_ref = self._rs_pick(detail, ['cid', 'code', 'supplierCode', 'supplier_code'])
+        supplier_name = self._rs_pick(detail, ['name', 'supplierName', 'supplier_name'])
+        if not supplier_ref or not supplier_name:
+            return False
+
+        ref = str(supplier_ref).strip().upper()
+        partner = self.env['res.partner'].search([('ref', '=', ref)], limit=1)
+        if not partner and 'code' in self.env['res.partner']._fields:
+            partner = self.env['res.partner'].search([('code', '=', ref)], limit=1)
+
+        phone = self._rs_pick(detail, ['phone', 'phoneNumber', 'telephone'])
+        email = self._rs_pick(detail, ['mail', 'email'])
+        vat = self._rs_pick(detail, ['taxCode', 'tax_code', 'taxNumber', 'tax_number', 'taxId', 'vat', 'mst'])
+        fax = self._rs_pick(detail, ['fax', 'faxNumber', 'fax_number'])
+        address_text = self._rs_pick(detail, ['address', 'street'])
+        city = self._rs_pick(detail, ['city'])
+        partner_country = self._rs_pick(detail, ['countryCode', 'country_code', 'country'])
+        country_id = self._resolve_country_id_any(partner_country)
+
+        vals = {
+            'name': str(supplier_name).strip(),
+            'ref': ref,
+            'is_company': True,
+            'supplier_rank': max(1, int(partner.supplier_rank or 0)) if partner else 1,
+        }
+        if phone:
+            vals['phone'] = str(phone).strip()
+        if email:
+            vals['email'] = str(email).strip()
+        if vat:
+            vals['vat'] = str(vat).strip()
+        if fax:
+            # Odoo 18 base has no dedicated fax field; keep fax in mobile as safest standard slot.
+            vals['mobile'] = str(fax).strip()
+        if address_text:
+            # RS sends free-text address; keep raw value in street to avoid data loss.
+            vals['street'] = str(address_text).strip()
+        if city:
+            # Only map city when explicitly provided by RS payload.
+            vals['city'] = str(city).strip()
+        if country_id:
+            # Only map country when we can resolve a concrete country record.
+            vals['country_id'] = country_id
+        if currency_id and 'property_purchase_currency_id' in self.env['res.partner']._fields:
+            vals['property_purchase_currency_id'] = currency_id
+        if 'code' in self.env['res.partner']._fields:
+            vals['code'] = ref
+
+        if partner:
+            partner.write(vals)
+        else:
+            partner = self.env['res.partner'].create(vals)
+
+        cache['suppliers'][ref] = partner.id
+        if 'code' in self.env['res.partner']._fields and partner.code:
+            cache['suppliers'][partner.code.upper()] = partner.id
+
+        self._upsert_supplier_contact(partner, detail)
+        self._upsert_supplier_bank_accounts(partner, detail, currency_id=currency_id)
+        return partner.id
+
     def _prepare_base_vals(self, item, cache, product_type, coating_ids=None, lens_template_key=None):
         dto = item.get('productdto') or {}
         cid = (dto.get('cid') or '').strip()
@@ -1369,36 +1653,19 @@ class ProductSync(models.Model):
                         cache.setdefault('acc_currency', {})[currency_zone_cid.upper()] = currency_id
                 cache['misc'][_cur_key] = currency_id
 
-        # Supplier Logic - Using seller_ids (Odoo standard)
-        seller_vals = []
+        # Supplier Logic - upsert supplier by ref and defer supplierinfo upsert.
+        seller_payloads = []
         s_dto = dto.get('supplierdto') or {}
-        s_details = s_dto.get('supplierDetailDTOS', [])
-        if s_details:
-            s_det = s_details[0]
-            s_cid, s_name = s_det.get('cid'), s_det.get('name')
-            if s_cid and s_name:
-                sup_id = False
-                if s_cid.upper() in cache['suppliers']:
-                     sup_id = cache['suppliers'][s_cid.upper()]
-                else:
-                    sup = self.env['res.partner'].create({
-                        'name': s_name, 'ref': s_cid, 'is_company': True, 'supplier_rank': 1,
-                        'phone': s_det.get('phone', ''), 'email': s_det.get('mail', ''), 'street': s_det.get('address', '')
-                    })
-                    sup_id = sup.id
-                    cache['suppliers'][s_cid.upper()] = sup_id
-
-                # Prepare seller_ids values — truyền currency_id đúng theo sản phẩm
-                # currency_id là NOT NULL trong DB → dùng company currency làm fallback nếu không tìm được
-                if sup_id:
-                    _seller_currency_id = currency_id or self.env.company.currency_id.id
-                    seller_vals.append((0, 0, {
-                        'partner_id': sup_id,
-                        'price': float(dto.get('orPrice') or 0),
-                        'min_qty': 1.0,
-                        'delay': 1,
-                        'currency_id': _seller_currency_id,
-                    }))
+        sup_id = self._upsert_supplier_partner(s_dto, cache, currency_id=currency_id)
+        if sup_id:
+            _seller_currency_id = currency_id or self.env.company.currency_id.id
+            seller_payloads.append({
+                'partner_id': sup_id,
+                'price': float(dto.get('orPrice') or 0),
+                'min_qty': 1.0,
+                'delay': 1,
+                'currency_id': _seller_currency_id,
+            })
 
         # Tax (Purchase tax for suppliers)
         tax_pct = float(dto.get('tax') or 0)
@@ -1445,7 +1712,8 @@ class ProductSync(models.Model):
             'list_price': float(dto.get('rtPrice') or 0),
             'standard_price': float(dto.get('orPrice') or 0) * float((dto.get('currencyZoneDTO') or {}).get('value') or 1),  # Giá vốn: orPrice * tỷ giá (= x_or_price)
             'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else False,
-            'seller_ids': seller_vals if seller_vals else False,
+            'seller_ids': False,
+            '_seller_sync_payloads': seller_payloads,
             'product_type': product_type,
             'brand_id': self._get_or_create(cache, 'brands', 'product.brand', dto.get('tmdto')),
             'country_id': self._get_or_create(cache, 'countries', 'product.country', dto.get('codto')),
@@ -2351,12 +2619,14 @@ class ProductSync(models.Model):
                     )
 
                     # ── create / write ──────────────────────────────────────────
+                    seller_payloads = self._extract_seller_payloads(vals)
                     if pid:
                         step = 'write'
                         saved_rec = self.env['product.template'].browse(pid).with_context(
                             tracking_disable=True
                         )
                         saved_rec.write(vals)
+                        self._upsert_supplierinfo_payloads(saved_rec, seller_payloads)
                         if log_debug:
                             _logger.info(
                                 "[ACC_SYNC][WRITE_OK] sku=%s tmpl_id=%s", sku, pid
@@ -2366,6 +2636,7 @@ class ProductSync(models.Model):
                         saved_rec = self.env['product.template'].with_context(
                             tracking_disable=True
                         ).create(vals)
+                        self._upsert_supplierinfo_payloads(saved_rec, seller_payloads)
                         cache['products'][saved_rec.default_code] = saved_rec.id
                         if log_debug:
                             _logger.info(
@@ -2465,6 +2736,7 @@ class ProductSync(models.Model):
         total = len(items)
         success = failed = 0
         to_create, to_update = [], []
+        to_create_supplier_payloads = []
 
         has_child = False  # Hướng B: không còn dùng child model cho lens hay opt
         child_vals_map = {}    # tmpl_id → child_vals (cho opt)
@@ -2500,12 +2772,14 @@ class ProductSync(models.Model):
                         _logger.info(f"🔸 Accessory idx={idx} currency_code={_cur_code} currency_id={_cur_id} default_code={vals.get('default_code')}")
                     if has_child and product_type == 'opt':
                         c_vals = self._prepare_opt_vals(item, cache)
+                    seller_payloads = self._extract_seller_payloads(vals)
                     if pid:
-                        to_update.append((pid, vals))
+                        to_update.append((pid, vals, seller_payloads))
                         if has_child:
                             child_vals_map[pid] = c_vals
                     else:
                         to_create.append(vals)
+                        to_create_supplier_payloads.append(seller_payloads)
                         if has_child:
                             new_child_data.append((idx, c_vals))
             except Exception as e:
@@ -2522,6 +2796,7 @@ class ProductSync(models.Model):
             batch_size = 100
             for i in range(0, len(to_create), batch_size):
                 b_vals = to_create[i:i + batch_size]
+                b_supplier_payloads = to_create_supplier_payloads[i:i + batch_size]
                 b_child = new_child_data[i:i + batch_size] if has_child else []
                 b_child_refs = b_child
                 try:
@@ -2532,6 +2807,8 @@ class ProductSync(models.Model):
 
                         for j, rec in enumerate(recs):
                             cache['products'][rec.default_code] = rec.id
+                            if j < len(b_supplier_payloads):
+                                self._upsert_supplierinfo_payloads(rec, b_supplier_payloads[j])
                         success += len(recs)
                 except Exception as e:
                     failed += len(b_vals)
@@ -2556,12 +2833,14 @@ class ProductSync(models.Model):
                             _logger.error(f"Child Create Error product {rec.id}: {e}")
 
         # ─── Bước 3: Batch Update ─────────────────────────────────────────
-        for pid, vals in to_update:
+        for pid, vals, seller_payloads in to_update:
             try:
                 with self.env.cr.savepoint():
-                    self.env['product.template'].browse(pid).with_context(
+                    product_tmpl = self.env['product.template'].browse(pid).with_context(
                         tracking_disable=True
-                    ).write(vals)
+                    )
+                    product_tmpl.write(vals)
+                    self._upsert_supplierinfo_payloads(product_tmpl, seller_payloads)
 
                     if has_child and pid in child_vals_map:
                         c_vals = child_vals_map[pid]
