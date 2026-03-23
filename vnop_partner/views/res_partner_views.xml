@@ -27,12 +27,7 @@
         <field name="arch" type="xml">
             <xpath expr="//form[@name='bank_account_form']/sheet/group/group[1]/field[@name='bank_id']" position="after">
                 <field name="bank_bic" string="Swift/BIC" readonly="1"/>
-                <field name="bank_branch_name" readonly="1"/>
                 <field name="bank_street" readonly="1"/>
-                <field name="bank_street2" readonly="1"/>
-                <field name="bank_city" readonly="1"/>
-                <field name="bank_state_id" readonly="1"/>
-                <field name="bank_country_id" readonly="1"/>
             </xpath>
         </field>
     </record>

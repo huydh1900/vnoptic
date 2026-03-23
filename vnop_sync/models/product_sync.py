@@ -1271,6 +1271,95 @@ class ProductSync(models.Model):
         country = country_model.search([('name', 'ilike', raw)], limit=1)
         return country.id if country else False
 
+    def _extract_supplier_address_parts(self, address_text, city=False, country=False):
+        """Split free-text address into street/city/country with simple, safe heuristics."""
+        raw_address = str(address_text or '').strip()
+        explicit_city = str(city or '').strip()
+        explicit_country = str(country or '').strip()
+
+        if not raw_address:
+            return {
+                'street': False,
+                'city': explicit_city or False,
+                'country_id': self._resolve_country_id_any(explicit_country),
+            }
+
+        parts = [part.strip() for part in raw_address.split(',') if part and part.strip()]
+        if not parts:
+            return {
+                'street': raw_address,
+                'city': explicit_city or False,
+                'country_id': self._resolve_country_id_any(explicit_country),
+            }
+
+        country_id = self._resolve_country_id_any(explicit_country)
+        country_idx = None
+        if parts:
+            last_part_country_id = self._resolve_country_id_any(parts[-1])
+            if last_part_country_id:
+                country_idx = len(parts) - 1
+                if not country_id:
+                    country_id = last_part_country_id
+
+        city_value = explicit_city or False
+        city_idx = None
+        if not city_value:
+            city_markers = ('thành phố', 'tp.', 'tp ', 'city', 'tỉnh', 'province')
+            end_idx = country_idx if country_idx is not None else len(parts)
+            search_parts = parts[:end_idx]
+            for idx in range(len(search_parts) - 1, -1, -1):
+                token = search_parts[idx].lower()
+                if any(marker in token for marker in city_markers):
+                    city_value = search_parts[idx]
+                    city_idx = idx
+                    break
+
+        street_parts = list(parts)
+        if country_idx is not None and country_idx < len(street_parts):
+            street_parts.pop(country_idx)
+        if city_idx is not None and city_idx < len(street_parts):
+            # city_idx can shift if country was removed before it
+            adjusted_city_idx = city_idx
+            if country_idx is not None and country_idx < city_idx:
+                adjusted_city_idx -= 1
+            if 0 <= adjusted_city_idx < len(street_parts):
+                street_parts.pop(adjusted_city_idx)
+
+        street_value = ', '.join(street_parts).strip() if street_parts else False
+        if not city_value and country_idx is not None and len(parts) >= 2:
+            city_value = parts[-2]
+            street_value = ', '.join(parts[:-2]).strip() if len(parts) > 2 else False
+
+        return {
+            'street': street_value or False,
+            'city': city_value or False,
+            'country_id': country_id,
+        }
+
+    def _extract_supplier_currency_code(self, dto, supplier_dto, supplier_detail):
+        """Get supplier currency code from RS payload using known key aliases."""
+        code = (self._rs_pick(dto, ['currencyCode', 'currency_code', 'currency']) or '').strip()
+        if code:
+            return code
+
+        zone_obj = dto.get('currencyZoneDTO') if isinstance(dto, dict) else {}
+        if isinstance(zone_obj, dict):
+            for key in ('cid', 'code', 'name'):
+                value = zone_obj.get(key)
+                if value not in (None, '', False):
+                    return str(value).strip()
+
+        for source in (supplier_dto, supplier_detail):
+            value = self._rs_pick(source, ['currencyCode', 'currency_code', 'currency'])
+            if value:
+                return str(value).strip()
+            zone = source.get('currencyZoneDTO') if isinstance(source, dict) else {}
+            if isinstance(zone, dict):
+                zone_value = zone.get('cid') or zone.get('code') or zone.get('name')
+                if zone_value:
+                    return str(zone_value).strip()
+        return ''
+
     def _extract_seller_payloads(self, vals):
         """Extract supplierinfo payload from sync vals and remove write-unsafe keys."""
         payloads = vals.pop('_seller_sync_payloads', []) or []
@@ -1471,7 +1560,11 @@ class ProductSync(models.Model):
         address_text = self._rs_pick(detail, ['address', 'street'])
         city = self._rs_pick(detail, ['city'])
         partner_country = self._rs_pick(detail, ['countryCode', 'country_code', 'country'])
-        country_id = self._resolve_country_id_any(partner_country)
+        address_parts = self._extract_supplier_address_parts(
+            address_text,
+            city=city,
+            country=partner_country,
+        )
 
         vals = {
             'name': str(supplier_name).strip(),
@@ -1488,15 +1581,12 @@ class ProductSync(models.Model):
         if fax:
             # Odoo 18 base has no dedicated fax field; keep fax in mobile as safest standard slot.
             vals['mobile'] = str(fax).strip()
-        if address_text:
-            # RS sends free-text address; keep raw value in street to avoid data loss.
-            vals['street'] = str(address_text).strip()
-        if city:
-            # Only map city when explicitly provided by RS payload.
-            vals['city'] = str(city).strip()
-        if country_id:
-            # Only map country when we can resolve a concrete country record.
-            vals['country_id'] = country_id
+        if address_parts.get('street'):
+            vals['street'] = address_parts['street']
+        if address_parts.get('city'):
+            vals['city'] = address_parts['city']
+        if address_parts.get('country_id'):
+            vals['country_id'] = address_parts['country_id']
         if currency_id and 'property_purchase_currency_id' in self.env['res.partner']._fields:
             vals['property_purchase_currency_id'] = currency_id
         if 'code' in self.env['res.partner']._fields:
@@ -1599,7 +1689,10 @@ class ProductSync(models.Model):
                 cache['groups_by_id'][grp_id] = grp_id
 
         # Currency lookup (cần trước seller_ids để truyền currency_id đúng)
-        currency_zone_cid = (dto.get('currencyZoneDTO') or {}).get('cid', '')
+        s_dto = dto.get('supplierdto') or {}
+        s_details = s_dto.get('supplierDetailDTOS', []) if isinstance(s_dto, dict) else []
+        s_detail = s_details[0] if s_details and isinstance(s_details[0], dict) else {}
+        currency_zone_cid = self._extract_supplier_currency_code(dto, s_dto, s_detail)
         currency_id = False
         if currency_zone_cid:
             _cur_key = f'currency_{currency_zone_cid.upper()}'
@@ -1655,7 +1748,6 @@ class ProductSync(models.Model):
 
         # Supplier Logic - upsert supplier by ref and defer supplierinfo upsert.
         seller_payloads = []
-        s_dto = dto.get('supplierdto') or {}
         sup_id = self._upsert_supplier_partner(s_dto, cache, currency_id=currency_id)
         if sup_id:
             _seller_currency_id = currency_id or self.env.company.currency_id.id
