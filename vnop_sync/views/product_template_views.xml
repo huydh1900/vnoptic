@@ -68,6 +68,7 @@
                 <group string="Phân loại sản phẩm">
                     <group>
                         <field name="categ_id" string="Danh mục sản phẩm" options="{'no_create': True}"/>
+                        <field name="uom_id" string="Đơn vị" options="{'no_create': True}"/>
                         <field name="x_rs_product_id" string="ID sản phẩm"/>
                         <field name="group_id" invisible="1"/>
                         <field name="brand_id"/>
@@ -271,7 +272,7 @@
 
                 <!-- Tab Gọng 7: Phụ kiện đi kèm -->
                 <page string="Phụ kiện đi kèm" name="product_opt_accessories"
-                        invisible="product_kind_ui != 'opt'">
+                        invisible="product_kind_ui not in ('opt', 'lens', 'accessory')">
                     <group string="Phụ kiện">
                         <group>
                             <field name="has_box"/>

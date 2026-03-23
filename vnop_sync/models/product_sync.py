@@ -5,6 +5,7 @@ import os
 import time
 import random
 import re
+import unicodedata
 import requests
 import urllib3
 from collections import defaultdict
@@ -1146,6 +1147,90 @@ class ProductSync(models.Model):
             updated, skipped, missing_variant, missing_template
         )
 
+    def _normalize_uom_token(self, text):
+        """Normalize unit text for resilient matching (strip accents + lowercase)."""
+        value = (text or '').strip().lower()
+        if not value:
+            return ''
+        normalized = unicodedata.normalize('NFKD', value)
+        return ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+
+    def _extract_uom_name_from_payload(self, item, dto):
+        """Extract unit/UoM text from RS payload across known key variants."""
+
+        def _coerce_name(raw):
+            if raw in (None, '', False):
+                return False
+            if isinstance(raw, dict):
+                for key in ('name', 'cid', 'code', 'value', 'label'):
+                    val = raw.get(key)
+                    if val not in (None, '', False):
+                        return str(val).strip()
+                return False
+            if isinstance(raw, (list, tuple)) and raw:
+                return _coerce_name(raw[0])
+            return str(raw).strip()
+
+        keys = (
+            'unit', 'unitName', 'unit_name',
+            'uom', 'uomName', 'uom_name',
+            'unitDTO', 'unitDto', 'uomDTO', 'uomDto',
+        )
+
+        for source in (dto, item):
+            for key in keys:
+                value = _coerce_name(source.get(key))
+                if value:
+                    return value
+        return False
+
+    def _resolve_rs_uom_id(self, item, dto, cache):
+        """Resolve RS unit string to standard uom.uom id; return False if unresolved."""
+        unit_name = self._extract_uom_name_from_payload(item, dto)
+        if not unit_name:
+            return False
+
+        uom_cache = cache.setdefault('uom_by_name', {})
+        cache_key = unit_name.upper()
+        if cache_key in uom_cache:
+            return uom_cache[cache_key]
+
+        uom_model = self.env['uom.uom'].with_context(active_test=False)
+        uom = uom_model.search([('name', '=', unit_name)], limit=1)
+        if not uom:
+            uom = uom_model.search([('name', 'ilike', unit_name)], limit=1)
+
+        # Common aliases used by RS/business users.
+        if not uom:
+            alias_xmlid_map = {
+                'cai': 'uom.product_uom_unit',
+                'chiec': 'uom.product_uom_unit',
+                'piece': 'uom.product_uom_unit',
+                'pcs': 'uom.product_uom_unit',
+                'unit': 'uom.product_uom_unit',
+                'met': 'uom.product_uom_meter',
+                'meter': 'uom.product_uom_meter',
+                'm': 'uom.product_uom_meter',
+            }
+            normalized = self._normalize_uom_token(unit_name)
+            xmlid = alias_xmlid_map.get(normalized)
+            if xmlid:
+                uom = self.env.ref(xmlid, raise_if_not_found=False)
+
+        if not uom:
+            _logger.warning("⚠️ Không resolve được đơn vị từ RS: %r. Bỏ qua map uom_id.", unit_name)
+            uom_cache[cache_key] = False
+            return False
+
+        if not uom.active:
+            try:
+                uom.write({'active': True})
+            except Exception as e:
+                _logger.warning("⚠️ Không kích hoạt được UoM %s (%s): %s", uom.name, uom.id, e)
+
+        uom_cache[cache_key] = uom.id
+        return uom.id
+
     def _prepare_base_vals(self, item, cache, product_type, coating_ids=None, lens_template_key=None):
         dto = item.get('productdto') or {}
         cid = (dto.get('cid') or '').strip()
@@ -1348,6 +1433,7 @@ class ProductSync(models.Model):
 
         is_storable = product_type in ['opt', 'lens']
         product_kind = 'consu'
+        resolved_uom_id = self._resolve_rs_uom_id(item, dto, cache)
 
         # Basic Vals
         vals = {
@@ -1356,8 +1442,6 @@ class ProductSync(models.Model):
             'type': product_kind,
             'is_storable': is_storable,  # Gọng/Lens = storable
             'categ_id': categ_id,
-            'uom_id': self.env.ref('uom.product_uom_unit').id,
-            'uom_po_id': self.env.ref('uom.product_uom_unit').id,
             'list_price': float(dto.get('rtPrice') or 0),
             'standard_price': float(dto.get('orPrice') or 0) * float((dto.get('currencyZoneDTO') or {}).get('value') or 1),  # Giá vốn: orPrice * tỷ giá (= x_or_price)
             'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else False,
@@ -1397,6 +1481,10 @@ class ProductSync(models.Model):
             ),
             'x_group_type_name': grp_type_name,
         }
+
+        if resolved_uom_id:
+            vals['uom_id'] = resolved_uom_id
+            vals['uom_po_id'] = resolved_uom_id
 
         # Keep RS source identifier independent from default_code business key.
         if rs_product_id:
@@ -2083,16 +2171,18 @@ class ProductSync(models.Model):
                             )
 
                     # ── MAP_IN ──────────────────────────────────────────────────
+                    rs_uom = self._extract_uom_name_from_payload(item, dto) or 'N/A'
                     cz_dto = dto.get('currencyZoneDTO') or {}
                     _logger.info(
                         "[ACC_SYNC][MAP_IN] sku=%s important_fields={"
                         "currency=%s, brand=%s, country=%s, warranty=%s, "
-                        "uom=unit, category=%s, price=%s, cost=%s, barcode=%s}",
+                        "uom=%s, category=%s, price=%s, cost=%s, barcode=%s}",
                         sku,
                         cz_dto.get('cid') or 'N/A',
                         (dto.get('tmdto')      or {}).get('cid') or 'N/A',
                         (dto.get('codto')      or {}).get('cid') or 'N/A',
                         (dto.get('warrantydto') or {}).get('cid') or 'N/A',
+                        rs_uom,
                         (dto.get('groupdto')   or {}).get('name') or 'N/A',
                         dto.get('rtPrice', 0),
                         dto.get('orPrice', 0),
