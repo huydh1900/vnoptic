@@ -5,6 +5,7 @@ import os
 import time
 import random
 import re
+import unicodedata
 import requests
 import urllib3
 from collections import defaultdict
@@ -248,9 +249,14 @@ class ProductSync(models.Model):
             pid = c['parent_id'][0] if c['parent_id'] else False
             cache['categories'][(c['name'], pid)] = c['id']
 
-        # Suppliers
-        for s in self.env['res.partner'].search_read([('ref', '!=', False)], ['id', 'ref']):
-            cache['suppliers'][s['ref'].upper()] = s['id']
+        # Suppliers (prefer ref as official vendor code; keep compatibility with legacy code)
+        for s in self.env['res.partner'].search_read([
+            '|', ('ref', '!=', False), ('code', '!=', False)
+        ], ['id', 'ref', 'code']):
+            if s.get('ref'):
+                cache['suppliers'][s['ref'].upper()] = s['id']
+            if s.get('code'):
+                cache['suppliers'][s['code'].upper()] = s['id']
             
         # Taxes (Purchase taxes only)
         for t in self.env['account.tax'].search_read([('type_tax_use', '=', 'purchase')], ['id', 'name']):
@@ -362,6 +368,25 @@ class ProductSync(models.Model):
     def _get_id(self, cache, key, val):
         return cache.get(key, {}).get(val.upper(), False) if val else False
 
+    def _extract_rs_product_id(self, item):
+        """Extract stable RS product identifier from payload.
+
+        Priority: productdto.id -> productdto.externalId -> root id/externalId.
+        Return string for robust persistence across mixed payload types.
+        """
+        dto = item.get('productdto') or {}
+        for key in ('id', 'externalId'):
+            value = dto.get(key)
+            if value not in (None, ''):
+                return str(value).strip()
+
+        for key in ('id', 'externalId'):
+            value = item.get(key)
+            if value not in (None, ''):
+                return str(value).strip()
+
+        return False
+
     def _get_id_with_fallback(self, cache, key, dto):
         """Lookup id by cid first, then name as fallback.
         If not found and DTO has name, auto-create a product.cl record."""
@@ -431,7 +456,8 @@ class ProductSync(models.Model):
             vals = {'name': name or cid}
             if cid:
                 vals['cid'] = cid
-            rec = self.env[model_name].create(vals)
+            with self.env.cr.savepoint():
+                rec = self.env[model_name].create(vals)
             rid = rec.id
             if cid:
                 cache.setdefault(cache_key, {})[cid] = rid
@@ -463,7 +489,8 @@ class ProductSync(models.Model):
         if rid:
             return rid
         try:
-            rec = self.env['product.cl'].create({'name': name})
+            with self.env.cr.savepoint():
+                rec = self.env['product.cl'].create({'name': name})
             cache.setdefault('colors', {})[name_upper] = rec.id
             _logger.info(f"✅ Auto-created product.cl name={name!r} id={rec.id}")
             return rec.id
@@ -742,7 +769,8 @@ class ProductSync(models.Model):
             create_vals = {'name': name}
             if cid and 'cid' in self.env['product.uv']._fields:
                 create_vals['cid'] = cid
-            rec = self.env['product.uv'].create(create_vals)
+            with self.env.cr.savepoint():
+                rec = self.env['product.uv'].create(create_vals)
             if cid:
                 cache.setdefault('uvs', {})[cid] = rec.id
             cache.setdefault('uvs', {})[name.upper()] = rec.id
@@ -844,7 +872,8 @@ class ProductSync(models.Model):
                     create_vals = {'name': c_name}
                     if c_cid and 'cid' in self.env['product.coating']._fields:
                         create_vals['cid'] = c_cid
-                    rec = self.env['product.coating'].create(create_vals)
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.coating'].create(create_vals)
                     coating_id = rec.id
                     if c_cid:
                         cache.setdefault('coatings', {})[c_cid] = coating_id
@@ -931,7 +960,9 @@ class ProductSync(models.Model):
                 vals.get('lens_cl_pho_id', 'SKIPPED'),
                 vals.get('lens_cl_tint_id', 'SKIPPED'),
             )
+            seller_payloads = self._extract_seller_payloads(vals)
             tmpl.write(vals)
+            self._upsert_supplierinfo_payloads(tmpl, seller_payloads)
             self._cleanup_lens_template_variants(tmpl)
             _logger.info(
                 "🔍 Lens [UPDATE] %s | material=%s | index=%s | coatings=%s | design1=%s",
@@ -951,7 +982,9 @@ class ProductSync(models.Model):
             vals.get('lens_cl_pho_id', 'SKIPPED'),
             vals.get('lens_cl_tint_id', 'SKIPPED'),
         )
+        seller_payloads = self._extract_seller_payloads(vals)
         tmpl = self.env['product.template'].with_context(tracking_disable=True).create(vals)
+        self._upsert_supplierinfo_payloads(tmpl, seller_payloads)
         self._cleanup_lens_template_variants(tmpl)
         cache.setdefault('lens_templates', {})[template_key] = tmpl.id
         if tmpl.default_code:
@@ -1127,11 +1160,1083 @@ class ProductSync(models.Model):
             updated, skipped, missing_variant, missing_template
         )
 
+    def _normalize_uom_token(self, text):
+        """Normalize unit text for resilient matching (strip accents + lowercase)."""
+        value = (text or '').strip().lower()
+        if not value:
+            return ''
+        normalized = unicodedata.normalize('NFKD', value)
+        return ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+
+    def _extract_uom_name_from_payload(self, item, dto):
+        """Extract unit/UoM text from RS payload across known key variants."""
+
+        def _coerce_name(raw):
+            if raw in (None, '', False):
+                return False
+            if isinstance(raw, dict):
+                for key in ('name', 'cid', 'code', 'value', 'label'):
+                    val = raw.get(key)
+                    if val not in (None, '', False):
+                        return str(val).strip()
+                return False
+            if isinstance(raw, (list, tuple)) and raw:
+                return _coerce_name(raw[0])
+            return str(raw).strip()
+
+        keys = (
+            'unit', 'unitName', 'unit_name',
+            'uom', 'uomName', 'uom_name',
+            'unitDTO', 'unitDto', 'uomDTO', 'uomDto',
+        )
+
+        for source in (dto, item):
+            for key in keys:
+                value = _coerce_name(source.get(key))
+                if value:
+                    return value
+        return False
+
+    def _resolve_rs_uom_id(self, item, dto, cache):
+        """Resolve RS unit string to standard uom.uom id; return False if unresolved."""
+        unit_name = self._extract_uom_name_from_payload(item, dto)
+        if not unit_name:
+            return False
+
+        uom_cache = cache.setdefault('uom_by_name', {})
+        cache_key = unit_name.upper()
+        if cache_key in uom_cache:
+            return uom_cache[cache_key]
+
+        uom_model = self.env['uom.uom'].with_context(active_test=False)
+        uom = uom_model.search([('name', '=', unit_name)], limit=1)
+        if not uom:
+            uom = uom_model.search([('name', 'ilike', unit_name)], limit=1)
+
+        # Common aliases used by RS/business users.
+        if not uom:
+            alias_xmlid_map = {
+                'cai': 'uom.product_uom_unit',
+                'chiec': 'uom.product_uom_unit',
+                'piece': 'uom.product_uom_unit',
+                'pcs': 'uom.product_uom_unit',
+                'unit': 'uom.product_uom_unit',
+                'met': 'uom.product_uom_meter',
+                'meter': 'uom.product_uom_meter',
+                'm': 'uom.product_uom_meter',
+            }
+            normalized = self._normalize_uom_token(unit_name)
+            xmlid = alias_xmlid_map.get(normalized)
+            if xmlid:
+                uom = self.env.ref(xmlid, raise_if_not_found=False)
+
+        if not uom:
+            _logger.warning("⚠️ Không resolve được đơn vị từ RS: %r. Bỏ qua map uom_id.", unit_name)
+            uom_cache[cache_key] = False
+            return False
+
+        if not uom.active:
+            try:
+                uom.write({'active': True})
+            except Exception as e:
+                _logger.warning("⚠️ Không kích hoạt được UoM %s (%s): %s", uom.name, uom.id, e)
+
+        uom_cache[cache_key] = uom.id
+        return uom.id
+
+    def _rs_pick(self, source, keys, skip_placeholder=False):
+        """Return first non-empty value from dict using alias key list."""
+        if not isinstance(source, dict):
+            return False
+        for key in keys:
+            value = source.get(key)
+            if value not in (None, '', False):
+                if skip_placeholder and self._is_placeholder_value(value):
+                    continue
+                return value
+        return False
+
+    def _is_supplier_sync_debug_enabled(self, supplier_ref=''):
+        """Enable focused supplier sync logs via env flags.
+
+        LOG_RS_SUPPLIER_SYNC=True enables logs.
+        LOG_RS_SUPPLIER_TARGET_REF=5017 narrows to a specific supplier ref.
+        SUPPLIER_SYNC_DEBUG=1 and SUPPLIER_SYNC_DEBUG_SUPPLIER_REFS=5017 are also supported.
+        """
+        log_rs_flag = os.getenv('LOG_RS_SUPPLIER_SYNC', 'False').lower() == 'true'
+        debug_flag = os.getenv('SUPPLIER_SYNC_DEBUG', '0').strip().lower() in ('1', 'true', 'yes', 'on')
+        if not (log_rs_flag or debug_flag):
+            return False
+
+        target_ref = (os.getenv('LOG_RS_SUPPLIER_TARGET_REF') or '').strip().upper()
+        target_refs_csv = (os.getenv('SUPPLIER_SYNC_DEBUG_SUPPLIER_REFS') or '').strip().upper()
+        target_refs = set()
+        if target_ref:
+            target_refs.add(target_ref)
+        if target_refs_csv:
+            target_refs.update([ref.strip() for ref in target_refs_csv.split(',') if ref and ref.strip()])
+
+        if not target_refs:
+            return True
+        return (supplier_ref or '').strip().upper() in target_refs
+
+    def _log_supplier_sync(self, supplier_ref, message, *args):
+        if self._is_supplier_sync_debug_enabled(supplier_ref):
+            _logger.info("[SUP_BANK_DEBUG][SUP_SYNC][%s] " + message, (supplier_ref or 'N/A'), *args)
+
+    def _safe_debug_json(self, value):
+        try:
+            return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+        except Exception:
+            return repr(value)
+
+    def _is_placeholder_value(self, value):
+        """Return True when value is empty/demo placeholder like 'khong', 'none', 'n/a'."""
+        if value in (None, False):
+            return True
+
+        raw = str(value).strip()
+        if not raw:
+            return True
+
+        normalized = self._normalize_uom_token(raw)
+        compact = re.sub(r"[\s\-_/\.]+", "", normalized)
+        return compact in {'khong', 'none', 'null', 'na', '""', "''"}
+
+    def _clean_placeholder_text(self, value):
+        """Normalize to stripped text and drop placeholders as False."""
+        if value in (None, False):
+            return False
+        text = str(value).strip()
+        if not text:
+            return False
+        return False if self._is_placeholder_value(text) else text
+
+    def _log_debug_keys_recursive(self, supplier_ref, label, data, path='root', level=0, max_level=2):
+        if not isinstance(data, dict):
+            self._log_supplier_sync(supplier_ref, "%s keys at %s: not-a-dict type=%s", label, path, type(data).__name__)
+            return
+
+        keys = sorted(list(data.keys()))
+        self._log_supplier_sync(supplier_ref, "%s keys at %s: %s", label, path, keys)
+        if level >= max_level:
+            return
+
+        for key in keys:
+            value = data.get(key)
+            child_path = "%s.%s" % (path, key)
+            if isinstance(value, dict):
+                self._log_debug_keys_recursive(
+                    supplier_ref,
+                    label,
+                    value,
+                    path=child_path,
+                    level=level + 1,
+                    max_level=max_level,
+                )
+            elif isinstance(value, list):
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "%s keys at %s: list_len=%s",
+                    label,
+                    child_path,
+                    len(value),
+                )
+                for idx, item in enumerate(value[:3]):
+                    if isinstance(item, dict):
+                        self._log_debug_keys_recursive(
+                            supplier_ref,
+                            label,
+                            item,
+                            path="%s[%s]" % (child_path, idx),
+                            level=level + 1,
+                            max_level=max_level,
+                        )
+
+    def _log_alias_lookup(self, supplier_ref, source, field_name, keys):
+        if not isinstance(source, dict):
+            self._log_supplier_sync(supplier_ref, "alias lookup for %s skipped: source is not dict", field_name)
+            return
+        selected_key = False
+        selected_value = False
+        for key in keys:
+            value = source.get(key)
+            self._log_supplier_sync(supplier_ref, "alias lookup for %s: tried %s -> %r", field_name, key, value)
+            if selected_value in (None, '', False) and value not in (None, '', False):
+                selected_key = key
+                selected_value = value
+        self._log_supplier_sync(
+            supplier_ref,
+            "alias lookup result for %s: selected_key=%r selected_value=%r",
+            field_name,
+            selected_key,
+            selected_value,
+        )
+
+    def _resolve_country_id_any(self, value):
+        """Resolve country from ISO code/name. Return False when uncertain."""
+        if value in (None, '', False):
+            return False
+        country_model = self.env['res.country']
+        raw = str(value).strip()
+        if not raw:
+            return False
+        code = raw.upper()
+
+        # Common aliases from RS payloads (VN text / ISO3 / short forms).
+        normalized = re.sub(r'[^a-z0-9]', '', self._normalize_uom_token(raw))
+        alias_to_code = {
+            'trungquoc': 'CN',
+            'china': 'CN',
+            'chn': 'CN',
+            'hanquoc': 'KR',
+            'korea': 'KR',
+            'kor': 'KR',
+            'vietnam': 'VN',
+            'vietnam': 'VN',
+            'vnm': 'VN',
+            'switzerland': 'CH',
+            'thuysi': 'CH',
+            'che': 'CH',
+            'usa': 'US',
+            'unitedstates': 'US',
+        }
+        mapped_code = alias_to_code.get(normalized)
+        if mapped_code:
+            country = country_model.search([('code', '=', mapped_code)], limit=1)
+            if country:
+                return country.id
+
+        country = country_model.search([('code', '=', code)], limit=1)
+        if country:
+            return country.id
+
+        country = country_model.search([('name', '=', raw)], limit=1)
+        if country:
+            return country.id
+
+        # Keep ilike as last fallback only when token length is meaningful.
+        if len(raw) < 4:
+            return False
+        country = country_model.search([('name', 'ilike', raw)], limit=1)
+        return country.id if country else False
+
+    def _extract_supplier_address_parts(self, address_text, city=False, country=False):
+        """Split free-text address into street/city/country with simple, safe heuristics."""
+        raw_address = str(address_text or '').strip()
+        explicit_city = str(city or '').strip()
+        explicit_country = str(country or '').strip()
+
+        if not raw_address:
+            return {
+                'street': False,
+                'city': explicit_city or False,
+                'country_id': self._resolve_country_id_any(explicit_country),
+            }
+
+        parts = [part.strip() for part in raw_address.split(',') if part and part.strip()]
+        if not parts:
+            return {
+                'street': raw_address,
+                'city': explicit_city or False,
+                'country_id': self._resolve_country_id_any(explicit_country),
+            }
+
+        country_id = self._resolve_country_id_any(explicit_country)
+        country_idx = None
+        if parts:
+            last_part_country_id = self._resolve_country_id_any(parts[-1])
+            if last_part_country_id:
+                country_idx = len(parts) - 1
+                if not country_id:
+                    country_id = last_part_country_id
+
+        city_value = explicit_city or False
+        city_idx = None
+        if not city_value:
+            city_markers = ('thành phố', 'tp.', 'tp ', 'city', 'tỉnh', 'province')
+            end_idx = country_idx if country_idx is not None else len(parts)
+            search_parts = parts[:end_idx]
+            for idx in range(len(search_parts) - 1, -1, -1):
+                token = search_parts[idx].lower()
+                if any(marker in token for marker in city_markers):
+                    city_value = search_parts[idx]
+                    city_idx = idx
+                    break
+
+        street_parts = list(parts)
+        if country_idx is not None and country_idx < len(street_parts):
+            street_parts.pop(country_idx)
+        if city_idx is not None and city_idx < len(street_parts):
+            # city_idx can shift if country was removed before it
+            adjusted_city_idx = city_idx
+            if country_idx is not None and country_idx < city_idx:
+                adjusted_city_idx -= 1
+            if 0 <= adjusted_city_idx < len(street_parts):
+                street_parts.pop(adjusted_city_idx)
+
+        street_value = ', '.join(street_parts).strip() if street_parts else False
+        if not city_value and country_idx is not None and len(parts) >= 2:
+            city_value = parts[-2]
+            street_value = ', '.join(parts[:-2]).strip() if len(parts) > 2 else False
+
+        return {
+            'street': street_value or False,
+            'city': city_value or False,
+            'country_id': country_id,
+        }
+
+    def _extract_supplier_currency_code(self, dto, supplier_dto, supplier_detail):
+        """Get supplier currency code from RS payload using known key aliases."""
+        # Supplier-level currency must have priority over product-level currency.
+        for source in (supplier_dto, supplier_detail):
+            value = self._rs_pick(source, ['currencyCode', 'currency_code', 'currency'])
+            if value:
+                return str(value).strip()
+            zone = source.get('currencyZoneDTO') if isinstance(source, dict) else {}
+            if isinstance(zone, dict):
+                zone_value = zone.get('cid') or zone.get('code') or zone.get('name')
+                if zone_value:
+                    return str(zone_value).strip()
+
+        # IMPORTANT: do not fallback to product currency for supplier purchase currency.
+        return ''
+
+    def _extract_seller_payloads(self, vals):
+        """Extract supplierinfo payload from sync vals and remove write-unsafe keys."""
+        payloads = vals.pop('_seller_sync_payloads', []) or []
+        seller_cmds = vals.pop('seller_ids', False)
+        if seller_cmds and not payloads:
+            for cmd in seller_cmds:
+                if not isinstance(cmd, (list, tuple)) or len(cmd) < 3:
+                    continue
+                if cmd[0] == 0 and isinstance(cmd[2], dict):
+                    payloads.append(dict(cmd[2]))
+        return payloads
+
+    def _upsert_supplierinfo_payloads(self, product_tmpl, payloads):
+        """Upsert product.supplierinfo to avoid duplicate lines on repeated sync."""
+        if not product_tmpl or not payloads:
+            return
+
+        supplierinfo_model = self.env['product.supplierinfo']
+        default_currency_id = self.env.company.currency_id.id if self.env.company and self.env.company.currency_id else False
+        for payload in payloads:
+            partner_id = payload.get('partner_id')
+            if not partner_id:
+                continue
+
+            min_qty = float(payload.get('min_qty') or 1.0)
+            delay = int(payload.get('delay') or 1)
+            currency_id = payload.get('currency_id') or default_currency_id
+            if not currency_id:
+                _logger.warning(
+                    "Skip supplierinfo upsert: currency_id unresolved for product_tmpl_id=%s partner_id=%s",
+                    product_tmpl.id,
+                    partner_id,
+                )
+                continue
+
+            domain = [
+                ('product_tmpl_id', '=', product_tmpl.id),
+                ('product_id', '=', False),
+                ('partner_id', '=', partner_id),
+                ('min_qty', '=', min_qty),
+                ('delay', '=', delay),
+                ('currency_id', '=', currency_id),
+            ]
+            seller = supplierinfo_model.search(domain, limit=1)
+            seller_vals = {
+                'partner_id': partner_id,
+                'product_tmpl_id': product_tmpl.id,
+                'product_id': False,
+                'price': float(payload.get('price') or 0.0),
+                'min_qty': min_qty,
+                'delay': delay,
+                'currency_id': currency_id,
+            }
+            if seller:
+                seller.write(seller_vals)
+            else:
+                supplierinfo_model.create(seller_vals)
+
+    def _upsert_supplier_contact(self, partner, supplier_detail):
+        """Store RS contact person as child contact for clean Odoo modeling."""
+        if not partner or not supplier_detail:
+            return
+
+        contact_name = self._clean_placeholder_text(self._rs_pick(supplier_detail, [
+            'contactName', 'contact_name', 'contactPerson', 'contact_person',
+            'contactPersonName', 'personContact', 'nguoiLienHe',
+        ]))
+        if not contact_name:
+            return
+
+        contact_phone = self._clean_placeholder_text(self._rs_pick(supplier_detail, [
+            'contactPhone', 'contact_phone', 'contactMobile', 'contact_mobile', 'mobile',
+        ]))
+        contact_email = self._clean_placeholder_text(self._rs_pick(supplier_detail, [
+            'contactEmail', 'contact_email', 'email',
+        ]))
+
+        contact = self.env['res.partner'].search([
+            ('parent_id', '=', partner.id),
+            ('type', '=', 'contact'),
+            ('name', '=', contact_name),
+        ], limit=1)
+        contact_vals = {
+            'name': contact_name,
+            'parent_id': partner.id,
+            'type': 'contact',
+            'is_company': False,
+        }
+        if contact_phone:
+            contact_vals['phone'] = contact_phone
+        if contact_email:
+            contact_vals['email'] = contact_email
+
+        if contact:
+            contact.write(contact_vals)
+        else:
+            self.env['res.partner'].create(contact_vals)
+
+    def _extract_bank_payload(self, supplier_detail, supplier_dto=None, supplier_details=None, supplier_ref='', supplier_name=False):
+        """Extract bank payload from RS vendor data with fallback across multiple nodes."""
+        self._log_supplier_sync(
+            supplier_ref,
+            "===== SUPPLIER BANK DEBUG BLOCK START ===== supplier_ref=%r supplier_name=%r",
+            supplier_ref,
+            supplier_name,
+        )
+        self._log_supplier_sync(
+            supplier_ref,
+            "raw supplier_detail object: %s",
+            self._safe_debug_json(supplier_detail),
+        )
+        self._log_supplier_sync(
+            supplier_ref,
+            "raw supplier_dto object: %s",
+            self._safe_debug_json(supplier_dto),
+        )
+        self._log_supplier_sync(
+            supplier_ref,
+            "raw supplier_details list object: %s",
+            self._safe_debug_json(supplier_details),
+        )
+        if isinstance(supplier_dto, dict):
+            self._log_supplier_sync(
+                supplier_ref,
+                "supplier_dto top-level keys: %s",
+                sorted(list(supplier_dto.keys())),
+            )
+            detail_dtos = supplier_dto.get('supplierDetailDTOS')
+            if isinstance(detail_dtos, list) and detail_dtos:
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "supplierDetailDTOS[0] raw: %s",
+                    self._safe_debug_json(detail_dtos[0]),
+                )
+            self._log_supplier_sync(
+                supplier_ref,
+                "supplier_dto.bank raw: %s | supplier_dto.bankdto raw: %s",
+                self._safe_debug_json(supplier_dto.get('bank')),
+                self._safe_debug_json(supplier_dto.get('bankdto')),
+            )
+
+        self._log_debug_keys_recursive(supplier_ref, "supplier_detail", supplier_detail, path='supplier_detail', max_level=3)
+        if isinstance(supplier_dto, dict):
+            self._log_debug_keys_recursive(supplier_ref, "supplier_dto", supplier_dto, path='supplier_dto', max_level=3)
+        if isinstance(supplier_details, list):
+            for idx, node in enumerate(supplier_details[:3]):
+                if isinstance(node, dict):
+                    self._log_debug_keys_recursive(
+                        supplier_ref,
+                        "supplier_details",
+                        node,
+                        path='supplier_details[%s]' % idx,
+                        max_level=3,
+                    )
+
+        records = []
+        if isinstance(supplier_detail, dict):
+            records.append(supplier_detail)
+        if isinstance(supplier_dto, dict):
+            records.append(supplier_dto)
+        if isinstance(supplier_details, list):
+            records.extend([rec for rec in supplier_details if isinstance(rec, dict)])
+
+        if not records:
+            self._log_supplier_sync(supplier_ref, "skip extract bank payload: no records found")
+            return {}
+
+        bank_records = []
+        for rec in records:
+            bank_obj = rec.get('bank') if isinstance(rec.get('bank'), dict) else {}
+            bank_data = rec.get('bankdto') if isinstance(rec.get('bankdto'), dict) else {}
+            if bank_obj:
+                bank_records.append(bank_obj)
+            if bank_data:
+                bank_records.append(bank_data)
+        self._log_supplier_sync(
+            supplier_ref,
+            "records prepared: supplier_records=%s bank_records=%s",
+            len(records),
+            len(bank_records),
+        )
+        for idx, node in enumerate(records[:3]):
+            self._log_supplier_sync(supplier_ref, "supplier_record[%s] keys=%s", idx, sorted(list(node.keys())))
+        for idx, node in enumerate(bank_records[:3]):
+            self._log_supplier_sync(supplier_ref, "bank_record[%s] keys=%s", idx, sorted(list(node.keys())))
+
+        account_aliases = [
+            'acc_number', 'accnumber', 'account_number', 'accountnumber', 'account_no', 'accountno',
+            'account', 'bank_account', 'bankaccount', 'bank_account_number', 'bankaccountnumber',
+            'bank_account_no', 'bankaccountno', 'bank_no', 'bankno', 'bank_number', 'banknumber',
+            'number', 'stk', 'so_tai_khoan', 'sotaikhoan', 'tai_khoan', 'taikhoan',
+            'acctno', 'acct_no', 'iban',
+        ]
+
+        def _normalize_key(raw_key):
+            return re.sub(r'[^a-z0-9]', '', str(raw_key or '').lower())
+
+        normalized_aliases = {_normalize_key(key) for key in account_aliases}
+
+        def _looks_like_account_value(raw_value):
+            text = str(raw_value or '').strip()
+            if len(text) < 4 or len(text) > 64:
+                return False
+            return any(ch.isdigit() for ch in text)
+
+        def _pick_with_meta(keys):
+            for rec in records:
+                for key in keys:
+                    value = self._rs_pick(rec, [key], skip_placeholder=True)
+                    if value:
+                        return value, key, 'supplier_record'
+            for rec in bank_records:
+                for key in keys:
+                    value = self._rs_pick(rec, [key], skip_placeholder=True)
+                    if value:
+                        return value, key, 'bank_record'
+            return False, False, False
+
+        def _pick_account_number():
+            # 1) Explicit aliases first (safer)
+            explicit_keys = [
+                'bankAccount', 'bank_account', 'accountNumber', 'account_number', 'accNumber', 'acc_number',
+                'accountNo', 'account_no', 'bankNo', 'bank_no', 'bankNumber', 'bank_number',
+                'stk', 'account', 'number', 'soTaiKhoan', 'so_tai_khoan',
+            ]
+
+            for alias_key in [
+                'acc_number', 'account_number', 'accountNo', 'bankAccount', 'bank_account',
+                'stk', 'soTaiKhoan', 'account', 'number', 'bankNo', 'bank_number',
+            ]:
+                supplier_values = [
+                    rec.get(alias_key)
+                    for rec in records
+                    if isinstance(rec, dict) and alias_key in rec
+                ]
+                bank_values = [
+                    rec.get(alias_key)
+                    for rec in bank_records
+                    if isinstance(rec, dict) and alias_key in rec
+                ]
+                chosen = False
+                for candidate in (supplier_values + bank_values):
+                    cleaned_candidate = self._clean_placeholder_text(candidate)
+                    if cleaned_candidate:
+                        chosen = cleaned_candidate
+                        break
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "account alias lookup: tried %s -> supplier_values=%r bank_values=%r chosen_non_empty=%r",
+                    alias_key,
+                    supplier_values,
+                    bank_values,
+                    chosen,
+                )
+
+            value, source_key, source_node = _pick_with_meta(explicit_keys)
+            if value and (_normalize_key(source_key) not in ('account', 'number') or _looks_like_account_value(value)):
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "account selected by explicit alias: source_key=%r source_node=%r value=%r",
+                    source_key,
+                    source_node,
+                    value,
+                )
+                return value, source_key, source_node
+
+            # 2) Heuristic scan for unknown keys in RS payload shape
+            for rec, source_node in [(r, 'supplier_record') for r in records] + [(r, 'bank_record') for r in bank_records]:
+                if not isinstance(rec, dict):
+                    continue
+                for raw_key, value in rec.items():
+                    if value in (None, '', False):
+                        continue
+                    if self._is_placeholder_value(value):
+                        continue
+                    normalized_key = _normalize_key(raw_key)
+                    if normalized_key in normalized_aliases:
+                        if _normalize_key(raw_key) in ('account', 'number') and not _looks_like_account_value(value):
+                            continue
+                        self._log_supplier_sync(
+                            supplier_ref,
+                            "account selected by normalized alias: raw_key=%r source_node=%r value=%r",
+                            raw_key,
+                            source_node,
+                            value,
+                        )
+                        return value, raw_key, source_node
+                    has_account_token = any(token in normalized_key for token in ('account', 'acc', 'stk', 'iban', 'taikhoan'))
+                    has_bank_number_token = 'bank' in normalized_key and 'number' in normalized_key
+                    if has_account_token or has_bank_number_token:
+                        if not _looks_like_account_value(value):
+                            continue
+                        self._log_supplier_sync(
+                            supplier_ref,
+                            "account selected by heuristic token: raw_key=%r source_node=%r value=%r",
+                            raw_key,
+                            source_node,
+                            value,
+                        )
+                        return value, raw_key, source_node
+            self._log_supplier_sync(supplier_ref, "account selection failed: no alias/heuristic match found")
+            return False, False, False
+
+        def _pick(keys, field_name=''):
+            for rec_idx, rec in enumerate(records):
+                for key in keys:
+                    value = rec.get(key) if isinstance(rec, dict) else False
+                    if field_name:
+                        self._log_supplier_sync(
+                            supplier_ref,
+                            "field extract %s: tried supplier_record[%s].%s -> %r",
+                            field_name,
+                            rec_idx,
+                            key,
+                            value,
+                        )
+                    cleaned_value = self._clean_placeholder_text(value)
+                    if cleaned_value:
+                        if field_name:
+                            self._log_supplier_sync(
+                                supplier_ref,
+                                "field extract %s selected from supplier_record[%s].%s -> %r",
+                                field_name,
+                                rec_idx,
+                                key,
+                                cleaned_value,
+                            )
+                        return cleaned_value
+            for rec_idx, rec in enumerate(bank_records):
+                for key in keys:
+                    value = rec.get(key) if isinstance(rec, dict) else False
+                    if field_name:
+                        self._log_supplier_sync(
+                            supplier_ref,
+                            "field extract %s: tried bank_record[%s].%s -> %r",
+                            field_name,
+                            rec_idx,
+                            key,
+                            value,
+                        )
+                    cleaned_value = self._clean_placeholder_text(value)
+                    if cleaned_value:
+                        if field_name:
+                            self._log_supplier_sync(
+                                supplier_ref,
+                                "field extract %s selected from bank_record[%s].%s -> %r",
+                                field_name,
+                                rec_idx,
+                                key,
+                                cleaned_value,
+                            )
+                        return cleaned_value
+            if field_name:
+                self._log_supplier_sync(supplier_ref, "field extract %s selected -> False", field_name)
+            return False
+
+        bank_account, bank_account_source_key, bank_account_source_node = _pick_account_number()
+        bank_account = self._clean_placeholder_text(bank_account)
+        if not bank_account:
+            bank_account_source_key = False
+            bank_account_source_node = False
+
+        extracted_payload = {
+            'bank_name': _pick(['bankName', 'bank_name', 'advisingBank'], 'bank_name'),
+            'bank_address': _pick(['bankAddress', 'bank_address', 'address'], 'bank_street'),
+            'bank_account': bank_account,
+            'bank_account_source_key': bank_account_source_key,
+            'bank_account_source_node': bank_account_source_node,
+            'bank_branch': _pick(['bankBranch', 'bank_branch', 'branch', 'branchName', 'branchCode'], 'bank_branch'),
+            'bank_swift': _pick(['swiftCode', 'swift_code', 'swift', 'bic', 'bankBic'], 'bank_bic'),
+            'bank_country': _pick(['bankCountry', 'bank_country', 'country', 'countryCode', 'country_code'], 'bank_country'),
+        }
+
+        self._log_supplier_sync(
+            supplier_ref,
+            "bank payload final extracted: %s",
+            self._safe_debug_json(extracted_payload),
+        )
+        self._log_supplier_sync(
+            supplier_ref,
+            "===== SUPPLIER BANK DEBUG BLOCK END ===== supplier_ref=%r",
+            supplier_ref,
+        )
+
+        return extracted_payload
+
+    def _cleanup_placeholder_partner_bank_accounts(self, partner, supplier_ref=''):
+        """Delete partner bank rows containing placeholder account numbers."""
+        if not partner:
+            return 0
+
+        removed = 0
+        partner_banks = self.env['res.partner.bank'].search([('partner_id', '=', partner.id)])
+        for bank_row in partner_banks:
+            if self._is_placeholder_value(bank_row.acc_number):
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "cleanup placeholder partner.bank: remove account_id=%s acc_number=%r bank_name=%r",
+                    bank_row.id,
+                    bank_row.acc_number,
+                    bank_row.bank_id.name if bank_row.bank_id else False,
+                )
+                bank_row.unlink()
+                removed += 1
+
+        if removed:
+            self._log_supplier_sync(
+                supplier_ref,
+                "cleanup placeholder partner.bank completed: removed=%s partner_id=%s",
+                removed,
+                partner.id,
+            )
+        return removed
+
+    def _upsert_supplier_bank_accounts(self, partner, supplier_detail, supplier_dto=None, supplier_details=None, currency_id=False, supplier_ref=''):
+        """Upsert res.bank and res.partner.bank from RS payload."""
+        if not partner:
+            self._log_supplier_sync(supplier_ref, "skip bank upsert: partner missing (skip because partner not found)")
+            return
+
+        self._cleanup_placeholder_partner_bank_accounts(partner, supplier_ref=supplier_ref)
+
+        payload = self._extract_bank_payload(
+            supplier_detail,
+            supplier_dto=supplier_dto,
+            supplier_details=supplier_details,
+            supplier_ref=supplier_ref,
+            supplier_name=partner.name,
+        )
+        acc_number = self._clean_placeholder_text(payload.get('bank_account'))
+        bank_name = self._clean_placeholder_text(payload.get('bank_name'))
+        swift_code = self._clean_placeholder_text(payload.get('bank_swift'))
+        bank_street = self._clean_placeholder_text(payload.get('bank_address'))
+        bank_branch = self._clean_placeholder_text(payload.get('bank_branch'))
+        bank_country = self._clean_placeholder_text(payload.get('bank_country'))
+        self._log_supplier_sync(
+            supplier_ref,
+            "extract bank fields: bank_name=%r bank_bic=%r bank_street=%r bank_country=%r account_number=%r currency_id=%r",
+            bank_name,
+            swift_code,
+            bank_street,
+            bank_country,
+            acc_number,
+            currency_id,
+        )
+        self._log_supplier_sync(
+            supplier_ref,
+            "bank payload extracted: account=%r source_key=%r source_node=%r bank_name=%r swift=%r country=%r branch=%r address=%r",
+            acc_number,
+            payload.get('bank_account_source_key'),
+            payload.get('bank_account_source_node'),
+            bank_name,
+            swift_code,
+            bank_country,
+            bank_branch,
+            bank_street,
+        )
+
+        if not any([bank_name, swift_code]):
+            self._log_supplier_sync(
+                supplier_ref,
+                "skip res.bank upsert: both bank_name and swift are empty/placeholder",
+            )
+
+        country_id = self._resolve_country_id_any(bank_country)
+        bank_domain = []
+        if swift_code:
+            bank_domain = [('bic', '=', swift_code)]
+        elif bank_name and country_id:
+            bank_domain = [('name', '=', bank_name), ('country', '=', country_id)]
+        elif bank_name:
+            bank_domain = [('name', '=', bank_name)]
+
+        bank = self.env['res.bank'].search(bank_domain, limit=1) if bank_domain else False
+        self._log_supplier_sync(supplier_ref, "bank search domain=%s found_bank_id=%s", bank_domain, bank.id if bank else False)
+        bank_vals = {}
+        if bank_name:
+            bank_vals['name'] = bank_name
+        if swift_code:
+            bank_vals['bic'] = swift_code
+        if bank_street:
+            bank_vals['street'] = bank_street
+        if country_id:
+            bank_vals['country'] = country_id
+        if bank_branch and 'bank_branch_name' in self.env['res.bank']._fields:
+            bank_vals['bank_branch_name'] = bank_branch
+
+        if bank_vals and not bank_vals.get('name') and swift_code:
+            bank_vals['name'] = swift_code
+
+        if bank:
+            if bank_vals:
+                bank.write(bank_vals)
+                self._log_supplier_sync(supplier_ref, "bank updated: bank_id=%s vals=%s", bank.id, bank_vals)
+        elif bank_vals.get('name'):
+            bank = self.env['res.bank'].create(bank_vals)
+            self._log_supplier_sync(supplier_ref, "bank created: bank_id=%s vals=%s", bank.id, bank_vals)
+        else:
+            self._log_supplier_sync(
+                supplier_ref,
+                "skip res.bank create: validation failed because bank_vals has no name; bank_vals=%s",
+                bank_vals,
+            )
+
+        if not acc_number:
+            self._log_supplier_sync(
+                supplier_ref,
+                "skip partner.bank upsert: acc_number missing (skip because account_number is empty, matched_key=%r matched_node=%r)",
+                payload.get('bank_account_source_key'),
+                payload.get('bank_account_source_node'),
+            )
+            return
+
+        self._log_supplier_sync(
+            supplier_ref,
+            "partner.bank upsert condition: partner_id=%s has_acc_number=%s has_bank_id=%s currency_id=%s",
+            partner.id,
+            bool(acc_number),
+            bool(bank and bank.id),
+            currency_id,
+        )
+        if not bank:
+            self._log_supplier_sync(
+                supplier_ref,
+                "skip partner.bank upsert: bank_id missing (skip because bank_id is required)",
+            )
+            return
+
+        account_vals = {
+            'partner_id': partner.id,
+            'acc_number': acc_number,
+            'bank_id': bank.id,
+        }
+        if 'currency_id' in self.env['res.partner.bank']._fields:
+            account_vals['currency_id'] = currency_id or False
+
+        account = self.env['res.partner.bank'].search([
+            ('partner_id', '=', partner.id),
+            ('acc_number', '=', account_vals['acc_number']),
+            ('bank_id', '=', account_vals['bank_id']),
+        ], limit=1)
+        if account:
+            account.write(account_vals)
+            self._log_supplier_sync(
+                supplier_ref,
+                "partner.bank updated: account_id=%s bank_id=%s currency_id=%s",
+                account.id,
+                account_vals.get('bank_id'),
+                account_vals.get('currency_id'),
+            )
+        else:
+            account = self.env['res.partner.bank'].create(account_vals)
+            self._log_supplier_sync(
+                supplier_ref,
+                "partner.bank created: account_id=%s bank_id=%s currency_id=%s",
+                account.id,
+                account_vals.get('bank_id'),
+                account_vals.get('currency_id'),
+            )
+
+    def _upsert_supplier_partner(self, supplier_dto, cache, currency_id=False):
+        """Upsert supplier partner by ref (official code), then enrich contact/bank."""
+        details = supplier_dto.get('supplierDetailDTOS', []) if isinstance(supplier_dto, dict) else []
+        detail_candidates = [rec for rec in details if isinstance(rec, dict)]
+        if isinstance(supplier_dto, dict):
+            detail_candidates.append(supplier_dto)
+        if not detail_candidates:
+            self._log_supplier_sync('', "skip supplier upsert: no detail candidates in payload")
+            return False
+
+        detail = detail_candidates[0]
+        supplier_ref = False
+        supplier_name = False
+        for candidate in detail_candidates:
+            supplier_ref = self._rs_pick(candidate, ['cid', 'code', 'supplierCode', 'supplier_code'])
+            supplier_name = self._rs_pick(candidate, ['name', 'supplierName', 'supplier_name'])
+            if supplier_ref and supplier_name:
+                detail = candidate
+                break
+
+        if not supplier_ref or not supplier_name:
+            self._log_supplier_sync('', "skip supplier upsert: missing supplier_ref or supplier_name")
+            return False
+
+        ref = str(supplier_ref).strip().upper()
+        self._log_supplier_sync(
+            ref,
+            "supplier candidate resolved: supplier_ref=%r supplier_name=%r details_count=%s currency_id=%s",
+            ref,
+            supplier_name,
+            len(detail_candidates),
+            currency_id,
+        )
+        partner = self.env['res.partner'].search([('ref', '=', ref)], limit=1)
+        if not partner and 'code' in self.env['res.partner']._fields:
+            partner = self.env['res.partner'].search([('code', '=', ref)], limit=1)
+
+        phone = self._rs_pick(detail, ['phone', 'phoneNumber', 'telephone'])
+        email = self._clean_placeholder_text(self._rs_pick(detail, ['mail', 'email']))
+        vat = self._clean_placeholder_text(self._rs_pick(detail, ['taxCode', 'tax_code', 'taxNumber', 'tax_number', 'taxId', 'vat', 'mst']))
+        fax = self._clean_placeholder_text(self._rs_pick(detail, ['fax', 'faxNumber', 'fax_number']))
+        address_text = self._rs_pick(detail, ['address', 'street'])
+        city = self._rs_pick(detail, ['city'])
+        partner_country = self._rs_pick(detail, ['countryCode', 'country_code', 'country'])
+        if not partner_country and isinstance(detail.get('coDTO'), dict):
+            partner_country = (
+                detail['coDTO'].get('cid')
+                or detail['coDTO'].get('code')
+                or detail['coDTO'].get('name')
+            )
+        contact_person = self._clean_placeholder_text(self._rs_pick(detail, [
+            'contactName', 'contact_name', 'contactPerson', 'contact_person',
+            'contactPersonName', 'personContact', 'nguoiLienHe',
+        ]))
+        self._log_alias_lookup(ref, detail, 'supplier_ref', ['cid', 'code', 'supplierCode', 'supplier_code'])
+        self._log_alias_lookup(ref, detail, 'supplier_name', ['name', 'supplierName', 'supplier_name'])
+        self._log_alias_lookup(ref, detail, 'phone', ['phone', 'phoneNumber', 'telephone'])
+        self._log_alias_lookup(ref, detail, 'email', ['mail', 'email'])
+        self._log_alias_lookup(ref, detail, 'address', ['address', 'street'])
+        self._log_alias_lookup(ref, detail, 'vat', ['taxCode', 'tax_code', 'taxNumber', 'tax_number', 'taxId', 'vat', 'mst'])
+        self._log_alias_lookup(ref, detail, 'contact_person', [
+            'contactName', 'contact_name', 'contactPerson', 'contact_person',
+            'contactPersonName', 'personContact', 'nguoiLienHe',
+        ])
+        self._log_alias_lookup(ref, detail, 'bank_name', ['bankName', 'bank_name', 'name'])
+        self._log_alias_lookup(ref, detail, 'bank_bic', ['swiftCode', 'swift_code', 'swift', 'bic', 'bankBic'])
+        self._log_alias_lookup(ref, detail, 'bank_street', ['bankAddress', 'bank_address', 'address'])
+        self._log_alias_lookup(ref, detail, 'bank_country', ['bankCountry', 'bank_country', 'country', 'countryCode', 'country_code'])
+        self._log_supplier_sync(
+            ref,
+            "extract fields: supplier_ref=%r supplier_name=%r phone=%r email=%r address=%r vat=%r contact_person=%r",
+            ref,
+            supplier_name,
+            phone,
+            email,
+            address_text,
+            vat,
+            contact_person,
+        )
+        address_parts = self._extract_supplier_address_parts(
+            address_text,
+            city=city,
+            country=partner_country,
+        )
+        self._log_supplier_sync(
+            ref,
+            "address parse: raw=%r city_in=%r country_in=%r => street=%r city=%r country_id=%r",
+            address_text,
+            city,
+            partner_country,
+            address_parts.get('street'),
+            address_parts.get('city'),
+            address_parts.get('country_id'),
+        )
+
+        vals = {
+            'name': str(supplier_name).strip(),
+            'ref': ref,
+            'is_company': True,
+            'supplier_rank': max(1, int(partner.supplier_rank or 0)) if partner else 1,
+        }
+        if phone:
+            vals['phone'] = str(phone).strip()
+        if email:
+            vals['email'] = str(email).strip()
+        if vat:
+            vals['vat'] = str(vat).strip()
+        if fax:
+            # Odoo 18 base has no dedicated fax field; keep fax in mobile as safest standard slot.
+            vals['mobile'] = str(fax).strip()
+        if address_parts.get('street'):
+            vals['street'] = address_parts['street']
+        if address_parts.get('city'):
+            vals['city'] = address_parts['city']
+        if address_parts.get('country_id'):
+            vals['country_id'] = address_parts['country_id']
+        if 'property_purchase_currency_id' in self.env['res.partner']._fields:
+            vals['property_purchase_currency_id'] = currency_id or False
+        if 'code' in self.env['res.partner']._fields:
+            vals['code'] = ref
+        self._log_supplier_sync(
+            ref,
+            "partner vals prepared: has_phone=%s has_vat=%s has_city=%s has_country=%s purchase_currency_id=%s",
+            bool(vals.get('phone')),
+            bool(vals.get('vat')),
+            bool(vals.get('city')),
+            bool(vals.get('country_id')),
+            vals.get('property_purchase_currency_id'),
+        )
+
+        if partner:
+            partner.write(vals)
+            self._log_supplier_sync(ref, "partner updated: partner_id=%s", partner.id)
+        else:
+            partner = self.env['res.partner'].create(vals)
+            self._log_supplier_sync(ref, "partner created: partner_id=%s", partner.id)
+
+        cache['suppliers'][ref] = partner.id
+        if 'code' in self.env['res.partner']._fields and partner.code:
+            cache['suppliers'][partner.code.upper()] = partner.id
+
+        self._upsert_supplier_contact(partner, detail)
+        self._upsert_supplier_bank_accounts(
+            partner,
+            detail,
+            supplier_dto=supplier_dto,
+            supplier_details=details,
+            currency_id=currency_id,
+            supplier_ref=ref,
+        )
+
+        partner_banks = self.env['res.partner.bank'].search([('partner_id', '=', partner.id)])
+        bank_rows = [
+            {
+                'id': row.id,
+                'acc_number': row.acc_number,
+                'bank_name': row.bank_id.name if row.bank_id else False,
+            }
+            for row in partner_banks
+        ]
+        self._log_supplier_sync(
+            ref,
+            "supplier sync result: partner_id=%s bank_ids_count=%s bank_ids=%s",
+            partner.id,
+            len(partner_banks),
+            self._safe_debug_json(bank_rows),
+        )
+        return partner.id
+
     def _prepare_base_vals(self, item, cache, product_type, coating_ids=None, lens_template_key=None):
         dto = item.get('productdto') or {}
         cid = (dto.get('cid') or '').strip()
         if not cid:
             raise ValueError("Missing CID")
+        rs_product_id = self._extract_rs_product_id(item)
 
         # Gọng kính: mỗi màu = 1 template riêng, key định danh BẮT BUỘC là model-color
         default_code = cid
@@ -1210,7 +2315,50 @@ class ProductSync(models.Model):
                 cache['groups_by_id'][grp_id] = grp_id
 
         # Currency lookup (cần trước seller_ids để truyền currency_id đúng)
-        currency_zone_cid = (dto.get('currencyZoneDTO') or {}).get('cid', '')
+        s_dto = dto.get('supplierdto') or {}
+        s_details = s_dto.get('supplierDetailDTOS', []) if isinstance(s_dto, dict) else []
+        s_detail = s_details[0] if s_details and isinstance(s_details[0], dict) else {}
+        supplier_currency_code = self._rs_pick(s_dto, ['currencyCode', 'currency_code', 'currency'])
+        if not supplier_currency_code and isinstance(s_dto, dict):
+            supplier_zone_obj = s_dto.get('currencyZoneDTO')
+            if isinstance(supplier_zone_obj, dict):
+                supplier_currency_code = supplier_zone_obj.get('cid') or supplier_zone_obj.get('code') or supplier_zone_obj.get('name')
+
+        if not supplier_currency_code:
+            supplier_currency_code = self._rs_pick(s_detail, ['currencyCode', 'currency_code', 'currency'])
+            if not supplier_currency_code and isinstance(s_detail, dict):
+                supplier_zone_obj = s_detail.get('currencyZoneDTO')
+                if isinstance(supplier_zone_obj, dict):
+                    supplier_currency_code = supplier_zone_obj.get('cid') or supplier_zone_obj.get('code') or supplier_zone_obj.get('name')
+
+        currency_zone_cid = self._extract_supplier_currency_code(dto, s_dto, s_detail)
+        supplier_ref_hint = self._rs_pick(s_detail, ['cid', 'code', 'supplierCode', 'supplier_code']) or self._rs_pick(s_dto, ['cid', 'code', 'supplierCode', 'supplier_code'])
+        supplier_name_hint = self._rs_pick(s_detail, ['name', 'supplierName', 'supplier_name']) or self._rs_pick(s_dto, ['name', 'supplierName', 'supplier_name'])
+        supplier_ref_hint = str(supplier_ref_hint or '').strip().upper()
+        self._log_supplier_sync(
+            supplier_ref_hint,
+            "currency source resolved: code=%r dto_currencyZone=%r",
+            currency_zone_cid,
+            ((dto.get('currencyZoneDTO') or {}).get('cid') if isinstance(dto, dict) else ''),
+        )
+        self._log_supplier_sync(
+            supplier_ref_hint,
+            "currency source detail: supplier_currency=%r product_currency=%r",
+            supplier_currency_code,
+            ((dto.get('currencyZoneDTO') or {}).get('cid') if isinstance(dto, dict) else ''),
+        )
+
+        strict_supplier_currency_source = os.getenv('STRICT_SUPPLIER_CURRENCY_SOURCE', 'False').strip().lower() in ('1', 'true', 'yes', 'on')
+        if strict_supplier_currency_source and not supplier_currency_code:
+            raise ValueError(
+                "Supplier currency source missing in supplier payload: supplier_ref=%s supplier_name=%s product_currency=%s"
+                % (
+                    supplier_ref_hint or 'N/A',
+                    (self._rs_pick(s_detail, ['name', 'supplierName', 'supplier_name']) or self._rs_pick(s_dto, ['name', 'supplierName', 'supplier_name']) or 'N/A'),
+                    (currency_zone_cid or 'EMPTY'),
+                )
+            )
+
         currency_id = False
         if currency_zone_cid:
             _cur_key = f'currency_{currency_zone_cid.upper()}'
@@ -1234,66 +2382,50 @@ class ProductSync(models.Model):
                         # Nếu currency đang inactive, kích hoạt để dùng được
                         if not _cur.active:
                             try:
-                                _cur.write({'active': True})
+                                with self.env.cr.savepoint():
+                                    _cur.write({'active': True})
                                 _logger.info(f"✅ Activated inactive currency: {currency_zone_cid.upper()} (id={currency_id})")
                             except Exception as e:
                                 _logger.warning(f"⚠️ Không kích hoạt được currency {currency_zone_cid!r}: {e}")
                     else:
-                        try:
-                            with self.env.cr.savepoint():
-                                _cur = self.env['res.currency'].create({
-                                    'name': currency_zone_cid.upper(),
-                                    'symbol': currency_zone_cid.upper(),
-                                    'position': 'after',
-                                    'active': True,
-                                    'rounding': 0.01,
-                                })
-                                currency_id = _cur.id
-                                _logger.info(f"✅ Auto-created currency: {currency_zone_cid.upper()} (id={currency_id})")
-                        except Exception as e:
-                            _logger.warning(f"⚠️ Không tạo được currency {currency_zone_cid!r}: {e}")
-                            # Recover: search lại sau khi lỗi (có thể do race condition)
-                            _cur_existing = self.env['res.currency'].with_context(active_test=False).search([
-                                ('name', '=', currency_zone_cid.upper())
-                            ], limit=1)
-                            if _cur_existing:
-                                currency_id = _cur_existing.id
-                                _logger.info(f"✅ Recovered currency after error: {currency_zone_cid.upper()} (id={currency_id})")
+                        _logger.warning(
+                            "⚠️ Currency không tồn tại trong Odoo: code=%r | supplier_ref=%r supplier_name=%r",
+                            currency_zone_cid,
+                            supplier_ref_hint,
+                            supplier_name_hint,
+                        )
                     # Cập nhật cache để lần sau không cần search lại
                     if currency_id:
                         cache.setdefault('acc_currency', {})[currency_zone_cid.upper()] = currency_id
                 cache['misc'][_cur_key] = currency_id
+        else:
+            self._log_supplier_sync(supplier_ref_hint, "currency unresolved: no currency code found in payload")
 
-        # Supplier Logic - Using seller_ids (Odoo standard)
-        seller_vals = []
-        s_dto = dto.get('supplierdto') or {}
-        s_details = s_dto.get('supplierDetailDTOS', [])
-        if s_details:
-            s_det = s_details[0]
-            s_cid, s_name = s_det.get('cid'), s_det.get('name')
-            if s_cid and s_name:
-                sup_id = False
-                if s_cid.upper() in cache['suppliers']:
-                     sup_id = cache['suppliers'][s_cid.upper()]
-                else:
-                    sup = self.env['res.partner'].create({
-                        'name': s_name, 'ref': s_cid, 'is_company': True, 'supplier_rank': 1,
-                        'phone': s_det.get('phone', ''), 'email': s_det.get('mail', ''), 'street': s_det.get('address', '')
-                    })
-                    sup_id = sup.id
-                    cache['suppliers'][s_cid.upper()] = sup_id
+        strict_currency = os.getenv('STRICT_SUPPLIER_CURRENCY', 'False').strip().lower() in ('1', 'true', 'yes', 'on')
+        supplier_has_identity = bool(supplier_ref_hint or supplier_name_hint)
+        if strict_currency and supplier_has_identity and not currency_id:
+            raise ValueError(
+                "Supplier currency mapping failed: supplier_ref=%s supplier_name=%s raw_currency=%s"
+                % (supplier_ref_hint or 'N/A', supplier_name_hint or 'N/A', currency_zone_cid or 'EMPTY')
+            )
 
-                # Prepare seller_ids values — truyền currency_id đúng theo sản phẩm
-                # currency_id là NOT NULL trong DB → dùng company currency làm fallback nếu không tìm được
-                if sup_id:
-                    _seller_currency_id = currency_id or self.env.company.currency_id.id
-                    seller_vals.append((0, 0, {
-                        'partner_id': sup_id,
-                        'price': float(dto.get('orPrice') or 0),
-                        'min_qty': 1.0,
-                        'delay': 1,
-                        'currency_id': _seller_currency_id,
-                    }))
+        self._log_supplier_sync(
+            supplier_ref_hint,
+            "currency resolved final: currency_id=%s",
+            currency_id,
+        )
+
+        # Supplier Logic - upsert supplier by ref and defer supplierinfo upsert.
+        seller_payloads = []
+        sup_id = self._upsert_supplier_partner(s_dto, cache, currency_id=currency_id)
+        if sup_id:
+            seller_payloads.append({
+                'partner_id': sup_id,
+                'price': float(dto.get('orPrice') or 0),
+                'min_qty': 1.0,
+                'delay': 1,
+                'currency_id': currency_id or False,
+            })
 
         # Tax (Purchase tax for suppliers)
         tax_pct = float(dto.get('tax') or 0)
@@ -1328,6 +2460,7 @@ class ProductSync(models.Model):
 
         is_storable = product_type in ['opt', 'lens']
         product_kind = 'consu'
+        resolved_uom_id = self._resolve_rs_uom_id(item, dto, cache)
 
         # Basic Vals
         vals = {
@@ -1336,12 +2469,11 @@ class ProductSync(models.Model):
             'type': product_kind,
             'is_storable': is_storable,  # Gọng/Lens = storable
             'categ_id': categ_id,
-            'uom_id': self.env.ref('uom.product_uom_unit').id,
-            'uom_po_id': self.env.ref('uom.product_uom_unit').id,
             'list_price': float(dto.get('rtPrice') or 0),
             'standard_price': float(dto.get('orPrice') or 0) * float((dto.get('currencyZoneDTO') or {}).get('value') or 1),  # Giá vốn: orPrice * tỷ giá (= x_or_price)
             'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else False,
-            'seller_ids': seller_vals if seller_vals else False,
+            'seller_ids': False,
+            '_seller_sync_payloads': seller_payloads,
             'product_type': product_type,
             'brand_id': self._get_or_create(cache, 'brands', 'product.brand', dto.get('tmdto')),
             'country_id': self._get_or_create(cache, 'countries', 'product.country', dto.get('codto')),
@@ -1377,6 +2509,14 @@ class ProductSync(models.Model):
             ),
             'x_group_type_name': grp_type_name,
         }
+
+        if resolved_uom_id:
+            vals['uom_id'] = resolved_uom_id
+            vals['uom_po_id'] = resolved_uom_id
+
+        # Keep RS source identifier independent from default_code business key.
+        if rs_product_id:
+            vals['x_rs_product_id'] = rs_product_id
 
         # ─── Lens specs (template-level only; no variants) ────────────────
         if product_type == 'lens':
@@ -1533,7 +2673,8 @@ class ProductSync(models.Model):
                     _logger.info("✅ _goc_design search hit name=%s id=%s", nm, found.id)
                     return found.id
                 try:
-                    rec = self.env['product.design'].create({'name': nm})
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.design'].create({'name': nm})
                     cache.setdefault('designs', {})[key] = rec.id
                     _logger.info("✅ _goc_design created name=%s id=%s", nm, rec.id)
                     return rec.id
@@ -1558,7 +2699,8 @@ class ProductSync(models.Model):
                     _logger.info("✅ _goc_material search hit name=%s id=%s", nm, found.id)
                     return found.id
                 try:
-                    rec = self.env['product.lens.material'].create({'name': nm})
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.lens.material'].create({'name': nm})
                     cache.setdefault('lens_materials', {})[key_lower] = rec.id
                     _logger.info("✅ _goc_material created name=%s id=%s", nm, rec.id)
                     return rec.id
@@ -1602,7 +2744,8 @@ class ProductSync(models.Model):
                     create_vals = {'name': name}
                     if cid and 'cid' in self.env['product.lens.index']._fields:
                         create_vals['cid'] = cid
-                    rec = self.env['product.lens.index'].create(create_vals)
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.lens.index'].create(create_vals)
                     if cid:
                         cache.setdefault('lens_indexes', {})[cid] = rec.id
                     cache.setdefault('lens_indexes', {})[name.upper()] = rec.id
@@ -1635,11 +2778,12 @@ class ProductSync(models.Model):
                     cache.setdefault('lens_powers_m2o', {})[cache_key] = found.id
                     return found.id
                 try:
-                    rec = self.env['product.lens.power'].create({
-                        'name': formatted,
-                        'value': fval,
-                        'type': power_type,
-                    })
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.lens.power'].create({
+                            'name': formatted,
+                            'value': fval,
+                            'type': power_type,
+                        })
                     cache.setdefault('lens_powers_m2o', {})[cache_key] = rec.id
                     _logger.info("✅ _goc_power created type=%s value=%s id=%s", power_type, formatted, rec.id)
                     return rec.id
@@ -1972,14 +3116,16 @@ class ProductSync(models.Model):
 
         for idx, item in enumerate(items):
             try:
-                # ── Raw structure debug (bật bằng LOG_LENS_RAW_STRUCTURE=True) ──
-                self._debug_log_item_structure(item, idx)
+                with self.env.cr.savepoint():
+                    # Mỗi item chạy trong savepoint riêng để tránh lỗi SQL làm hỏng cả transaction.
+                    # ── Raw structure debug (bật bằng LOG_LENS_RAW_STRUCTURE=True) ──
+                    self._debug_log_item_structure(item, idx)
 
-                tmpl = self._get_or_create_lens_template(item, cache)
-                if not tmpl:
-                    failed += 1
-                    continue
-                success += 1
+                    tmpl = self._get_or_create_lens_template(item, cache)
+                    if not tmpl:
+                        failed += 1
+                        continue
+                    success += 1
             except Exception as e:
                 failed += 1
                 import traceback
@@ -2059,16 +3205,18 @@ class ProductSync(models.Model):
                             )
 
                     # ── MAP_IN ──────────────────────────────────────────────────
+                    rs_uom = self._extract_uom_name_from_payload(item, dto) or 'N/A'
                     cz_dto = dto.get('currencyZoneDTO') or {}
                     _logger.info(
                         "[ACC_SYNC][MAP_IN] sku=%s important_fields={"
                         "currency=%s, brand=%s, country=%s, warranty=%s, "
-                        "uom=unit, category=%s, price=%s, cost=%s, barcode=%s}",
+                        "uom=%s, category=%s, price=%s, cost=%s, barcode=%s}",
                         sku,
                         cz_dto.get('cid') or 'N/A',
                         (dto.get('tmdto')      or {}).get('cid') or 'N/A',
                         (dto.get('codto')      or {}).get('cid') or 'N/A',
                         (dto.get('warrantydto') or {}).get('cid') or 'N/A',
+                        rs_uom,
                         (dto.get('groupdto')   or {}).get('name') or 'N/A',
                         dto.get('rtPrice', 0),
                         dto.get('orPrice', 0),
@@ -2237,12 +3385,14 @@ class ProductSync(models.Model):
                     )
 
                     # ── create / write ──────────────────────────────────────────
+                    seller_payloads = self._extract_seller_payloads(vals)
                     if pid:
                         step = 'write'
                         saved_rec = self.env['product.template'].browse(pid).with_context(
                             tracking_disable=True
                         )
                         saved_rec.write(vals)
+                        self._upsert_supplierinfo_payloads(saved_rec, seller_payloads)
                         if log_debug:
                             _logger.info(
                                 "[ACC_SYNC][WRITE_OK] sku=%s tmpl_id=%s", sku, pid
@@ -2252,6 +3402,7 @@ class ProductSync(models.Model):
                         saved_rec = self.env['product.template'].with_context(
                             tracking_disable=True
                         ).create(vals)
+                        self._upsert_supplierinfo_payloads(saved_rec, seller_payloads)
                         cache['products'][saved_rec.default_code] = saved_rec.id
                         if log_debug:
                             _logger.info(
@@ -2351,6 +3502,7 @@ class ProductSync(models.Model):
         total = len(items)
         success = failed = 0
         to_create, to_update = [], []
+        to_create_supplier_payloads = []
 
         has_child = False  # Hướng B: không còn dùng child model cho lens hay opt
         child_vals_map = {}    # tmpl_id → child_vals (cho opt)
@@ -2386,12 +3538,14 @@ class ProductSync(models.Model):
                         _logger.info(f"🔸 Accessory idx={idx} currency_code={_cur_code} currency_id={_cur_id} default_code={vals.get('default_code')}")
                     if has_child and product_type == 'opt':
                         c_vals = self._prepare_opt_vals(item, cache)
+                    seller_payloads = self._extract_seller_payloads(vals)
                     if pid:
-                        to_update.append((pid, vals))
+                        to_update.append((pid, vals, seller_payloads))
                         if has_child:
                             child_vals_map[pid] = c_vals
                     else:
                         to_create.append(vals)
+                        to_create_supplier_payloads.append(seller_payloads)
                         if has_child:
                             new_child_data.append((idx, c_vals))
             except Exception as e:
@@ -2408,6 +3562,7 @@ class ProductSync(models.Model):
             batch_size = 100
             for i in range(0, len(to_create), batch_size):
                 b_vals = to_create[i:i + batch_size]
+                b_supplier_payloads = to_create_supplier_payloads[i:i + batch_size]
                 b_child = new_child_data[i:i + batch_size] if has_child else []
                 b_child_refs = b_child
                 try:
@@ -2418,6 +3573,8 @@ class ProductSync(models.Model):
 
                         for j, rec in enumerate(recs):
                             cache['products'][rec.default_code] = rec.id
+                            if j < len(b_supplier_payloads):
+                                self._upsert_supplierinfo_payloads(rec, b_supplier_payloads[j])
                         success += len(recs)
                 except Exception as e:
                     failed += len(b_vals)
@@ -2442,12 +3599,14 @@ class ProductSync(models.Model):
                             _logger.error(f"Child Create Error product {rec.id}: {e}")
 
         # ─── Bước 3: Batch Update ─────────────────────────────────────────
-        for pid, vals in to_update:
+        for pid, vals, seller_payloads in to_update:
             try:
                 with self.env.cr.savepoint():
-                    self.env['product.template'].browse(pid).with_context(
+                    product_tmpl = self.env['product.template'].browse(pid).with_context(
                         tracking_disable=True
-                    ).write(vals)
+                    )
+                    product_tmpl.write(vals)
+                    self._upsert_supplierinfo_payloads(product_tmpl, seller_payloads)
 
                     if has_child and pid in child_vals_map:
                         c_vals = child_vals_map[pid]
@@ -2519,12 +3678,13 @@ class ProductSync(models.Model):
             
             total = stats['lens'] + stats['opt'] + stats['acc']
             msg = f"Đã đồng bộ {total} (Mắt:{stats['lens']}, Gọng:{stats['opt']}, Khác:{stats['acc']}). Lỗi: {stats['failed']}"
-            self.write({'sync_status': 'success' if stats['failed'] == 0 else 'success', 'sync_log': msg, 
+            has_failed = stats['failed'] > 0
+            self.write({'sync_status': 'error' if has_failed else 'success', 'sync_log': msg,
                        'total_synced': total, 'total_failed': stats['failed'], 
                        'lens_count': stats['lens'], 'opts_count': stats['opt'], 'other_count': stats['acc']})
             
             return {'type': 'ir.actions.client', 'tag': 'display_notification', 
-                    'params': {'title': 'Đồng bộ hoàn tất', 'message': msg, 'type': 'success'}}
+                    'params': {'title': 'Đồng bộ hoàn tất', 'message': msg, 'type': 'danger' if has_failed else 'success'}}
 
         except Exception as e:
             self.env.cr.rollback()

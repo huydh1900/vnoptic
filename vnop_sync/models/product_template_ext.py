@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import unicodedata
+import base64
 
 from odoo import models, fields, api
 
@@ -18,6 +19,7 @@ class ProductCategory(models.Model):
 
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
+    _QR_PRODUCT_BASE_URL = 'https://erp.vnoptictech.com.vn/product'
 
     _CATEGORY_CODE_KIND_MAP = {
         '06': 'lens',
@@ -274,6 +276,71 @@ class ProductTemplateExtension(models.Model):
         'Loại nhóm (từ API)',
         help="Product group type from API - for reference only"
     )
+
+    x_rs_product_id = fields.Char(
+        'ID sản phẩm',
+        copy=False,
+        index=True,
+        help='Định danh sản phẩm gốc từ RS (ưu tiên productdto.id, fallback productdto.externalId).'
+    )
+
+    x_qr_url = fields.Char(
+        'QR URL',
+        compute='_compute_x_qr_url',
+        compute_sudo=True,
+        store=True,
+        readonly=True,
+        help='URL sản phẩm dùng để sinh QR: https://erp.vnoptictech.com.vn/product/{x_rs_product_id}'
+    )
+
+    x_qr_image = fields.Image(
+        'QR Image',
+        compute='_compute_x_qr_image',
+        compute_sudo=True,
+        store=True,
+        readonly=True,
+        attachment=True,
+        max_width=512,
+        max_height=512,
+        help='Ảnh QR sinh tự động từ QR URL để hiển thị trên form sản phẩm.'
+    )
+
+    @api.depends('x_rs_product_id')
+    def _compute_x_qr_url(self):
+        for record in self:
+            rs_product_id = (record.x_rs_product_id or '').strip()
+            record.x_qr_url = (
+                f"{self._QR_PRODUCT_BASE_URL}/{rs_product_id}"
+                if rs_product_id else False
+            )
+
+    @api.depends('x_qr_url')
+    def _compute_x_qr_image(self):
+        report_model = self.env['ir.actions.report'].sudo()
+        for record in self:
+            if not record.x_qr_url:
+                record.x_qr_image = False
+                continue
+
+            try:
+                qr_png = report_model.barcode('QR', record.x_qr_url, width=180, height=180)
+                if isinstance(qr_png, memoryview):
+                    qr_png = qr_png.tobytes()
+                elif isinstance(qr_png, bytearray):
+                    qr_png = bytes(qr_png)
+                elif isinstance(qr_png, str):
+                    qr_png = qr_png.encode('utf-8')
+
+                if not isinstance(qr_png, bytes) or not qr_png:
+                    raise ValueError('barcode() returned empty/non-bytes payload')
+
+                if not qr_png.startswith(b'\x89PNG'):
+                    _logger.warning('QR payload for template %s is not PNG header', record.id)
+
+                record.x_qr_image = base64.b64encode(qr_png).decode('ascii')
+            except Exception as err:
+                _logger.exception('Cannot generate product QR for template %s (%s): %s', record.id, record.x_qr_url, err)
+                record.x_qr_image = False
 
     # ==================== ACCESSORY FIELDS ====================
     design_id = fields.Many2one('product.design', string='Thiết kế')
