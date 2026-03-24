@@ -30,11 +30,6 @@
                             string="Xác nhận hàng về"
                             invisible="state != 'draft'"
                             class="oe_highlight"/>
-                    <button name="action_create_otk_sessions"
-                            type="object"
-                            string="Tạo OTK theo lịch"
-                            invisible="state != 'confirmed'"
-                            class="btn-secondary"/>
 
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,confirmed"/>
@@ -49,10 +44,6 @@
                                 icon="fa-shopping-cart"
                                 invisible="not purchase_id">
                             <field name="purchase_count" widget="statinfo" string="Đơn mua hàng"/>
-                        </button>
-                        <button name="action_view_otk_sessions" type="object"
-                                icon="fa-check-square-o">
-                            <field name="otk_session_count" widget="statinfo" string="Lần OTK"/>
                         </button>
                     </div>
 
@@ -72,7 +63,6 @@
                                    domain="[('supplier_rank','>',0)]" options="{'no_create': True}"
                                    readonly="context.get('from_purchase')"/>
                             <field name="partner_ref"/>
-                            <field name="purchase_id" readonly="1"/>
                             <field name="delivery_datetime"/>
                             <field name="description" placeholder="Nhập ghi chú nội bộ hoặc hướng dẫn giao hàng..."/>
                         </group>
@@ -114,6 +104,18 @@
                     </group>
 
                     <notebook>
+                        <page string="Chi tiết hàng giao">
+                            <field name="line_ids" force_save="1">
+                                <list editable="bottom">
+                                    <field name="contract_line_id" optional="hide" force_save="1"/>
+                                    <field name="purchase_offer_id" readonly="1"/>
+                                    <field name="product_id" readonly="1" />
+                                    <field name="uom_id" readonly="1" optional="hide"/>
+                                    <field name="qty_planned"/>
+                                    <field name="qty_received" readonly="1"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="Thông tin bổ sung">
                             <group>
                                 <field name="create_date" string="Thời gian tạo" readonly="1"/>

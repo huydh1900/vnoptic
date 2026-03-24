@@ -13,6 +13,12 @@
                         icon="fa-calendar">
                     <field name="delivery_schedule_count" widget="statinfo" string="Lịch giao hàng"/>
                 </button>
+                <button name="action_view_purchase_orders"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-shopping-cart">
+                    <field name="purchase_order_count" widget="statinfo" string="Đơn mua"/>
+                </button>
             </xpath>
             <xpath expr="//button[@name='action_cancel']" position="before">
                 <button name="action_create_delivery_schedule"

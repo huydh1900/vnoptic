@@ -15,6 +15,7 @@ class ProductOpt(models.Model):
     serial = fields.Char('Serial', size=50)
     oem_ncc = fields.Char('OEM Supplier', size=50)
     sku = fields.Char('SKU', size=50)
+    color_code = fields.Char('Color Code', size=50)
     gender = fields.Selection([
         ('1', 'Male'),
         ('2', 'Female'),

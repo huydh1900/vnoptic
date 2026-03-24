@@ -7,6 +7,12 @@ class ContractLine(models.Model):
     _name = "contract.line"
     _description = "Dòng tổng hợp sản phẩm theo hợp đồng"
     _order = "id"
+    _rec_name = "display_name"
+
+    @api.depends('product_id', 'product_qty', 'uom_id')
+    def _compute_display_name(self):
+        for rec in self:
+            rec.display_name = f"{rec.product_id.display_name} ({rec.product_qty} {rec.uom_id.name})" if rec.product_id else "/"
 
     contract_id = fields.Many2one("contract", string="Hợp đồng", required=True, ondelete="cascade")
     product_id = fields.Many2one("product.product", string="Sản phẩm", required=True)

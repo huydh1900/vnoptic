@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="seq_stock_otk" model="ir.sequence">
+        <field name="name">Stock OTK</field>
+        <field name="code">stock.otk</field>
+        <field name="prefix">OTK/%(year)s/%(month)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+
+    <record id="seq_stock_otk_check" model="ir.sequence">
+        <field name="name">Stock OTK Check</field>
+        <field name="code">stock.otk.check</field>
+        <field name="prefix">OTKC/%(year)s/%(month)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

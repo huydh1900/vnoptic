@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Kho tạm: Nhận hàng từ NCC, chưa QC, chưa nhập kho chính -->
+    <record id="location_temp_incoming" model="stock.location">
+        <field name="name">Kho Tạm</field>
+        <field name="usage">internal</field>
+        <field name="location_id" eval="ref('stock.warehouse0').view_location_id.id"/>
+        <field name="comment">Nhận hàng từ NCC nhưng chưa QC, chưa nhập vào kho chính</field>
+    </record>
+
+    <!-- Kho lỗi: Chứa hàng không đạt QC, xử lý sau (trả NCC / hủy / sửa) -->
+    <record id="location_defect" model="stock.location">
+        <field name="name">Kho Lỗi</field>
+        <field name="usage">internal</field>
+        <field name="location_id" eval="ref('stock.warehouse0').view_location_id.id"/>
+        <field name="comment">Chứa hàng không đạt QC. Có thể xử lý sau: trả NCC, hủy hoặc sửa chữa</field>
+    </record>
+</odoo>
