@@ -456,7 +456,8 @@ class ProductSync(models.Model):
             vals = {'name': name or cid}
             if cid:
                 vals['cid'] = cid
-            rec = self.env[model_name].create(vals)
+            with self.env.cr.savepoint():
+                rec = self.env[model_name].create(vals)
             rid = rec.id
             if cid:
                 cache.setdefault(cache_key, {})[cid] = rid
@@ -488,7 +489,8 @@ class ProductSync(models.Model):
         if rid:
             return rid
         try:
-            rec = self.env['product.cl'].create({'name': name})
+            with self.env.cr.savepoint():
+                rec = self.env['product.cl'].create({'name': name})
             cache.setdefault('colors', {})[name_upper] = rec.id
             _logger.info(f"✅ Auto-created product.cl name={name!r} id={rec.id}")
             return rec.id
@@ -767,7 +769,8 @@ class ProductSync(models.Model):
             create_vals = {'name': name}
             if cid and 'cid' in self.env['product.uv']._fields:
                 create_vals['cid'] = cid
-            rec = self.env['product.uv'].create(create_vals)
+            with self.env.cr.savepoint():
+                rec = self.env['product.uv'].create(create_vals)
             if cid:
                 cache.setdefault('uvs', {})[cid] = rec.id
             cache.setdefault('uvs', {})[name.upper()] = rec.id
@@ -869,7 +872,8 @@ class ProductSync(models.Model):
                     create_vals = {'name': c_name}
                     if c_cid and 'cid' in self.env['product.coating']._fields:
                         create_vals['cid'] = c_cid
-                    rec = self.env['product.coating'].create(create_vals)
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.coating'].create(create_vals)
                     coating_id = rec.id
                     if c_cid:
                         cache.setdefault('coatings', {})[c_cid] = coating_id
@@ -1516,6 +1520,7 @@ class ProductSync(models.Model):
             return
 
         supplierinfo_model = self.env['product.supplierinfo']
+        default_currency_id = self.env.company.currency_id.id if self.env.company and self.env.company.currency_id else False
         for payload in payloads:
             partner_id = payload.get('partner_id')
             if not partner_id:
@@ -1523,7 +1528,14 @@ class ProductSync(models.Model):
 
             min_qty = float(payload.get('min_qty') or 1.0)
             delay = int(payload.get('delay') or 1)
-            currency_id = payload.get('currency_id') or False
+            currency_id = payload.get('currency_id') or default_currency_id
+            if not currency_id:
+                _logger.warning(
+                    "Skip supplierinfo upsert: currency_id unresolved for product_tmpl_id=%s partner_id=%s",
+                    product_tmpl.id,
+                    partner_id,
+                )
+                continue
 
             domain = [
                 ('product_tmpl_id', '=', product_tmpl.id),
@@ -2370,7 +2382,8 @@ class ProductSync(models.Model):
                         # Nếu currency đang inactive, kích hoạt để dùng được
                         if not _cur.active:
                             try:
-                                _cur.write({'active': True})
+                                with self.env.cr.savepoint():
+                                    _cur.write({'active': True})
                                 _logger.info(f"✅ Activated inactive currency: {currency_zone_cid.upper()} (id={currency_id})")
                             except Exception as e:
                                 _logger.warning(f"⚠️ Không kích hoạt được currency {currency_zone_cid!r}: {e}")
@@ -2660,7 +2673,8 @@ class ProductSync(models.Model):
                     _logger.info("✅ _goc_design search hit name=%s id=%s", nm, found.id)
                     return found.id
                 try:
-                    rec = self.env['product.design'].create({'name': nm})
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.design'].create({'name': nm})
                     cache.setdefault('designs', {})[key] = rec.id
                     _logger.info("✅ _goc_design created name=%s id=%s", nm, rec.id)
                     return rec.id
@@ -2685,7 +2699,8 @@ class ProductSync(models.Model):
                     _logger.info("✅ _goc_material search hit name=%s id=%s", nm, found.id)
                     return found.id
                 try:
-                    rec = self.env['product.lens.material'].create({'name': nm})
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.lens.material'].create({'name': nm})
                     cache.setdefault('lens_materials', {})[key_lower] = rec.id
                     _logger.info("✅ _goc_material created name=%s id=%s", nm, rec.id)
                     return rec.id
@@ -2729,7 +2744,8 @@ class ProductSync(models.Model):
                     create_vals = {'name': name}
                     if cid and 'cid' in self.env['product.lens.index']._fields:
                         create_vals['cid'] = cid
-                    rec = self.env['product.lens.index'].create(create_vals)
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.lens.index'].create(create_vals)
                     if cid:
                         cache.setdefault('lens_indexes', {})[cid] = rec.id
                     cache.setdefault('lens_indexes', {})[name.upper()] = rec.id
@@ -2762,11 +2778,12 @@ class ProductSync(models.Model):
                     cache.setdefault('lens_powers_m2o', {})[cache_key] = found.id
                     return found.id
                 try:
-                    rec = self.env['product.lens.power'].create({
-                        'name': formatted,
-                        'value': fval,
-                        'type': power_type,
-                    })
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.lens.power'].create({
+                            'name': formatted,
+                            'value': fval,
+                            'type': power_type,
+                        })
                     cache.setdefault('lens_powers_m2o', {})[cache_key] = rec.id
                     _logger.info("✅ _goc_power created type=%s value=%s id=%s", power_type, formatted, rec.id)
                     return rec.id
@@ -3099,14 +3116,16 @@ class ProductSync(models.Model):
 
         for idx, item in enumerate(items):
             try:
-                # ── Raw structure debug (bật bằng LOG_LENS_RAW_STRUCTURE=True) ──
-                self._debug_log_item_structure(item, idx)
+                with self.env.cr.savepoint():
+                    # Mỗi item chạy trong savepoint riêng để tránh lỗi SQL làm hỏng cả transaction.
+                    # ── Raw structure debug (bật bằng LOG_LENS_RAW_STRUCTURE=True) ──
+                    self._debug_log_item_structure(item, idx)
 
-                tmpl = self._get_or_create_lens_template(item, cache)
-                if not tmpl:
-                    failed += 1
-                    continue
-                success += 1
+                    tmpl = self._get_or_create_lens_template(item, cache)
+                    if not tmpl:
+                        failed += 1
+                        continue
+                    success += 1
             except Exception as e:
                 failed += 1
                 import traceback
