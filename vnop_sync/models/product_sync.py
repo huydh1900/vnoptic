@@ -1495,16 +1495,7 @@ class ProductSync(models.Model):
                 if zone_value:
                     return str(zone_value).strip()
 
-        code = (self._rs_pick(dto, ['currencyCode', 'currency_code', 'currency']) or '').strip()
-        if code:
-            return code
-
-        zone_obj = dto.get('currencyZoneDTO') if isinstance(dto, dict) else {}
-        if isinstance(zone_obj, dict):
-            for key in ('cid', 'code', 'name'):
-                value = zone_obj.get(key)
-                if value not in (None, '', False):
-                    return str(value).strip()
+        # IMPORTANT: do not fallback to product currency for supplier purchase currency.
         return ''
 
     def _extract_seller_payloads(self, vals):
@@ -2032,8 +2023,8 @@ class ProductSync(models.Model):
             'acc_number': acc_number,
             'bank_id': bank.id,
         }
-        if currency_id and 'currency_id' in self.env['res.partner.bank']._fields:
-            account_vals['currency_id'] = currency_id
+        if 'currency_id' in self.env['res.partner.bank']._fields:
+            account_vals['currency_id'] = currency_id or False
 
         account = self.env['res.partner.bank'].search([
             ('partner_id', '=', partner.id),
@@ -2175,8 +2166,8 @@ class ProductSync(models.Model):
             vals['city'] = address_parts['city']
         if address_parts.get('country_id'):
             vals['country_id'] = address_parts['country_id']
-        if currency_id and 'property_purchase_currency_id' in self.env['res.partner']._fields:
-            vals['property_purchase_currency_id'] = currency_id
+        if 'property_purchase_currency_id' in self.env['res.partner']._fields:
+            vals['property_purchase_currency_id'] = currency_id or False
         if 'code' in self.env['res.partner']._fields:
             vals['code'] = ref
         self._log_supplier_sync(
@@ -2345,7 +2336,7 @@ class ProductSync(models.Model):
             ((dto.get('currencyZoneDTO') or {}).get('cid') if isinstance(dto, dict) else ''),
         )
 
-        strict_supplier_currency_source = os.getenv('STRICT_SUPPLIER_CURRENCY_SOURCE', 'True').strip().lower() in ('1', 'true', 'yes', 'on')
+        strict_supplier_currency_source = os.getenv('STRICT_SUPPLIER_CURRENCY_SOURCE', 'False').strip().lower() in ('1', 'true', 'yes', 'on')
         if strict_supplier_currency_source and not supplier_currency_code:
             raise ValueError(
                 "Supplier currency source missing in supplier payload: supplier_ref=%s supplier_name=%s product_currency=%s"
@@ -2397,7 +2388,7 @@ class ProductSync(models.Model):
         else:
             self._log_supplier_sync(supplier_ref_hint, "currency unresolved: no currency code found in payload")
 
-        strict_currency = os.getenv('STRICT_SUPPLIER_CURRENCY', 'True').strip().lower() in ('1', 'true', 'yes', 'on')
+        strict_currency = os.getenv('STRICT_SUPPLIER_CURRENCY', 'False').strip().lower() in ('1', 'true', 'yes', 'on')
         supplier_has_identity = bool(supplier_ref_hint or supplier_name_hint)
         if strict_currency and supplier_has_identity and not currency_id:
             raise ValueError(
@@ -2415,13 +2406,12 @@ class ProductSync(models.Model):
         seller_payloads = []
         sup_id = self._upsert_supplier_partner(s_dto, cache, currency_id=currency_id)
         if sup_id:
-            _seller_currency_id = currency_id or self.env.company.currency_id.id
             seller_payloads.append({
                 'partner_id': sup_id,
                 'price': float(dto.get('orPrice') or 0),
                 'min_qty': 1.0,
                 'delay': 1,
-                'currency_id': _seller_currency_id,
+                'currency_id': currency_id or False,
             })
 
         # Tax (Purchase tax for suppliers)
