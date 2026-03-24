@@ -127,5 +127,15 @@
             </xpath>
         </field>
     </record>
+    <record id="vnop_purchase_order_form_hide_send_po" model="ir.ui.view">
+        <field name="name">vnop.purchase.order.form.hide.send.po</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_rfq_send'][@context=&quot;{'send_rfq':False}&quot;]" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+        </field>
+    </record>
 
 </odoo>

@@ -85,61 +85,38 @@ class DeliverySchedule(models.Model):
         self._check_can_move_state()
         self.write({'state': 'confirmed'})
         for rec in self:
-            po = rec._auto_create_po_from_offer_remaining()
+            po = rec._create_po_from_schedule_lines()
             if po:
                 po.button_confirm()
                 rec.purchase_id = po
 
-    def _auto_create_po_from_offer_remaining(self):
+    def _create_po_from_schedule_lines(self):
         self.ensure_one()
+        lines = self.line_ids.filtered(lambda l: l.qty_planned > 0)
+        if not lines:
+            return
+
         contract = self.contract_id
-        if not contract:
-            return
-
-        offer_lines = contract.purchase_offer_ids.mapped('line_ids')
-        if not offer_lines:
-            return
-
-        existing_po_lines = self.env['purchase.order.line'].search([
-            ('order_id.contract_id', '=', contract.id),
-            ('display_type', '=', False),
-        ])
-        qty_in_po = {}
-        for pol in existing_po_lines:
-            key = (pol.product_id.id, pol.product_uom.id)
-            qty_in_po[key] = qty_in_po.get(key, 0.0) + pol.product_qty
-
-        merged = {}
-        for offer_line in offer_lines:
-            key = (offer_line.product_id.id, offer_line.uom_id.id)
-            qty_remaining = offer_line.quantity - qty_in_po.get(key, 0.0)
-            if qty_remaining <= 0:
-                continue
-            if key in merged:
-                merged[key]['product_qty'] += qty_remaining
-            else:
-                merged[key] = {
-                    'product_id': offer_line.product_id.id,
-                    'product_uom': offer_line.uom_id.id,
-                    'product_qty': qty_remaining,
-                    'price_unit': offer_line.expected_price,
-                    'name': offer_line.product_id.display_name,
-                    'date_planned': self.delivery_datetime or fields.Date.context_today(self),
-                }
-        lines_to_create = list(merged.values())
-
-        if not lines_to_create:
-            return
-
-        return self.env['purchase.order'].create({
-            'name': self.env['ir.sequence'].next_by_code('purchase.order') or '/',
+        po = self.env['purchase.order'].create({
             'partner_id': contract.partner_id.id,
             'partner_ref': contract.partner_id.ref or False,
             'company_id': contract.company_id.id,
             'currency_id': contract.currency_id.id,
             'contract_id': contract.id,
-            'order_line': [(0, 0, vals) for vals in lines_to_create],
         })
+        planned_date = self.delivery_datetime or fields.Date.context_today(self)
+        for line in lines:
+            purchase_line = self.env['purchase.order.line'].create({
+                'order_id': po.id,
+                'product_id': line.product_id.id,
+                'product_uom': line.uom_id.id,
+                'product_qty': line.qty_planned,
+                'price_unit': line.price_unit,
+                'name': line.product_id.display_name,
+                'date_planned': planned_date,
+            })
+            line.contract_line_id.purchase_line_id = purchase_line.id
+        return po
 
     @api.onchange('contract_id')
     def _onchange_contract_id(self):

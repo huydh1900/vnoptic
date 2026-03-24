@@ -105,17 +105,19 @@
 
                     <notebook>
                         <page string="Chi tiết hàng giao">
-                            <field name="line_ids" force_save="1">
-                                <list editable="bottom">
-                                    <field name="contract_line_id" optional="hide" force_save="1"/>
-                                    <field name="purchase_offer_id" readonly="1"/>
-                                    <field name="product_id" readonly="1" />
-                                    <field name="uom_id" readonly="1" optional="hide"/>
-                                    <field name="qty_planned"/>
-                                    <field name="qty_received" readonly="1"/>
-                                </list>
-                            </field>
-                        </page>
+	                            <field name="line_ids" force_save="1">
+	                                <list editable="bottom">
+	                                    <field name="contract_line_id" optional="hide" force_save="1"/>
+	                                    <field name="purchase_offer_id" readonly="1"/>
+	                                    <field name="product_id" readonly="1"/>
+	                                    <field name="uom_id" readonly="1" optional="hide"/>
+	                                    <field name="currency_id" column_invisible="1"/>
+	                                    <field name="qty_contract" readonly="1"/>
+	                                    <field name="qty_planned"/>
+	                                    <field name="price_unit" readonly="1" widget="monetary"/>
+	                                </list>
+	                            </field>
+	                        </page>
                         <page string="Thông tin bổ sung">
                             <group>
                                 <field name="create_date" string="Thời gian tạo" readonly="1"/>

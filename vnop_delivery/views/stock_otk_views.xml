@@ -6,7 +6,7 @@
         <field name="model">stock.otk.check.line</field>
         <field name="arch" type="xml">
             <list editable="bottom" create="0" delete="0">
-                <field name="product_id"/>
+                <field name="product_id" readonly="1"/>
                 <field name="uom_id" optional="hide"/>
                 <field name="qty_ordered"/>
                 <field name="qty_checked_prev"/>
@@ -41,20 +41,24 @@
                 <header>
                     <button name="action_confirm" string="Xác nhận" type="object"
                             class="btn-primary" invisible="state != 'draft'"
-                            confirm="Xác nhận lần QC này? Hàng đạt vào kho chính, hàng lỗi vào Kho Lỗi."/>
+                            confirm="Xác nhận lần OTK này? Hàng đạt vào kho chính, hàng lỗi vào Kho Lỗi."/>
                     <field name="state" widget="statusbar"/>
                 </header>
-                <sheet>
-                    <group>
-                        <field name="name"/>
-                        <field name="sequence"/>
-                        <field name="date"/>
-                        <field name="user_id"/>
-                    </group>
-                    <field name="line_ids"/>
-                </sheet>
-                <chatter/>
-            </form>
+	                <sheet>
+	                    <group>
+	                        <field name="name"/>
+	                        <field name="sequence"/>
+	                        <field name="date"/>
+	                        <field name="user_id"/>
+	                    </group>
+	                    <notebook>
+	                        <page string="Chi tiết">
+	                            <field name="line_ids"/>
+	                        </page>
+	                    </notebook>
+	                </sheet>
+	                <chatter/>
+	            </form>
         </field>
     </record>
 
@@ -81,33 +85,38 @@
             <form string="OTK">
                 <header>
                     <field name="state" widget="statusbar" statusbar_visible="draft,partial,done"/>
-                    <button name="action_new_check" string="Tạo OTK" type="object"
+                    <button name="action_new_check" string="Tạo lần OTK" type="object"
                                 class="btn-primary" invisible="state == 'done'"/>
                 </header>
                 <sheet>
-                    <div class="oe_button_box" name="button_box">
-                        <button name="action_view_checks" type="object" class="oe_stat_button" icon="fa-search">
-                            <field name="check_count" widget="statinfo" string="Lần OTK"/>
-                        </button>
-
-                    </div>
-                    <group>
-                        <group>
-                            <field name="name"/>
-                            <field name="picking_id"/>
-                        </group>
-                        <group>
-                            <field name="date"/>
-                            <field name="user_id"/>
+	                    <div class="oe_button_box" name="button_box">
+	                        <button name="action_view_checks" type="object" class="oe_stat_button" icon="fa-search">
+	                            <field name="check_count" widget="statinfo" string="Lần OTK"/>
+	                        </button>
+	                        <button name="action_view_transfers" type="object" class="oe_stat_button" icon="fa-exchange">
+	                            <field name="transfer_count" widget="statinfo" string="Phiếu điều chuyển"/>
+	                        </button>
+	
+	                    </div>
+	                    <group>
+	                        <group>
+	                            <field name="name"/>
+	                            <field name="picking_id"/>
+	                            <field name="partner_id" optional="hide"/>
+	                        </group>
+	                        <group>
+	                            <field name="date"/>
+	                            <field name="user_id"/>
                             <field name="company_id" groups="base.group_multi_company"/>
                         </group>
                     </group>
                     <notebook>
                         <page string="Tổng hợp">
                             <field name="line_ids" readonly="1">
-                                <list>
+                                <list decoration-success="is_fully_checked">
+                                    <field name="is_fully_checked" column_invisible="1"/>
                                     <field name="product_id"/>
-                                    <field name="uom_id"/>
+                                    <field name="uom_id" optional="hide"/>
                                     <field name="qty_received"/>
                                     <field name="qty_checked"/>
                                     <field name="qty_ok" class="text-success"/>
@@ -116,22 +125,8 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Phiếu kho">
-                            <field name="ok_picking_ids" readonly="1">
-                                <list>
-                                    <field name="name"/>
-                                    <field name="state"/>
-                                </list>
-                            </field>
-                            <field name="ng_picking_ids" readonly="1">
-                                <list>
-                                    <field name="name"/>
-                                    <field name="state"/>
-                                </list>
-                            </field>
-                        </page>
-                    </notebook>
-                </sheet>
+	                    </notebook>
+	                </sheet>
                 <chatter/>
             </form>
         </field>

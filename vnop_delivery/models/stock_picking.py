@@ -57,6 +57,7 @@ class StockPicking(models.Model):
             }) for move in self.move_ids]
             otk = self.env['stock.otk'].create({
                 'picking_id': self.id,
+                'partner_id': self.partner_id.id,
                 'line_ids': lines,
             })
             self.otk_id = otk

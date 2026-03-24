@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+from odoo import fields, models
 
 
 class DeliveryScheduleLine(models.Model):
@@ -35,8 +35,19 @@ class DeliveryScheduleLine(models.Model):
         store=True,
         readonly=True,
     )
+    qty_contract = fields.Float(
+        string='SL hợp đồng',
+        digits='Product Unit of Measure',
+        related='contract_line_id.product_qty',
+        store=True,
+        readonly=True,
+    )
     qty_planned = fields.Float(string='SL dự kiến', digits='Product Unit of Measure')
-    qty_received = fields.Float(
-        string='SL về', digits='Product Unit of Measure',
-        related='contract_line_id.qty_received', store=True,
+    price_unit = fields.Float(
+        string='Đơn giá', digits='Product Price',
+        related='contract_line_id.price_unit', store=True,
+    )
+    currency_id = fields.Many2one(
+        'res.currency',
+        related='contract_line_id.currency_id', store=True,
     )

@@ -15,4 +15,14 @@
             </field>
         </field>
     </record>
+    <record id="vnoptic_view_partner_search_inherit" model="ir.ui.view">
+        <field name="name">vnoptic.view.partner.search.inherit</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="ref" string="Mã NCC"/>
+            </field>
+        </field>
+    </record>
 </odoo>

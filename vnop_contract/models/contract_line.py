@@ -30,8 +30,13 @@ class ContractLine(models.Model):
         domain="[('display_type', '=', False)]",
     )
 
-    qty_received = fields.Float(string="SL đã nhận", related='purchase_line_id.qty_received',
-                             digits="Product Unit of Measure")
+    qty_received = fields.Float(
+        string="SL đã nhận",
+        related="purchase_line_id.qty_received",
+        store=True,
+        readonly=True,
+        digits="Product Unit of Measure",
+    )
 
     qty_remaining = fields.Float(string="Còn lại", compute="_compute_qty_remaining",
                                  digits="Product Unit of Measure")

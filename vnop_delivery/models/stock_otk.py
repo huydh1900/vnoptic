@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
+from odoo.tools.float_utils import float_compare
 
 
 class StockOtk(models.Model):
@@ -11,6 +12,7 @@ class StockOtk(models.Model):
 
     name = fields.Char(string='Số OTK', required=True, copy=False, readonly=True, default='/')
     picking_id = fields.Many2one('stock.picking', required=True, ondelete='cascade', readonly=True)
+    partner_id = fields.Many2one('res.partner', string='Đối tác', readonly=True, index=True)
     state = fields.Selection([
         ('draft', 'Nháp'),
         ('partial', 'Một phần'),
@@ -26,6 +28,26 @@ class StockOtk(models.Model):
     purchase_id = fields.Many2one('purchase.order', string='Đơn mua hàng', related='picking_id.purchase_id', store=True)
     contract_id = fields.Many2one('contract', string='Hợp đồng', related='purchase_id.contract_id', store=True)
     check_count = fields.Integer(compute='_compute_check_count')
+    transfer_count = fields.Integer(compute='_compute_transfer_count')
+
+    def _update_state(self):
+        for otk in self:
+            if not otk.line_ids:
+                otk.state = 'draft'
+                continue
+
+            all_done = all(
+                float_compare(
+                    line.qty_remaining, 0.0, precision_rounding=line.uom_id.rounding or 0.01
+                ) <= 0
+                for line in otk.line_ids
+            )
+            if all_done:
+                otk.state = 'done'
+            elif any(line.qty_checked > 0 for line in otk.line_ids):
+                otk.state = 'partial'
+            else:
+                otk.state = 'draft'
 
     def _compute_check_count(self):
         data = self.env['stock.otk.check'].read_group(
@@ -34,6 +56,23 @@ class StockOtk(models.Model):
         counts = {d['otk_id'][0]: d['otk_id_count'] for d in data}
         for rec in self:
             rec.check_count = counts.get(rec.id, 0)
+
+    def _compute_transfer_count(self):
+        if not self.ids:
+            for rec in self:
+                rec.transfer_count = 0
+            return
+
+        ok_data = self.env['stock.picking'].read_group(
+            [('otk_ok_id', 'in', self.ids)], ['otk_ok_id'], ['otk_ok_id']
+        )
+        ng_data = self.env['stock.picking'].read_group(
+            [('otk_ng_id', 'in', self.ids)], ['otk_ng_id'], ['otk_ng_id']
+        )
+        ok_counts = {d['otk_ok_id'][0]: d['otk_ok_id_count'] for d in ok_data if d.get('otk_ok_id')}
+        ng_counts = {d['otk_ng_id'][0]: d['otk_ng_id_count'] for d in ng_data if d.get('otk_ng_id')}
+        for rec in self:
+            rec.transfer_count = ok_counts.get(rec.id, 0) + ng_counts.get(rec.id, 0)
 
     def action_view_checks(self):
         return {
@@ -45,16 +84,23 @@ class StockOtk(models.Model):
             'context': {'default_otk_id': self.id},
         }
 
+    def action_view_transfers(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Phiếu điều chuyển',
+            'res_model': 'stock.picking',
+            'view_mode': 'list,form',
+            'domain': ['|', ('otk_ok_id', '=', self.id), ('otk_ng_id', '=', self.id)],
+        }
+
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             vals['name'] = self.env['ir.sequence'].next_by_code('stock.otk') or '/'
-        return super().create(vals_list)
-        for otk in self:
-            if all(l.qty_remaining == 0 for l in otk.line_ids):
-                otk.state = 'done'
-            elif any(l.qty_checked > 0 for l in otk.line_ids):
-                otk.state = 'partial'
+        records = super().create(vals_list)
+        records._update_state()
+        return records
 
     def action_new_check(self):
         self.ensure_one()
@@ -89,11 +135,20 @@ class StockOtkLine(models.Model):
     qty_ok = fields.Float(string='SL đạt', readonly=True)
     qty_ng = fields.Float(string='SL không đạt', readonly=True)
     qty_remaining = fields.Float(string='Còn lại', compute='_compute_remaining', store=True)
+    is_fully_checked = fields.Boolean(compute='_compute_is_fully_checked', store=True)
 
     @api.depends('qty_received', 'qty_checked')
     def _compute_remaining(self):
         for rec in self:
             rec.qty_remaining = rec.qty_received - rec.qty_checked
+
+    @api.depends('qty_received', 'qty_checked', 'uom_id')
+    def _compute_is_fully_checked(self):
+        for rec in self:
+            rounding = rec.uom_id.rounding or 0.01
+            rec.is_fully_checked = float_compare(
+                rec.qty_checked, rec.qty_received, precision_rounding=rounding
+            ) >= 0
 
 
 class StockOtkCheck(models.Model):
@@ -103,6 +158,13 @@ class StockOtkCheck(models.Model):
     _order = 'id desc'
 
     otk_id = fields.Many2one('stock.otk', string='OTK', required=True, ondelete='cascade', index=True)
+    partner_id = fields.Many2one(
+        'res.partner',
+        string='Nhập từ',
+        related='otk_id.partner_id',
+        store=True,
+        readonly=True,
+    )
     name = fields.Char(string='Số phiếu', readonly=True, default='/')
     sequence = fields.Integer(string='Lần', readonly=True)
     date = fields.Datetime(string='Ngày kiểm', default=fields.Datetime.now)
@@ -161,6 +223,7 @@ class StockOtkCheck(models.Model):
                 'picking_type_id': picking_type.id,
                 'location_id': loc_src.id,
                 'location_dest_id': moves[0][2]['location_dest_id'],
+                'partner_id': self.otk_id.partner_id.id,
                 'origin': self.name,
                 'move_ids': moves,
                 otk_field: self.otk_id.id,
