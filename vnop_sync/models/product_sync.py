@@ -90,6 +90,44 @@ class ProductSync(models.Model):
             'api_timeout': int(os.getenv('API_TIMEOUT', '9999')),
         }
 
+    def _init_sync_error_ctx(self):
+        """Context thu thập lỗi để hiển thị trong UI (sync_log), tránh phải đọc server log."""
+        try:
+            sample_limit = int(os.getenv('SYNC_ERROR_SAMPLE_LIMIT', '50'))
+        except (TypeError, ValueError):
+            sample_limit = 50
+
+        try:
+            max_chars = int(os.getenv('SYNC_ERROR_LOG_MAX_CHARS', '20000'))
+        except (TypeError, ValueError):
+            max_chars = 20000
+
+        return {
+            'sample_limit': max(0, sample_limit),
+            'max_chars': max(2000, max_chars),
+            'samples': [],
+            'counts': defaultdict(int),
+        }
+
+    def _record_sync_error(self, error_ctx, product_type, stage, ref, exc):
+        """Ghi nhận lỗi dạng tóm tắt + sample (không làm phình DB/log quá mức)."""
+        if not error_ctx:
+            return
+
+        key = f"{(product_type or 'unknown').upper()}:{stage}"
+        error_ctx['counts'][key] += 1
+
+        if len(error_ctx['samples']) >= error_ctx['sample_limit']:
+            return
+
+        try:
+            msg = str(exc)
+        except Exception:
+            msg = repr(exc)
+        msg = (msg or 'Unknown error').replace('\n', ' ')[:500]
+        ref_str = (str(ref) if ref is not None else 'N/A')
+        error_ctx['samples'].append(f"[{key}] ref={ref_str} err={msg}")
+
     def _get_access_token(self):
         config = self._get_api_config()
         login_url = f"{config['base_url']}{config['login_endpoint']}"
@@ -225,7 +263,7 @@ class ProductSync(models.Model):
             
         return items
 
-    def _process_items_in_chunks(self, items, cache, product_type, child_model=None):
+    def _process_items_in_chunks(self, items, cache, product_type, child_model=None, error_ctx=None):
         """Chia danh sách items thành batch nhỏ (mặc định 1000) để tránh cursor lâu."""
         chunk_size = self._get_sync_batch_size()
         total_success = total_failed = 0
@@ -241,9 +279,14 @@ class ProductSync(models.Model):
             )
             try:
                 with self.env.cr.savepoint():
-                    success, failed = self._process_batch(chunk, cache, product_type, child_model)
+                    success, failed = self._process_batch(chunk, cache, product_type, child_model, error_ctx=error_ctx)
             except Exception as exc:
                 total_failed += len(chunk)
+                self._record_sync_error(
+                    error_ctx, product_type, 'CHUNK_ERR',
+                    ref=f"chunk={chunk_idx} size={len(chunk)}",
+                    exc=exc
+                )
                 _logger.error(
                     "[%s][CHUNK_ERR] chunk=%s size=%s error=%s",
                     product_type.upper(), chunk_idx, len(chunk), exc,
@@ -2050,7 +2093,7 @@ class ProductSync(models.Model):
                 type_map.append(f"{k}: {type(v).__name__}={v!r}")
         _logger.info("%s TYPE MAP:\n  %s", prefix, '\n  '.join(type_map))
 
-    def _process_lens_variant_items(self, items, cache):
+    def _process_lens_variant_items(self, items, cache, error_ctx=None):
         total = len(items)
         success = failed = 0
 
@@ -2068,6 +2111,9 @@ class ProductSync(models.Model):
                 success += 1
             except Exception as e:
                 failed += 1
+                dto = item.get('productdto') or {}
+                cid = (dto.get('cid') or '').strip() or f'idx_{idx}'
+                self._record_sync_error(error_ctx, 'lens', 'ITEM_ERR', ref=cid, exc=e)
                 import traceback
                 _logger.error(
                     f"Lens variant error idx={idx}: {e}\n{traceback.format_exc()}"
@@ -2075,7 +2121,7 @@ class ProductSync(models.Model):
 
         return success, failed
 
-    def _process_accessory_batch(self, items, cache):
+    def _process_accessory_batch(self, items, cache, error_ctx=None):
         """Xử lý accessories: mỗi record một savepoint độc lập + logging đầy đủ.
         HOÀN TOÀN TÁCH BIỆT khỏi lens/opt. Không sửa bất kỳ helper nào lens/opt dùng.
         """
@@ -2386,6 +2432,7 @@ class ProductSync(models.Model):
             except Exception as exc:
                 errors  += 1
                 skipped += 1
+                self._record_sync_error(error_ctx, 'accessory', 'ITEM_ERR', ref=sku, exc=exc)
 
                 # Phân loại step để thống kê
                 step_key = step.replace('ref_', '')
@@ -2431,19 +2478,19 @@ class ProductSync(models.Model):
 
         return success, errors
 
-    def _process_batch(self, items, cache, product_type, child_model=None):
+    def _process_batch(self, items, cache, product_type, child_model=None, error_ctx=None):
         """
         Xử lý batch create/update sản phẩm từ API.
         - Lens và Opt: specs đã được map trực tiếp vào template (Hướng B).
         - Accessory và các loại khác: chỉ tạo/update product.template.
         """
         if product_type == 'lens':
-            return self._process_lens_variant_items(items, cache)
+            return self._process_lens_variant_items(items, cache, error_ctx=error_ctx)
 
         # Accessory: xử lý per-record với savepoint riêng + logging đầy đủ
         # KHÔNG thay đổi gì ở đây liên quan lens/opt
         if product_type == 'accessory':
-            return self._process_accessory_batch(items, cache)
+            return self._process_accessory_batch(items, cache, error_ctx=error_ctx)
 
         total = len(items)
         success = failed = 0
@@ -2496,6 +2543,7 @@ class ProductSync(models.Model):
                 import traceback
                 dto = item.get('productdto') or {}
                 _dc = (dto.get('cid') or '').strip() or 'N/A'
+                self._record_sync_error(error_ctx, product_type, 'PREPARE', ref=_dc, exc=e)
                 _logger.error(
                     f"Prepare error [{product_type}] idx={idx} default_code={_dc}: {e}\n{traceback.format_exc()}"
                 )
@@ -2519,6 +2567,11 @@ class ProductSync(models.Model):
                 except Exception as e:
                     failed += len(b_vals)
                     import traceback
+                    self._record_sync_error(
+                        error_ctx, product_type, 'BATCH_CREATE',
+                        ref=f"batch_start={i} size={len(b_vals)}",
+                        exc=e
+                    )
                     _logger.error(f"Batch Create Error [{product_type}]: {e}\n{traceback.format_exc()}")
                     continue
 
@@ -2536,6 +2589,7 @@ class ProductSync(models.Model):
                             with self.env.cr.savepoint():
                                 self.env[child_model].create(cv)
                         except Exception as e:
+                            self._record_sync_error(error_ctx, product_type, 'CHILD_CREATE', ref=rec.id, exc=e)
                             _logger.error(f"Child Create Error product {rec.id}: {e}")
 
         # ─── Bước 3: Batch Update ─────────────────────────────────────────
@@ -2559,6 +2613,7 @@ class ProductSync(models.Model):
                     success += 1
             except Exception as e:
                 failed += 1
+                self._record_sync_error(error_ctx, product_type, 'UPDATE', ref=f"tmpl_id={pid}", exc=e)
                 _logger.error(f"Update Error [{product_type}] tmpl_id={pid}: {e}")
 
         return success, failed
@@ -2586,10 +2641,11 @@ class ProductSync(models.Model):
             cache = self._preload_all_data()
             cfg = self._get_api_config()
             stats = {}
+            error_ctx = self._init_sync_error_ctx()
 
             # Lens
             items = self._fetch_all_items(cfg['lens_endpoint'], token, 'Lens', limit)
-            s, f = self._process_items_in_chunks(items, cache, 'lens')
+            s, f = self._process_items_in_chunks(items, cache, 'lens', error_ctx=error_ctx)
             stats['lens'] = s
             stats['failed'] = f
 
@@ -2600,19 +2656,42 @@ class ProductSync(models.Model):
 
             # Opt
             items = self._fetch_all_items(cfg['opts_endpoint'], token, 'Optical', limit)
-            s, f = self._process_items_in_chunks(items, cache, 'opt')
+            s, f = self._process_items_in_chunks(items, cache, 'opt', error_ctx=error_ctx)
             stats['opt'] = s
             stats['failed'] += f
 
             # Accessory
             items = self._fetch_all_items(cfg['types_endpoint'], token, 'Types', limit)
-            s, f = self._process_items_in_chunks(items, cache, 'accessory')
+            s, f = self._process_items_in_chunks(items, cache, 'accessory', error_ctx=error_ctx)
             stats['acc'] = s
             stats['failed'] += f
 
             total = stats['lens'] + stats['opt'] + stats['acc']
             msg = f"Đã đồng bộ {total} (Mắt:{stats['lens']}, Gọng:{stats['opt']}, Khác:{stats['acc']}). Lỗi: {stats['failed']}"
-            self.write({'sync_status': 'success', 'sync_log': msg,
+
+            full_log = msg
+            if error_ctx.get('counts'):
+                counts_sorted = sorted(
+                    error_ctx['counts'].items(),
+                    key=lambda kv: (-kv[1], kv[0])
+                )
+                counts_str = ", ".join([f"{k}={v}" for k, v in counts_sorted[:20]])
+                samples = "\n".join(error_ctx.get('samples') or [])
+                if samples:
+                    full_log = (
+                        f"{msg}\n\n"
+                        f"Tóm tắt lỗi: {counts_str}\n"
+                        f"Ví dụ lỗi (tối đa {error_ctx.get('sample_limit', 0)}):\n"
+                        f"{samples}"
+                    )
+                else:
+                    full_log = f"{msg}\n\nTóm tắt lỗi: {counts_str}"
+
+            max_chars = error_ctx.get('max_chars', 20000)
+            if isinstance(full_log, str) and len(full_log) > max_chars:
+                full_log = full_log[:max_chars] + "\n...(truncated)"
+
+            self.write({'sync_status': 'success', 'sync_log': full_log,
                        'total_synced': total, 'total_failed': stats['failed'],
                        'lens_count': stats['lens'], 'opts_count': stats['opt'], 'other_count': stats['acc']})
 
