@@ -1240,15 +1240,134 @@ class ProductSync(models.Model):
         uom_cache[cache_key] = uom.id
         return uom.id
 
-    def _rs_pick(self, source, keys):
+    def _rs_pick(self, source, keys, skip_placeholder=False):
         """Return first non-empty value from dict using alias key list."""
         if not isinstance(source, dict):
             return False
         for key in keys:
             value = source.get(key)
             if value not in (None, '', False):
+                if skip_placeholder and self._is_placeholder_value(value):
+                    continue
                 return value
         return False
+
+    def _is_supplier_sync_debug_enabled(self, supplier_ref=''):
+        """Enable focused supplier sync logs via env flags.
+
+        LOG_RS_SUPPLIER_SYNC=True enables logs.
+        LOG_RS_SUPPLIER_TARGET_REF=5017 narrows to a specific supplier ref.
+        SUPPLIER_SYNC_DEBUG=1 and SUPPLIER_SYNC_DEBUG_SUPPLIER_REFS=5017 are also supported.
+        """
+        log_rs_flag = os.getenv('LOG_RS_SUPPLIER_SYNC', 'False').lower() == 'true'
+        debug_flag = os.getenv('SUPPLIER_SYNC_DEBUG', '0').strip().lower() in ('1', 'true', 'yes', 'on')
+        if not (log_rs_flag or debug_flag):
+            return False
+
+        target_ref = (os.getenv('LOG_RS_SUPPLIER_TARGET_REF') or '').strip().upper()
+        target_refs_csv = (os.getenv('SUPPLIER_SYNC_DEBUG_SUPPLIER_REFS') or '').strip().upper()
+        target_refs = set()
+        if target_ref:
+            target_refs.add(target_ref)
+        if target_refs_csv:
+            target_refs.update([ref.strip() for ref in target_refs_csv.split(',') if ref and ref.strip()])
+
+        if not target_refs:
+            return True
+        return (supplier_ref or '').strip().upper() in target_refs
+
+    def _log_supplier_sync(self, supplier_ref, message, *args):
+        if self._is_supplier_sync_debug_enabled(supplier_ref):
+            _logger.info("[SUP_BANK_DEBUG][SUP_SYNC][%s] " + message, (supplier_ref or 'N/A'), *args)
+
+    def _safe_debug_json(self, value):
+        try:
+            return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+        except Exception:
+            return repr(value)
+
+    def _is_placeholder_value(self, value):
+        """Return True when value is empty/demo placeholder like 'khong', 'none', 'n/a'."""
+        if value in (None, False):
+            return True
+
+        raw = str(value).strip()
+        if not raw:
+            return True
+
+        normalized = self._normalize_uom_token(raw)
+        compact = re.sub(r"[\s\-_/\.]+", "", normalized)
+        return compact in {'khong', 'none', 'null', 'na', '""', "''"}
+
+    def _clean_placeholder_text(self, value):
+        """Normalize to stripped text and drop placeholders as False."""
+        if value in (None, False):
+            return False
+        text = str(value).strip()
+        if not text:
+            return False
+        return False if self._is_placeholder_value(text) else text
+
+    def _log_debug_keys_recursive(self, supplier_ref, label, data, path='root', level=0, max_level=2):
+        if not isinstance(data, dict):
+            self._log_supplier_sync(supplier_ref, "%s keys at %s: not-a-dict type=%s", label, path, type(data).__name__)
+            return
+
+        keys = sorted(list(data.keys()))
+        self._log_supplier_sync(supplier_ref, "%s keys at %s: %s", label, path, keys)
+        if level >= max_level:
+            return
+
+        for key in keys:
+            value = data.get(key)
+            child_path = "%s.%s" % (path, key)
+            if isinstance(value, dict):
+                self._log_debug_keys_recursive(
+                    supplier_ref,
+                    label,
+                    value,
+                    path=child_path,
+                    level=level + 1,
+                    max_level=max_level,
+                )
+            elif isinstance(value, list):
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "%s keys at %s: list_len=%s",
+                    label,
+                    child_path,
+                    len(value),
+                )
+                for idx, item in enumerate(value[:3]):
+                    if isinstance(item, dict):
+                        self._log_debug_keys_recursive(
+                            supplier_ref,
+                            label,
+                            item,
+                            path="%s[%s]" % (child_path, idx),
+                            level=level + 1,
+                            max_level=max_level,
+                        )
+
+    def _log_alias_lookup(self, supplier_ref, source, field_name, keys):
+        if not isinstance(source, dict):
+            self._log_supplier_sync(supplier_ref, "alias lookup for %s skipped: source is not dict", field_name)
+            return
+        selected_key = False
+        selected_value = False
+        for key in keys:
+            value = source.get(key)
+            self._log_supplier_sync(supplier_ref, "alias lookup for %s: tried %s -> %r", field_name, key, value)
+            if selected_value in (None, '', False) and value not in (None, '', False):
+                selected_key = key
+                selected_value = value
+        self._log_supplier_sync(
+            supplier_ref,
+            "alias lookup result for %s: selected_key=%r selected_value=%r",
+            field_name,
+            selected_key,
+            selected_value,
+        )
 
     def _resolve_country_id_any(self, value):
         """Resolve country from ISO code/name. Return False when uncertain."""
@@ -1260,6 +1379,30 @@ class ProductSync(models.Model):
             return False
         code = raw.upper()
 
+        # Common aliases from RS payloads (VN text / ISO3 / short forms).
+        normalized = re.sub(r'[^a-z0-9]', '', self._normalize_uom_token(raw))
+        alias_to_code = {
+            'trungquoc': 'CN',
+            'china': 'CN',
+            'chn': 'CN',
+            'hanquoc': 'KR',
+            'korea': 'KR',
+            'kor': 'KR',
+            'vietnam': 'VN',
+            'vietnam': 'VN',
+            'vnm': 'VN',
+            'switzerland': 'CH',
+            'thuysi': 'CH',
+            'che': 'CH',
+            'usa': 'US',
+            'unitedstates': 'US',
+        }
+        mapped_code = alias_to_code.get(normalized)
+        if mapped_code:
+            country = country_model.search([('code', '=', mapped_code)], limit=1)
+            if country:
+                return country.id
+
         country = country_model.search([('code', '=', code)], limit=1)
         if country:
             return country.id
@@ -1268,6 +1411,9 @@ class ProductSync(models.Model):
         if country:
             return country.id
 
+        # Keep ilike as last fallback only when token length is meaningful.
+        if len(raw) < 4:
+            return False
         country = country_model.search([('name', 'ilike', raw)], limit=1)
         return country.id if country else False
 
@@ -1338,6 +1484,17 @@ class ProductSync(models.Model):
 
     def _extract_supplier_currency_code(self, dto, supplier_dto, supplier_detail):
         """Get supplier currency code from RS payload using known key aliases."""
+        # Supplier-level currency must have priority over product-level currency.
+        for source in (supplier_dto, supplier_detail):
+            value = self._rs_pick(source, ['currencyCode', 'currency_code', 'currency'])
+            if value:
+                return str(value).strip()
+            zone = source.get('currencyZoneDTO') if isinstance(source, dict) else {}
+            if isinstance(zone, dict):
+                zone_value = zone.get('cid') or zone.get('code') or zone.get('name')
+                if zone_value:
+                    return str(zone_value).strip()
+
         code = (self._rs_pick(dto, ['currencyCode', 'currency_code', 'currency']) or '').strip()
         if code:
             return code
@@ -1348,16 +1505,6 @@ class ProductSync(models.Model):
                 value = zone_obj.get(key)
                 if value not in (None, '', False):
                     return str(value).strip()
-
-        for source in (supplier_dto, supplier_detail):
-            value = self._rs_pick(source, ['currencyCode', 'currency_code', 'currency'])
-            if value:
-                return str(value).strip()
-            zone = source.get('currencyZoneDTO') if isinstance(source, dict) else {}
-            if isinstance(zone, dict):
-                zone_value = zone.get('cid') or zone.get('code') or zone.get('name')
-                if zone_value:
-                    return str(zone_value).strip()
         return ''
 
     def _extract_seller_payloads(self, vals):
@@ -1415,155 +1562,596 @@ class ProductSync(models.Model):
         if not partner or not supplier_detail:
             return
 
-        contact_name = self._rs_pick(supplier_detail, [
+        contact_name = self._clean_placeholder_text(self._rs_pick(supplier_detail, [
             'contactName', 'contact_name', 'contactPerson', 'contact_person',
             'contactPersonName', 'personContact', 'nguoiLienHe',
-        ])
+        ]))
         if not contact_name:
             return
 
-        contact_phone = self._rs_pick(supplier_detail, [
+        contact_phone = self._clean_placeholder_text(self._rs_pick(supplier_detail, [
             'contactPhone', 'contact_phone', 'contactMobile', 'contact_mobile', 'mobile',
-        ])
-        contact_email = self._rs_pick(supplier_detail, [
+        ]))
+        contact_email = self._clean_placeholder_text(self._rs_pick(supplier_detail, [
             'contactEmail', 'contact_email', 'email',
-        ])
+        ]))
 
         contact = self.env['res.partner'].search([
             ('parent_id', '=', partner.id),
             ('type', '=', 'contact'),
-            ('name', '=', str(contact_name).strip()),
+            ('name', '=', contact_name),
         ], limit=1)
         contact_vals = {
-            'name': str(contact_name).strip(),
+            'name': contact_name,
             'parent_id': partner.id,
             'type': 'contact',
             'is_company': False,
         }
         if contact_phone:
-            contact_vals['phone'] = str(contact_phone).strip()
+            contact_vals['phone'] = contact_phone
         if contact_email:
-            contact_vals['email'] = str(contact_email).strip()
+            contact_vals['email'] = contact_email
 
         if contact:
             contact.write(contact_vals)
         else:
             self.env['res.partner'].create(contact_vals)
 
-    def _extract_bank_payload(self, supplier_detail):
-        """Extract bank payload from RS vendor detail using broad aliases."""
-        if not isinstance(supplier_detail, dict):
-            return {}
-
-        bank_obj = supplier_detail.get('bank') if isinstance(supplier_detail.get('bank'), dict) else {}
-        bank_data = supplier_detail.get('bankdto') if isinstance(supplier_detail.get('bankdto'), dict) else {}
-
-        def _pick(keys):
-            return (
-                self._rs_pick(supplier_detail, keys)
-                or self._rs_pick(bank_obj, keys)
-                or self._rs_pick(bank_data, keys)
+    def _extract_bank_payload(self, supplier_detail, supplier_dto=None, supplier_details=None, supplier_ref='', supplier_name=False):
+        """Extract bank payload from RS vendor data with fallback across multiple nodes."""
+        self._log_supplier_sync(
+            supplier_ref,
+            "===== SUPPLIER BANK DEBUG BLOCK START ===== supplier_ref=%r supplier_name=%r",
+            supplier_ref,
+            supplier_name,
+        )
+        self._log_supplier_sync(
+            supplier_ref,
+            "raw supplier_detail object: %s",
+            self._safe_debug_json(supplier_detail),
+        )
+        self._log_supplier_sync(
+            supplier_ref,
+            "raw supplier_dto object: %s",
+            self._safe_debug_json(supplier_dto),
+        )
+        self._log_supplier_sync(
+            supplier_ref,
+            "raw supplier_details list object: %s",
+            self._safe_debug_json(supplier_details),
+        )
+        if isinstance(supplier_dto, dict):
+            self._log_supplier_sync(
+                supplier_ref,
+                "supplier_dto top-level keys: %s",
+                sorted(list(supplier_dto.keys())),
+            )
+            detail_dtos = supplier_dto.get('supplierDetailDTOS')
+            if isinstance(detail_dtos, list) and detail_dtos:
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "supplierDetailDTOS[0] raw: %s",
+                    self._safe_debug_json(detail_dtos[0]),
+                )
+            self._log_supplier_sync(
+                supplier_ref,
+                "supplier_dto.bank raw: %s | supplier_dto.bankdto raw: %s",
+                self._safe_debug_json(supplier_dto.get('bank')),
+                self._safe_debug_json(supplier_dto.get('bankdto')),
             )
 
-        return {
-            'bank_name': _pick(['bankName', 'bank_name', 'name']),
-            'bank_address': _pick(['bankAddress', 'bank_address', 'address']),
-            'bank_account': _pick(['bankAccount', 'bank_account', 'accountNumber', 'account_number', 'accNumber']),
-            'bank_branch': _pick(['bankBranch', 'bank_branch', 'branch', 'branchName']),
-            'bank_swift': _pick(['swiftCode', 'swift_code', 'swift', 'bic', 'bankBic']),
-            'bank_country': _pick(['bankCountry', 'bank_country', 'country', 'countryCode', 'country_code']),
+        self._log_debug_keys_recursive(supplier_ref, "supplier_detail", supplier_detail, path='supplier_detail', max_level=3)
+        if isinstance(supplier_dto, dict):
+            self._log_debug_keys_recursive(supplier_ref, "supplier_dto", supplier_dto, path='supplier_dto', max_level=3)
+        if isinstance(supplier_details, list):
+            for idx, node in enumerate(supplier_details[:3]):
+                if isinstance(node, dict):
+                    self._log_debug_keys_recursive(
+                        supplier_ref,
+                        "supplier_details",
+                        node,
+                        path='supplier_details[%s]' % idx,
+                        max_level=3,
+                    )
+
+        records = []
+        if isinstance(supplier_detail, dict):
+            records.append(supplier_detail)
+        if isinstance(supplier_dto, dict):
+            records.append(supplier_dto)
+        if isinstance(supplier_details, list):
+            records.extend([rec for rec in supplier_details if isinstance(rec, dict)])
+
+        if not records:
+            self._log_supplier_sync(supplier_ref, "skip extract bank payload: no records found")
+            return {}
+
+        bank_records = []
+        for rec in records:
+            bank_obj = rec.get('bank') if isinstance(rec.get('bank'), dict) else {}
+            bank_data = rec.get('bankdto') if isinstance(rec.get('bankdto'), dict) else {}
+            if bank_obj:
+                bank_records.append(bank_obj)
+            if bank_data:
+                bank_records.append(bank_data)
+        self._log_supplier_sync(
+            supplier_ref,
+            "records prepared: supplier_records=%s bank_records=%s",
+            len(records),
+            len(bank_records),
+        )
+        for idx, node in enumerate(records[:3]):
+            self._log_supplier_sync(supplier_ref, "supplier_record[%s] keys=%s", idx, sorted(list(node.keys())))
+        for idx, node in enumerate(bank_records[:3]):
+            self._log_supplier_sync(supplier_ref, "bank_record[%s] keys=%s", idx, sorted(list(node.keys())))
+
+        account_aliases = [
+            'acc_number', 'accnumber', 'account_number', 'accountnumber', 'account_no', 'accountno',
+            'account', 'bank_account', 'bankaccount', 'bank_account_number', 'bankaccountnumber',
+            'bank_account_no', 'bankaccountno', 'bank_no', 'bankno', 'bank_number', 'banknumber',
+            'number', 'stk', 'so_tai_khoan', 'sotaikhoan', 'tai_khoan', 'taikhoan',
+            'acctno', 'acct_no', 'iban',
+        ]
+
+        def _normalize_key(raw_key):
+            return re.sub(r'[^a-z0-9]', '', str(raw_key or '').lower())
+
+        normalized_aliases = {_normalize_key(key) for key in account_aliases}
+
+        def _looks_like_account_value(raw_value):
+            text = str(raw_value or '').strip()
+            if len(text) < 4 or len(text) > 64:
+                return False
+            return any(ch.isdigit() for ch in text)
+
+        def _pick_with_meta(keys):
+            for rec in records:
+                for key in keys:
+                    value = self._rs_pick(rec, [key], skip_placeholder=True)
+                    if value:
+                        return value, key, 'supplier_record'
+            for rec in bank_records:
+                for key in keys:
+                    value = self._rs_pick(rec, [key], skip_placeholder=True)
+                    if value:
+                        return value, key, 'bank_record'
+            return False, False, False
+
+        def _pick_account_number():
+            # 1) Explicit aliases first (safer)
+            explicit_keys = [
+                'bankAccount', 'bank_account', 'accountNumber', 'account_number', 'accNumber', 'acc_number',
+                'accountNo', 'account_no', 'bankNo', 'bank_no', 'bankNumber', 'bank_number',
+                'stk', 'account', 'number', 'soTaiKhoan', 'so_tai_khoan',
+            ]
+
+            for alias_key in [
+                'acc_number', 'account_number', 'accountNo', 'bankAccount', 'bank_account',
+                'stk', 'soTaiKhoan', 'account', 'number', 'bankNo', 'bank_number',
+            ]:
+                supplier_values = [
+                    rec.get(alias_key)
+                    for rec in records
+                    if isinstance(rec, dict) and alias_key in rec
+                ]
+                bank_values = [
+                    rec.get(alias_key)
+                    for rec in bank_records
+                    if isinstance(rec, dict) and alias_key in rec
+                ]
+                chosen = False
+                for candidate in (supplier_values + bank_values):
+                    cleaned_candidate = self._clean_placeholder_text(candidate)
+                    if cleaned_candidate:
+                        chosen = cleaned_candidate
+                        break
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "account alias lookup: tried %s -> supplier_values=%r bank_values=%r chosen_non_empty=%r",
+                    alias_key,
+                    supplier_values,
+                    bank_values,
+                    chosen,
+                )
+
+            value, source_key, source_node = _pick_with_meta(explicit_keys)
+            if value and (_normalize_key(source_key) not in ('account', 'number') or _looks_like_account_value(value)):
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "account selected by explicit alias: source_key=%r source_node=%r value=%r",
+                    source_key,
+                    source_node,
+                    value,
+                )
+                return value, source_key, source_node
+
+            # 2) Heuristic scan for unknown keys in RS payload shape
+            for rec, source_node in [(r, 'supplier_record') for r in records] + [(r, 'bank_record') for r in bank_records]:
+                if not isinstance(rec, dict):
+                    continue
+                for raw_key, value in rec.items():
+                    if value in (None, '', False):
+                        continue
+                    if self._is_placeholder_value(value):
+                        continue
+                    normalized_key = _normalize_key(raw_key)
+                    if normalized_key in normalized_aliases:
+                        if _normalize_key(raw_key) in ('account', 'number') and not _looks_like_account_value(value):
+                            continue
+                        self._log_supplier_sync(
+                            supplier_ref,
+                            "account selected by normalized alias: raw_key=%r source_node=%r value=%r",
+                            raw_key,
+                            source_node,
+                            value,
+                        )
+                        return value, raw_key, source_node
+                    has_account_token = any(token in normalized_key for token in ('account', 'acc', 'stk', 'iban', 'taikhoan'))
+                    has_bank_number_token = 'bank' in normalized_key and 'number' in normalized_key
+                    if has_account_token or has_bank_number_token:
+                        if not _looks_like_account_value(value):
+                            continue
+                        self._log_supplier_sync(
+                            supplier_ref,
+                            "account selected by heuristic token: raw_key=%r source_node=%r value=%r",
+                            raw_key,
+                            source_node,
+                            value,
+                        )
+                        return value, raw_key, source_node
+            self._log_supplier_sync(supplier_ref, "account selection failed: no alias/heuristic match found")
+            return False, False, False
+
+        def _pick(keys, field_name=''):
+            for rec_idx, rec in enumerate(records):
+                for key in keys:
+                    value = rec.get(key) if isinstance(rec, dict) else False
+                    if field_name:
+                        self._log_supplier_sync(
+                            supplier_ref,
+                            "field extract %s: tried supplier_record[%s].%s -> %r",
+                            field_name,
+                            rec_idx,
+                            key,
+                            value,
+                        )
+                    cleaned_value = self._clean_placeholder_text(value)
+                    if cleaned_value:
+                        if field_name:
+                            self._log_supplier_sync(
+                                supplier_ref,
+                                "field extract %s selected from supplier_record[%s].%s -> %r",
+                                field_name,
+                                rec_idx,
+                                key,
+                                cleaned_value,
+                            )
+                        return cleaned_value
+            for rec_idx, rec in enumerate(bank_records):
+                for key in keys:
+                    value = rec.get(key) if isinstance(rec, dict) else False
+                    if field_name:
+                        self._log_supplier_sync(
+                            supplier_ref,
+                            "field extract %s: tried bank_record[%s].%s -> %r",
+                            field_name,
+                            rec_idx,
+                            key,
+                            value,
+                        )
+                    cleaned_value = self._clean_placeholder_text(value)
+                    if cleaned_value:
+                        if field_name:
+                            self._log_supplier_sync(
+                                supplier_ref,
+                                "field extract %s selected from bank_record[%s].%s -> %r",
+                                field_name,
+                                rec_idx,
+                                key,
+                                cleaned_value,
+                            )
+                        return cleaned_value
+            if field_name:
+                self._log_supplier_sync(supplier_ref, "field extract %s selected -> False", field_name)
+            return False
+
+        bank_account, bank_account_source_key, bank_account_source_node = _pick_account_number()
+        bank_account = self._clean_placeholder_text(bank_account)
+        if not bank_account:
+            bank_account_source_key = False
+            bank_account_source_node = False
+
+        extracted_payload = {
+            'bank_name': _pick(['bankName', 'bank_name', 'advisingBank'], 'bank_name'),
+            'bank_address': _pick(['bankAddress', 'bank_address', 'address'], 'bank_street'),
+            'bank_account': bank_account,
+            'bank_account_source_key': bank_account_source_key,
+            'bank_account_source_node': bank_account_source_node,
+            'bank_branch': _pick(['bankBranch', 'bank_branch', 'branch', 'branchName', 'branchCode'], 'bank_branch'),
+            'bank_swift': _pick(['swiftCode', 'swift_code', 'swift', 'bic', 'bankBic'], 'bank_bic'),
+            'bank_country': _pick(['bankCountry', 'bank_country', 'country', 'countryCode', 'country_code'], 'bank_country'),
         }
 
-    def _upsert_supplier_bank_accounts(self, partner, supplier_detail, currency_id=False):
+        self._log_supplier_sync(
+            supplier_ref,
+            "bank payload final extracted: %s",
+            self._safe_debug_json(extracted_payload),
+        )
+        self._log_supplier_sync(
+            supplier_ref,
+            "===== SUPPLIER BANK DEBUG BLOCK END ===== supplier_ref=%r",
+            supplier_ref,
+        )
+
+        return extracted_payload
+
+    def _cleanup_placeholder_partner_bank_accounts(self, partner, supplier_ref=''):
+        """Delete partner bank rows containing placeholder account numbers."""
+        if not partner:
+            return 0
+
+        removed = 0
+        partner_banks = self.env['res.partner.bank'].search([('partner_id', '=', partner.id)])
+        for bank_row in partner_banks:
+            if self._is_placeholder_value(bank_row.acc_number):
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "cleanup placeholder partner.bank: remove account_id=%s acc_number=%r bank_name=%r",
+                    bank_row.id,
+                    bank_row.acc_number,
+                    bank_row.bank_id.name if bank_row.bank_id else False,
+                )
+                bank_row.unlink()
+                removed += 1
+
+        if removed:
+            self._log_supplier_sync(
+                supplier_ref,
+                "cleanup placeholder partner.bank completed: removed=%s partner_id=%s",
+                removed,
+                partner.id,
+            )
+        return removed
+
+    def _upsert_supplier_bank_accounts(self, partner, supplier_detail, supplier_dto=None, supplier_details=None, currency_id=False, supplier_ref=''):
         """Upsert res.bank and res.partner.bank from RS payload."""
-        if not partner or not supplier_detail:
+        if not partner:
+            self._log_supplier_sync(supplier_ref, "skip bank upsert: partner missing (skip because partner not found)")
             return
 
-        payload = self._extract_bank_payload(supplier_detail)
-        acc_number = payload.get('bank_account')
-        bank_name = payload.get('bank_name')
-        swift_code = payload.get('bank_swift')
+        self._cleanup_placeholder_partner_bank_accounts(partner, supplier_ref=supplier_ref)
 
-        if not any([acc_number, bank_name, swift_code]):
-            return
+        payload = self._extract_bank_payload(
+            supplier_detail,
+            supplier_dto=supplier_dto,
+            supplier_details=supplier_details,
+            supplier_ref=supplier_ref,
+            supplier_name=partner.name,
+        )
+        acc_number = self._clean_placeholder_text(payload.get('bank_account'))
+        bank_name = self._clean_placeholder_text(payload.get('bank_name'))
+        swift_code = self._clean_placeholder_text(payload.get('bank_swift'))
+        bank_street = self._clean_placeholder_text(payload.get('bank_address'))
+        bank_branch = self._clean_placeholder_text(payload.get('bank_branch'))
+        bank_country = self._clean_placeholder_text(payload.get('bank_country'))
+        self._log_supplier_sync(
+            supplier_ref,
+            "extract bank fields: bank_name=%r bank_bic=%r bank_street=%r bank_country=%r account_number=%r currency_id=%r",
+            bank_name,
+            swift_code,
+            bank_street,
+            bank_country,
+            acc_number,
+            currency_id,
+        )
+        self._log_supplier_sync(
+            supplier_ref,
+            "bank payload extracted: account=%r source_key=%r source_node=%r bank_name=%r swift=%r country=%r branch=%r address=%r",
+            acc_number,
+            payload.get('bank_account_source_key'),
+            payload.get('bank_account_source_node'),
+            bank_name,
+            swift_code,
+            bank_country,
+            bank_branch,
+            bank_street,
+        )
 
-        country_id = self._resolve_country_id_any(payload.get('bank_country'))
+        if not any([bank_name, swift_code]):
+            self._log_supplier_sync(
+                supplier_ref,
+                "skip res.bank upsert: both bank_name and swift are empty/placeholder",
+            )
+
+        country_id = self._resolve_country_id_any(bank_country)
         bank_domain = []
         if swift_code:
-            bank_domain = [('bic', '=', str(swift_code).strip())]
+            bank_domain = [('bic', '=', swift_code)]
         elif bank_name and country_id:
-            bank_domain = [('name', '=', str(bank_name).strip()), ('country', '=', country_id)]
+            bank_domain = [('name', '=', bank_name), ('country', '=', country_id)]
         elif bank_name:
-            bank_domain = [('name', '=', str(bank_name).strip())]
+            bank_domain = [('name', '=', bank_name)]
 
         bank = self.env['res.bank'].search(bank_domain, limit=1) if bank_domain else False
+        self._log_supplier_sync(supplier_ref, "bank search domain=%s found_bank_id=%s", bank_domain, bank.id if bank else False)
         bank_vals = {}
         if bank_name:
-            bank_vals['name'] = str(bank_name).strip()
+            bank_vals['name'] = bank_name
         if swift_code:
-            bank_vals['bic'] = str(swift_code).strip()
-        if payload.get('bank_address'):
-            bank_vals['street'] = str(payload['bank_address']).strip()
+            bank_vals['bic'] = swift_code
+        if bank_street:
+            bank_vals['street'] = bank_street
         if country_id:
             bank_vals['country'] = country_id
-        if payload.get('bank_branch') and 'bank_branch_name' in self.env['res.bank']._fields:
-            bank_vals['bank_branch_name'] = str(payload['bank_branch']).strip()
+        if bank_branch and 'bank_branch_name' in self.env['res.bank']._fields:
+            bank_vals['bank_branch_name'] = bank_branch
+
+        if bank_vals and not bank_vals.get('name') and swift_code:
+            bank_vals['name'] = swift_code
 
         if bank:
             if bank_vals:
                 bank.write(bank_vals)
+                self._log_supplier_sync(supplier_ref, "bank updated: bank_id=%s vals=%s", bank.id, bank_vals)
         elif bank_vals.get('name'):
             bank = self.env['res.bank'].create(bank_vals)
+            self._log_supplier_sync(supplier_ref, "bank created: bank_id=%s vals=%s", bank.id, bank_vals)
+        else:
+            self._log_supplier_sync(
+                supplier_ref,
+                "skip res.bank create: validation failed because bank_vals has no name; bank_vals=%s",
+                bank_vals,
+            )
 
         if not acc_number:
+            self._log_supplier_sync(
+                supplier_ref,
+                "skip partner.bank upsert: acc_number missing (skip because account_number is empty, matched_key=%r matched_node=%r)",
+                payload.get('bank_account_source_key'),
+                payload.get('bank_account_source_node'),
+            )
+            return
+
+        self._log_supplier_sync(
+            supplier_ref,
+            "partner.bank upsert condition: partner_id=%s has_acc_number=%s has_bank_id=%s currency_id=%s",
+            partner.id,
+            bool(acc_number),
+            bool(bank and bank.id),
+            currency_id,
+        )
+        if not bank:
+            self._log_supplier_sync(
+                supplier_ref,
+                "skip partner.bank upsert: bank_id missing (skip because bank_id is required)",
+            )
             return
 
         account_vals = {
             'partner_id': partner.id,
-            'acc_number': str(acc_number).strip(),
+            'acc_number': acc_number,
+            'bank_id': bank.id,
         }
-        if bank:
-            account_vals['bank_id'] = bank.id
         if currency_id and 'currency_id' in self.env['res.partner.bank']._fields:
             account_vals['currency_id'] = currency_id
 
         account = self.env['res.partner.bank'].search([
             ('partner_id', '=', partner.id),
             ('acc_number', '=', account_vals['acc_number']),
+            ('bank_id', '=', account_vals['bank_id']),
         ], limit=1)
         if account:
             account.write(account_vals)
+            self._log_supplier_sync(
+                supplier_ref,
+                "partner.bank updated: account_id=%s bank_id=%s currency_id=%s",
+                account.id,
+                account_vals.get('bank_id'),
+                account_vals.get('currency_id'),
+            )
         else:
-            self.env['res.partner.bank'].create(account_vals)
+            account = self.env['res.partner.bank'].create(account_vals)
+            self._log_supplier_sync(
+                supplier_ref,
+                "partner.bank created: account_id=%s bank_id=%s currency_id=%s",
+                account.id,
+                account_vals.get('bank_id'),
+                account_vals.get('currency_id'),
+            )
 
     def _upsert_supplier_partner(self, supplier_dto, cache, currency_id=False):
         """Upsert supplier partner by ref (official code), then enrich contact/bank."""
         details = supplier_dto.get('supplierDetailDTOS', []) if isinstance(supplier_dto, dict) else []
-        if not details:
+        detail_candidates = [rec for rec in details if isinstance(rec, dict)]
+        if isinstance(supplier_dto, dict):
+            detail_candidates.append(supplier_dto)
+        if not detail_candidates:
+            self._log_supplier_sync('', "skip supplier upsert: no detail candidates in payload")
             return False
 
-        detail = details[0] if isinstance(details[0], dict) else {}
-        supplier_ref = self._rs_pick(detail, ['cid', 'code', 'supplierCode', 'supplier_code'])
-        supplier_name = self._rs_pick(detail, ['name', 'supplierName', 'supplier_name'])
+        detail = detail_candidates[0]
+        supplier_ref = False
+        supplier_name = False
+        for candidate in detail_candidates:
+            supplier_ref = self._rs_pick(candidate, ['cid', 'code', 'supplierCode', 'supplier_code'])
+            supplier_name = self._rs_pick(candidate, ['name', 'supplierName', 'supplier_name'])
+            if supplier_ref and supplier_name:
+                detail = candidate
+                break
+
         if not supplier_ref or not supplier_name:
+            self._log_supplier_sync('', "skip supplier upsert: missing supplier_ref or supplier_name")
             return False
 
         ref = str(supplier_ref).strip().upper()
+        self._log_supplier_sync(
+            ref,
+            "supplier candidate resolved: supplier_ref=%r supplier_name=%r details_count=%s currency_id=%s",
+            ref,
+            supplier_name,
+            len(detail_candidates),
+            currency_id,
+        )
         partner = self.env['res.partner'].search([('ref', '=', ref)], limit=1)
         if not partner and 'code' in self.env['res.partner']._fields:
             partner = self.env['res.partner'].search([('code', '=', ref)], limit=1)
 
         phone = self._rs_pick(detail, ['phone', 'phoneNumber', 'telephone'])
-        email = self._rs_pick(detail, ['mail', 'email'])
-        vat = self._rs_pick(detail, ['taxCode', 'tax_code', 'taxNumber', 'tax_number', 'taxId', 'vat', 'mst'])
-        fax = self._rs_pick(detail, ['fax', 'faxNumber', 'fax_number'])
+        email = self._clean_placeholder_text(self._rs_pick(detail, ['mail', 'email']))
+        vat = self._clean_placeholder_text(self._rs_pick(detail, ['taxCode', 'tax_code', 'taxNumber', 'tax_number', 'taxId', 'vat', 'mst']))
+        fax = self._clean_placeholder_text(self._rs_pick(detail, ['fax', 'faxNumber', 'fax_number']))
         address_text = self._rs_pick(detail, ['address', 'street'])
         city = self._rs_pick(detail, ['city'])
         partner_country = self._rs_pick(detail, ['countryCode', 'country_code', 'country'])
+        if not partner_country and isinstance(detail.get('coDTO'), dict):
+            partner_country = (
+                detail['coDTO'].get('cid')
+                or detail['coDTO'].get('code')
+                or detail['coDTO'].get('name')
+            )
+        contact_person = self._clean_placeholder_text(self._rs_pick(detail, [
+            'contactName', 'contact_name', 'contactPerson', 'contact_person',
+            'contactPersonName', 'personContact', 'nguoiLienHe',
+        ]))
+        self._log_alias_lookup(ref, detail, 'supplier_ref', ['cid', 'code', 'supplierCode', 'supplier_code'])
+        self._log_alias_lookup(ref, detail, 'supplier_name', ['name', 'supplierName', 'supplier_name'])
+        self._log_alias_lookup(ref, detail, 'phone', ['phone', 'phoneNumber', 'telephone'])
+        self._log_alias_lookup(ref, detail, 'email', ['mail', 'email'])
+        self._log_alias_lookup(ref, detail, 'address', ['address', 'street'])
+        self._log_alias_lookup(ref, detail, 'vat', ['taxCode', 'tax_code', 'taxNumber', 'tax_number', 'taxId', 'vat', 'mst'])
+        self._log_alias_lookup(ref, detail, 'contact_person', [
+            'contactName', 'contact_name', 'contactPerson', 'contact_person',
+            'contactPersonName', 'personContact', 'nguoiLienHe',
+        ])
+        self._log_alias_lookup(ref, detail, 'bank_name', ['bankName', 'bank_name', 'name'])
+        self._log_alias_lookup(ref, detail, 'bank_bic', ['swiftCode', 'swift_code', 'swift', 'bic', 'bankBic'])
+        self._log_alias_lookup(ref, detail, 'bank_street', ['bankAddress', 'bank_address', 'address'])
+        self._log_alias_lookup(ref, detail, 'bank_country', ['bankCountry', 'bank_country', 'country', 'countryCode', 'country_code'])
+        self._log_supplier_sync(
+            ref,
+            "extract fields: supplier_ref=%r supplier_name=%r phone=%r email=%r address=%r vat=%r contact_person=%r",
+            ref,
+            supplier_name,
+            phone,
+            email,
+            address_text,
+            vat,
+            contact_person,
+        )
         address_parts = self._extract_supplier_address_parts(
             address_text,
             city=city,
             country=partner_country,
+        )
+        self._log_supplier_sync(
+            ref,
+            "address parse: raw=%r city_in=%r country_in=%r => street=%r city=%r country_id=%r",
+            address_text,
+            city,
+            partner_country,
+            address_parts.get('street'),
+            address_parts.get('city'),
+            address_parts.get('country_id'),
         )
 
         vals = {
@@ -1591,18 +2179,53 @@ class ProductSync(models.Model):
             vals['property_purchase_currency_id'] = currency_id
         if 'code' in self.env['res.partner']._fields:
             vals['code'] = ref
+        self._log_supplier_sync(
+            ref,
+            "partner vals prepared: has_phone=%s has_vat=%s has_city=%s has_country=%s purchase_currency_id=%s",
+            bool(vals.get('phone')),
+            bool(vals.get('vat')),
+            bool(vals.get('city')),
+            bool(vals.get('country_id')),
+            vals.get('property_purchase_currency_id'),
+        )
 
         if partner:
             partner.write(vals)
+            self._log_supplier_sync(ref, "partner updated: partner_id=%s", partner.id)
         else:
             partner = self.env['res.partner'].create(vals)
+            self._log_supplier_sync(ref, "partner created: partner_id=%s", partner.id)
 
         cache['suppliers'][ref] = partner.id
         if 'code' in self.env['res.partner']._fields and partner.code:
             cache['suppliers'][partner.code.upper()] = partner.id
 
         self._upsert_supplier_contact(partner, detail)
-        self._upsert_supplier_bank_accounts(partner, detail, currency_id=currency_id)
+        self._upsert_supplier_bank_accounts(
+            partner,
+            detail,
+            supplier_dto=supplier_dto,
+            supplier_details=details,
+            currency_id=currency_id,
+            supplier_ref=ref,
+        )
+
+        partner_banks = self.env['res.partner.bank'].search([('partner_id', '=', partner.id)])
+        bank_rows = [
+            {
+                'id': row.id,
+                'acc_number': row.acc_number,
+                'bank_name': row.bank_id.name if row.bank_id else False,
+            }
+            for row in partner_banks
+        ]
+        self._log_supplier_sync(
+            ref,
+            "supplier sync result: partner_id=%s bank_ids_count=%s bank_ids=%s",
+            partner.id,
+            len(partner_banks),
+            self._safe_debug_json(bank_rows),
+        )
         return partner.id
 
     def _prepare_base_vals(self, item, cache, product_type, coating_ids=None, lens_template_key=None):
@@ -1692,7 +2315,47 @@ class ProductSync(models.Model):
         s_dto = dto.get('supplierdto') or {}
         s_details = s_dto.get('supplierDetailDTOS', []) if isinstance(s_dto, dict) else []
         s_detail = s_details[0] if s_details and isinstance(s_details[0], dict) else {}
+        supplier_currency_code = self._rs_pick(s_dto, ['currencyCode', 'currency_code', 'currency'])
+        if not supplier_currency_code and isinstance(s_dto, dict):
+            supplier_zone_obj = s_dto.get('currencyZoneDTO')
+            if isinstance(supplier_zone_obj, dict):
+                supplier_currency_code = supplier_zone_obj.get('cid') or supplier_zone_obj.get('code') or supplier_zone_obj.get('name')
+
+        if not supplier_currency_code:
+            supplier_currency_code = self._rs_pick(s_detail, ['currencyCode', 'currency_code', 'currency'])
+            if not supplier_currency_code and isinstance(s_detail, dict):
+                supplier_zone_obj = s_detail.get('currencyZoneDTO')
+                if isinstance(supplier_zone_obj, dict):
+                    supplier_currency_code = supplier_zone_obj.get('cid') or supplier_zone_obj.get('code') or supplier_zone_obj.get('name')
+
         currency_zone_cid = self._extract_supplier_currency_code(dto, s_dto, s_detail)
+        supplier_ref_hint = self._rs_pick(s_detail, ['cid', 'code', 'supplierCode', 'supplier_code']) or self._rs_pick(s_dto, ['cid', 'code', 'supplierCode', 'supplier_code'])
+        supplier_name_hint = self._rs_pick(s_detail, ['name', 'supplierName', 'supplier_name']) or self._rs_pick(s_dto, ['name', 'supplierName', 'supplier_name'])
+        supplier_ref_hint = str(supplier_ref_hint or '').strip().upper()
+        self._log_supplier_sync(
+            supplier_ref_hint,
+            "currency source resolved: code=%r dto_currencyZone=%r",
+            currency_zone_cid,
+            ((dto.get('currencyZoneDTO') or {}).get('cid') if isinstance(dto, dict) else ''),
+        )
+        self._log_supplier_sync(
+            supplier_ref_hint,
+            "currency source detail: supplier_currency=%r product_currency=%r",
+            supplier_currency_code,
+            ((dto.get('currencyZoneDTO') or {}).get('cid') if isinstance(dto, dict) else ''),
+        )
+
+        strict_supplier_currency_source = os.getenv('STRICT_SUPPLIER_CURRENCY_SOURCE', 'True').strip().lower() in ('1', 'true', 'yes', 'on')
+        if strict_supplier_currency_source and not supplier_currency_code:
+            raise ValueError(
+                "Supplier currency source missing in supplier payload: supplier_ref=%s supplier_name=%s product_currency=%s"
+                % (
+                    supplier_ref_hint or 'N/A',
+                    (self._rs_pick(s_detail, ['name', 'supplierName', 'supplier_name']) or self._rs_pick(s_dto, ['name', 'supplierName', 'supplier_name']) or 'N/A'),
+                    (currency_zone_cid or 'EMPTY'),
+                )
+            )
+
         currency_id = False
         if currency_zone_cid:
             _cur_key = f'currency_{currency_zone_cid.upper()}'
@@ -1721,30 +2384,32 @@ class ProductSync(models.Model):
                             except Exception as e:
                                 _logger.warning(f"⚠️ Không kích hoạt được currency {currency_zone_cid!r}: {e}")
                     else:
-                        try:
-                            with self.env.cr.savepoint():
-                                _cur = self.env['res.currency'].create({
-                                    'name': currency_zone_cid.upper(),
-                                    'symbol': currency_zone_cid.upper(),
-                                    'position': 'after',
-                                    'active': True,
-                                    'rounding': 0.01,
-                                })
-                                currency_id = _cur.id
-                                _logger.info(f"✅ Auto-created currency: {currency_zone_cid.upper()} (id={currency_id})")
-                        except Exception as e:
-                            _logger.warning(f"⚠️ Không tạo được currency {currency_zone_cid!r}: {e}")
-                            # Recover: search lại sau khi lỗi (có thể do race condition)
-                            _cur_existing = self.env['res.currency'].with_context(active_test=False).search([
-                                ('name', '=', currency_zone_cid.upper())
-                            ], limit=1)
-                            if _cur_existing:
-                                currency_id = _cur_existing.id
-                                _logger.info(f"✅ Recovered currency after error: {currency_zone_cid.upper()} (id={currency_id})")
+                        _logger.warning(
+                            "⚠️ Currency không tồn tại trong Odoo: code=%r | supplier_ref=%r supplier_name=%r",
+                            currency_zone_cid,
+                            supplier_ref_hint,
+                            supplier_name_hint,
+                        )
                     # Cập nhật cache để lần sau không cần search lại
                     if currency_id:
                         cache.setdefault('acc_currency', {})[currency_zone_cid.upper()] = currency_id
                 cache['misc'][_cur_key] = currency_id
+        else:
+            self._log_supplier_sync(supplier_ref_hint, "currency unresolved: no currency code found in payload")
+
+        strict_currency = os.getenv('STRICT_SUPPLIER_CURRENCY', 'True').strip().lower() in ('1', 'true', 'yes', 'on')
+        supplier_has_identity = bool(supplier_ref_hint or supplier_name_hint)
+        if strict_currency and supplier_has_identity and not currency_id:
+            raise ValueError(
+                "Supplier currency mapping failed: supplier_ref=%s supplier_name=%s raw_currency=%s"
+                % (supplier_ref_hint or 'N/A', supplier_name_hint or 'N/A', currency_zone_cid or 'EMPTY')
+            )
+
+        self._log_supplier_sync(
+            supplier_ref_hint,
+            "currency resolved final: currency_id=%s",
+            currency_id,
+        )
 
         # Supplier Logic - upsert supplier by ref and defer supplierinfo upsert.
         seller_payloads = []
@@ -3004,12 +3669,13 @@ class ProductSync(models.Model):
             
             total = stats['lens'] + stats['opt'] + stats['acc']
             msg = f"Đã đồng bộ {total} (Mắt:{stats['lens']}, Gọng:{stats['opt']}, Khác:{stats['acc']}). Lỗi: {stats['failed']}"
-            self.write({'sync_status': 'success' if stats['failed'] == 0 else 'success', 'sync_log': msg, 
+            has_failed = stats['failed'] > 0
+            self.write({'sync_status': 'error' if has_failed else 'success', 'sync_log': msg,
                        'total_synced': total, 'total_failed': stats['failed'], 
                        'lens_count': stats['lens'], 'opts_count': stats['opt'], 'other_count': stats['acc']})
             
             return {'type': 'ir.actions.client', 'tag': 'display_notification', 
-                    'params': {'title': 'Đồng bộ hoàn tất', 'message': msg, 'type': 'success'}}
+                    'params': {'title': 'Đồng bộ hoàn tất', 'message': msg, 'type': 'danger' if has_failed else 'success'}}
 
         except Exception as e:
             self.env.cr.rollback()
