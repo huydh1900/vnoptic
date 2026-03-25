@@ -289,46 +289,30 @@ class ProductSync(models.Model):
         if total == 0:
             return 0, 0
 
-        env = self.env
-        extra_cursors = []
-        try:
-            for chunk_idx, start in enumerate(range(0, total, chunk_size), start=1):
-                chunk = items[start:start + chunk_size]
-                _logger.info(
-                    "⚙️ Processing %s chunk %s (%s records — %s/%s total)",
-                    product_type, chunk_idx, len(chunk), start + 1, min(start + len(chunk), total)
+        for chunk_idx, start in enumerate(range(0, total, chunk_size), start=1):
+            chunk = items[start:start + chunk_size]
+            _logger.info(
+                "⚙️ Processing %s chunk %s (%s records — %s/%s total)",
+                product_type, chunk_idx, len(chunk), start + 1, min(start + len(chunk), total)
+            )
+            try:
+                with self.env.cr.savepoint():
+                    success, failed = self._process_batch(chunk, cache, product_type, child_model, error_ctx=error_ctx)
+            except Exception as exc:
+                total_failed += len(chunk)
+                self._record_sync_error(
+                    error_ctx, product_type, 'CHUNK_ERR',
+                    ref=f"chunk={chunk_idx} size={len(chunk)}",
+                    exc=exc
                 )
-                try:
-                    with env.cr.savepoint():
-                        success, failed = self.with_env(env)._process_batch(chunk, cache, product_type, child_model, error_ctx=error_ctx)
-                except Exception as exc:
-                    total_failed += len(chunk)
-                    self._record_sync_error(
-                        error_ctx, product_type, 'CHUNK_ERR',
-                        ref=f"chunk={chunk_idx} size={len(chunk)}",
-                        exc=exc
-                    )
-                    _logger.error(
-                        "[%s][CHUNK_ERR] chunk=%s size=%s error=%s",
-                        product_type.upper(), chunk_idx, len(chunk), exc,
-                        exc_info=True
-                    )
-                    # Nếu cursor bị chết (do SerializationFailure từ websocket), tạo cursor mới
-                    if env.cr.closed:
-                        _logger.warning("[%s] Cursor closed after chunk %s, acquiring new cursor", product_type.upper(), chunk_idx)
-                        new_cr = self.pool.cursor()
-                        extra_cursors.append(new_cr)
-                        env = self.env(cr=new_cr)
-                    continue
-                total_success += success
-                total_failed += failed
-        finally:
-            for cr in extra_cursors:
-                try:
-                    cr.commit()
-                    cr.close()
-                except Exception:
-                    pass
+                _logger.error(
+                    "[%s][CHUNK_ERR] chunk=%s size=%s error=%s",
+                    product_type.upper(), chunk_idx, len(chunk), exc,
+                    exc_info=True
+                )
+                continue
+            total_success += success
+            total_failed += failed
         return total_success, total_failed
 
     def _preload_all_data(self):
@@ -2720,85 +2704,89 @@ class ProductSync(models.Model):
 
     def _run_sync(self, limit=None):
         self.ensure_one()
+        rec_id = self.id
+        db = self.env.cr.dbname
+
+        # Đánh dấu in_progress trên cursor gốc rồi commit ngay
+        self.write({'sync_status': 'in_progress', 'sync_log': 'Đang đồng bộ...', 'last_sync_date': fields.Datetime.now()})
+        self.env.cr.commit()
+
+        # Toàn bộ sync chạy trên cursor riêng biệt → tránh bị websocket/bus kill
         try:
-            self.write({'sync_status': 'in_progress', 'sync_log': 'Đang đồng bộ...', 'last_sync_date': fields.Datetime.now()})
-            self.env.cr.commit()
-
-            token = self._get_access_token()
-            cache = self._preload_all_data()
-            cfg = self._get_api_config()
-            stats = {}
-            error_ctx = self._init_sync_error_ctx()
-
-            # Lens
-            items = self._fetch_all_items(cfg['lens_endpoint'], token, 'Lens', limit)
-            s, f = self._process_items_in_chunks(items, cache, 'lens', error_ctx=error_ctx)
-            stats['lens'] = s
-            stats['failed'] = f
-
-            try:
-                self._sync_lens_stock(token, cfg, cache)
-            except Exception as e:
-                _logger.warning(f"⚠️ Bỏ qua sync tồn kho lens: {e}")
-
-            # Opt
-            items = self._fetch_all_items(cfg['opts_endpoint'], token, 'Optical', limit)
-            s, f = self._process_items_in_chunks(items, cache, 'opt', error_ctx=error_ctx)
-            stats['opt'] = s
-            stats['failed'] += f
-
-            # Accessory
-            items = self._fetch_all_items(cfg['types_endpoint'], token, 'Types', limit)
-            s, f = self._process_items_in_chunks(items, cache, 'accessory', error_ctx=error_ctx)
-            stats['acc'] = s
-            stats['failed'] += f
-
-            total = stats['lens'] + stats['opt'] + stats['acc']
-            msg = f"Đã đồng bộ {total} (Mắt:{stats['lens']}, Gọng:{stats['opt']}, Khác:{stats['acc']}). Lỗi: {stats['failed']}"
-
-            full_log = msg
-            if error_ctx.get('counts'):
-                counts_sorted = sorted(
-                    error_ctx['counts'].items(),
-                    key=lambda kv: (-kv[1], kv[0])
-                )
-                counts_str = ", ".join([f"{k}={v}" for k, v in counts_sorted[:20]])
-                samples = "\n".join(error_ctx.get('samples') or [])
-                if samples:
-                    full_log = (
-                        f"{msg}\n\n"
-                        f"Tóm tắt lỗi: {counts_str}\n"
-                        f"Ví dụ lỗi (tối đa {error_ctx.get('sample_limit', 0)}):\n"
-                        f"{samples}"
-                    )
-                else:
-                    full_log = f"{msg}\n\nTóm tắt lỗi: {counts_str}"
-
-            max_chars = error_ctx.get('max_chars', 20000)
-            if isinstance(full_log, str) and len(full_log) > max_chars:
-                full_log = full_log[:max_chars] + "\n...(truncated)"
-
-            self.write({'sync_status': 'success', 'sync_log': full_log,
-                       'total_synced': total, 'total_failed': stats['failed'],
-                       'lens_count': stats['lens'], 'opts_count': stats['opt'], 'other_count': stats['acc']})
-
+            from odoo import registry as Registry
+            with Registry(db).cursor() as cr:
+                env = self.env(cr=cr)
+                rec = env[self._name].browse(rec_id)
+                msg, full_log, stats = rec._do_sync(limit)
+                rec.write({
+                    'sync_status': 'success', 'sync_log': full_log,
+                    'total_synced': stats['lens'] + stats['opt'] + stats['acc'],
+                    'total_failed': stats['failed'],
+                    'lens_count': stats['lens'], 'opts_count': stats['opt'], 'other_count': stats['acc'],
+                })
+                # cr.commit() tự động khi thoát with block thành công
             return {'type': 'ir.actions.client', 'tag': 'display_notification',
                     'params': {'title': 'Đồng bộ hoàn tất', 'message': msg, 'type': 'success'}}
-
         except Exception as e:
             try:
-                self.env.cr.rollback()
-            except Exception:
-                pass
-            # Dùng new cursor để ghi trạng thái lỗi (cursor cũ có thể đã đóng)
-            try:
-                with self.env.registry.cursor() as new_cr:
-                    env2 = self.env(cr=new_cr)
-                    env2[self._name].browse(self.id).write({'sync_status': 'error', 'sync_log': str(e)[:2000]})
+                with Registry(db).cursor() as cr:
+                    self.env(cr=cr)[self._name].browse(rec_id).write(
+                        {'sync_status': 'error', 'sync_log': str(e)[:2000]}
+                    )
             except Exception:
                 pass
             return {'type': 'ir.actions.client', 'tag': 'display_notification',
                     'params': {'title': 'Đồng bộ thất bại', 'message': str(e)[:500], 'type': 'danger'}}
+
+    def _do_sync(self, limit=None):
+        """Logic sync thực sự — chạy trên cursor riêng được truyền vào qua self.env."""
+        token = self._get_access_token()
+        cache = self._preload_all_data()
+        cfg = self._get_api_config()
+        stats = {}
+        error_ctx = self._init_sync_error_ctx()
+
+        # Lens
+        items = self._fetch_all_items(cfg['lens_endpoint'], token, 'Lens', limit)
+        s, f = self._process_items_in_chunks(items, cache, 'lens', error_ctx=error_ctx)
+        stats['lens'] = s
+        stats['failed'] = f
+
+        try:
+            self._sync_lens_stock(token, cfg, cache)
+        except Exception as e:
+            _logger.warning(f"⚠️ Bỏ qua sync tồn kho lens: {e}")
+
+        # Opt
+        items = self._fetch_all_items(cfg['opts_endpoint'], token, 'Optical', limit)
+        s, f = self._process_items_in_chunks(items, cache, 'opt', error_ctx=error_ctx)
+        stats['opt'] = s
+        stats['failed'] += f
+
+        # Accessory
+        items = self._fetch_all_items(cfg['types_endpoint'], token, 'Types', limit)
+        s, f = self._process_items_in_chunks(items, cache, 'accessory', error_ctx=error_ctx)
+        stats['acc'] = s
+        stats['failed'] += f
+
+        total = stats['lens'] + stats['opt'] + stats['acc']
+        msg = f"Đã đồng bộ {total} (Mắt:{stats['lens']}, Gọng:{stats['opt']}, Khác:{stats['acc']}). Lỗi: {stats['failed']}"
+
+        full_log = msg
+        if error_ctx.get('counts'):
+            counts_sorted = sorted(error_ctx['counts'].items(), key=lambda kv: (-kv[1], kv[0]))
+            counts_str = ", ".join([f"{k}={v}" for k, v in counts_sorted[:20]])
+            samples = "\n".join(error_ctx.get('samples') or [])
+            full_log = (
+                f"{msg}\n\nTóm tắt lỗi: {counts_str}"
+                + (f"\nVí dụ lỗi (tối đa {error_ctx.get('sample_limit', 0)}):\n{samples}" if samples else "")
+            )
+
+        max_chars = error_ctx.get('max_chars', 20000)
+        if len(full_log) > max_chars:
+            full_log = full_log[:max_chars] + "\n...(truncated)"
+
+        return msg, full_log, stats
 
     def test_api_connection(self):
         try:
