@@ -1239,63 +1239,40 @@ class ProductSync(models.Model):
                 )
             default_code = f"{model_code}-{color_code}"
 
-        # Category Logic with Code (for product code generation)
+        # Category Logic - chỉ 2 cấp: All / <loại>
         grp_dto = dto.get('groupdto') or {}
         grp_type_name = (grp_dto.get('groupTypedto') or {}).get('name', 'Khác')
 
         # Map product type to category code (matches RS format)
         cat_map = {
-            'Mắt': ('Lens Products', 'lens', '06'),  # Code 06 for Lens
-            'Gọng': ('Optical OPT', 'opt', '27'),  # Code 27 for Opt
-            'Khác': ('Accessories', 'accessory', '20')  # Code 20 for Accessory
+            'Mắt': ('Tròng kính', 'lens', '06'),
+            'Gọng': ('Gọng kính', 'opt', '27'),
+            'Khác': ('Phụ kiện', 'accessory', '20')
         }
-        main_cat, _, main_code = cat_map.get(grp_type_name, ('Accessories', 'accessory', '20'))
+        main_cat, _, main_code = cat_map.get(grp_type_name, ('Phụ kiện', 'accessory', '20'))
 
-        # Get/Create Category
-        cat_name = grp_dto.get('name', 'All Products')
-
-        # 1. Ensure Parent Category with code
+        # Get/Create Parent Category (chỉ 1 cấp dưới All)
         parent_key = (main_cat, False)
         if parent_key in cache['categories']:
-            parent_id = cache['categories'][parent_key]
+            categ_id = cache['categories'][parent_key]
         else:
             parent = self.env['product.category'].search([('name', '=', main_cat)], limit=1)
             if parent:
-                parent_id = parent.id
+                categ_id = parent.id
             else:
                 try:
                     with self.env.cr.savepoint():
                         parent = self.env['product.category'].with_context(
                             tracking_disable=True, mail_notrack=True
                         ).create({'name': main_cat, 'code': main_code})
-                    parent_id = parent.id
+                    categ_id = parent.id
                 except Exception:
                     parent = self.env['product.category'].search([('name', '=', main_cat)], limit=1)
-                    parent_id = parent.id if parent else self.env.ref('product.product_category_all').id
-            cache['categories'][parent_key] = parent_id
+                    categ_id = parent.id if parent else self.env.ref('product.product_category_all').id
+            cache['categories'][parent_key] = categ_id
 
-        # 2. Ensure Child Category (inherit parent code if not set)
-        cat_key = (cat_name, parent_id)
-        if cat_key in cache['categories']:
-            categ_id = cache['categories'][cat_key]
-        else:
-            cat = self.env['product.category'].search([('name', '=', cat_name), ('parent_id', '=', parent_id)], limit=1)
-            if cat:
-                categ_id = cat.id
-            else:
-                try:
-                    with self.env.cr.savepoint():
-                        cat = self.env['product.category'].with_context(
-                            tracking_disable=True, mail_notrack=True
-                        ).create({'name': cat_name, 'parent_id': parent_id, 'code': main_code})
-                    categ_id = cat.id
-                except Exception:
-                    cat = self.env['product.category'].search([('name', '=', cat_name), ('parent_id', '=', parent_id)],
-                                                              limit=1)
-                    categ_id = cat.id if cat else parent_id
-            cache['categories'][cat_key] = categ_id
-
-        # Group Logic
+        # Nhóm sản phẩm (gán vào field riêng theo loại, không tạo danh mục con)
+        cat_name = grp_dto.get('name', '')
         grp_id = False
         if 'product.group' in self.env:
             g_id = grp_dto.get('id')
@@ -1492,10 +1469,11 @@ class ProductSync(models.Model):
             'brand_id': self._get_or_create(cache, 'brands', 'product.brand', dto.get('tmdto')),
             'country_id': self._get_or_create(cache, 'countries', 'res.country', dto.get('codto')),
             'warranty_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantydto')),
-            'group_id': grp_id,
+            'lens_group_id': grp_id if product_type == 'lens' else False,
+            'opt_group_id': grp_id if product_type == 'opt' else False,
+            'acc_group_id': grp_id if product_type == 'accessory' else False,
             # Custom Fields (prefixed with x_)
             'x_eng_name': dto.get('engName', ''),
-            'x_trade_name': dto.get('tradeName', ''),
             'description': dto.get('note', ''),
             'x_uses': dto.get('uses', ''),
             'x_guide': dto.get('guide', ''),

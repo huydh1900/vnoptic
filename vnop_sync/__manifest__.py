@@ -1,10 +1,13 @@
 {
     'name': 'Product Sync from Server',
-    'version': '18.0.1.0.1',
+    'version': '18.0.1.0.4',
     'category': 'Inventory',
-    'depends': ['base', 'stock', 'product', 'purchase', 'account', 'hr'],
+    'depends': ['base', 'stock', 'product', 'purchase', 'account'],
     'data': [
         'security/ir.model.access.csv',
+        'data/ir_cron_data.xml',
+        'data/product_category_data.xml',
+        'data/company_data.xml',
         'views/product_sync_views.xml',
         'views/product_brand_views.xml',
         'views/product_warranty_views.xml',
@@ -17,7 +20,6 @@
         'wizard/lens_cleanup_wizard_views.xml',
         'views/product_group_views.xml',
         'views/product_lens_config_views.xml',
-        'data/ir_cron_data.xml',
     ],
     'external_dependencies': {
         'python': ['requests', 'Pillow', 'python-dotenv', 'openpyxl', 'xlsxwriter']

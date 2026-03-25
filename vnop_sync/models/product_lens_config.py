@@ -13,7 +13,6 @@ class LensPower(models.Model):
         ('cyl', 'CYL'),
         ('add', 'ADD'),
     ], string='Type', required=True, index=True)
-    active = fields.Boolean('Active', default=True)
 
     _sql_constraints = [
         ('value_type_uniq', 'unique (value, type)', 'The power value must be unique per type!')
@@ -32,7 +31,6 @@ class LensDesign(models.Model):
         ('bifocal', 'Bifocal'),
         ('other', 'Other')
     ], string='Type', required=True, default='single')
-    active = fields.Boolean('Active', default=True)
 
 class LensMaterial(models.Model):
     _name = 'product.lens.material'
@@ -42,7 +40,6 @@ class LensMaterial(models.Model):
     name = fields.Char('Material Name', required=True, translate=True)
     refractive_index = fields.Float('Refractive Index', digits=(3, 3))
     description = fields.Text('Description')
-    active = fields.Boolean('Active', default=True)
 
 class LensFeature(models.Model):
     _name = 'product.lens.feature'
@@ -61,4 +58,3 @@ class LensFeature(models.Model):
         ('other', 'Other')
     ], string='Feature Type', required=True, index=True)
     price_extra = fields.Float('Price Extra', default=0.0)
-    active = fields.Boolean('Active', default=True)

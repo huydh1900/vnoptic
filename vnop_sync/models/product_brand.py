@@ -1,4 +1,4 @@
-from odoo import models, fields, api
+from odoo import models, fields
 
 
 class ProductBrand(models.Model):
@@ -12,26 +12,11 @@ class ProductBrand(models.Model):
                        help='Mã 3 số dùng cho tạo mã sản phẩm (VD: 003, 004). Để trống sẽ dùng ID.')
     description = fields.Text('Mô tả thương hiệu')
     logo = fields.Image('Logo', max_width=512, max_height=512)
-    active = fields.Boolean('Active', default=True)
-
-    product_count = fields.Integer(
-        'Product Count',
-        compute='_compute_product_count',
-        store=False
-    )
 
     # SQL Constraints
     _sql_constraints = [
         ('name_unique', 'unique(name)', 'Brand name must be unique!'),
     ]
-
-    # Compute Methods
-    @api.depends('name')
-    def _compute_product_count(self):
-        for record in self:
-            record.product_count = self.env['product.template'].search_count([
-                ('brand_id', '=', record.id)
-            ])
 
     # Display Name
     def name_get(self):

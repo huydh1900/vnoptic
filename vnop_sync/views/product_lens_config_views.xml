@@ -9,7 +9,6 @@
                 <field name="name"/>
                 <field name="value"/>
                 <field name="type"/>
-                <field name="active" optional="show"/>
             </list>
         </field>
     </record>
@@ -29,7 +28,6 @@
                 <field name="name"/>
                 <field name="code"/>
                 <field name="design_type"/>
-                <field name="active" optional="show"/>
             </list>
         </field>
     </record>
@@ -49,7 +47,6 @@
                 <field name="name"/>
                 <field name="refractive_index"/>
                 <field name="description"/>
-                <field name="active" optional="show"/>
             </list>
         </field>
     </record>
@@ -69,7 +66,6 @@
                 <field name="name"/>
                 <field name="feature_type"/>
                 <field name="price_extra"/>
-                <field name="active" optional="show"/>
             </list>
         </field>
     </record>

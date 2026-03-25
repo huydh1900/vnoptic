@@ -8,5 +8,4 @@ class ContractDocumentType(models.Model):
     _order = "name"
 
     name = fields.Char(string="Tên chứng từ", required=True)
-    active = fields.Boolean(default=True)
 

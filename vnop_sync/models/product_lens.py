@@ -46,7 +46,7 @@ class ProductLens(models.Model):
     base_curve = fields.Float('Base Curve', digits=(4, 2))
 
     # 5. Diameter (Manual Input, Validated)
-    diameter = fields.Integer('Diameter')
+    diameter = fields.Float('Diameter (mm)', digits=(6, 1))
 
     # 6. Lens Design (Legacy fields from old system)
     design1_id = fields.Many2one('product.design', string='Thiết kế 1')

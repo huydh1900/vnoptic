@@ -32,12 +32,6 @@ class ProductTemplateExtension(models.Model):
         help="Product name in English"
     )
 
-    x_trade_name = fields.Char(
-        'Tên thương mại',
-        help="Commercial trade name"
-    )
-
-
     x_uses = fields.Text(
         'Công dụng',
         help="Product usage instructions"
@@ -159,8 +153,17 @@ class ProductTemplateExtension(models.Model):
     opt_ids = fields.One2many('product.opt', 'product_tmpl_id', 'Optical Details (Legacy)')
 
     # ==================== ADDITIONAL FIELDS FOR VIEW ====================
-    group_id = fields.Many2one('product.group', string='Nhóm sản phẩm (theo loại)',
-                                help='Nhóm sản phẩm - tự động lọc theo phân loại nghiệp vụ')
+    group_id = fields.Many2one('product.group', string='Nhóm sản phẩm (legacy)',
+                                help='[Deprecated] Dùng lens_group_id / opt_group_id / acc_group_id')
+    lens_group_id = fields.Many2one('product.group', string='Nhóm Tròng kính',
+                                     domain=[('product_type', '=', 'lens')],
+                                     help='Nhóm sản phẩm cho Tròng kính')
+    opt_group_id = fields.Many2one('product.group', string='Nhóm Gọng kính',
+                                    domain=[('product_type', '=', 'opt')],
+                                    help='Nhóm sản phẩm cho Gọng kính')
+    acc_group_id = fields.Many2one('product.group', string='Nhóm Phụ kiện',
+                                    domain=[('product_type', '=', 'accessory')],
+                                    help='Nhóm sản phẩm cho Phụ kiện')
     index_id = fields.Many2one('product.lens.index', string='Chiết suất', 
                                 help='Lens index for code generation (lens products only)')
     auto_generate_code = fields.Boolean('Tự động tạo mã', default=True,
@@ -210,7 +213,7 @@ class ProductTemplateExtension(models.Model):
     x_photochromic = fields.Char('Photochromic (legacy)', help='Deprecated – dùng lens_cl_pho_id')
     x_tinted = fields.Char('Tinted (legacy)', help='Deprecated – dùng lens_cl_tint_id')
     x_mir_coating = fields.Char('Màu tráng gương', help='Mirror coating (display only)')
-    x_diameter = fields.Integer('Đường kính', help='Lens diameter (display only)')
+    x_diameter = fields.Float('Đường kính (mm)', digits=(6, 1), help='Lens diameter (display only)')
 
     # ==================== OPT SPECS (Hướng B: field trực tiếp trên template) ====================
     # Thông tin cơ bản

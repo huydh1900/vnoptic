@@ -13,16 +13,33 @@
         </field>
     </record>
 
+    <!-- Ẩn categ_id trong product_template_form_view (form chính) -->
+    <record id="product_template_form_hide_categ" model="ir.ui.view">
+        <field name="name">product.template.form.hide.categ</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='categ_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+        </field>
+    </record>
+
     <record id="product_template_form_inherit_product" model="ir.ui.view">
         <field name="name">product.template.form.inherit.product</field>
         <field name="model">product.template</field>
         <field name="inherit_id" ref="product.product_template_only_form_view"/>
         <field name="priority">100</field>
         <field name="arch" type="xml">
-            
-            <!-- Đổi label "Tham chiếu" → "Mã viết tắt" cho default_code -->
+
             <xpath expr="//page[@name='general_information']//field[@name='default_code']" position="attributes">
                 <attribute name="string">Mã viết tắt</attribute>
+            </xpath>
+
+            <!-- Ẩn categ_id mặc định của Odoo (đã có trong section Phân loại sản phẩm) -->
+            <xpath expr="//page[@name='general_information']//field[@name='categ_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
             </xpath>
 
             <!-- Add hidden computed fields for UI logic -->
@@ -55,7 +72,9 @@
                 <group string="Phân loại sản phẩm">
                     <group>
                         <field name="categ_id" string="Danh mục sản phẩm" options="{'no_create': True}"/>
-                        <field name="group_id" invisible="1"/>
+                        <field name="lens_group_id" invisible="product_type != 'lens'" options="{'no_create': True}"/>
+                        <field name="opt_group_id" invisible="product_type != 'opt'" options="{'no_create': True}"/>
+                        <field name="acc_group_id" invisible="product_type != 'accessory'" options="{'no_create': True}"/>
                         <field name="brand_id"/>
                         <field name="warranty_id" options="{'no_create': True}"/>
                         <field name="country_id" string="Xuất xứ" options="{'no_create': True}"/>
@@ -63,7 +82,6 @@
                     </group>
                     <group>
                         <field name="x_eng_name"/>
-                        <field name="x_trade_name"/>
                         <field name="status_product_id" options="{'no_create': True}"/>
                         <field name="auto_generate_code"/>
                     </group>

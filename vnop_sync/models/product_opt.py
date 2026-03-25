@@ -23,11 +23,11 @@ class ProductOpt(models.Model):
     ], 'Gender')
 
     # Dimensions
-    temple_width = fields.Integer('Temple Width')
-    lens_width = fields.Integer('Lens Width')
-    lens_span = fields.Integer('Lens Span')
-    lens_height = fields.Integer('Lens Height')
-    bridge_width = fields.Integer('Bridge Width')
+    temple_width = fields.Float('Temple Width (mm)', digits=(6, 1))
+    lens_width = fields.Float('Lens Width (mm)', digits=(6, 1))
+    lens_span = fields.Float('Lens Span (mm)', digits=(6, 1))
+    lens_height = fields.Float('Lens Height (mm)', digits=(6, 1))
+    bridge_width = fields.Float('Bridge Width (mm)', digits=(6, 1))
 
     # Colors
     color = fields.Char('Color', size=50)

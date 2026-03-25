@@ -13,7 +13,6 @@ class ProductExcelPreviewLine(models.TransientModel):
     # Common fields
     full_name = fields.Char('Tên đầy đủ', readonly=True)
     eng_name = fields.Char('Tên Tiếng Anh', readonly=True)
-    trade_name = fields.Char('Tên thương mại', readonly=True)
     group = fields.Char('Nhóm', readonly=True)
     brand = fields.Char('Thương hiệu', readonly=True)
     

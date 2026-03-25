@@ -17,7 +17,6 @@ PREVIEW_COMMON_FIELD_MAP = [
     ('image', 'Image', 'binary'),
     ('full_name', 'FullName', 'text'),
     ('eng_name', 'EngName', 'text'),
-    ('trade_name', 'TradeName', 'text'),
     ('unit', 'Unit', 'text'),
     ('brand', 'TradeMark', 'text'),
     ('supplier', 'Supplier', 'text'),
@@ -758,7 +757,6 @@ class ProductExcelImport(models.TransientModel):
         product_vals = {
             'name': row_data.get('FullName'),
             'x_eng_name': row_data.get('EngName'),
-            'x_trade_name': row_data.get('TradeName'),
             'product_type': product_type,
             'type': 'consu',
         }

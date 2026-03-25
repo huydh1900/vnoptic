@@ -439,7 +439,6 @@ class ProductExcelImport(models.TransientModel):
                 'row_number': idx,
                 'full_name': row_data.get('FullName', ''),
                 'eng_name': row_data.get('EngName', ''),
-                'trade_name': row_data.get('TradeName', ''),
                 'group': row_data.get('Group', ''),
                 'brand': row_data.get('TradeMark', ''),
                 'generated_code': generated_code,
@@ -541,7 +540,6 @@ class ProductExcelImport(models.TransientModel):
         product_vals = {
             'name': row_data.get('FullName'),
             'eng_name': row_data.get('EngName'),
-            'trade_name': row_data.get('TradeName'),
             'product_type': product_type,
             'type': 'consu',
         }
@@ -625,7 +623,12 @@ class ProductExcelImport(models.TransientModel):
     
     def _create_product(self, row_data, product_type, cache):
 
-        product_vals = {\n            'name': row_data.get('FullName'),\n            'eng_name': row_data.get('EngName'),\n            'trade_name': row_data.get('TradeName'),\n            'product_type': product_type,\n            'type': 'product',  # Stockable product\n        }\n        \n        # Group (required)\n        group = cache.get_group(row_data.get('Group'))\n        if group:\n            product_vals['group_id'] = group.id\n        \n        # Brand (required)\n        brand = cache.get_brand(row_data.get('TradeMark'))\n        if brand:\n            product_vals['brand_id'] = brand.id\n        \n        # Optional foreign keys\n        if row_data.get('Supplier'):\n            supplier = cache.get_supplier(row_data['Supplier'])\n            if supplier:\n                product_vals['supplier_id'] = supplier.id\n        \n        if row_data.get('Country'):\n            country = cache.get_country(row_data['Country'])\n            if country:\n                product_vals['country_id'] = country.id\n        \n        if row_data.get('Warranty'):\n            warranty = cache.get_warranty(row_data['Warranty'])\n            if warranty:\n                product_vals['warranty_id'] = warranty.id\n        \n        if row_data.get('Currency'):\n            currency = cache.get_currency(row_data['Currency'])\n            if currency:\n                product_vals['currency_zone_id'] = currency.id\n        \n        # Prices\n        product_vals['or_price'] = float(row_data.get('Origin_Price', 0) or 0)\n        product_vals['standard_price'] = float(row_data.get('Cost_Price', 0) or 0)\n        product_vals['list_price'] = float(row_data.get('Retail_Price', 0) or 0)
+        product_vals = {
+            'name': row_data.get('FullName'),
+            'eng_name': row_data.get('EngName'),
+            'product_type': product_type,
+            'type': 'product',  # Stockable product
+        }\n        \n        # Group (required)\n        group = cache.get_group(row_data.get('Group'))\n        if group:\n            product_vals['group_id'] = group.id\n        \n        # Brand (required)\n        brand = cache.get_brand(row_data.get('TradeMark'))\n        if brand:\n            product_vals['brand_id'] = brand.id\n        \n        # Optional foreign keys\n        if row_data.get('Supplier'):\n            supplier = cache.get_supplier(row_data['Supplier'])\n            if supplier:\n                product_vals['supplier_id'] = supplier.id\n        \n        if row_data.get('Country'):\n            country = cache.get_country(row_data['Country'])\n            if country:\n                product_vals['country_id'] = country.id\n        \n        if row_data.get('Warranty'):\n            warranty = cache.get_warranty(row_data['Warranty'])\n            if warranty:\n                product_vals['warranty_id'] = warranty.id\n        \n        if row_data.get('Currency'):\n            currency = cache.get_currency(row_data['Currency'])\n            if currency:\n                product_vals['currency_zone_id'] = currency.id\n        \n        # Prices\n        product_vals['or_price'] = float(row_data.get('Origin_Price', 0) or 0)\n        product_vals['standard_price'] = float(row_data.get('Cost_Price', 0) or 0)\n        product_vals['list_price'] = float(row_data.get('Retail_Price', 0) or 0)
         product_vals['ws_price'] = float(row_data.get('Wholesale_Price', 0) or 0)
         product_vals['ws_price_max'] = float(row_data.get('Wholesale_Price_Max', 0) or 0)
         product_vals['ws_price_min'] = float(row_data.get('Wholesale_Price_Min', 0) or 0)

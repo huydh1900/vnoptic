@@ -20,7 +20,6 @@ class ProductExcelPreviewLine(models.TransientModel):
     image = fields.Binary('Image', readonly=True)
     full_name = fields.Char('FullName', readonly=True)
     eng_name = fields.Char('EngName', readonly=True)
-    trade_name = fields.Char('TradeName', readonly=True)
     unit = fields.Char('Unit', readonly=True)
     brand = fields.Char('TradeMark', readonly=True)
     supplier = fields.Char('Supplier', readonly=True)
