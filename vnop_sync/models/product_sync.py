@@ -98,14 +98,14 @@ class ProductSync(models.Model):
     def _init_sync_error_ctx(self):
         """Context thu thập lỗi để hiển thị trong UI (sync_log), tránh phải đọc server log."""
         try:
-            sample_limit = int(os.getenv('SYNC_ERROR_SAMPLE_LIMIT', '50'))
+            sample_limit = int(os.getenv('SYNC_ERROR_SAMPLE_LIMIT', '500'))
         except (TypeError, ValueError):
-            sample_limit = 50
+            sample_limit = 500
 
         try:
-            max_chars = int(os.getenv('SYNC_ERROR_LOG_MAX_CHARS', '20000'))
+            max_chars = int(os.getenv('SYNC_ERROR_LOG_MAX_CHARS', '200000'))
         except (TypeError, ValueError):
-            max_chars = 20000
+            max_chars = 200000
 
         return {
             'sample_limit': max(0, sample_limit),
@@ -129,9 +129,9 @@ class ProductSync(models.Model):
             msg = str(exc)
         except Exception:
             msg = repr(exc)
-        msg = (msg or 'Unknown error').replace('\n', ' ')[:500]
+        msg = (msg or 'Unknown error')[:1000]
         ref_str = (str(ref) if ref is not None else 'N/A')
-        error_ctx['samples'].append(f"[{key}] ref={ref_str} err={msg}")
+        error_ctx['samples'].append(f"[{key}] ref={ref_str}\n  {msg}")
 
     def _to_float(self, val, default=0.0):
         """Float an toàn cho payload API (hay trả string 'none'/'null')."""
@@ -306,6 +306,10 @@ class ProductSync(models.Model):
         # Suppliers
         for s in self.env['res.partner'].search_read([('ref', '!=', False)], ['id', 'ref']):
             cache['suppliers'][s['ref'].upper()] = s['id']
+
+        # Company cho seller_ids
+        vnoptic_company = self.env['res.company'].search([('name', 'ilike', 'Công ty Kính mắt Việt Nam')], limit=1)
+        cache['_seller_company_id'] = vnoptic_company.id if vnoptic_company else self.env.company.id
 
         # Taxes (Purchase taxes only)
         for t in self.env['account.tax'].search_read([('type_tax_use', '=', 'purchase')], ['id', 'name']):
@@ -1405,6 +1409,7 @@ class ProductSync(models.Model):
                         'min_qty': 1.0,
                         'delay': 1,
                         'currency_id': _seller_currency_id,
+                        'company_id': cache.get('_seller_company_id', self.env.company.id),
                     }))
 
         # Tax (Purchase tax for suppliers)
@@ -2750,17 +2755,18 @@ class ProductSync(models.Model):
         total = stats['lens'] + stats['opt'] + stats['acc']
         msg = f"Đã đồng bộ {total} (Mắt:{stats['lens']}, Gọng:{stats['opt']}, Khác:{stats['acc']}). Lỗi: {stats['failed']}"
 
-        full_log = msg
+        lines = [msg]
         if error_ctx.get('counts'):
             counts_sorted = sorted(error_ctx['counts'].items(), key=lambda kv: (-kv[1], kv[0]))
-            counts_str = ", ".join([f"{k}={v}" for k, v in counts_sorted[:20]])
-            samples = "\n".join(error_ctx.get('samples') or [])
-            full_log = (
-                    f"{msg}\n\nTóm tắt lỗi: {counts_str}"
-                    + (f"\nVí dụ lỗi (tối đa {error_ctx.get('sample_limit', 0)}):\n{samples}" if samples else "")
-            )
+            lines.append("\n── Tóm tắt lỗi theo loại ──")
+            for k, v in counts_sorted:
+                lines.append(f"  {k}: {v} lỗi")
+        if error_ctx.get('samples'):
+            lines.append(f"\n── Chi tiết lỗi ({len(error_ctx['samples'])} mẫu) ──")
+            lines.extend(error_ctx['samples'])
 
-        max_chars = error_ctx.get('max_chars', 20000)
+        full_log = "\n".join(lines)
+        max_chars = error_ctx.get('max_chars', 200000)
         if len(full_log) > max_chars:
             full_log = full_log[:max_chars] + "\n...(truncated)"
 

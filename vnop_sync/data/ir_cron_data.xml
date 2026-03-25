@@ -7,8 +7,8 @@
             <field name="state">code</field>
             <field name="code">model.sync_products_from_springboot()</field>
             <field name="user_id" ref="base.user_root"/>
-            <field name="interval_number">1</field>
-            <field name="interval_type">days</field>
+            <field name="interval_number">6</field>
+            <field name="interval_type">hours</field>
             <field name="active" eval="True"/>
         </record>
     </data>
