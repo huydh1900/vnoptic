@@ -221,135 +221,57 @@ class ProductSync(models.Model):
             except Exception as e:
                 raise UserError(_(f"API request failed: {str(e)}"))
 
-    def _fetch_all_items(self, endpoint, token, label, limit=None, page_delay=0):
-        """Lấy toàn bộ dữ liệu phân trang với retry & delay giữa các trang."""
-        items = []
-        page = 0
-        total_elements = 0
+    def _iter_batches(self, endpoint, token, batch_size=200, limit=None):
+        """Generator: yield từng batch items, không giữ toàn bộ data trong memory."""
         config = self._get_api_config()
-        log_lens_payload = os.getenv('LOG_LENS_PAYLOAD', 'False').lower() == 'true'
-
-        # _logger.info(f"🔍 Bắt đầu lấy dữ liệu {label} từ: {config['base_url']}{endpoint}")
-
         session = self._make_session()
+        page = 0
+        fetched = 0
 
         while True:
-            res = self._fetch_paged_api(endpoint, token, page, 500, session=session, config=config)
-            if log_lens_payload and label.lower() == 'lens':
-                try:
-                    # _logger.info(
-                    # "🧾 Lens API payload (page %s): %s",
-                    # page,
-                    # json.dumps(res, ensure_ascii=True)
-                    # )
-                    pass
-                except Exception as e:
-                    # _logger.warning(f"⚠️ Không log được payload Lens page {page}: {e}")
-                    pass
-
-            if page == 0:
-                debug_res = {k: v for k, v in res.items() if k != 'content'}
-                # _logger.info(f"🔍 Metadata API {label} (Trang 0): {debug_res}")
-
+            res = self._fetch_paged_api(endpoint, token, page, batch_size, session=session, config=config)
             content = res.get('content', [])
             if not content:
                 break
-            items.extend(content)
 
-            total_elements = res.get('totalElements', 0)
+            if limit:
+                remaining = limit - fetched
+                content = content[:remaining]
+
+            yield content
+            fetched += len(content)
+
+            if limit and fetched >= limit:
+                break
+
             total_pages = res.get('totalPages', 1)
-
-            # _logger.info(
-            # f"📦 {label}: Trang {page + 1}/{total_pages} | "
-            # f"Lấy được {len(content)} bản ghi | Tổng: {len(items)}/{total_elements}"
-            # )
-
-            # Cập nhật sync_log định kỳ (mỗi 10 trang) để UI hiển thị tiến độ
-            if page % 10 == 0 and hasattr(self, 'id') and self.id:
-                try:
-                    self.write({
-                        'sync_log': f"Đang tải {label}: trang {page + 1}/{total_pages} ({len(items)}/{total_elements} bản ghi)..."})
-                except Exception:
-                    pass
-
-            if limit and len(items) >= limit:
-                return items[:limit]
-
             page += 1
             if page >= total_pages:
                 break
 
-            # Nghỉ một chút giữa các trang để tránh connection timeout do quá tải
-            if page_delay > 0:
-                time.sleep(page_delay)
-
-        if total_elements > len(items) and not limit:
-            # _logger.warning(
-            # f"⚠️ API báo có {total_elements} bản ghi {label} nhưng chỉ lấy được {len(items)}."
-            # )
-            pass
-
-        return items
-
-    def _process_items_in_chunks(self, items, cache, product_type, child_model=None, error_ctx=None):
+    def _sync_streaming(self, endpoint, token, product_type, child_model=None, cache=None, error_ctx=None, limit=None):
+        """Fetch → process → commit từng batch. Không giữ data trong memory."""
         db = self.env.cr.dbname
-        chunk_size = self._get_sync_batch_size()
-
+        rec_id = self.id
+        batch_size = self._get_sync_batch_size()
         total_success = total_failed = 0
-        total = len(items)
 
-        if total == 0:
-            return 0, 0
-
-        for chunk_idx, start in enumerate(range(0, total, chunk_size), start=1):
-            chunk = items[start:start + chunk_size]
-
-            success = failed = 0
-
-            # 🔥 mỗi chunk = 1 cursor riêng
-            for attempt in range(3):
-                try:
-                    with Registry(db).cursor() as cr:
-                        env = self.env(cr=cr)
-                        self_chunk = env[self._name].browse(self.id)
-
-                        with cr.savepoint():
-                            success, failed = self_chunk._process_batch(
-                                chunk, cache, product_type, child_model, error_ctx=error_ctx
-                            )
-
-                        # commit riêng từng chunk
-                        cr.commit()
-
-                    break
-
-                except errors.SerializationFailure:
-                    time.sleep(0.5 * (attempt + 1))
-                    continue
-
-                except Exception as exc:
-                    msg = str(exc).lower()
-
-                    # ❌ chunk fail
-                    total_failed += len(chunk)
-                    self._record_sync_error(
-                        error_ctx,
-                        product_type,
-                        'CHUNK_ERR',
-                        ref=f"chunk={chunk_idx}",
-                        exc=exc
-                    )
-
-                    # _logger.error(
-                    #     "[%s][CHUNK_ERR] chunk=%s error=%s",
-                    #     product_type.upper(), chunk_idx, exc,
-                    #     exc_info=True
-                    # )
-
-                    break
-
-            total_success += success
-            total_failed += failed
+        for batch_idx, items in enumerate(self._iter_batches(endpoint, token, batch_size, limit), start=1):
+            try:
+                with Registry(db).cursor() as cr:
+                    env = self.env(cr=cr)
+                    self_batch = env[self._name].browse(rec_id)
+                    with cr.savepoint():
+                        success, failed = self_batch._process_batch(
+                            items, cache, product_type, child_model, error_ctx=error_ctx
+                        )
+                    cr.commit()
+                total_success += success
+                total_failed += failed
+            except Exception as exc:
+                total_failed += len(items)
+                self._record_sync_error(error_ctx, product_type, 'CHUNK_ERR', ref=f"chunk={batch_idx}", exc=exc)
+                continue
 
         return total_success, total_failed
 
@@ -2844,26 +2766,22 @@ class ProductSync(models.Model):
         error_ctx = self._init_sync_error_ctx()
 
         # Lens
-        items = self._fetch_all_items(cfg['lens_endpoint'], token, 'Lens', limit)
-        s, f = self._process_items_in_chunks(items, cache, 'lens', error_ctx=error_ctx)
+        s, f = self._sync_streaming(cfg['lens_endpoint'], token, 'lens', cache=cache, error_ctx=error_ctx, limit=limit)
         stats['lens'] = s
         stats['failed'] = f
 
         try:
             self._sync_lens_stock(token, cfg, cache)
-        except Exception as e:
-            # _logger.warning(f"⚠️ Bỏ qua sync tồn kho lens: {e}")
+        except Exception:
             pass
 
         # Opt
-        items = self._fetch_all_items(cfg['opts_endpoint'], token, 'Optical', limit)
-        s, f = self._process_items_in_chunks(items, cache, 'opt', error_ctx=error_ctx)
+        s, f = self._sync_streaming(cfg['opts_endpoint'], token, 'opt', cache=cache, error_ctx=error_ctx, limit=limit)
         stats['opt'] = s
         stats['failed'] += f
 
         # Accessory
-        items = self._fetch_all_items(cfg['types_endpoint'], token, 'Types', limit)
-        s, f = self._process_items_in_chunks(items, cache, 'accessory', error_ctx=error_ctx)
+        s, f = self._sync_streaming(cfg['types_endpoint'], token, 'accessory', cache=cache, error_ctx=error_ctx, limit=limit)
         stats['acc'] = s
         stats['failed'] += f
 
