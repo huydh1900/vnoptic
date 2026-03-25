@@ -128,6 +128,28 @@ class ProductSync(models.Model):
         ref_str = (str(ref) if ref is not None else 'N/A')
         error_ctx['samples'].append(f"[{key}] ref={ref_str} err={msg}")
 
+    def _to_float(self, val, default=0.0):
+        """Float an toàn cho payload API (hay trả string 'none'/'null')."""
+        if val is None:
+            return default
+        if isinstance(val, (int, float)):
+            return float(val)
+        if isinstance(val, str):
+            s = val.strip()
+            if not s:
+                return default
+            if s.lower() in ('none', 'null', 'nan', 'n/a', 'na'):
+                return default
+            s = s.replace(',', '')
+            try:
+                return float(s)
+            except (TypeError, ValueError):
+                return default
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return default
+
     def _get_access_token(self):
         config = self._get_api_config()
         login_url = f"{config['base_url']}{config['login_endpoint']}"
@@ -1400,14 +1422,14 @@ class ProductSync(models.Model):
                     _seller_currency_id = currency_id or self.env.company.currency_id.id
                     seller_vals.append((0, 0, {
                         'partner_id': sup_id,
-                        'price': float(dto.get('orPrice') or 0),
+                        'price': self._to_float(dto.get('orPrice'), default=0.0),
                         'min_qty': 1.0,
                         'delay': 1,
                         'currency_id': _seller_currency_id,
                     }))
 
         # Tax (Purchase tax for suppliers)
-        tax_pct = float(dto.get('tax') or 0)
+        tax_pct = self._to_float(dto.get('tax'), default=0.0)
         tax_id = False
         if tax_pct > 0:
             t_name = f"Thuế mua hàng {tax_pct}%"
@@ -1461,8 +1483,11 @@ class ProductSync(models.Model):
             'categ_id': categ_id,
             'uom_id': self.env.ref('uom.product_uom_unit').id,
             'uom_po_id': self.env.ref('uom.product_uom_unit').id,
-            'list_price': float(dto.get('rtPrice') or 0),
-            'standard_price': float(dto.get('orPrice') or 0) * float((dto.get('currencyZoneDTO') or {}).get('value') or 1),  # Giá vốn: orPrice * tỷ giá (= x_or_price)
+            'list_price': self._to_float(dto.get('rtPrice'), default=0.0),
+            'standard_price': self._to_float(dto.get('orPrice'), default=0.0) * self._to_float(
+                (dto.get('currencyZoneDTO') or {}).get('value'),
+                default=1.0
+            ),  # Giá vốn: orPrice * tỷ giá (= x_or_price)
             'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else False,
             'seller_ids': seller_vals if seller_vals else False,
             'product_type': product_type,
@@ -1482,12 +1507,15 @@ class ProductSync(models.Model):
             'x_accessory_total': int(dto.get('accessoryTotal') or 0),
             'status_product_id': status_id,
             'x_currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
-            'x_currency_zone_value': float((dto.get('currencyZoneDTO') or {}).get('value') or 0),
-            'x_ws_price': float(dto.get('wsPrice') or dto.get('wsPriceMax') or 0),
-            'x_ws_price_min': float(dto.get('wsPriceMin') or 0),
-            'x_ws_price_max': float(dto.get('wsPriceMax') or 0),
+            'x_currency_zone_value': self._to_float((dto.get('currencyZoneDTO') or {}).get('value'), default=0.0),
+            'x_ws_price': self._to_float(dto.get('wsPrice') or dto.get('wsPriceMax'), default=0.0),
+            'x_ws_price_min': self._to_float(dto.get('wsPriceMin'), default=0.0),
+            'x_ws_price_max': self._to_float(dto.get('wsPriceMax'), default=0.0),
             # x_or_price = giá nhập kho quy VND: orPrice (ngoại tệ) * tỷ giá
-            'x_or_price': float(dto.get('orPrice') or 0) * float((dto.get('currencyZoneDTO') or {}).get('value') or 1),
+            'x_or_price': self._to_float(dto.get('orPrice'), default=0.0) * self._to_float(
+                (dto.get('currencyZoneDTO') or {}).get('value'),
+                default=1.0
+            ),
             'manufacturer_months': int(
                 (dto.get('warrantydto') or {}).get('manufacturerMonths')
                 or dto.get('manufacturerWarrantyMonths')
@@ -1793,7 +1821,7 @@ class ProductSync(models.Model):
             )
 
             lens_display_vals = {
-                'lens_base_curve': float(item.get('base') or 0),
+                'lens_base_curve': safe_float(item.get('base')),
                 # Many2one chuẩn (get-or-create)
                 'lens_design1_id': d1_id,
                 'lens_design2_id': d2_id,
