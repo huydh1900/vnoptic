@@ -1054,25 +1054,16 @@ class ProductExcelImport(models.TransientModel):
         return parent.id
 
     def _get_or_create_lens_power(self, power_type, raw_value):
-        """Resolve product.lens.power by type/value, create when missing."""
+        """Resolve product.lens.power by value, create when missing."""
         if raw_value in (None, '', False):
             return False
-
         value = self._safe_float_from_text(raw_value)
         power_model = self.env['product.lens.power']
-        power = power_model.search([
-            ('type', '=', power_type),
-            ('value', '=', value),
-        ], limit=1)
+        power = power_model.search([('value', '=', value)], limit=1)
         if power:
             return power
-
-        display = f"{value:+.2f}" if value >= 0 else f"{value:.2f}"
-        return power_model.create({
-            'name': display,
-            'type': power_type,
-            'value': value,
-        })
+        display = f"{value:+.2f}"
+        return power_model.create({'value': value})
     
     def _create_product(self, row_data, product_type, cache):
         product_vals = self._prepare_product_vals(row_data, product_type, cache)

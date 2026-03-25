@@ -338,12 +338,10 @@ class ProductSync(models.Model):
             ('temples', 'product.temple', 'cid'),
         ]
         # Chuẩn bị cache cho power, design, material
-        cache['lens_powers'] = {'sph': {}, 'cyl': {}, 'add': {}}
+        cache['lens_powers'] = {}
         if 'product.lens.power' in self.env:
-            for r in self.env['product.lens.power'].search_read([], ['id', 'value', 'type']):
-                t = r['type']
-                v = float(r['value'])
-                cache['lens_powers'].setdefault(t, {})[v] = r['id']
+            for r in self.env['product.lens.power'].search_read([], ['id', 'value']):
+                cache['lens_powers'][float(r['value'])] = r['id']
         cache['lens_designs'] = {}
         if 'product.lens.design' in self.env:
             for r in self.env['product.lens.design'].search_read([], ['id', 'name']):
@@ -574,7 +572,11 @@ class ProductSync(models.Model):
 
         # Create
         try:
-            vals = {'name': name or cid, 'code': cid}
+            raw_name = name or cid
+            # Viết hoa chữ cái đầu mỗi từ cho tên bảo hành
+            if model_name == 'product.warranty':
+                raw_name = raw_name[:1].upper() + raw_name[1:] if raw_name else raw_name
+            vals = {'name': raw_name, 'code': cid}
             with self.env.cr.savepoint():
                 rec = self.env[model_name].create(vals)
             new_id = rec.id
@@ -1456,7 +1458,7 @@ class ProductSync(models.Model):
             'default_code': default_code,
             'type': product_kind,
             'categ_id': categ_id,
-            'uom_id': cache.setdefault('_uom_unit_id', self.env.ref('uom.product_uom_unit').id),
+            'uom_id': cache.setdefault('_uom_unit_id', self.env.ref('vnop_sync.uom_chiec', raise_if_not_found=False) and self.env.ref('vnop_sync.uom_chiec').id or self.env.ref('uom.product_uom_unit').id),
             'uom_po_id': cache['_uom_unit_id'],
             'list_price': self._to_float(dto.get('rtPrice'), default=0.0),
             'standard_price': self._to_float(dto.get('orPrice'), default=0.0) * self._to_float(
@@ -1469,6 +1471,8 @@ class ProductSync(models.Model):
             'brand_id': self._get_or_create(cache, 'brands', 'product.brand', dto.get('tmdto')),
             'country_id': self._get_or_create(cache, 'countries', 'res.country', dto.get('codto')),
             'warranty_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantydto')),
+            'warranty_supplier_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantySupplierdto')),
+            'warranty_retail_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantyRetailDTO')),
             'lens_group_id': grp_id if product_type == 'lens' else False,
             'opt_group_id': grp_id if product_type == 'opt' else False,
             'acc_group_id': grp_id if product_type == 'accessory' else False,
@@ -1487,16 +1491,9 @@ class ProductSync(models.Model):
             'x_ws_price': self._to_float(dto.get('wsPrice') or dto.get('wsPriceMax'), default=0.0),
             'x_ws_price_min': self._to_float(dto.get('wsPriceMin'), default=0.0),
             'x_ws_price_max': self._to_float(dto.get('wsPriceMax'), default=0.0),
-            'manufacturer_months': int(
-                (dto.get('warrantydto') or {}).get('manufacturerMonths')
-                or dto.get('manufacturerWarrantyMonths')
-                or 0
-            ),
-            'company_months': int(
-                (dto.get('warrantydto') or {}).get('companyMonths')
-                or dto.get('companyWarrantyMonths')
-                or 0
-            ),
+            'manufacturer_months': int((dto.get('warrantydto') or {}).get('value') or 0),
+            'company_months': int((dto.get('warrantySupplierdto') or {}).get('value') or 0),
+            'bao_hanh_ban_le': int((dto.get('warrantyRetailDTO') or {}).get('value') or 0),
             'x_group_type_name': grp_type_name,
         }
 
@@ -1744,41 +1741,28 @@ class ProductSync(models.Model):
                     pass
                     return False
 
-            def _goc_power(raw_val, power_type):
-                """Get or create product.lens.power by float value and type (sph/cyl/add)."""
-                # Dùng `is None` thay vì `in (None, '', False)` vì 0.0 == False trong Python
-                # → SPH=0.00, CYL=0.00, ADD=0.00 là giá trị hợp lệ, không được bỏ qua
+            def _goc_power(raw_val, power_type=None):
+                """Get or create product.lens.power by float value."""
                 if raw_val is None or raw_val == '':
                     return False
                 try:
                     fval = float(raw_val)
                 except (TypeError, ValueError):
                     return False
-                # Format: "+1.25", "-2.75", "+0.00"
                 formatted = f"{fval:+.2f}"
-                cache_key = f"{power_type}:{formatted}"
-                cached = cache.get('lens_powers_m2o', {}).get(cache_key)
+                cached = cache.get('lens_powers_m2o', {}).get(fval)
                 if cached:
                     return cached
-                found = self.env['product.lens.power'].search(
-                    [('value', '=', fval), ('type', '=', power_type)], limit=1
-                )
+                found = self.env['product.lens.power'].search([('value', '=', fval)], limit=1)
                 if found:
-                    cache.setdefault('lens_powers_m2o', {})[cache_key] = found.id
+                    cache.setdefault('lens_powers_m2o', {})[fval] = found.id
                     return found.id
                 try:
                     with self.env.cr.savepoint():
-                        rec = self.env['product.lens.power'].create({
-                            'name': formatted,
-                            'value': fval,
-                            'type': power_type,
-                        })
-                    cache.setdefault('lens_powers_m2o', {})[cache_key] = rec.id
-                    # _logger.debug("✅ _goc_power created type=%s value=%s id=%s", power_type, formatted, rec.id)
+                        rec = self.env['product.lens.power'].create({'value': fval})
+                    cache.setdefault('lens_powers_m2o', {})[fval] = rec.id
                     return rec.id
-                except Exception as e:
-                    # _logger.warning("⚠️ Không tạo được product.lens.power type=%s value=%s: %s", power_type, formatted, e)
-                    pass
+                except Exception:
                     return False
 
             # Resolve Many2one IDs (get-or-create)

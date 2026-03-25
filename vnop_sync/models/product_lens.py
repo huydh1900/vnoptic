@@ -33,8 +33,8 @@ class ProductLens(models.Model):
     product_id = fields.Many2one('product.product', string='Product')
 
     # 1. Power Configuration (Config-Driven)
-    sph_id = fields.Many2one('product.lens.power', string='SPH', domain="[('type', '=', 'sph')]")
-    cyl_id = fields.Many2one('product.lens.power', string='CYL', domain="[('type', '=', 'cyl')]")
+    sph_id = fields.Many2one('product.lens.power', string='SPH')
+    cyl_id = fields.Many2one('product.lens.power', string='CYL')
 
     # 2. Axis (Manual Input, Validated)
     axis = fields.Integer('Axis (0-180)')
@@ -84,8 +84,8 @@ class ProductLens(models.Model):
     # Helper fields for display/search if needed
     corridor = fields.Char('Corridor', size=50) # Keep specialized params
     abbe = fields.Char('Abbe', size=50)
-    prism = fields.Char('Prism', size=50)
-    prism_base = fields.Char('Prism Base', size=50)
+    prism = fields.Char('Lăng kính', size=50)
+    prism_base = fields.Char('Đáy lăng kính', size=50)
 
     # --- Validation Logic ---
 

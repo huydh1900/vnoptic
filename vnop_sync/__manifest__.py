@@ -6,6 +6,7 @@
     'data': [
         'security/ir.model.access.csv',
         'data/ir_cron_data.xml',
+        'data/uom_data.xml',
         'data/product_category_data.xml',
         'data/company_data.xml',
         'views/product_sync_views.xml',

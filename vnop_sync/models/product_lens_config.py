@@ -6,16 +6,16 @@ class LensPower(models.Model):
     _description = 'Lens Power Value (SPH/CYL)'
     _order = 'value, id'
 
-    name = fields.Char('Display Value', required=True, translate=False)
-    value = fields.Float('Numeric Value', required=True, digits=(4, 2))
-    type = fields.Selection([
-        ('sph', 'SPH'),
-        ('cyl', 'CYL'),
-        ('add', 'ADD'),
-    ], string='Type', required=True, index=True)
+    value = fields.Float('Giá trị', required=True, digits=(4, 2))
+    name = fields.Char(compute='_compute_name', store=True)
+
+    @api.depends('value')
+    def _compute_name(self):
+        for r in self:
+            r.name = "0.00" if r.value == 0.0 else f"{r.value:+.2f}"
 
     _sql_constraints = [
-        ('value_type_uniq', 'unique (value, type)', 'The power value must be unique per type!')
+        ('value_uniq', 'unique (value)', 'The power value must be unique!')
     ]
 
 class LensDesign(models.Model):

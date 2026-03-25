@@ -137,8 +137,16 @@ class ProductTemplateExtension(models.Model):
         help="Product brand"
     )
     warranty_id = fields.Many2one(
-        'product.warranty', 'Bảo hành',
-        help="Product warranty"
+        'product.warranty', 'Bảo hành hãng',
+        help="Product warranty (manufacturer)"
+    )
+    warranty_supplier_id = fields.Many2one(
+        'product.warranty', 'Bảo hành công ty',
+        help="Warranty provided by the company/supplier"
+    )
+    warranty_retail_id = fields.Many2one(
+        'product.warranty', 'Bảo hành bán lẻ',
+        help="Warranty for retail customers"
     )
     # Note: Supplier management uses standard Odoo field 'seller_ids' (One2many to product.supplierinfo)
     # This allows managing multiple suppliers with prices and conditions per supplier
@@ -173,13 +181,10 @@ class ProductTemplateExtension(models.Model):
     # ==================== LENS SPECS (Hướng B: field trực tiếp trên template) ====================
     # Thiết kế
     lens_sph_id = fields.Many2one('product.lens.power', string='SPH',
-        domain="[('type', '=', 'sph')]",
         help='Công suất cầu (Sphere)')
     lens_cyl_id = fields.Many2one('product.lens.power', string='CYL',
-        domain="[('type', '=', 'cyl')]",
         help='Công suất trụ (Cylinder)')
     lens_add_id = fields.Many2one('product.lens.power', string='ADD',
-        domain="[('type', '=', 'add')]",
         help='Addition (thấu kính đa tròng)')
     lens_base_curve = fields.Float('Base Curve', digits=(4, 2))
     lens_design1_id = fields.Many2one('product.design', string='Thiết kế 1')
@@ -207,8 +212,8 @@ class ProductTemplateExtension(models.Model):
     x_cyl = fields.Float('CYL', digits=(6, 2), help='Lens cylinder power (display only)')
     x_add = fields.Float('ADD', digits=(6, 2), help='Lens add power (display only)')
     x_axis = fields.Integer('Axis', help='Lens axis (display only)')
-    x_prism = fields.Char('Prism', size=50, help='Lens prism (display only)')
-    x_prism_base = fields.Char('Prism Base', size=50, help='Lens prism base (display only)')
+    x_prism = fields.Char('Lăng kính', size=50, help='Lens prism (display only)')
+    x_prism_base = fields.Char('Đáy lăng kính', size=50, help='Lens prism base (display only)')
     x_hmc = fields.Char('HMC (legacy)', help='Deprecated – dùng lens_cl_hmc_id')
     x_photochromic = fields.Char('Photochromic (legacy)', help='Deprecated – dùng lens_cl_pho_id')
     x_tinted = fields.Char('Tinted (legacy)', help='Deprecated – dùng lens_cl_tint_id')
@@ -386,25 +391,18 @@ class ProductTemplateExtension(models.Model):
         import logging as _logging
         _log = _logging.getLogger(__name__)
 
-        def _get_or_create_power(env, fval, power_type):
+        def _get_or_create_power(env, fval, power_type=None):
             if fval is None or fval == 0.0:
                 return False
             formatted = f"{fval:+.2f}"
-            rec = env['product.lens.power'].search(
-                [('value', '=', fval), ('type', '=', power_type)], limit=1
-            )
+            rec = env['product.lens.power'].search([('value', '=', fval)], limit=1)
             if rec:
                 return rec.id
             try:
-                new_rec = env['product.lens.power'].create({
-                    'name': formatted,
-                    'value': fval,
-                    'type': power_type,
-                })
-                _log.info("✅ migrate: created product.lens.power type=%s value=%s id=%s", power_type, formatted, new_rec.id)
+                new_rec = env['product.lens.power'].create({'value': fval})
                 return new_rec.id
             except Exception as e:
-                _log.warning("⚠️ migrate: cannot create lens.power type=%s value=%s: %s", power_type, formatted, e)
+                _log.warning("⚠️ migrate: cannot create lens.power value=%s: %s", formatted, e)
                 return False
 
         domain = [

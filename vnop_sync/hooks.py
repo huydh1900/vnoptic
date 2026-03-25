@@ -17,47 +17,12 @@ def post_init_hook(env):
         return
 
     vals_list = []
-    
-    # 1. Generate SPH: -25.00 to +25.00, step 0.25
-    # Range is inclusive
-    sph_min = -25.00
-    sph_max = 25.00
-    step = 0.25
-    
+    sph_min, sph_max, step = -25.00, 25.00, 0.25
     current = sph_min
     while current <= sph_max + 0.001:
-        # Determine display name
-        if abs(current) < 0.001:
-            name = "0.00" # Plano
-        else:
-            name = "{:+.2f}".format(current)
-            
-        vals_list.append({
-            'name': name,
-            'value': current,
-            'type': 'sph'
-        })
+        vals_list.append({'value': current})
         current += step
 
-    # 2. Generate CYL: -12.00 to +12.00, step 0.25
-    cyl_min = -12.00
-    cyl_max = 12.00
-    
-    current = cyl_min
-    while current <= cyl_max + 0.001:
-        if abs(current) < 0.001:
-            name = "0.00"
-        else:
-            name = "{:+.2f}".format(current)
-            
-        vals_list.append({
-            'name': name,
-            'value': current,
-            'type': 'cyl'
-        })
-        current += step
-        
-    # Bulk create
     if vals_list:
         Power.create(vals_list)
         

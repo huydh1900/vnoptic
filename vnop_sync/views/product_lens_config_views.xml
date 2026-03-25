@@ -6,9 +6,8 @@
         <field name="model">product.lens.power</field>
         <field name="arch" type="xml">
             <list editable="bottom">
-                <field name="name"/>
                 <field name="value"/>
-                <field name="type"/>
+                <field name="name" optional="hide"/>
             </list>
         </field>
     </record>
