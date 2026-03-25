@@ -47,7 +47,7 @@ Mỗi CID đã bao gồm đầy đủ thông số (SPH, CYL, ADD, Material, Inde
 ```
 product.template (1 template = 1 sản phẩm, default_code = CID)
   ├── Thông tin chung: name, categ_id, brand_id, warranty_id, country_id, seller_ids
-  ├── Giá: list_price, standard_price, x_ws_price, x_or_price
+  ├── Giá: list_price, standard_price, x_ws_price
   ├── Lens specs (field trực tiếp):
   │   ├── lens_sph_id      → Many2one product.lens.power (type=sph)
   │   ├── lens_cyl_id      → Many2one product.lens.power (type=cyl)

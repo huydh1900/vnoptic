@@ -4,7 +4,7 @@
     <record id="location_temp_incoming" model="stock.location">
         <field name="name">Kho Tạm</field>
         <field name="usage">internal</field>
-        <field name="location_id" eval="ref('stock.warehouse0').view_location_id.id"/>
+        <field name="location_id" ref="stock.stock_location_locations"/>
         <field name="comment">Nhận hàng từ NCC nhưng chưa QC, chưa nhập vào kho chính</field>
     </record>
 
@@ -12,7 +12,7 @@
     <record id="location_defect" model="stock.location">
         <field name="name">Kho Lỗi</field>
         <field name="usage">internal</field>
-        <field name="location_id" eval="ref('stock.warehouse0').view_location_id.id"/>
+        <field name="location_id" ref="stock.stock_location_locations"/>
         <field name="comment">Chứa hàng không đạt QC. Có thể xử lý sau: trả NCC, hủy hoặc sửa chữa</field>
     </record>
 </odoo>

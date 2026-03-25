@@ -761,7 +761,6 @@ class ProductExcelImport(models.TransientModel):
             'x_trade_name': row_data.get('TradeName'),
             'product_type': product_type,
             'type': 'consu',
-            'is_storable': product_type in ['lens', 'opt'],
         }
         
         # Group (required)
@@ -798,7 +797,6 @@ class ProductExcelImport(models.TransientModel):
                 product_vals['x_currency_zone_code'] = currency.name
         
         # Prices
-        product_vals['x_or_price'] = float(row_data.get('Origin_Price', 0) or 0)
         product_vals['standard_price'] = float(row_data.get('Cost_Price', 0) or 0)
         product_vals['list_price'] = float(row_data.get('Retail_Price', 0) or 0)
         product_vals['x_ws_price'] = float(row_data.get('Wholesale_Price', 0) or 0)

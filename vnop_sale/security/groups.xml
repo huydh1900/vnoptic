@@ -16,10 +16,7 @@
     <record id="group_otk" model="res.groups">
         <field name="name">OTK</field>
         <!-- Quyền kho + kiểm tra chất lượng -->
-        <field name="implied_ids" eval="[
-            (4, ref('stock.group_stock_user')),
-            (4, ref('quality.group_quality_user'))
-        ]"/>
+        <field name="implied_ids" eval="[(4, ref('stock.group_stock_user'))]"/>
         <field name="category_id" ref="base.module_category_inventory"/>
     </record>
 

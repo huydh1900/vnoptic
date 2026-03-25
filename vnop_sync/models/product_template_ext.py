@@ -13,10 +13,7 @@ class ProductCategory(models.Model):
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
 
-    _sql_constraints = [
-        ('short_code_unique', 'unique(short_code)',
-         'Mã viết tắt phải là duy nhất.'),
-    ]
+    _sql_constraints = []
 
     # Computed fields to replace product_type for UI logic
     is_lens = fields.Boolean(compute='_compute_product_kind', store=False)
@@ -80,12 +77,6 @@ class ProductTemplateExtension(models.Model):
         'Giá sỉ',
         digits='Product Price',
         help="Wholesale price"
-    )
-
-    x_or_price = fields.Float(
-        'Giá gốc',
-        digits='Product Price',
-        help="Original price from supplier"
     )
 
     x_ws_price_min = fields.Float(
@@ -158,7 +149,7 @@ class ProductTemplateExtension(models.Model):
     # Note: Supplier management uses standard Odoo field 'seller_ids' (One2many to product.supplierinfo)
     # This allows managing multiple suppliers with prices and conditions per supplier
     country_id = fields.Many2one(
-        'product.country', 'Xuất xứ',
+        'res.country', 'Xuất xứ',
         help="Country of origin for the product"
     )
 
@@ -277,15 +268,6 @@ class ProductTemplateExtension(models.Model):
     opt_coating_ids = fields.Many2many(
         'product.coating', 'product_tmpl_opt_coating_rel',
         'tmpl_id', 'coating_id', string='Lớp phủ'
-    )
-
-    # ==================== SHORT CODE ====================
-    short_code = fields.Char(
-        string='Mã viết tắt',
-        required=True,
-        index=True,
-        copy=False,
-        help='Mã viết tắt duy nhất cho sản phẩm gọng kính'
     )
 
     # ==================== WARRANTY TEMPLATE (Hướng A – ERP chuẩn) ====================

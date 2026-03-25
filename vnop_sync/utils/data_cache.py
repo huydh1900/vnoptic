@@ -65,9 +65,9 @@ class MasterDataCache:
             if b.name:
                 self.brands[self._normalize_value(b.name)] = b
         
-        # Countries (by code)
+        # Countries (by code) - using res.country
         self.countries = {}
-        for c in self.env['product.country'].search([]):
+        for c in self.env['res.country'].search([]):
             if c.code:
                 code_key = self._normalize_value(c.code)
                 self.countries[code_key] = c

@@ -19,7 +19,7 @@ COMMON_FIELD_MAP = {
     'Warranty': 'warranty_id',
     'Warranty_Retail': 'warranty_retail_id',
     'Accessory': 'accessory_ids',
-    'Origin_Price': 'x_or_price',
+    'Origin_Price': 'standard_price',
     'Currency': 'currency_zone_id',
     'Cost_Price': 'standard_price',
     'Retail_Price': 'list_price',

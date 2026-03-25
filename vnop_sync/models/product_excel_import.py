@@ -544,7 +544,6 @@ class ProductExcelImport(models.TransientModel):
             'trade_name': row_data.get('TradeName'),
             'product_type': product_type,
             'type': 'consu',
-            'is_storable': product_type in ['lens', 'opt'],
         }
         
         # Group (required)
@@ -661,8 +660,8 @@ class ProductExcelImport(models.TransientModel):
         # Generate code if we have group and brand
         if group and brand:
             try:
-                    'type': 'consu',
-                    'is_storable': product_type in ['lens', 'opt'],
+                from ..utils import product_code_utils
+                code = product_code_utils.generate_product_code(
                     self.env,
                     group.id,
                     brand.id,

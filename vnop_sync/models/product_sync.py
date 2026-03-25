@@ -183,8 +183,9 @@ class ProductSync(models.Model):
             size = 1000
         return max(1, size)
 
-    def _fetch_paged_api(self, endpoint, token, page=0, size=100, max_retries=5, session=None):
-        config = self._get_api_config()
+    def _fetch_paged_api(self, endpoint, token, page=0, size=100, max_retries=5, session=None, config=None):
+        if config is None:
+            config = self._get_api_config()
         url = f"{config['base_url']}{endpoint}?page={page}&size={size}"
         headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
 
@@ -199,10 +200,6 @@ class ProductSync(models.Model):
                 )
                 response.raise_for_status()
                 data = response.json()
-                if endpoint == config.get('lens_endpoint'):
-                    _logger.warning("========== LENS RAW JSON ==========")
-                    _logger.warning("%s", response.text)
-                    _logger.warning("===================================")
                 return data
             except (requests.exceptions.ConnectTimeout,
                     requests.exceptions.ReadTimeout,
@@ -228,11 +225,10 @@ class ProductSync(models.Model):
         
         _logger.info(f"🔍 Bắt đầu lấy dữ liệu {label} từ: {config['base_url']}{endpoint}")
 
-        # Tạo session một lần duy nhất cho toàn bộ quá trình phân trang
         session = self._make_session()
 
         while True:
-            res = self._fetch_paged_api(endpoint, token, page, 500, session=session)
+            res = self._fetch_paged_api(endpoint, token, page, 500, session=session, config=config)
             if log_lens_payload and label.lower() == 'lens':
                 try:
                     _logger.info(
@@ -362,7 +358,7 @@ class ProductSync(models.Model):
         MODELS = [
             ('brands', 'product.brand', 'code'),
             ('brands', 'product.brand', 'name'), # Fallback to name
-            ('countries', 'product.country', 'code'),
+            ('countries', 'res.country', 'code'),
             ('warranties', 'product.warranty', 'code'),
             ('groups', 'product.group', 'cid'),
             ('groups', 'product.group', 'name'),
@@ -596,13 +592,22 @@ class ProductSync(models.Model):
         # Check name fallback in cache (for brands)
         if name and name.upper() in cache.get(cache_key, {}):
             return cache[cache_key][name.upper()]
+
+        # res.country is standard Odoo data — only lookup, never create
+        if model_name == 'res.country':
+            rec = self.env['res.country'].search([('code', '=ilike', cid)], limit=1)
+            if not rec and name:
+                rec = self.env['res.country'].search([('name', 'ilike', name)], limit=1)
+            if rec:
+                if cid: cache.setdefault(cache_key, {})[cid.upper()] = rec.id
+                return rec.id
+            return False
             
         # Create
         try:
             vals = {'name': name or cid, 'code': cid}
-           
-            
-            rec = self.env[model_name].create(vals)
+            with self.env.cr.savepoint():
+                rec = self.env[model_name].create(vals)
             new_id = rec.id
             if cid: cache[cache_key][cid.upper()] = new_id
             return new_id
@@ -725,6 +730,11 @@ class ProductSync(models.Model):
 
             # ── 4. Tạo mới ────────────────────────────────────────────────────
             action = 'create'
+            # res.country là dữ liệu chuẩn Odoo — không tạo mới
+            if model_name == 'res.country':
+                if required:
+                    return False, f"res.country not found: cid={cid} name={name}"
+                return False, None
             create_vals = {name_field: name or cid}
             if (code_field and code_field != name_field
                     and code_field in model_fields and cid):
@@ -1471,7 +1481,6 @@ class ProductSync(models.Model):
                     if status_id:
                         cache['statuses'][status_key] = status_id
 
-        is_storable = product_type in ['opt', 'lens']
         product_kind = 'consu'
 
         # Basic Vals
@@ -1479,20 +1488,19 @@ class ProductSync(models.Model):
             'name': dto.get('fullname') or 'Unknown',
             'default_code': default_code,
             'type': product_kind,
-            'is_storable': is_storable,  # Gọng/Lens = storable
             'categ_id': categ_id,
-            'uom_id': self.env.ref('uom.product_uom_unit').id,
-            'uom_po_id': self.env.ref('uom.product_uom_unit').id,
+            'uom_id': cache.setdefault('_uom_unit_id', self.env.ref('uom.product_uom_unit').id),
+            'uom_po_id': cache['_uom_unit_id'],
             'list_price': self._to_float(dto.get('rtPrice'), default=0.0),
             'standard_price': self._to_float(dto.get('orPrice'), default=0.0) * self._to_float(
                 (dto.get('currencyZoneDTO') or {}).get('value'),
                 default=1.0
-            ),  # Giá vốn: orPrice * tỷ giá (= x_or_price)
-            'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else False,
-            'seller_ids': seller_vals if seller_vals else False,
+            ),
+            'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else [(5,)],
+            'seller_ids': seller_vals if seller_vals else [],
             'product_type': product_type,
             'brand_id': self._get_or_create(cache, 'brands', 'product.brand', dto.get('tmdto')),
-            'country_id': self._get_or_create(cache, 'countries', 'product.country', dto.get('codto')),
+            'country_id': self._get_or_create(cache, 'countries', 'res.country', dto.get('codto')),
             'warranty_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantydto')),
             'group_id': grp_id,
             # Custom Fields (prefixed with x_)
@@ -1511,11 +1519,6 @@ class ProductSync(models.Model):
             'x_ws_price': self._to_float(dto.get('wsPrice') or dto.get('wsPriceMax'), default=0.0),
             'x_ws_price_min': self._to_float(dto.get('wsPriceMin'), default=0.0),
             'x_ws_price_max': self._to_float(dto.get('wsPriceMax'), default=0.0),
-            # x_or_price = giá nhập kho quy VND: orPrice (ngoại tệ) * tỷ giá
-            'x_or_price': self._to_float(dto.get('orPrice'), default=0.0) * self._to_float(
-                (dto.get('currencyZoneDTO') or {}).get('value'),
-                default=1.0
-            ),
             'manufacturer_months': int(
                 (dto.get('warrantydto') or {}).get('manufacturerMonths')
                 or dto.get('manufacturerWarrantyMonths')
@@ -1527,7 +1530,6 @@ class ProductSync(models.Model):
                 or 0
             ),
             'x_group_type_name': grp_type_name,
-            'short_code': default_code,
         }
 
         # ─── Lens specs (template-level only; no variants) ────────────────
@@ -1586,11 +1588,10 @@ class ProductSync(models.Model):
 
             if coating_ids is None:
                 coating_ids, coating_codes = self._resolve_lens_coatings(item, cache)
-            else:
-                coating_codes = []
-
+            # coating_codes chỉ cần cho lens_template_key, đã được tính trước khi gọi hàm này
             if lens_template_key is None:
-                lens_template_key = self._build_lens_template_key(item, coating_codes)
+                _, _codes = self._resolve_lens_coatings(item, cache)
+                lens_template_key = self._build_lens_template_key(item, _codes)
 
             design_1 = first_non_empty(
                 item.get('design1'),
@@ -1671,24 +1672,24 @@ class ProductSync(models.Model):
             def _goc_design(name_raw):
                 """Get or create product.design by name."""
                 nm = str(name_raw or '').strip()
-                _logger.info("🔎 _goc_design called with=%s", nm or None)
+                _logger.debug("🔎 _goc_design called with=%s", nm or None)
                 if not nm:
                     return False
                 key = nm.upper()
                 cid = cache.get('designs', {}).get(key)
                 if cid:
-                    _logger.info("✅ _goc_design cache hit name=%s id=%s", nm, cid)
+                    _logger.debug("✅ _goc_design cache hit name=%s id=%s", nm, cid)
                     return cid
                 found = self.env['product.design'].search([('name', '=', nm)], limit=1)
                 if found:
                     cache.setdefault('designs', {})[key] = found.id
-                    _logger.info("✅ _goc_design search hit name=%s id=%s", nm, found.id)
+                    _logger.debug("✅ _goc_design search hit name=%s id=%s", nm, found.id)
                     return found.id
                 try:
                     with self.env.cr.savepoint():
                         rec = self.env['product.design'].create({'name': nm})
                     cache.setdefault('designs', {})[key] = rec.id
-                    _logger.info("✅ _goc_design created name=%s id=%s", nm, rec.id)
+                    _logger.debug("✅ _goc_design created name=%s id=%s", nm, rec.id)
                     return rec.id
                 except Exception as e:
                     _logger.warning(f"⚠️ Không tạo được product.design name={nm!r}: {e}")
@@ -1697,24 +1698,24 @@ class ProductSync(models.Model):
             def _goc_material(name_raw):
                 """Get or create product.lens.material by name."""
                 nm = str(name_raw or '').strip()
-                _logger.info("🔎 _goc_material called with=%s", nm or None)
+                _logger.debug("🔎 _goc_material called with=%s", nm or None)
                 if not nm:
                     return False
                 key_lower = nm.lower()
                 cid = cache.get('lens_materials', {}).get(key_lower)
                 if cid:
-                    _logger.info("✅ _goc_material cache hit name=%s id=%s", nm, cid)
+                    _logger.debug("✅ _goc_material cache hit name=%s id=%s", nm, cid)
                     return cid
                 found = self.env['product.lens.material'].search([('name', '=', nm)], limit=1)
                 if found:
                     cache.setdefault('lens_materials', {})[key_lower] = found.id
-                    _logger.info("✅ _goc_material search hit name=%s id=%s", nm, found.id)
+                    _logger.debug("✅ _goc_material search hit name=%s id=%s", nm, found.id)
                     return found.id
                 try:
                     with self.env.cr.savepoint():
                         rec = self.env['product.lens.material'].create({'name': nm})
                     cache.setdefault('lens_materials', {})[key_lower] = rec.id
-                    _logger.info("✅ _goc_material created name=%s id=%s", nm, rec.id)
+                    _logger.debug("✅ _goc_material created name=%s id=%s", nm, rec.id)
                     return rec.id
                 except Exception as e:
                     _logger.warning(f"⚠️ Không tạo được product.lens.material name={nm!r}: {e}")
@@ -1723,20 +1724,20 @@ class ProductSync(models.Model):
             def _goc_index(dto):
                 """Get or create product.lens.index from indexdto."""
                 if not dto:
-                    _logger.info("🔎 _goc_index called with empty dto")
+                    _logger.debug("🔎 _goc_index called with empty dto")
                     return False
                 cid = (dto.get('cid') or '').strip().upper()
                 name = (dto.get('name') or dto.get('value') or cid or '').strip()
-                _logger.info("🔎 _goc_index called cid=%s name=%s", cid or None, name or None)
+                _logger.debug("🔎 _goc_index called cid=%s name=%s", cid or None, name or None)
                 if cid:
                     cached = cache.get('lens_indexes', {}).get(cid)
                     if cached:
-                        _logger.info("✅ _goc_index cache hit by cid=%s id=%s", cid, cached)
+                        _logger.debug("✅ _goc_index cache hit by cid=%s id=%s", cid, cached)
                         return cached
                 if name:
                     cached = cache.get('lens_indexes', {}).get(name.upper())
                     if cached:
-                        _logger.info("✅ _goc_index cache hit by name=%s id=%s", name, cached)
+                        _logger.debug("✅ _goc_index cache hit by name=%s id=%s", name, cached)
                         return cached
                 found = False
                 if cid:
@@ -1748,7 +1749,7 @@ class ProductSync(models.Model):
                         cache.setdefault('lens_indexes', {})[cid] = found.id
                     if name:
                         cache.setdefault('lens_indexes', {})[name.upper()] = found.id
-                    _logger.info("✅ _goc_index search hit cid=%s name=%s id=%s", cid or None, name or None, found.id)
+                    _logger.debug("✅ _goc_index search hit cid=%s name=%s id=%s", cid or None, name or None, found.id)
                     return found.id
                 if not name:
                     return False
@@ -1761,7 +1762,7 @@ class ProductSync(models.Model):
                     if cid:
                         cache.setdefault('lens_indexes', {})[cid] = rec.id
                     cache.setdefault('lens_indexes', {})[name.upper()] = rec.id
-                    _logger.info("✅ _goc_index created cid=%s name=%s id=%s", cid or None, name, rec.id)
+                    _logger.debug("✅ _goc_index created cid=%s name=%s id=%s", cid or None, name, rec.id)
                     return rec.id
                 except Exception as e:
                     _logger.warning(f"⚠️ Không tạo được product.lens.index cid={cid!r} name={name!r}: {e}")
@@ -1797,7 +1798,7 @@ class ProductSync(models.Model):
                             'type': power_type,
                         })
                     cache.setdefault('lens_powers_m2o', {})[cache_key] = rec.id
-                    _logger.info("✅ _goc_power created type=%s value=%s id=%s", power_type, formatted, rec.id)
+                    _logger.debug("✅ _goc_power created type=%s value=%s id=%s", power_type, formatted, rec.id)
                     return rec.id
                 except Exception as e:
                     _logger.warning("⚠️ Không tạo được product.lens.power type=%s value=%s: %s", power_type, formatted, e)
@@ -1889,46 +1890,6 @@ class ProductSync(models.Model):
 
         return vals, cache['products'].get(default_code)
 
-    def _prepare_lens_vals(self, item, cache):
-        # Xử lý SPH/CYL: API trả về string, cần ép kiểu float rồi tra cache
-        def get_power_id(val, t):
-            try:
-                fval = float(val)
-            except Exception:
-                return False
-            return cache['lens_powers'][t].get(fval)
-
-        sph_val = item.get('sph')
-        cyl_val = item.get('cyl')
-        design_name = (item.get('design') or '').strip().lower()
-        material_name = (item.get('material') or '').strip().lower()
-
-        def safe_int(val, default=0):
-            if val is None or val == '': return default
-            try: return int(str(val).replace('mm', '').replace('MM', '').strip() or default)
-            except Exception: return default
-
-        def safe_float(val, default=0.0):
-            try: return float(val) if val is not None and val != '' else default
-            except Exception: return default
-
-        v = {
-            'sph_id': get_power_id(sph_val, 'sph'),
-            'cyl_id': get_power_id(cyl_val, 'cyl'),
-            'design_id': cache['lens_designs'].get(design_name),
-            'material_id': cache['lens_materials'].get(material_name),
-            'lens_add': safe_float(item.get('lensAdd')),   # FIX: len_add → lens_add
-            'diameter': safe_int(item.get('diameter')),     # Integer field
-            'base_curve': safe_float(item.get('base')),
-            'axis': safe_int(item.get('axis')),
-            'corridor': item.get('corridor') or '',
-            'abbe': item.get('abbe') or '',
-            'prism': item.get('prism') or '',
-            'prism_base': item.get('prismBase') or '',
-        }
-        # Coating/Feature xử lý sau nếu cần
-        return v
-
     def _resolve_m2m_ids(self, dtos, cache_key, cache, model_name=None, log_label=''):
         """Giải quyết list DTO từ API → danh sách Odoo IDs cho Many2many.
 
@@ -2014,11 +1975,6 @@ class ProductSync(models.Model):
             'opt_material_ve_id': self._get_or_create_master(cache, 'materials', item.get('materialVedto')),
             'opt_material_temple_tip_id': self._get_or_create_master(cache, 'materials', item.get('materialTempleTipdto')),
             'opt_material_lens_id': self._get_or_create_master(cache, 'materials', item.get('materialLensdto')),
-            # ─── Màu sắc (Many2one giữ lại tương thích, M2M mới bên dưới) ───────────────
-            'opt_color_front_id': self._get_or_create_color_by_string(
-                item.get('colorFront'), cache),
-            'opt_color_temple_id': self._get_or_create_color_by_string(
-                item.get('colorTemple'), cache),
             # ─── Chất liệu Many2many – key thực tế từ API: materialsFrontdto / materialsTempledto
             'opt_materials_front_ids': self._resolve_opt_material_dtos(
                 item,
@@ -2124,28 +2080,65 @@ class ProductSync(models.Model):
     def _process_lens_variant_items(self, items, cache, error_ctx=None):
         total = len(items)
         success = failed = 0
-
         _logger.info(f"🔄 Processing {total} lens items (template-based)...")
+
+        to_create_vals = []   # (template_key, vals)
+        to_update = []        # (tmpl_id, vals)
 
         for idx, item in enumerate(items):
             try:
-                # ── Raw structure debug (bật bằng LOG_LENS_RAW_STRUCTURE=True) ──
                 self._debug_log_item_structure(item, idx)
-
-                tmpl = self._get_or_create_lens_template(item, cache)
-                if not tmpl:
-                    failed += 1
-                    continue
-                success += 1
+                coating_ids, coating_codes = self._resolve_lens_coatings(item, cache)
+                template_key = self._build_lens_template_key(item, coating_codes)
+                tmpl_id = cache.get('lens_templates', {}).get(template_key)
+                vals, _ = self._prepare_base_vals(
+                    item, cache, 'lens',
+                    coating_ids=coating_ids,
+                    lens_template_key=template_key
+                )
+                if tmpl_id:
+                    to_update.append((tmpl_id, vals))
+                else:
+                    to_create_vals.append((template_key, vals))
             except Exception as e:
                 failed += 1
                 dto = item.get('productdto') or {}
                 cid = (dto.get('cid') or '').strip() or f'idx_{idx}'
-                self._record_sync_error(error_ctx, 'lens', 'ITEM_ERR', ref=cid, exc=e)
-                import traceback
-                _logger.error(
-                    f"Lens variant error idx={idx}: {e}\n{traceback.format_exc()}"
-                )
+                self._record_sync_error(error_ctx, 'lens', 'PREPARE', ref=cid, exc=e)
+                _logger.error(f"Lens prepare error idx={idx}: {e}")
+
+        # Batch create
+        batch_size = 100
+        for i in range(0, len(to_create_vals), batch_size):
+            batch = to_create_vals[i:i + batch_size]
+            try:
+                with self.env.cr.savepoint():
+                    recs = self.env['product.template'].with_context(
+                        tracking_disable=True
+                    ).create([v for _, v in batch])
+                    for (template_key, _), rec in zip(batch, recs):
+                        cache.setdefault('lens_templates', {})[template_key] = rec.id
+                        if rec.default_code:
+                            cache['products'][rec.default_code] = rec.id
+                        self._cleanup_lens_template_variants(rec)
+                    success += len(recs)
+            except Exception as e:
+                failed += len(batch)
+                self._record_sync_error(error_ctx, 'lens', 'BATCH_CREATE', ref=f"batch={i}", exc=e)
+                _logger.error(f"Lens batch create error batch={i}: {e}")
+
+        # Update từng record (vals thường khác nhau)
+        for tmpl_id, vals in to_update:
+            try:
+                with self.env.cr.savepoint():
+                    tmpl = self.env['product.template'].browse(tmpl_id)
+                    tmpl.write(vals)
+                    self._cleanup_lens_template_variants(tmpl)
+                success += 1
+            except Exception as e:
+                failed += 1
+                self._record_sync_error(error_ctx, 'lens', 'UPDATE', ref=f"tmpl_id={tmpl_id}", exc=e)
+                _logger.error(f"Lens update error tmpl_id={tmpl_id}: {e}")
 
         return success, failed
 
@@ -2262,8 +2255,8 @@ class ProductSync(models.Model):
                     step = 'ref_country'
                     self._acc_get_or_create_ref(
                         'country', dto.get('codto'), cache, 'countries',
-                        'product.country',
-                        name_field='name', code_field='cid',
+                        'res.country',
+                        name_field='name', code_field='code',
                         required=False, sku=sku
                     )
 
@@ -2380,14 +2373,13 @@ class ProductSync(models.Model):
                     # ── MAP_OUT ─────────────────────────────────────────────────
                     _logger.info(
                         "[ACC_SYNC][MAP_OUT] sku=%s mapped_vals={"
-                        "default_code=%s, name=%s, type=%s, is_storable=%s, "
+                        "default_code=%s, name=%s, type=%s, "
                         "categ_id=%s, brand_id=%s, country_id=%s, warranty_id=%s, "
                         "list_price=%s, standard_price=%s}",
                         sku,
                         vals.get('default_code'),
                         vals.get('name'),
                         vals.get('type'),
-                        vals.get('is_storable'),
                         vals.get('categ_id'),
                         vals.get('brand_id'),
                         vals.get('country_id'),
@@ -2533,14 +2525,9 @@ class ProductSync(models.Model):
         # DEBUG: Log cấu trúc item đầu tiên để xác nhận field names từ API
         if items:
             first_item = items[0]
-            _logger.info(f"🔍 DEBUG [{product_type}] item keys at root: {list(first_item.keys())}")
+            _logger.debug(f"🔍 DEBUG [{product_type}] item keys at root: {list(first_item.keys())}")
             dto0 = first_item.get('productdto') or {}
-            _logger.info(f"🔍 DEBUG [{product_type}] productdto keys: {list(dto0.keys())}")
-            _logger.info(f"🔍 DEBUG [{product_type}] model={first_item.get('model')!r}, color={first_item.get('color')!r}")
-            _logger.info(f"🔍 DEBUG [{product_type}] cid={dto0.get('cid')!r}")
-            if product_type == 'accessory':
-                import json as _json
-                _logger.info(f"🧩 ACCESSORY FULL ITEM SAMPLE:\n{_json.dumps(first_item, ensure_ascii=False, default=str, indent=2)}")
+            _logger.debug(f"🔍 DEBUG [{product_type}] productdto keys: {list(dto0.keys())}")
 
         # ─── Bước 1: Chuẩn bị dữ liệu ────────────────────────────────────
         for idx, item in enumerate(items):
@@ -2621,28 +2608,34 @@ class ProductSync(models.Model):
                             _logger.error(f"Child Create Error product {rec.id}: {e}")
 
         # ─── Bước 3: Batch Update ─────────────────────────────────────────
-        for pid, vals in to_update:
-            try:
-                with self.env.cr.savepoint():
-                    self.env['product.template'].browse(pid).with_context(
-                        tracking_disable=True
-                    ).write(vals)
+        # Group updates by identical vals để dùng write() trên nhiều record cùng lúc
+        # Với opt/accessory vals thường khác nhau nên fallback per-record
+        update_batch_size = 50
+        update_list = list(to_update)
+        for i in range(0, len(update_list), update_batch_size):
+            batch = update_list[i:i + update_batch_size]
+            for pid, vals in batch:
+                try:
+                    with self.env.cr.savepoint():
+                        self.env['product.template'].browse(pid).with_context(
+                            tracking_disable=True
+                        ).write(vals)
 
-                    if has_child and pid in child_vals_map:
-                        c_vals = child_vals_map[pid]
-                        cmap = cache.get('opt_records', {})
-                        if pid in cmap:
-                            self.env[child_model].browse(cmap[pid]).write(c_vals)
-                        else:
-                            c_vals['product_tmpl_id'] = pid
-                            new_id = self.env[child_model].create(c_vals).id
-                            cmap[pid] = new_id
+                        if has_child and pid in child_vals_map:
+                            c_vals = child_vals_map[pid]
+                            cmap = cache.get('opt_records', {})
+                            if pid in cmap:
+                                self.env[child_model].browse(cmap[pid]).write(c_vals)
+                            else:
+                                c_vals['product_tmpl_id'] = pid
+                                new_id = self.env[child_model].create(c_vals).id
+                                cmap[pid] = new_id
 
-                    success += 1
-            except Exception as e:
-                failed += 1
-                self._record_sync_error(error_ctx, product_type, 'UPDATE', ref=f"tmpl_id={pid}", exc=e)
-                _logger.error(f"Update Error [{product_type}] tmpl_id={pid}: {e}")
+                        success += 1
+                except Exception as e:
+                    failed += 1
+                    self._record_sync_error(error_ctx, product_type, 'UPDATE', ref=f"tmpl_id={pid}", exc=e)
+                    _logger.error(f"Update Error [{product_type}] tmpl_id={pid}: {e}")
 
         return success, failed
 
