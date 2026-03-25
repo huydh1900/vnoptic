@@ -39,11 +39,6 @@ class ProductTemplateExtension(models.Model):
         ('unknown', 'Chưa xác định'),
     ]
 
-    _sql_constraints = [
-        ('short_code_unique', 'unique(short_code)',
-         'Mã viết tắt phải là duy nhất.'),
-    ]
-
     # Source of truth for UI visibility and UI-level classification.
     product_kind_ui = fields.Selection(
         selection=_PRODUCT_KIND_SELECTION,
@@ -501,15 +496,6 @@ class ProductTemplateExtension(models.Model):
     opt_coating_ids = fields.Many2many(
         'product.coating', 'product_tmpl_opt_coating_rel',
         'tmpl_id', 'coating_id', string='Lớp phủ'
-    )
-
-    # ==================== SHORT CODE ====================
-    short_code = fields.Char(
-        string='Mã viết tắt',
-        required=True,
-        index=True,
-        copy=False,
-        help='Mã viết tắt duy nhất cho sản phẩm gọng kính'
     )
 
     # ==================== WARRANTY TEMPLATE (Hướng A – ERP chuẩn) ====================

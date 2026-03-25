@@ -6,6 +6,7 @@ import time
 import random
 import re
 import unicodedata
+from datetime import datetime
 import requests
 import urllib3
 from collections import defaultdict
@@ -15,6 +16,7 @@ from ..utils import lens_variant_utils
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 _logger = logging.getLogger(__name__)
+_SYNC_AUDIT_STORE = {}
 
 class ProductSync(models.Model):
     _name = 'product.sync'
@@ -43,6 +45,180 @@ class ProductSync(models.Model):
         for record in self:
             total = record.total_synced + record.total_failed
             record.progress = (record.total_synced / total * 100) if total > 0 else 0
+
+    def _init_sync_audit(self):
+        """Initialize per-run audit context and attach a file handler.
+
+        This keeps terminal logging intact while persisting logs to disk.
+        """
+        now = datetime.now()
+        run_stamp = now.strftime('%Y-%m-%d_%H-%M-%S')
+
+        module_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        base_dir = os.getenv('PRODUCT_SYNC_LOG_DIR') or os.path.join(module_root, 'logs', 'product_sync')
+        os.makedirs(base_dir, exist_ok=True)
+
+        text_log_path = os.path.join(base_dir, f'product_sync_{run_stamp}.log')
+        error_json_path = os.path.join(base_dir, f'product_sync_errors_{run_stamp}.json')
+
+        file_handler = logging.FileHandler(text_log_path, mode='a', encoding='utf-8')
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s'))
+        _logger.addHandler(file_handler)
+
+        _SYNC_AUDIT_STORE[self._sync_audit_key()] = {
+            'run_stamp': run_stamp,
+            'started_at': now.isoformat(),
+            'text_log_path': text_log_path,
+            'error_json_path': error_json_path,
+            'file_handler': file_handler,
+            'issues': [],
+            'counts': {'input': 0, 'create': 0, 'update': 0, 'skip': 0, 'fail': 0},
+            'counts_by_type': defaultdict(lambda: {'input': 0, 'create': 0, 'update': 0, 'skip': 0, 'fail': 0}),
+            'error_type_counts': defaultdict(int),
+            'field_counts': defaultdict(int),
+            'source_value_counts': defaultdict(int),
+        }
+
+        _logger.info("[SYNC_AUDIT] Run started. text_log=%s error_json=%s", text_log_path, error_json_path)
+
+    def _sync_audit_key(self):
+        rec_id = self.id if len(self) == 1 and self.id else 0
+        return (self._name, self.env.cr.dbname, id(self.env.cr), rec_id)
+
+    def _get_sync_audit_ctx(self):
+        return _SYNC_AUDIT_STORE.get(self._sync_audit_key())
+
+    def _sync_audit_count(self, metric, product_type='unknown', amount=1):
+        ctx = self._get_sync_audit_ctx()
+        if not ctx or metric not in ctx['counts']:
+            return
+        ctx['counts'][metric] += amount
+        ctx['counts_by_type'][product_type][metric] += amount
+
+    def _extract_sync_identifiers(self, item=None, payload=None, product_tmpl=None):
+        dto = (item or {}).get('productdto') if isinstance(item, dict) else {}
+        if not isinstance(dto, dict):
+            dto = {}
+
+        rs_id = dto.get('id') or dto.get('externalId') or dto.get('cid')
+        sku = (dto.get('cid') or '').strip() if isinstance(dto.get('cid'), str) else (dto.get('cid') or '')
+        code = sku
+        product_name = dto.get('fullname') or dto.get('name') or ''
+
+        if isinstance(payload, dict):
+            sku = sku or payload.get('default_code') or payload.get('sku') or ''
+            code = code or payload.get('code') or payload.get('default_code') or ''
+            product_name = product_name or payload.get('name') or ''
+
+        if product_tmpl:
+            sku = sku or (product_tmpl.default_code or '')
+            code = code or (product_tmpl.default_code or '')
+            product_name = product_name or (product_tmpl.name or '')
+
+        return rs_id or None, sku or None, code or None, product_name or None
+
+    def _sync_audit_record_issue(
+        self,
+        issue_kind,
+        product_type,
+        stage,
+        item=None,
+        payload=None,
+        product_tmpl=None,
+        field='unknown',
+        source_value=None,
+        normalized_value=None,
+        error_type='UNKNOWN',
+        error_message='',
+    ):
+        ctx = self._get_sync_audit_ctx()
+        if not ctx:
+            return
+
+        rs_id, sku, code, product_name = self._extract_sync_identifiers(item=item, payload=payload, product_tmpl=product_tmpl)
+        issue = {
+            'timestamp': datetime.now().isoformat(),
+            'issue_kind': issue_kind,
+            'rs_id': rs_id,
+            'product_type': product_type,
+            'sku': sku,
+            'code': code,
+            'product_name': product_name,
+            'stage': stage,
+            'field': field,
+            'source_value': source_value,
+            'normalized_value': normalized_value,
+            'error_type': error_type,
+            'error_message': error_message,
+        }
+        ctx['issues'].append(issue)
+
+        if issue_kind == 'skip':
+            self._sync_audit_count('skip', product_type, 1)
+        if issue_kind in ('error', 'fail'):
+            self._sync_audit_count('fail', product_type, 1)
+
+        ctx['error_type_counts'][error_type or 'UNKNOWN'] += 1
+        ctx['field_counts'][field or 'unknown'] += 1
+        sv_key = str(source_value) if source_value not in (None, '', False) else '<empty>'
+        if len(sv_key) > 200:
+            sv_key = sv_key[:200] + '...'
+        ctx['source_value_counts'][sv_key] += 1
+
+    def _sync_audit_top(self, data_dict, limit=10):
+        return [
+            {'value': key, 'count': count}
+            for key, count in sorted(data_dict.items(), key=lambda pair: pair[1], reverse=True)[:limit]
+        ]
+
+    def _finalize_sync_audit(self, status='success'):
+        ctx = self._get_sync_audit_ctx()
+        if not ctx:
+            return
+
+        summary = {
+            'status': status,
+            'started_at': ctx['started_at'],
+            'ended_at': datetime.now().isoformat(),
+            'total_input': ctx['counts']['input'],
+            'total_create': ctx['counts']['create'],
+            'total_update': ctx['counts']['update'],
+            'total_skip': ctx['counts']['skip'],
+            'total_fail': ctx['counts']['fail'],
+            'top_error_type': self._sync_audit_top(ctx['error_type_counts']),
+            'top_field': self._sync_audit_top(ctx['field_counts']),
+            'top_source_value': self._sync_audit_top(ctx['source_value_counts']),
+            'counts_by_type': dict(ctx['counts_by_type']),
+        }
+
+        _logger.info("[SYNC_AUDIT][SUMMARY] status=%s input=%s create=%s update=%s skip=%s fail=%s",
+                     summary['status'], summary['total_input'], summary['total_create'],
+                     summary['total_update'], summary['total_skip'], summary['total_fail'])
+        _logger.info("[SYNC_AUDIT][SUMMARY] top_error_type=%s", json.dumps(summary['top_error_type'], ensure_ascii=False))
+        _logger.info("[SYNC_AUDIT][SUMMARY] top_field=%s", json.dumps(summary['top_field'], ensure_ascii=False))
+        _logger.info("[SYNC_AUDIT][SUMMARY] top_source_value=%s", json.dumps(summary['top_source_value'], ensure_ascii=False))
+
+        output_payload = {
+            'summary': summary,
+            'issues': ctx['issues'],
+            'text_log_path': ctx['text_log_path'],
+            'error_json_path': ctx['error_json_path'],
+        }
+        try:
+            with open(ctx['error_json_path'], 'w', encoding='utf-8') as f:
+                json.dump(output_payload, f, ensure_ascii=False, indent=2, default=str)
+        except Exception as e:
+            _logger.error("[SYNC_AUDIT] Cannot write error json file: %s", e)
+
+        _logger.info("[SYNC_AUDIT] Run finished. text_log=%s error_json=%s",
+                     ctx['text_log_path'], ctx['error_json_path'])
+
+        handler = ctx.get('file_handler')
+        if handler:
+            _logger.removeHandler(handler)
+            handler.close()
+        _SYNC_AUDIT_STORE.pop(self._sync_audit_key(), None)
 
     @api.model
     def _load_env(self):
@@ -938,7 +1114,7 @@ class ProductSync(models.Model):
                 tmpl.id, len(extra_variants), e
             )
 
-    def _get_or_create_lens_template(self, item, cache):
+    def _get_or_create_lens_template(self, item, cache, return_action=False):
         coating_ids, coating_codes = self._resolve_lens_coatings(item, cache)
         template_key = self._build_lens_template_key(item, coating_codes)
         tmpl_id = cache.get('lens_templates', {}).get(template_key)
@@ -972,7 +1148,7 @@ class ProductSync(models.Model):
                 ', '.join(tmpl.lens_coating_ids.mapped('name')) or None,
                 tmpl.lens_design1_id.name if tmpl.lens_design1_id else None,
             )
-            return tmpl
+            return (tmpl, 'update') if return_action else tmpl
 
         _logger.info(
             "📝 [LENS CREATE] uv=%s | coating=%s | cl_hmc=%s | cl_pho=%s | cl_tint=%s",
@@ -997,7 +1173,7 @@ class ProductSync(models.Model):
             ', '.join(tmpl.lens_coating_ids.mapped('name')) or None,
             tmpl.lens_design1_id.name if tmpl.lens_design1_id else None,
         )
-        return tmpl
+        return (tmpl, 'create') if return_action else tmpl
 
     def _get_default_stock_location(self):
         # Prefer warehouse stock location for current company
@@ -1524,6 +1700,18 @@ class ProductSync(models.Model):
         for payload in payloads:
             partner_id = payload.get('partner_id')
             if not partner_id:
+                self._sync_audit_record_issue(
+                    issue_kind='skip',
+                    product_type=product_tmpl.product_type or 'unknown',
+                    stage='supplierinfo_upsert',
+                    payload=payload,
+                    product_tmpl=product_tmpl,
+                    field='partner_id',
+                    source_value=payload.get('partner_id'),
+                    normalized_value=None,
+                    error_type='MISSING_PARTNER',
+                    error_message='Skip supplierinfo because partner_id is empty',
+                )
                 continue
 
             min_qty = float(payload.get('min_qty') or 1.0)
@@ -1535,6 +1723,18 @@ class ProductSync(models.Model):
                     product_tmpl.id,
                     partner_id,
                 )
+                self._sync_audit_record_issue(
+                    issue_kind='skip',
+                    product_type=product_tmpl.product_type or 'unknown',
+                    stage='supplierinfo_upsert',
+                    payload=payload,
+                    product_tmpl=product_tmpl,
+                    field='currency_id',
+                    source_value=payload.get('currency_id'),
+                    normalized_value=currency_id,
+                    error_type='MISSING_CURRENCY',
+                    error_message='Skip supplierinfo because currency_id cannot be resolved',
+                )
                 continue
 
             domain = [
@@ -1545,20 +1745,40 @@ class ProductSync(models.Model):
                 ('delay', '=', delay),
                 ('currency_id', '=', currency_id),
             ]
-            seller = supplierinfo_model.search(domain, limit=1)
-            seller_vals = {
-                'partner_id': partner_id,
-                'product_tmpl_id': product_tmpl.id,
-                'product_id': False,
-                'price': float(payload.get('price') or 0.0),
-                'min_qty': min_qty,
-                'delay': delay,
-                'currency_id': currency_id,
-            }
-            if seller:
-                seller.write(seller_vals)
-            else:
-                supplierinfo_model.create(seller_vals)
+            try:
+                seller = supplierinfo_model.search(domain, limit=1)
+                seller_vals = {
+                    'partner_id': partner_id,
+                    'product_tmpl_id': product_tmpl.id,
+                    'product_id': False,
+                    'price': float(payload.get('price') or 0.0),
+                    'min_qty': min_qty,
+                    'delay': delay,
+                    'currency_id': currency_id,
+                }
+                if seller:
+                    seller.write(seller_vals)
+                else:
+                    supplierinfo_model.create(seller_vals)
+            except Exception as e:
+                self._sync_audit_record_issue(
+                    issue_kind='error',
+                    product_type=product_tmpl.product_type or 'unknown',
+                    stage='supplierinfo_upsert',
+                    payload=payload,
+                    product_tmpl=product_tmpl,
+                    field='supplierinfo',
+                    source_value=payload,
+                    normalized_value={
+                        'partner_id': partner_id,
+                        'currency_id': currency_id,
+                        'min_qty': min_qty,
+                        'delay': delay,
+                    },
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
+                raise
 
     def _upsert_supplier_contact(self, partner, supplier_detail):
         """Store RS contact person as child contact for clean Odoo modeling."""
@@ -3121,14 +3341,40 @@ class ProductSync(models.Model):
                     # ── Raw structure debug (bật bằng LOG_LENS_RAW_STRUCTURE=True) ──
                     self._debug_log_item_structure(item, idx)
 
-                    tmpl = self._get_or_create_lens_template(item, cache)
+                    tmpl, action = self._get_or_create_lens_template(item, cache, return_action=True)
                     if not tmpl:
                         failed += 1
+                        self._sync_audit_record_issue(
+                            issue_kind='skip',
+                            product_type='lens',
+                            stage='lens_template_upsert',
+                            item=item,
+                            field='template',
+                            source_value=(item.get('productdto') or {}).get('cid'),
+                            normalized_value=None,
+                            error_type='NO_TEMPLATE',
+                            error_message='Template creation/update returned empty result',
+                        )
                         continue
                     success += 1
+                    if action == 'create':
+                        self._sync_audit_count('create', 'lens', 1)
+                    elif action == 'update':
+                        self._sync_audit_count('update', 'lens', 1)
             except Exception as e:
                 failed += 1
                 import traceback
+                self._sync_audit_record_issue(
+                    issue_kind='error',
+                    product_type='lens',
+                    stage='lens_template_upsert',
+                    item=item,
+                    field='template',
+                    source_value=(item.get('productdto') or {}).get('cid'),
+                    normalized_value=None,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
                 _logger.error(
                     f"Lens variant error idx={idx}: {e}\n{traceback.format_exc()}"
                 )
@@ -3393,6 +3639,7 @@ class ProductSync(models.Model):
                         )
                         saved_rec.write(vals)
                         self._upsert_supplierinfo_payloads(saved_rec, seller_payloads)
+                        self._sync_audit_count('update', 'accessory', 1)
                         if log_debug:
                             _logger.info(
                                 "[ACC_SYNC][WRITE_OK] sku=%s tmpl_id=%s", sku, pid
@@ -3404,6 +3651,7 @@ class ProductSync(models.Model):
                         ).create(vals)
                         self._upsert_supplierinfo_payloads(saved_rec, seller_payloads)
                         cache['products'][saved_rec.default_code] = saved_rec.id
+                        self._sync_audit_count('create', 'accessory', 1)
                         if log_debug:
                             _logger.info(
                                 "[ACC_SYNC][CREATE_OK] sku=%s new_tmpl_id=%s",
@@ -3440,6 +3688,7 @@ class ProductSync(models.Model):
             except Exception as exc:
                 errors  += 1
                 skipped += 1
+                self._sync_audit_count('skip', 'accessory', 1)
 
                 # Phân loại step để thống kê
                 step_key = step.replace('ref_', '')
@@ -3468,6 +3717,17 @@ class ProductSync(models.Model):
                     "[ACC_SYNC][ERROR] sku=%s step=%s err=%s", sku, step, exc
                 )
                 _logger.warning("[ACC_SYNC][SKIP] sku=%s", sku)
+                self._sync_audit_record_issue(
+                    issue_kind='error',
+                    product_type='accessory',
+                    stage=step,
+                    item=item,
+                    field=step,
+                    source_value=sku,
+                    normalized_value=None,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
 
         # ── Tổng kết ────────────────────────────────────────────────────────────
         _logger.info(
@@ -3503,6 +3763,7 @@ class ProductSync(models.Model):
         success = failed = 0
         to_create, to_update = [], []
         to_create_supplier_payloads = []
+        to_create_meta = []
 
         has_child = False  # Hướng B: không còn dùng child model cho lens hay opt
         child_vals_map = {}    # tmpl_id → child_vals (cho opt)
@@ -3540,21 +3801,34 @@ class ProductSync(models.Model):
                         c_vals = self._prepare_opt_vals(item, cache)
                     seller_payloads = self._extract_seller_payloads(vals)
                     if pid:
-                        to_update.append((pid, vals, seller_payloads))
+                        to_update.append((pid, vals, seller_payloads, item))
                         if has_child:
                             child_vals_map[pid] = c_vals
                     else:
                         to_create.append(vals)
                         to_create_supplier_payloads.append(seller_payloads)
+                        to_create_meta.append(item)
                         if has_child:
                             new_child_data.append((idx, c_vals))
             except Exception as e:
                 failed += 1
+                self._sync_audit_count('skip', product_type, 1)
                 import traceback
                 dto = item.get('productdto') or {}
                 _dc = (dto.get('cid') or '').strip() or 'N/A'
                 _logger.error(
                     f"Prepare error [{product_type}] idx={idx} default_code={_dc}: {e}\n{traceback.format_exc()}"
+                )
+                self._sync_audit_record_issue(
+                    issue_kind='error',
+                    product_type=product_type,
+                    stage='prepare',
+                    item=item,
+                    field='prepare_base_vals',
+                    source_value=_dc,
+                    normalized_value=None,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
                 )
 
         # ─── Bước 2: Batch Create ─────────────────────────────────────────
@@ -3563,6 +3837,7 @@ class ProductSync(models.Model):
             for i in range(0, len(to_create), batch_size):
                 b_vals = to_create[i:i + batch_size]
                 b_supplier_payloads = to_create_supplier_payloads[i:i + batch_size]
+                b_meta = to_create_meta[i:i + batch_size]
                 b_child = new_child_data[i:i + batch_size] if has_child else []
                 b_child_refs = b_child
                 try:
@@ -3576,10 +3851,23 @@ class ProductSync(models.Model):
                             if j < len(b_supplier_payloads):
                                 self._upsert_supplierinfo_payloads(rec, b_supplier_payloads[j])
                         success += len(recs)
+                        self._sync_audit_count('create', product_type, len(recs))
                 except Exception as e:
                     failed += len(b_vals)
                     import traceback
                     _logger.error(f"Batch Create Error [{product_type}]: {e}\n{traceback.format_exc()}")
+                    for meta_item in b_meta:
+                        self._sync_audit_record_issue(
+                            issue_kind='error',
+                            product_type=product_type,
+                            stage='batch_create',
+                            item=meta_item,
+                            field='create',
+                            source_value=(meta_item.get('productdto') or {}).get('cid') if isinstance(meta_item, dict) else None,
+                            normalized_value=None,
+                            error_type=type(e).__name__,
+                            error_message=str(e),
+                        )
                     continue
 
                 # Tạo child records riêng lẻ (savepoint độc lập)
@@ -3599,7 +3887,7 @@ class ProductSync(models.Model):
                             _logger.error(f"Child Create Error product {rec.id}: {e}")
 
         # ─── Bước 3: Batch Update ─────────────────────────────────────────
-        for pid, vals, seller_payloads in to_update:
+        for pid, vals, seller_payloads, source_item in to_update:
             try:
                 with self.env.cr.savepoint():
                     product_tmpl = self.env['product.template'].browse(pid).with_context(
@@ -3619,9 +3907,21 @@ class ProductSync(models.Model):
                             cmap[pid] = new_id
 
                     success += 1
+                    self._sync_audit_count('update', product_type, 1)
             except Exception as e:
                 failed += 1
                 _logger.error(f"Update Error [{product_type}] tmpl_id={pid}: {e}")
+                self._sync_audit_record_issue(
+                    issue_kind='error',
+                    product_type=product_type,
+                    stage='update',
+                    item=source_item,
+                    field='write',
+                    source_value=pid,
+                    normalized_value=None,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
 
         return success, failed
 
@@ -3640,7 +3940,9 @@ class ProductSync(models.Model):
 
     def _run_sync(self, limit=None):
         self.ensure_one()
+        final_status = 'error'
         try:
+            self._init_sync_audit()
             self.write({'sync_status': 'in_progress', 'sync_log': 'Đang đồng bộ...', 'last_sync_date': fields.Datetime.now()})
             self.env.cr.commit()
             
@@ -3652,6 +3954,7 @@ class ProductSync(models.Model):
             # Lens – specs đã map trực tiếp vào template (Hướng B)
             # Mỗi bản ghi lens từ API → 1 product.template (default variant duy nhất)
             items = self._fetch_all_items(cfg['lens_endpoint'], token, 'Lens', limit)
+            self._sync_audit_count('input', 'lens', len(items))
             s, f = self._process_batch(items, cache, 'lens')  # Không truyền child_model
             stats['lens'] = s
             stats['failed'] = f
@@ -3664,6 +3967,7 @@ class ProductSync(models.Model):
             
             # Opt – specs đã map trực tiếp vào template (Hướng B)
             items = self._fetch_all_items(cfg['opts_endpoint'], token, 'Optical', limit)
+            self._sync_audit_count('input', 'opt', len(items))
             s, f = self._process_batch(items, cache, 'opt')  # Không dùng child_model
             stats['opt'] = s
             stats['failed'] += f
@@ -3671,6 +3975,7 @@ class ProductSync(models.Model):
 
             # Access
             items = self._fetch_all_items(cfg['types_endpoint'], token, 'Types', limit)
+            self._sync_audit_count('input', 'accessory', len(items))
             s, f = self._process_batch(items, cache, 'accessory')
             stats['acc'] = s
             stats['failed'] += f
@@ -3679,6 +3984,14 @@ class ProductSync(models.Model):
             total = stats['lens'] + stats['opt'] + stats['acc']
             msg = f"Đã đồng bộ {total} (Mắt:{stats['lens']}, Gọng:{stats['opt']}, Khác:{stats['acc']}). Lỗi: {stats['failed']}"
             has_failed = stats['failed'] > 0
+            final_status = 'error' if has_failed else 'success'
+
+            audit_ctx = self._get_sync_audit_ctx() or {}
+            text_log_path = audit_ctx.get('text_log_path', '')
+            error_json_path = audit_ctx.get('error_json_path', '')
+            if text_log_path or error_json_path:
+                msg = f"{msg} | Log: {text_log_path} | Error JSON: {error_json_path}"
+
             self.write({'sync_status': 'error' if has_failed else 'success', 'sync_log': msg,
                        'total_synced': total, 'total_failed': stats['failed'], 
                        'lens_count': stats['lens'], 'opts_count': stats['opt'], 'other_count': stats['acc']})
@@ -3688,10 +4001,22 @@ class ProductSync(models.Model):
 
         except Exception as e:
             self.env.cr.rollback()
+            self._sync_audit_record_issue(
+                issue_kind='error',
+                product_type='system',
+                stage='_run_sync',
+                field='run',
+                source_value='sync_products',
+                normalized_value=None,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             self.write({'sync_status': 'error', 'sync_log': str(e)})
             self.env.cr.commit()
             return {'type': 'ir.actions.client', 'tag': 'display_notification', 
                     'params': {'title': 'Đồng bộ thất bại', 'message': str(e), 'type': 'danger'}}
+        finally:
+            self._finalize_sync_audit(status=final_status)
 
     def test_api_connection(self):
         try:
