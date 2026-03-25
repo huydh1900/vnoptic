@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
 import json
+from psycopg2 import errors
+import time
 import os
 import time
 import random
@@ -9,6 +11,7 @@ import requests
 import urllib3
 from collections import defaultdict
 from odoo import models, fields, api, _
+from odoo.modules.registry import Registry
 from odoo.exceptions import UserError
 from ..utils import lens_variant_utils
 
@@ -265,7 +268,7 @@ class ProductSync(models.Model):
             if page % 10 == 0 and hasattr(self, 'id') and self.id:
                 try:
                     self.write({
-                                   'sync_log': f"Đang tải {label}: trang {page + 1}/{total_pages} ({len(items)}/{total_elements} bản ghi)..."})
+                        'sync_log': f"Đang tải {label}: trang {page + 1}/{total_pages} ({len(items)}/{total_elements} bản ghi)..."})
                 except Exception:
                     pass
 
@@ -289,17 +292,9 @@ class ProductSync(models.Model):
         return items
 
     def _process_items_in_chunks(self, items, cache, product_type, child_model=None, error_ctx=None):
-        """
-        Refactor:
-        - Retry khi gặp SerializationFailure
-        - Stop khi cursor chết (InterfaceError)
-        - Không continue mù
-        - Chunk isolation an toàn
-        """
-        from psycopg2 import InterfaceError, errors
-        import time
-
+        db = self.env.cr.dbname
         chunk_size = self._get_sync_batch_size()
+
         total_success = total_failed = 0
         total = len(items)
 
@@ -309,85 +304,49 @@ class ProductSync(models.Model):
         for chunk_idx, start in enumerate(range(0, total, chunk_size), start=1):
             chunk = items[start:start + chunk_size]
 
-            # _logger.info(
-            #     "⚙️ Processing %s chunk %s (%s records — %s/%s total)",
-            #     product_type, chunk_idx, len(chunk), start + 1, min(start + len(chunk), total)
-            # )
-
             success = failed = 0
-            retry_ok = False
 
-            # 🔁 Retry loop cho concurrency
+            # 🔥 mỗi chunk = 1 cursor riêng
             for attempt in range(3):
                 try:
-                    with self.env.cr.savepoint():
-                        success, failed = self._process_batch(
-                            chunk, cache, product_type, child_model, error_ctx=error_ctx
-                        )
-                    retry_ok = True
+                    with Registry(db).cursor() as cr:
+                        env = self.env(cr=cr)
+                        self_chunk = env[self._name].browse(self.id)
+
+                        with cr.savepoint():
+                            success, failed = self_chunk._process_batch(
+                                chunk, cache, product_type, child_model, error_ctx=error_ctx
+                            )
+
+                        # commit riêng từng chunk
+                        cr.commit()
+
                     break
 
-                # 🔴 Lỗi concurrency → retry
-                except errors.SerializationFailure as exc:
-                    wait = 0.5 * (attempt + 1)
-                    # _logger.warning(
-                    #     "⚠️ SerializationFailure chunk=%s attempt=%s → retry after %.2fs",
-                    #     chunk_idx, attempt + 1, wait
-                    # )
-                    time.sleep(wait)
+                except errors.SerializationFailure:
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
 
-                # 🔴 Cursor chết → STOP toàn bộ job
-                except InterfaceError as exc:
-                    _logger.error(
-                        "💥 Cursor chết tại chunk=%s → STOP JOB ngay",
-                        chunk_idx,
-                        exc_info=True
-                    )
-                    raise
-
-                # 🔴 Lỗi DB nghiêm trọng khác → STOP
                 except Exception as exc:
                     msg = str(exc).lower()
 
-                    # detect lỗi DB hidden
-                    if 'cursor already closed' in msg or 'connection pointer is null' in msg:
-                        _logger.error(
-                            "💥 DB connection chết tại chunk=%s → STOP JOB",
-                            chunk_idx,
-                            exc_info=True
-                        )
-                        raise
-
-                    # ❌ lỗi business → chỉ fail chunk
+                    # ❌ chunk fail
                     total_failed += len(chunk)
                     self._record_sync_error(
                         error_ctx,
                         product_type,
                         'CHUNK_ERR',
-                        ref=f"chunk={chunk_idx} size={len(chunk)}",
+                        ref=f"chunk={chunk_idx}",
                         exc=exc
                     )
 
                     # _logger.error(
-                    #     "[%s][CHUNK_ERR] chunk=%s size=%s error=%s",
-                    #     product_type.upper(), chunk_idx, len(chunk), exc,
+                    #     "[%s][CHUNK_ERR] chunk=%s error=%s",
+                    #     product_type.upper(), chunk_idx, exc,
                     #     exc_info=True
                     # )
 
-                    retry_ok = True  # không retry nữa
                     break
-
-            # ❌ retry fail hết → fail chunk
-            if not retry_ok:
-                total_failed += len(chunk)
-                self._record_sync_error(
-                    error_ctx,
-                    product_type,
-                    'CHUNK_RETRY_FAIL',
-                    ref=f"chunk={chunk_idx}",
-                    exc="Max retry exceeded"
-                )
-                continue
 
             total_success += success
             total_failed += failed
