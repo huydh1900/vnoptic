@@ -1228,22 +1228,54 @@ class ProductSync(models.Model):
         # )
 
     def _prepare_base_vals(self, item, cache, product_type, coating_ids=None, lens_template_key=None):
-        dto = item.get('productdto') or {}
-        cid = (dto.get('cid') or '').strip()
+        # Một số endpoint có thể trả key khác nhau (productdto/productDto/...) hoặc flatten trực tiếp.
+        dto = (
+            item.get('productdto')
+            or item.get('productDto')
+            or item.get('productDTO')
+            or {}
+        )
+
+        def _pick_str(src, keys):
+            if not isinstance(src, dict):
+                return ''
+            for k in keys:
+                v = src.get(k)
+                if v in (None, False):
+                    continue
+                s = str(v).strip()
+                if s:
+                    return s
+            return ''
+
+        # CID là khoá chính trong hệ thống RS, nhưng một số payload có thể dùng code/sku.
+        cid = (
+            _pick_str(dto, ['cid', 'code', 'sku', 'default_code', 'defaultCode'])
+            or _pick_str(item, ['cid', 'code', 'sku', 'default_code', 'defaultCode'])
+        )
         if not cid:
             raise ValueError("Missing CID")
 
         # Gọng kính: mỗi màu = 1 template riêng, key định danh BẮT BUỘC là model-color
         default_code = cid
         if product_type == 'opt':
-            model_code = (item.get('model') or '').strip()
-            color_code = (item.get('color') or '').strip()
-            if not model_code or not color_code:
-                raise ValueError(
-                    f"⚠️ Bỏ qua gọng cid={cid}: thiếu model='{model_code}' hoặc color='{color_code}'. "
-                    f"default_code không thể xác định duy nhất."
-                )
-            default_code = f"{model_code}-{color_code}"
+            model_code = (
+                _pick_str(item, ['model', 'modelCode', 'model_code', 'modelCid', 'model_cid'])
+                or _pick_str(dto, ['model', 'modelCode', 'model_code', 'modelCid', 'model_cid'])
+            )
+            color_code = (
+                _pick_str(item, ['color', 'colorCode', 'color_code', 'colorCid', 'color_cid'])
+                or _pick_str(dto, ['color', 'colorCode', 'color_code', 'colorCid', 'color_cid'])
+            )
+            if model_code and color_code:
+                default_code = f"{model_code}-{color_code}"
+            else:
+                # Fallback: ưu tiên SKU nếu có để tránh trùng default_code
+                sku = _pick_str(item, ['sku']) or _pick_str(dto, ['sku'])
+                if sku:
+                    default_code = sku
+                else:
+                    default_code = cid
 
         # Category Logic - chỉ 2 cấp: All / <loại>
         grp_dto = dto.get('groupdto') or {}
@@ -1501,6 +1533,10 @@ class ProductSync(models.Model):
             'bao_hanh_ban_le': int((dto.get('warrantyRetailDTO') or {}).get('value') or 0),
             'x_group_type_name': grp_type_name,
         }
+
+        # Set company cho toàn bộ sản phẩm sync (nếu product.template có field company_id)
+        if 'company_id' in self.env['product.template']._fields:
+            vals['company_id'] = self.env.company.id
 
         # ─── Lens specs (template-level only; no variants) ────────────────
         if product_type == 'lens':
@@ -2234,7 +2270,7 @@ class ProductSync(models.Model):
                     # dto.get('barcode') or 'N/A',
                     # )
 
-                    # ── currency: bắt buộc ──────────────────────────────────────
+                    # ── currency: optional (fallback về company currency) ───────
                     step = 'ref_currency'
                     cur_code = (cz_dto.get('cid') or '').strip()
                     _cur_id, _cur_err = self._acc_get_or_create_ref(
@@ -2242,12 +2278,8 @@ class ProductSync(models.Model):
                         cur_code or (cz_dto if cz_dto else None),
                         cache, 'acc_currency', 'res.currency',
                         name_field='name', code_field='name',
-                        required=True, sku=sku
+                        required=False, sku=sku
                     )
-                    if _cur_err and not _cur_id:
-                        raise ValueError(
-                            f"currency invalid/not-creatable: {_cur_err}"
-                        )
 
                     # ── brand: optional ─────────────────────────────────────────
                     step = 'ref_brand'
