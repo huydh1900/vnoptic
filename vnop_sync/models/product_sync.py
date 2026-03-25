@@ -289,30 +289,46 @@ class ProductSync(models.Model):
         if total == 0:
             return 0, 0
 
-        for chunk_idx, start in enumerate(range(0, total, chunk_size), start=1):
-            chunk = items[start:start + chunk_size]
-            _logger.info(
-                "⚙️ Processing %s chunk %s (%s records — %s/%s total)",
-                product_type, chunk_idx, len(chunk), start + 1, min(start + len(chunk), total)
-            )
-            try:
-                with self.env.cr.savepoint():
-                    success, failed = self._process_batch(chunk, cache, product_type, child_model, error_ctx=error_ctx)
-            except Exception as exc:
-                total_failed += len(chunk)
-                self._record_sync_error(
-                    error_ctx, product_type, 'CHUNK_ERR',
-                    ref=f"chunk={chunk_idx} size={len(chunk)}",
-                    exc=exc
+        env = self.env
+        extra_cursors = []
+        try:
+            for chunk_idx, start in enumerate(range(0, total, chunk_size), start=1):
+                chunk = items[start:start + chunk_size]
+                _logger.info(
+                    "⚙️ Processing %s chunk %s (%s records — %s/%s total)",
+                    product_type, chunk_idx, len(chunk), start + 1, min(start + len(chunk), total)
                 )
-                _logger.error(
-                    "[%s][CHUNK_ERR] chunk=%s size=%s error=%s",
-                    product_type.upper(), chunk_idx, len(chunk), exc,
-                    exc_info=True
-                )
-                continue
-            total_success += success
-            total_failed += failed
+                try:
+                    with env.cr.savepoint():
+                        success, failed = self.with_env(env)._process_batch(chunk, cache, product_type, child_model, error_ctx=error_ctx)
+                except Exception as exc:
+                    total_failed += len(chunk)
+                    self._record_sync_error(
+                        error_ctx, product_type, 'CHUNK_ERR',
+                        ref=f"chunk={chunk_idx} size={len(chunk)}",
+                        exc=exc
+                    )
+                    _logger.error(
+                        "[%s][CHUNK_ERR] chunk=%s size=%s error=%s",
+                        product_type.upper(), chunk_idx, len(chunk), exc,
+                        exc_info=True
+                    )
+                    # Nếu cursor bị chết (do SerializationFailure từ websocket), tạo cursor mới
+                    if env.cr.closed:
+                        _logger.warning("[%s] Cursor closed after chunk %s, acquiring new cursor", product_type.upper(), chunk_idx)
+                        new_cr = self.pool.cursor()
+                        extra_cursors.append(new_cr)
+                        env = self.env(cr=new_cr)
+                    continue
+                total_success += success
+                total_failed += failed
+        finally:
+            for cr in extra_cursors:
+                try:
+                    cr.commit()
+                    cr.close()
+                except Exception:
+                    pass
         return total_success, total_failed
 
     def _preload_all_data(self):
@@ -2122,10 +2138,36 @@ class ProductSync(models.Model):
                             cache['products'][rec.default_code] = rec.id
                         self._cleanup_lens_template_variants(rec)
                     success += len(recs)
-            except Exception as e:
-                failed += len(batch)
-                self._record_sync_error(error_ctx, 'lens', 'BATCH_CREATE', ref=f"batch={i}", exc=e)
-                _logger.error(f"Lens batch create error batch={i}: {e}")
+            except Exception:
+                # Fallback: create từng record
+                for template_key, vals in batch:
+                    dc = vals.get('default_code')
+                    existing_id = cache['products'].get(dc)
+                    if not existing_id and dc:
+                        existing = self.env['product.template'].search(
+                            [('default_code', '=', dc)], limit=1
+                        )
+                        if existing:
+                            existing_id = existing.id
+                            cache['products'][dc] = existing_id
+                    try:
+                        with self.env.cr.savepoint():
+                            if existing_id:
+                                tmpl = self.env['product.template'].browse(existing_id)
+                                tmpl.write(vals)
+                            else:
+                                tmpl = self.env['product.template'].with_context(
+                                    tracking_disable=True
+                                ).create(vals)
+                                cache.setdefault('lens_templates', {})[template_key] = tmpl.id
+                                if tmpl.default_code:
+                                    cache['products'][tmpl.default_code] = tmpl.id
+                            self._cleanup_lens_template_variants(tmpl)
+                            success += 1
+                    except Exception as e2:
+                        failed += 1
+                        self._record_sync_error(error_ctx, 'lens', 'SINGLE_CREATE', ref=dc or 'N/A', exc=e2)
+                        _logger.error(f"Lens single create error default_code={dc}: {e2}")
 
         # Update từng record (vals thường khác nhau)
         for tmpl_id, vals in to_update:
@@ -2579,16 +2621,40 @@ class ProductSync(models.Model):
                         for j, rec in enumerate(recs):
                             cache['products'][rec.default_code] = rec.id
                         success += len(recs)
-                except Exception as e:
-                    failed += len(b_vals)
-                    import traceback
-                    self._record_sync_error(
-                        error_ctx, product_type, 'BATCH_CREATE',
-                        ref=f"batch_start={i} size={len(b_vals)}",
-                        exc=e
-                    )
-                    _logger.error(f"Batch Create Error [{product_type}]: {e}\n{traceback.format_exc()}")
-                    continue
+                except Exception:
+                    # Batch failed — fallback: create từng record để chỉ skip cái bị trùng
+                    for single_vals in b_vals:
+                        dc = single_vals.get('default_code')
+                        # Nếu default_code đã tồn tại trong DB → update thay vì create
+                        existing_id = cache['products'].get(dc)
+                        if not existing_id and dc:
+                            existing = self.env['product.template'].search(
+                                [('default_code', '=', dc)], limit=1
+                            )
+                            if existing:
+                                existing_id = existing.id
+                                cache['products'][dc] = existing_id
+                        try:
+                            with self.env.cr.savepoint():
+                                if existing_id:
+                                    self.env['product.template'].browse(existing_id).with_context(
+                                        tracking_disable=True
+                                    ).write(single_vals)
+                                    success += 1
+                                else:
+                                    rec = self.env['product.template'].with_context(
+                                        tracking_disable=True
+                                    ).create(single_vals)
+                                    if rec.default_code:
+                                        cache['products'][rec.default_code] = rec.id
+                                    success += 1
+                        except Exception as e2:
+                            failed += 1
+                            self._record_sync_error(
+                                error_ctx, product_type, 'SINGLE_CREATE',
+                                ref=dc or 'N/A', exc=e2
+                            )
+                            _logger.error(f"Single Create Error [{product_type}] default_code={dc}: {e2}")
 
                 # Tạo child records riêng lẻ (savepoint độc lập)
                 if has_child and b_child_refs:
