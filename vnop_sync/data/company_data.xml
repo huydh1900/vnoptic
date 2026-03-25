@@ -4,9 +4,4 @@
     <record id="base.VND" model="res.currency">
         <field name="active">1</field>
     </record>
-
-    <!-- Set tiền tệ công ty mặc định là VND -->
-    <record id="base.main_company" model="res.company">
-        <field name="currency_id" ref="base.VND"/>
-    </record>
 </odoo>
