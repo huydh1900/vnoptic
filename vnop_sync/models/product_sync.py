@@ -15,6 +15,7 @@ from ..utils import lens_variant_utils
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 _logger = logging.getLogger(__name__)
 
+
 class ProductSync(models.Model):
     _name = 'product.sync'
     _description = 'Product Synchronization'
@@ -63,7 +64,7 @@ class ProductSync(models.Model):
     @api.model
     def _get_api_config(self):
         self._load_env()
-        
+
         base_url = os.getenv('SPRING_BOOT_BASE_URL')
         username = os.getenv('SPRINGBOOT_SERVICE_USERNAME')
         password = os.getenv('SPRINGBOOT_SERVICE_PASSWORD')
@@ -180,7 +181,7 @@ class ProductSync(models.Model):
     def _get_sync_batch_size(self):
         """Đọc kích thước batch (mặc định 1000)."""
         try:
-            size = int(os.getenv('SYNC_BATCH_SIZE', '1000'))
+            size = int(os.getenv('SYNC_BATCH_SIZE', '200'))
         except (TypeError, ValueError):
             size = 1000
         return max(1, size)
@@ -210,8 +211,8 @@ class ProductSync(models.Model):
                     raise UserError(_(f"API request failed after {max_retries} retries: {str(e)}"))
                 wait = min(2 ** attempt + random.uniform(0, 2), 60)  # cap 60s
                 # _logger.warning(
-                    # f"⚠️ Timeout/Connection error trang {page} (lần {attempt}/{max_retries}). "
-                    # f"Thử lại sau {wait:.1f}s... Lỗi: {e}"
+                # f"⚠️ Timeout/Connection error trang {page} (lần {attempt}/{max_retries}). "
+                # f"Thử lại sau {wait:.1f}s... Lỗi: {e}"
                 # )
                 time.sleep(wait)
             except Exception as e:
@@ -224,7 +225,7 @@ class ProductSync(models.Model):
         total_elements = 0
         config = self._get_api_config()
         log_lens_payload = os.getenv('LOG_LENS_PAYLOAD', 'False').lower() == 'true'
-        
+
         # _logger.info(f"🔍 Bắt đầu lấy dữ liệu {label} từ: {config['base_url']}{endpoint}")
 
         session = self._make_session()
@@ -234,42 +235,43 @@ class ProductSync(models.Model):
             if log_lens_payload and label.lower() == 'lens':
                 try:
                     # _logger.info(
-                        # "🧾 Lens API payload (page %s): %s",
-                        # page,
-                        # json.dumps(res, ensure_ascii=True)
+                    # "🧾 Lens API payload (page %s): %s",
+                    # page,
+                    # json.dumps(res, ensure_ascii=True)
                     # )
                     pass
                 except Exception as e:
                     # _logger.warning(f"⚠️ Không log được payload Lens page {page}: {e}")
                     pass
-            
+
             if page == 0:
                 debug_res = {k: v for k, v in res.items() if k != 'content'}
                 # _logger.info(f"🔍 Metadata API {label} (Trang 0): {debug_res}")
-            
+
             content = res.get('content', [])
             if not content:
                 break
             items.extend(content)
-            
+
             total_elements = res.get('totalElements', 0)
             total_pages = res.get('totalPages', 1)
-            
+
             # _logger.info(
-                # f"📦 {label}: Trang {page + 1}/{total_pages} | "
-                # f"Lấy được {len(content)} bản ghi | Tổng: {len(items)}/{total_elements}"
+            # f"📦 {label}: Trang {page + 1}/{total_pages} | "
+            # f"Lấy được {len(content)} bản ghi | Tổng: {len(items)}/{total_elements}"
             # )
 
             # Cập nhật sync_log định kỳ (mỗi 10 trang) để UI hiển thị tiến độ
             if page % 10 == 0 and hasattr(self, 'id') and self.id:
                 try:
-                    self.write({'sync_log': f"Đang tải {label}: trang {page + 1}/{total_pages} ({len(items)}/{total_elements} bản ghi)..."})
+                    self.write({
+                                   'sync_log': f"Đang tải {label}: trang {page + 1}/{total_pages} ({len(items)}/{total_elements} bản ghi)..."})
                 except Exception:
                     pass
-            
+
             if limit and len(items) >= limit:
                 return items[:limit]
-            
+
             page += 1
             if page >= total_pages:
                 break
@@ -277,58 +279,131 @@ class ProductSync(models.Model):
             # Nghỉ một chút giữa các trang để tránh connection timeout do quá tải
             if page_delay > 0:
                 time.sleep(page_delay)
-            
+
         if total_elements > len(items) and not limit:
             # _logger.warning(
-                # f"⚠️ API báo có {total_elements} bản ghi {label} nhưng chỉ lấy được {len(items)}."
+            # f"⚠️ API báo có {total_elements} bản ghi {label} nhưng chỉ lấy được {len(items)}."
             # )
             pass
-            
+
         return items
 
     def _process_items_in_chunks(self, items, cache, product_type, child_model=None, error_ctx=None):
-        """Chia danh sách items thành batch nhỏ (mặc định 1000) để tránh cursor lâu."""
+        """
+        Refactor:
+        - Retry khi gặp SerializationFailure
+        - Stop khi cursor chết (InterfaceError)
+        - Không continue mù
+        - Chunk isolation an toàn
+        """
+        from psycopg2 import InterfaceError, errors
+        import time
+
         chunk_size = self._get_sync_batch_size()
         total_success = total_failed = 0
         total = len(items)
+
         if total == 0:
             return 0, 0
 
         for chunk_idx, start in enumerate(range(0, total, chunk_size), start=1):
             chunk = items[start:start + chunk_size]
+
             # _logger.info(
-                # "⚙️ Processing %s chunk %s (%s records — %s/%s total)",
-                # product_type, chunk_idx, len(chunk), start + 1, min(start + len(chunk), total)
+            #     "⚙️ Processing %s chunk %s (%s records — %s/%s total)",
+            #     product_type, chunk_idx, len(chunk), start + 1, min(start + len(chunk), total)
             # )
-            try:
-                with self.env.cr.savepoint():
-                    success, failed = self._process_batch(chunk, cache, product_type, child_model, error_ctx=error_ctx)
-            except Exception as exc:
+
+            success = failed = 0
+            retry_ok = False
+
+            # 🔁 Retry loop cho concurrency
+            for attempt in range(3):
+                try:
+                    with self.env.cr.savepoint():
+                        success, failed = self._process_batch(
+                            chunk, cache, product_type, child_model, error_ctx=error_ctx
+                        )
+                    retry_ok = True
+                    break
+
+                # 🔴 Lỗi concurrency → retry
+                except errors.SerializationFailure as exc:
+                    wait = 0.5 * (attempt + 1)
+                    # _logger.warning(
+                    #     "⚠️ SerializationFailure chunk=%s attempt=%s → retry after %.2fs",
+                    #     chunk_idx, attempt + 1, wait
+                    # )
+                    time.sleep(wait)
+
+                # 🔴 Cursor chết → STOP toàn bộ job
+                except InterfaceError as exc:
+                    _logger.error(
+                        "💥 Cursor chết tại chunk=%s → STOP JOB ngay",
+                        chunk_idx,
+                        exc_info=True
+                    )
+                    raise
+
+                # 🔴 Lỗi DB nghiêm trọng khác → STOP
+                except Exception as exc:
+                    msg = str(exc).lower()
+
+                    # detect lỗi DB hidden
+                    if 'cursor already closed' in msg or 'connection pointer is null' in msg:
+                        _logger.error(
+                            "💥 DB connection chết tại chunk=%s → STOP JOB",
+                            chunk_idx,
+                            exc_info=True
+                        )
+                        raise
+
+                    # ❌ lỗi business → chỉ fail chunk
+                    total_failed += len(chunk)
+                    self._record_sync_error(
+                        error_ctx,
+                        product_type,
+                        'CHUNK_ERR',
+                        ref=f"chunk={chunk_idx} size={len(chunk)}",
+                        exc=exc
+                    )
+
+                    # _logger.error(
+                    #     "[%s][CHUNK_ERR] chunk=%s size=%s error=%s",
+                    #     product_type.upper(), chunk_idx, len(chunk), exc,
+                    #     exc_info=True
+                    # )
+
+                    retry_ok = True  # không retry nữa
+                    break
+
+            # ❌ retry fail hết → fail chunk
+            if not retry_ok:
                 total_failed += len(chunk)
                 self._record_sync_error(
-                    error_ctx, product_type, 'CHUNK_ERR',
-                    ref=f"chunk={chunk_idx} size={len(chunk)}",
-                    exc=exc
+                    error_ctx,
+                    product_type,
+                    'CHUNK_RETRY_FAIL',
+                    ref=f"chunk={chunk_idx}",
+                    exc="Max retry exceeded"
                 )
-                # _logger.error(
-                    # "[%s][CHUNK_ERR] chunk=%s size=%s error=%s",
-                    # product_type.upper(), chunk_idx, len(chunk), exc,
-                    # exc_info=True
-                # )
                 continue
+
             total_success += success
             total_failed += failed
+
         return total_success, total_failed
 
     def _preload_all_data(self):
         # _logger.info("📦 Pre-loading existing data...")
         pass
-        cache = {'products': {}, 'categories': {}, 'suppliers': {}, 'taxes': {}, 'groups': {}, 'groups_by_id': {}, 'statuses': {}}
-        
+        cache = {'products': {}, 'categories': {}, 'suppliers': {}, 'taxes': {}, 'groups': {}, 'groups_by_id': {},
+                 'statuses': {}}
+
         # Currencies (ALL – kể cả inactive, vì Odoo 18 có VND mặc định nhưng inactive)
         cache['acc_currency'] = {}
         for cur in self.env['res.currency'].with_context(active_test=False).search_read(
-            [], ['id', 'name', 'symbol', 'active']
+                [], ['id', 'name', 'symbol', 'active']
         ):
             cache['acc_currency'][cur['name'].upper()] = cur['id']
 
@@ -338,10 +413,10 @@ class ProductSync(models.Model):
 
         cache['lens_templates'] = {}
         for p in self.env['product.template'].search_read(
-            [('lens_template_key', '!=', False)], ['id', 'lens_template_key']
+                [('lens_template_key', '!=', False)], ['id', 'lens_template_key']
         ):
             cache['lens_templates'][p['lens_template_key']] = p['id']
-            
+
         # Categories
         for c in self.env['product.category'].search_read([], ['id', 'name', 'parent_id']):
             pid = c['parent_id'][0] if c['parent_id'] else False
@@ -350,7 +425,7 @@ class ProductSync(models.Model):
         # Suppliers
         for s in self.env['res.partner'].search_read([('ref', '!=', False)], ['id', 'ref']):
             cache['suppliers'][s['ref'].upper()] = s['id']
-            
+
         # Taxes (Purchase taxes only)
         for t in self.env['account.tax'].search_read([('type_tax_use', '=', 'purchase')], ['id', 'name']):
             cache['taxes'][t['name']] = t['id']
@@ -363,13 +438,13 @@ class ProductSync(models.Model):
         # Master Data Config
         MODELS = [
             ('brands', 'product.brand', 'code'),
-            ('brands', 'product.brand', 'name'), # Fallback to name
+            ('brands', 'product.brand', 'name'),  # Fallback to name
             ('countries', 'res.country', 'code'),
             ('warranties', 'product.warranty', 'code'),
             ('groups', 'product.group', 'cid'),
             ('groups', 'product.group', 'name'),
             ('designs', 'product.design', 'name'),
-            ('materials', 'product.material', 'cid'),   # Index CID trước (API dùng cid)
+            ('materials', 'product.material', 'cid'),  # Index CID trước (API dùng cid)
             ('materials', 'product.material', 'name'),  # Fallback theo name
             ('uvs', 'product.uv', 'cid'),
             ('coatings', 'product.coating', 'cid'),
@@ -424,7 +499,9 @@ class ProductSync(models.Model):
 
         # Child Records (giữ lại opt)
         if 'product.opt' in self.env:
-            cache['opt_records'] = {o['product_tmpl_id'][0]: o['id'] for o in self.env['product.opt'].search_read([], ['id', 'product_tmpl_id']) if o.get('product_tmpl_id')}
+            cache['opt_records'] = {o['product_tmpl_id'][0]: o['id'] for o in
+                                    self.env['product.opt'].search_read([], ['id', 'product_tmpl_id']) if
+                                    o.get('product_tmpl_id')}
 
         # Also index colors by name for fallback (colorLensdto from API may have no cid)
         if 'product.cl' in self.env:
@@ -471,7 +548,7 @@ class ProductSync(models.Model):
         name_upper = name.upper()
 
         found = (cache.get(key, {}).get(cid) if cid else None) \
-             or (cache.get(key, {}).get(name_upper) if name_upper else None)
+                or (cache.get(key, {}).get(name_upper) if name_upper else None)
         if found:
             return found
 
@@ -496,12 +573,12 @@ class ProductSync(models.Model):
 
     # Mapping: cache key → (model name) cho các master data opt
     _MASTER_MODEL_MAP = {
-        'frames':      'product.frame',
+        'frames': 'product.frame',
         'frame_types': 'product.frame.type',
-        'shapes':      'product.shape',
-        'ves':         'product.ve',
-        'temples':     'product.temple',
-        'materials':   'product.material',
+        'shapes': 'product.shape',
+        'ves': 'product.ve',
+        'temples': 'product.temple',
+        'materials': 'product.material',
     }
 
     def _get_or_create_master(self, cache, cache_key, dto):
@@ -518,7 +595,7 @@ class ProductSync(models.Model):
 
         # 1. Tra cứu cache: cid trước, name sau
         found = (cache.get(cache_key, {}).get(cid) if cid else None) \
-             or (cache.get(cache_key, {}).get(name_upper) if name_upper else None)
+                or (cache.get(cache_key, {}).get(name_upper) if name_upper else None)
         if found:
             return found
 
@@ -595,11 +672,11 @@ class ProductSync(models.Model):
         cid = dto.get('cid')
         name = dto.get('name')
         if not cid: return False
-        
+
         # Check cache
         cached_id = cache.get(cache_key, {}).get(cid.upper())
         if cached_id: return cached_id
-        
+
         # Check name fallback in cache (for brands)
         if name and name.upper() in cache.get(cache_key, {}):
             return cache[cache_key][name.upper()]
@@ -613,7 +690,7 @@ class ProductSync(models.Model):
                 if cid: cache.setdefault(cache_key, {})[cid.upper()] = rec.id
                 return rec.id
             return False
-            
+
         # Create
         try:
             vals = {'name': name or cid, 'code': cid}
@@ -631,8 +708,8 @@ class ProductSync(models.Model):
     # ACCESSORY-ONLY helper — KHÔNG dùng cho lens/opt
     # ─────────────────────────────────────────────────────────────────────────
     def _acc_get_or_create_ref(
-        self, field, raw_input, cache, cache_key, model_name,
-        name_field='name', code_field='cid', required=False, sku='N/A'
+            self, field, raw_input, cache, cache_key, model_name,
+            name_field='name', code_field='cid', required=False, sku='N/A'
     ):
         """Safe get-or-create cho các field liên kết của accessory.
         Hoàn toàn độc lập với logic lens/opt. Chỉ gọi từ _process_accessory_batch.
@@ -651,12 +728,12 @@ class ProductSync(models.Model):
             if required:
                 msg = "input is None/empty/N/A"
                 # _logger.warning(
-                    # "[ACC_SYNC][REF] field=%s input=%s action=skip result=None error=%s sku=%s",
-                    # field, input_repr, msg, sku
+                # "[ACC_SYNC][REF] field=%s input=%s action=skip result=None error=%s sku=%s",
+                # field, input_repr, msg, sku
                 # )
                 return False, msg
             # _logger.debug(
-                # "[ACC_SYNC][REF] field=%s input=empty action=skip sku=%s", field, sku
+            # "[ACC_SYNC][REF] field=%s input=empty action=skip sku=%s", field, sku
             # )
             return False, None
 
@@ -674,8 +751,8 @@ class ProductSync(models.Model):
             if required:
                 msg = "empty cid and name after normalise"
                 # _logger.warning(
-                    # "[ACC_SYNC][REF] field=%s input=%s action=skip result=None error=%s sku=%s",
-                    # field, input_repr, msg, sku
+                # "[ACC_SYNC][REF] field=%s input=%s action=skip result=None error=%s sku=%s",
+                # field, input_repr, msg, sku
                 # )
                 return False, msg
             return False, None
@@ -690,8 +767,8 @@ class ProductSync(models.Model):
                 rid = cache.get(cache_key, {}).get(name.upper())
             if rid:
                 # _logger.debug(
-                    # "[ACC_SYNC][REF] field=%s input=%s action=cache result=%s sku=%s",
-                    # field, input_repr, rid, sku
+                # "[ACC_SYNC][REF] field=%s input=%s action=cache result=%s sku=%s",
+                # field, input_repr, rid, sku
                 # )
                 return rid, None
 
@@ -720,13 +797,13 @@ class ProductSync(models.Model):
                     try:
                         rec.with_context(tracking_disable=True).write({'active': True})
                         # _logger.info(
-                            # '[ACC_SYNC][REF] field=%s input=%s action=activate_currency '
-                            # 'result=%s sku=%s', field, input_repr, rec.id, sku
+                        # '[ACC_SYNC][REF] field=%s input=%s action=activate_currency '
+                        # 'result=%s sku=%s', field, input_repr, rec.id, sku
                         # )
                     except Exception as _act_err:
                         # _logger.warning(
-                            # '[ACC_SYNC][REF] field=%s cannot activate currency %s: %s',
-                            # field, cid or name, _act_err
+                        # '[ACC_SYNC][REF] field=%s cannot activate currency %s: %s',
+                        # field, cid or name, _act_err
                         # )
                         pass
                 if rec:
@@ -736,8 +813,8 @@ class ProductSync(models.Model):
                     if name:
                         cache.setdefault(cache_key, {})[name.upper()] = rid
                     # _logger.info(
-                        # "[ACC_SYNC][REF] field=%s input=%s action=search result=%s sku=%s",
-                        # field, input_repr, rid, sku
+                    # "[ACC_SYNC][REF] field=%s input=%s action=search result=%s sku=%s",
+                    # field, input_repr, rid, sku
                     # )
                     return rid, None
 
@@ -765,8 +842,8 @@ class ProductSync(models.Model):
                 if name:
                     cache.setdefault(cache_key, {})[name.upper()] = rid
                 # _logger.info(
-                    # "[ACC_SYNC][REF] field=%s input=%s action=create result=%s sku=%s",
-                    # field, input_repr, rid, sku
+                # "[ACC_SYNC][REF] field=%s input=%s action=create result=%s sku=%s",
+                # field, input_repr, rid, sku
                 # )
                 return rid, None
 
@@ -775,9 +852,9 @@ class ProductSync(models.Model):
                 is_dup = any(k in err_str for k in ('unique', 'duplicate', 'integrity'))
                 if is_dup:
                     # _logger.warning(
-                        # "[ACC_SYNC][REF] field=%s input=%s action=create "
-                        # "error=integrity/duplicate → retry_search sku=%s",
-                        # field, input_repr, sku
+                    # "[ACC_SYNC][REF] field=%s input=%s action=create "
+                    # "error=integrity/duplicate → retry_search sku=%s",
+                    # field, input_repr, sku
                     # )
                     # Retry search after integrity error (another process created it)
                     retry_dom = []
@@ -794,33 +871,33 @@ class ProductSync(models.Model):
                             if name:
                                 cache.setdefault(cache_key, {})[name.upper()] = rid
                             # _logger.info(
-                                # "[ACC_SYNC][REF] field=%s input=%s "
-                                # "action=search_retry result=%s sku=%s",
-                                # field, input_repr, rid, sku
+                            # "[ACC_SYNC][REF] field=%s input=%s "
+                            # "action=search_retry result=%s sku=%s",
+                            # field, input_repr, rid, sku
                             # )
                             return rid, None
 
                 # Không recover được
                 if required:
                     # _logger.warning(
-                        # "[ACC_SYNC][REF] field=%s input=%s action=%s "
-                        # "result=None error=%s sku=%s",
-                        # field, input_repr, action, create_err, sku
+                    # "[ACC_SYNC][REF] field=%s input=%s action=%s "
+                    # "result=None error=%s sku=%s",
+                    # field, input_repr, action, create_err, sku
                     # )
                     return False, str(create_err)
                 else:
                     # _logger.warning(
-                        # "[ACC_SYNC][REF] field=%s input=%s action=%s "
-                        # "result=None error=%s sku=%s (optional→set None)",
-                        # field, input_repr, action, create_err, sku
+                    # "[ACC_SYNC][REF] field=%s input=%s action=%s "
+                    # "result=None error=%s sku=%s (optional→set None)",
+                    # field, input_repr, action, create_err, sku
                     # )
                     return False, None
 
         except Exception as outer_err:
             # _logger.warning(
-                # "[ACC_SYNC][REF] field=%s input=%s action=%s "
-                # "result=None error=%s sku=%s",
-                # field, input_repr, action, outer_err, sku
+            # "[ACC_SYNC][REF] field=%s input=%s action=%s "
+            # "result=None error=%s sku=%s",
+            # field, input_repr, action, outer_err, sku
             # )
             if required:
                 return False, str(outer_err)
@@ -909,19 +986,19 @@ class ProductSync(models.Model):
         coating_ids = []
         coating_codes = []
         raw_coatings = (
-            item.get('coatingsdto')    # API thực tế: coatingsdto (s trước dto)
-            or item.get('coatingdtos')
-            or item.get('coatingDtos')
-            or item.get('coatingDTOs')
-            or item.get('coatingsdtos')
-            or item.get('coatingdto')
-            or item.get('coatingDto')
-            or item.get('coatingDTO')
-            or item.get('coatings')
-            or item.get('coating')
-            or item.get('coatingCode')
-            or item.get('coatingName')
-            or []
+                item.get('coatingsdto')  # API thực tế: coatingsdto (s trước dto)
+                or item.get('coatingdtos')
+                or item.get('coatingDtos')
+                or item.get('coatingDTOs')
+                or item.get('coatingsdtos')
+                or item.get('coatingdto')
+                or item.get('coatingDto')
+                or item.get('coatingDTO')
+                or item.get('coatings')
+                or item.get('coating')
+                or item.get('coatingCode')
+                or item.get('coatingName')
+                or []
         )
 
         normalized = []
@@ -1031,13 +1108,13 @@ class ProductSync(models.Model):
             extra_count = len(extra_variants)
             extra_variants.with_context(tracking_disable=True, active_test=False).unlink()
             # _logger.info(
-                # "🧹 Lens cleanup tmpl=%s: removed extra variants=%s keep=%s",
-                # tmpl.id, extra_count, keep_variant.id
+            # "🧹 Lens cleanup tmpl=%s: removed extra variants=%s keep=%s",
+            # tmpl.id, extra_count, keep_variant.id
             # )
         except Exception as e:
             # _logger.warning(
-                # "⚠️ Lens cleanup tmpl=%s: cannot unlink extra variants (%s). Error: %s",
-                # tmpl.id, len(extra_variants), e
+            # "⚠️ Lens cleanup tmpl=%s: cannot unlink extra variants (%s). Error: %s",
+            # tmpl.id, len(extra_variants), e
             # )
             pass
 
@@ -1055,33 +1132,33 @@ class ProductSync(models.Model):
         if tmpl_id:
             tmpl = self.env['product.template'].browse(tmpl_id)
             # _logger.info(
-                # "📝 [LENS UPDATE id=%s] uv=%s | coating=%s | cl_hmc=%s | cl_pho=%s | cl_tint=%s",
-                # tmpl_id,
-                # vals.get('lens_uv_id', 'SKIPPED'),
-                # vals.get('lens_coating_ids', 'SKIPPED'),
-                # vals.get('lens_cl_hmc_id', 'SKIPPED'),
-                # vals.get('lens_cl_pho_id', 'SKIPPED'),
-                # vals.get('lens_cl_tint_id', 'SKIPPED'),
-            # )
-            tmpl.write(vals)
-            self._cleanup_lens_template_variants(tmpl)
-            # _logger.info(
-                # "🔍 Lens [UPDATE] %s | material=%s | index=%s | coatings=%s | design1=%s",
-                # tmpl.name,
-                # tmpl.lens_material_id.name if tmpl.lens_material_id else None,
-                # tmpl.lens_index_id.name if tmpl.lens_index_id else None,
-                # ', '.join(tmpl.lens_coating_ids.mapped('name')) or None,
-                # tmpl.lens_design1_id.name if tmpl.lens_design1_id else None,
-            # )
-            return tmpl
-
-        # _logger.info(
-            # "📝 [LENS CREATE] uv=%s | coating=%s | cl_hmc=%s | cl_pho=%s | cl_tint=%s",
+            # "📝 [LENS UPDATE id=%s] uv=%s | coating=%s | cl_hmc=%s | cl_pho=%s | cl_tint=%s",
+            # tmpl_id,
             # vals.get('lens_uv_id', 'SKIPPED'),
             # vals.get('lens_coating_ids', 'SKIPPED'),
             # vals.get('lens_cl_hmc_id', 'SKIPPED'),
             # vals.get('lens_cl_pho_id', 'SKIPPED'),
             # vals.get('lens_cl_tint_id', 'SKIPPED'),
+            # )
+            tmpl.write(vals)
+            self._cleanup_lens_template_variants(tmpl)
+            # _logger.info(
+            # "🔍 Lens [UPDATE] %s | material=%s | index=%s | coatings=%s | design1=%s",
+            # tmpl.name,
+            # tmpl.lens_material_id.name if tmpl.lens_material_id else None,
+            # tmpl.lens_index_id.name if tmpl.lens_index_id else None,
+            # ', '.join(tmpl.lens_coating_ids.mapped('name')) or None,
+            # tmpl.lens_design1_id.name if tmpl.lens_design1_id else None,
+            # )
+            return tmpl
+
+        # _logger.info(
+        # "📝 [LENS CREATE] uv=%s | coating=%s | cl_hmc=%s | cl_pho=%s | cl_tint=%s",
+        # vals.get('lens_uv_id', 'SKIPPED'),
+        # vals.get('lens_coating_ids', 'SKIPPED'),
+        # vals.get('lens_cl_hmc_id', 'SKIPPED'),
+        # vals.get('lens_cl_pho_id', 'SKIPPED'),
+        # vals.get('lens_cl_tint_id', 'SKIPPED'),
         # )
         tmpl = self.env['product.template'].with_context(tracking_disable=True).create(vals)
         self._cleanup_lens_template_variants(tmpl)
@@ -1089,12 +1166,12 @@ class ProductSync(models.Model):
         if tmpl.default_code:
             cache['products'][tmpl.default_code] = tmpl.id
         # _logger.info(
-            # "🔍 Lens [CREATE] %s | material=%s | index=%s | coatings=%s | design1=%s",
-            # tmpl.name,
-            # tmpl.lens_material_id.name if tmpl.lens_material_id else None,
-            # tmpl.lens_index_id.name if tmpl.lens_index_id else None,
-            # ', '.join(tmpl.lens_coating_ids.mapped('name')) or None,
-            # tmpl.lens_design1_id.name if tmpl.lens_design1_id else None,
+        # "🔍 Lens [CREATE] %s | material=%s | index=%s | coatings=%s | design1=%s",
+        # tmpl.name,
+        # tmpl.lens_material_id.name if tmpl.lens_material_id else None,
+        # tmpl.lens_index_id.name if tmpl.lens_index_id else None,
+        # ', '.join(tmpl.lens_coating_ids.mapped('name')) or None,
+        # tmpl.lens_design1_id.name if tmpl.lens_design1_id else None,
         # )
         return tmpl
 
@@ -1259,8 +1336,8 @@ class ProductSync(models.Model):
                 pass
 
         # _logger.info(
-            # "✅ Lens stock sync done: updated=%s, skipped=%s, missing_variant=%s, missing_template=%s",
-            # updated, skipped, missing_variant, missing_template
+        # "✅ Lens stock sync done: updated=%s, skipped=%s, missing_variant=%s, missing_template=%s",
+        # updated, skipped, missing_variant, missing_template
         # )
 
     def _prepare_base_vals(self, item, cache, product_type, coating_ids=None, lens_template_key=None):
@@ -1280,22 +1357,22 @@ class ProductSync(models.Model):
                     f"default_code không thể xác định duy nhất."
                 )
             default_code = f"{model_code}-{color_code}"
-        
+
         # Category Logic with Code (for product code generation)
         grp_dto = dto.get('groupdto') or {}
         grp_type_name = (grp_dto.get('groupTypedto') or {}).get('name', 'Khác')
-        
+
         # Map product type to category code (matches RS format)
         cat_map = {
-            'Mắt': ('Lens Products', 'lens', '06'),      # Code 06 for Lens
-            'Gọng': ('Optical OPT', 'opt', '27'),        # Code 27 for Opt
-            'Khác': ('Accessories', 'accessory', '20')   # Code 20 for Accessory
+            'Mắt': ('Lens Products', 'lens', '06'),  # Code 06 for Lens
+            'Gọng': ('Optical OPT', 'opt', '27'),  # Code 27 for Opt
+            'Khác': ('Accessories', 'accessory', '20')  # Code 20 for Accessory
         }
         main_cat, _, main_code = cat_map.get(grp_type_name, ('Accessories', 'accessory', '20'))
-        
+
         # Get/Create Category
         cat_name = grp_dto.get('name', 'All Products')
-        
+
         # 1. Ensure Parent Category with code
         parent_key = (main_cat, False)
         if parent_key in cache['categories']:
@@ -1315,7 +1392,7 @@ class ProductSync(models.Model):
                     parent = self.env['product.category'].search([('name', '=', main_cat)], limit=1)
                     parent_id = parent.id if parent else self.env.ref('product.product_category_all').id
             cache['categories'][parent_key] = parent_id
-            
+
         # 2. Ensure Child Category (inherit parent code if not set)
         cat_key = (cat_name, parent_id)
         if cat_key in cache['categories']:
@@ -1332,7 +1409,8 @@ class ProductSync(models.Model):
                         ).create({'name': cat_name, 'parent_id': parent_id, 'code': main_code})
                     categ_id = cat.id
                 except Exception:
-                    cat = self.env['product.category'].search([('name', '=', cat_name), ('parent_id', '=', parent_id)], limit=1)
+                    cat = self.env['product.category'].search([('name', '=', cat_name), ('parent_id', '=', parent_id)],
+                                                              limit=1)
                     categ_id = cat.id if cat else parent_id
             cache['categories'][cat_key] = categ_id
 
@@ -1342,10 +1420,13 @@ class ProductSync(models.Model):
             g_id = grp_dto.get('id')
             g_cid = (grp_dto.get('cid') or '').strip().upper()
             g_name = (grp_dto.get('name') or '').strip()
-            
-            if g_id and g_id in cache['groups_by_id']: grp_id = g_id
-            elif g_cid and g_cid in cache['groups']: grp_id = cache['groups'][g_cid]
-            elif g_name and g_name.upper() in cache['groups']: grp_id = cache['groups'][g_name.upper()]
+
+            if g_id and g_id in cache['groups_by_id']:
+                grp_id = g_id
+            elif g_cid and g_cid in cache['groups']:
+                grp_id = cache['groups'][g_cid]
+            elif g_name and g_name.upper() in cache['groups']:
+                grp_id = cache['groups'][g_name.upper()]
             elif g_name:
                 # Create Group
                 g_type_id = False
@@ -1360,7 +1441,9 @@ class ProductSync(models.Model):
                     g_type_id = gt.id if gt else False
                 try:
                     with self.env.cr.savepoint():
-                        ng = self.env['product.group'].create({'name': g_name, 'cid': g_cid or '', 'group_type_id': g_type_id, 'product_type': product_type})
+                        ng = self.env['product.group'].create(
+                            {'name': g_name, 'cid': g_cid or '', 'group_type_id': g_type_id,
+                             'product_type': product_type})
                     grp_id = ng.id
                 except Exception:
                     ng = self.env['product.group'].search([('name', '=', g_name)], limit=1)
@@ -1436,13 +1519,14 @@ class ProductSync(models.Model):
             if s_cid and s_name:
                 sup_id = False
                 if s_cid.upper() in cache['suppliers']:
-                     sup_id = cache['suppliers'][s_cid.upper()]
+                    sup_id = cache['suppliers'][s_cid.upper()]
                 else:
                     try:
                         with self.env.cr.savepoint():
                             sup = self.env['res.partner'].create({
                                 'name': s_name, 'ref': s_cid, 'is_company': True, 'supplier_rank': 1,
-                                'phone': s_det.get('phone', ''), 'email': s_det.get('mail', ''), 'street': s_det.get('address', '')
+                                'phone': s_det.get('phone', ''), 'email': s_det.get('mail', ''),
+                                'street': s_det.get('address', '')
                             })
                         sup_id = sup.id
                     except Exception:
@@ -1631,16 +1715,16 @@ class ProductSync(models.Model):
                 item.get('design2dto')
             )
             raw_index = (
-                item.get('indexdto')
-                or item.get('indexDto')
-                or item.get('indexDTO')
-                or item.get('lensIndexdto')
-                or item.get('lensIndexDto')
-                or item.get('refractiveIndexDto')
-                or (item.get('productdto') or {}).get('indexdto')
-                or (item.get('productdto') or {}).get('indexDto')
-                or (item.get('productdto') or {}).get('refractiveIndexDto')
-                or {}
+                    item.get('indexdto')
+                    or item.get('indexDto')
+                    or item.get('indexDTO')
+                    or item.get('lensIndexdto')
+                    or item.get('lensIndexDto')
+                    or item.get('refractiveIndexDto')
+                    or (item.get('productdto') or {}).get('indexdto')
+                    or (item.get('productdto') or {}).get('indexDto')
+                    or (item.get('productdto') or {}).get('refractiveIndexDto')
+                    or {}
             )
             if isinstance(raw_index, dict):
                 index_dto = raw_index
@@ -1668,24 +1752,24 @@ class ProductSync(models.Model):
 
             uv_dto = item.get('uvdto') or item.get('uvDto') or item.get('uvDTO') or {}
             hmc_val = (
-                item.get('hmcDto') or item.get('hmcdto') or item.get('hmcDTO')
-                or item.get('hmc') or item.get('HMC')
-                or item.get('isHmc') or item.get('isHMC')
-                or item.get('hmcCode') or item.get('hmccode')
-                or item.get('hmcValue') or item.get('hmcName')
+                    item.get('hmcDto') or item.get('hmcdto') or item.get('hmcDTO')
+                    or item.get('hmc') or item.get('HMC')
+                    or item.get('isHmc') or item.get('isHMC')
+                    or item.get('hmcCode') or item.get('hmccode')
+                    or item.get('hmcValue') or item.get('hmcName')
             )
             pho_val = (
-                item.get('phoDto') or item.get('phodto') or item.get('phoDTO')
-                or item.get('photochromicDto') or item.get('photochromic') or item.get('PHO')
-                or item.get('isPhotochromic') or item.get('photochromicCode')
-                or item.get('photochromicValue') or item.get('photochromicName')
+                    item.get('phoDto') or item.get('phodto') or item.get('phoDTO')
+                    or item.get('photochromicDto') or item.get('photochromic') or item.get('PHO')
+                    or item.get('isPhotochromic') or item.get('photochromicCode')
+                    or item.get('photochromicValue') or item.get('photochromicName')
             )
             tint_val = (
-                item.get('tintDto') or item.get('tintdto') or item.get('tintDTO')
-                or item.get('tint') or item.get('TINT') or item.get('tinted')
-                or item.get('isTinted') or item.get('tintCode')
-                or item.get('tintValue') or item.get('tintName')
-                or item.get('tintLevel')
+                    item.get('tintDto') or item.get('tintdto') or item.get('tintDTO')
+                    or item.get('tint') or item.get('TINT') or item.get('tinted')
+                    or item.get('isTinted') or item.get('tintCode')
+                    or item.get('tintValue') or item.get('tintName')
+                    or item.get('tintLevel')
                 # NOTE: colorInt KHÔNG đưa vào đây — nó đã map vào lens_color_int riêng
             )
             sph_raw = pick_value(item, ['sph', 'SPH', 'sphValue', 'sphVal', 'sphDTO', 'sphDto', 'sphdto'])
@@ -1846,13 +1930,13 @@ class ProductSync(models.Model):
             idx_id = _goc_index(index_dto)
 
             # _logger.info(
-                # "🔍 Lens mapping candidates | design1=%s | design2=%s | material=%s | index_cid=%s | index_name=%s | coating_ids=%s",
-                # design_1 or None,
-                # design_2 or None,
-                # material_raw or None,
-                # (index_dto.get('cid') or None),
-                # (index_dto.get('name') or index_dto.get('value') or None),
-                # coating_ids,
+            # "🔍 Lens mapping candidates | design1=%s | design2=%s | material=%s | index_cid=%s | index_name=%s | coating_ids=%s",
+            # design_1 or None,
+            # design_2 or None,
+            # material_raw or None,
+            # (index_dto.get('cid') or None),
+            # (index_dto.get('name') or index_dto.get('value') or None),
+            # coating_ids,
             # )
 
             lens_display_vals = {
@@ -1908,12 +1992,12 @@ class ProductSync(models.Model):
                     lens_display_vals.pop(_k)
 
             # _logger.info(
-                # "📝 [LENS VALS] uv=%s | coating=%s | cl_hmc=%s | cl_pho=%s | cl_tint=%s",
-                # lens_display_vals.get('lens_uv_id', 'SKIPPED'),
-                # lens_display_vals.get('lens_coating_ids', 'SKIPPED'),
-                # lens_display_vals.get('lens_cl_hmc_id', 'SKIPPED'),
-                # lens_display_vals.get('lens_cl_pho_id', 'SKIPPED'),
-                # lens_display_vals.get('lens_cl_tint_id', 'SKIPPED'),
+            # "📝 [LENS VALS] uv=%s | coating=%s | cl_hmc=%s | cl_pho=%s | cl_tint=%s",
+            # lens_display_vals.get('lens_uv_id', 'SKIPPED'),
+            # lens_display_vals.get('lens_coating_ids', 'SKIPPED'),
+            # lens_display_vals.get('lens_cl_hmc_id', 'SKIPPED'),
+            # lens_display_vals.get('lens_cl_pho_id', 'SKIPPED'),
+            # lens_display_vals.get('lens_cl_tint_id', 'SKIPPED'),
             # )
 
             vals.update(lens_display_vals)
@@ -2011,26 +2095,27 @@ class ProductSync(models.Model):
             'opt_temple_id': self._get_or_create_master(cache, 'temples', item.get('templedto')),
             # ─── Chất liệu gọng – auto-create nếu chưa có bản ghi master ─────────────
             'opt_material_ve_id': self._get_or_create_master(cache, 'materials', item.get('materialVedto')),
-            'opt_material_temple_tip_id': self._get_or_create_master(cache, 'materials', item.get('materialTempleTipdto')),
+            'opt_material_temple_tip_id': self._get_or_create_master(cache, 'materials',
+                                                                     item.get('materialTempleTipdto')),
             'opt_material_lens_id': self._get_or_create_master(cache, 'materials', item.get('materialLensdto')),
             # ─── Chất liệu Many2many – key thực tế từ API: materialsFrontdto / materialsTempledto
             'opt_materials_front_ids': self._resolve_opt_material_dtos(
                 item,
-                ['materialsFrontdto', 'materialsFrontDto',       # ✅ key thực tế
-                 'materialFrontdtos', 'materialFrontDtos',       # fallback cũ
-                 'materialFrontdto',  'materialFrontDto'],
+                ['materialsFrontdto', 'materialsFrontDto',  # ✅ key thực tế
+                 'materialFrontdtos', 'materialFrontDtos',  # fallback cũ
+                 'materialFrontdto', 'materialFrontDto'],
                 cache, log_label='materialsFront'
             ),
             'opt_materials_temple_ids': self._resolve_opt_material_dtos(
                 item,
-                ['materialsTempledto', 'materialsTempleDto',     # ✅ key thực tế
-                 'materialTempledtos', 'materialTempleDtos',     # fallback cũ
-                 'materialTempledto',  'materialTempleDto'],
+                ['materialsTempledto', 'materialsTempleDto',  # ✅ key thực tế
+                 'materialTempledtos', 'materialTempleDtos',  # fallback cũ
+                 'materialTempledto', 'materialTempleDto'],
                 cache, log_label='materialsTemple'
             ),
             # ─── Coating Many2many – key thực tế: coatingsdto ──────────────────────────
             'opt_coating_ids': self._resolve_m2m_ids(
-                item.get('coatingsdto')                          # ✅ key thực tế
+                item.get('coatingsdto')  # ✅ key thực tế
                 or item.get('coatingdtos') or item.get('coatingDtos'),
                 'coatings', cache,
                 model_name=None, log_label='coatingsdto'
@@ -2064,7 +2149,7 @@ class ProductSync(models.Model):
         # ── 1. Full pretty JSON ────────────────────────────────────────────────
         try:
             # _logger.info("%s FULL JSON:\n%s", prefix,
-                         # json.dumps(item, ensure_ascii=False, indent=2, default=str))
+            # json.dumps(item, ensure_ascii=False, indent=2, default=str))
             pass
         except Exception as e:
             # _logger.warning("%s Không dump được JSON: %s", prefix, e)
@@ -2127,8 +2212,8 @@ class ProductSync(models.Model):
         success = failed = 0
         # _logger.info(f"🔄 Processing {total} lens items (template-based)...")
 
-        to_create_vals = []   # (template_key, vals)
-        to_update = []        # (tmpl_id, vals)
+        to_create_vals = []  # (template_key, vals)
+        to_update = []  # (tmpl_id, vals)
 
         for idx, item in enumerate(items):
             try:
@@ -2221,37 +2306,37 @@ class ProductSync(models.Model):
         import traceback as _tb_acc
 
         self._load_env()
-        log_raw   = os.getenv('LOG_ACCESSORY_RAW_STRUCTURE', 'False').lower() == 'true'
-        log_debug = os.getenv('LOG_ACCESSORY_DEBUG',         'False').lower() == 'true'
-        raw_limit = int(os.getenv('LOG_RAW_SAMPLE_LIMIT',   '3'))
+        log_raw = os.getenv('LOG_ACCESSORY_RAW_STRUCTURE', 'False').lower() == 'true'
+        log_debug = os.getenv('LOG_ACCESSORY_DEBUG', 'False').lower() == 'true'
+        raw_limit = int(os.getenv('LOG_RAW_SAMPLE_LIMIT', '3'))
 
-        total   = len(items)
+        total = len(items)
         success = 0
         skipped = 0
-        errors  = 0
+        errors = 0
         raw_logged = 0
         err_by_step = {'currency': 0, 'map': 0, 'create': 0, 'write': 0, 'other': 0}
 
         # _logger.info(
-            # "[ACC_SYNC] Starting batch: total=%d "
-            # "log_raw=%s log_debug=%s raw_limit=%d",
-            # total, log_raw, log_debug, raw_limit
+        # "[ACC_SYNC] Starting batch: total=%d "
+        # "log_raw=%s log_debug=%s raw_limit=%d",
+        # total, log_raw, log_debug, raw_limit
         # )
         # [ACC_SYNC][FETCH] — dữ liệu đã được fetch trước, log tổng ở đây
         # _logger.info(
-            # "[ACC_SYNC][FETCH] status=pre-fetched duration_ms=N/A items=%d", total
+        # "[ACC_SYNC][FETCH] status=pre-fetched duration_ms=N/A items=%d", total
         # )
 
         for idx, item in enumerate(items):
-            dto  = item.get('productdto') or {}
-            cid  = (dto.get('cid') or '').strip()
-            sku  = cid or f'idx_{idx}'
+            dto = item.get('productdto') or {}
+            cid = (dto.get('cid') or '').strip()
+            sku = cid or f'idx_{idx}'
             ext_id = (dto.get('id') or dto.get('externalId') or cid or f'idx_{idx}')
             name = dto.get('fullname') or dto.get('name') or 'Unknown'
 
             # _logger.info(
-                # "[ACC_SYNC][START] idx=%d ext_id=%s sku=%s name=%s",
-                # idx, ext_id, sku, name
+            # "[ACC_SYNC][START] idx=%d ext_id=%s sku=%s name=%s",
+            # idx, ext_id, sku, name
             # )
 
             step = 'init'
@@ -2261,8 +2346,8 @@ class ProductSync(models.Model):
                     # ── RAW_KEYS ────────────────────────────────────────────────
                     if log_debug:
                         # _logger.info(
-                            # "[ACC_SYNC][RAW_KEYS] idx=%d keys=%s",
-                            # idx, list(item.keys())
+                        # "[ACC_SYNC][RAW_KEYS] idx=%d keys=%s",
+                        # idx, list(item.keys())
                         # )
                         pass
 
@@ -2275,30 +2360,30 @@ class ProductSync(models.Model):
                             if len(raw_str) > 2048:
                                 raw_str = raw_str[:2048] + '...(truncated)'
                             # _logger.info(
-                                # "[ACC_SYNC][RAW_JSON] idx=%d:\n%s", idx, raw_str
+                            # "[ACC_SYNC][RAW_JSON] idx=%d:\n%s", idx, raw_str
                             # )
                             raw_logged += 1
                         except Exception as _je:
                             # _logger.warning(
-                                # "[ACC_SYNC] json dump error idx=%d: %s", idx, _je
+                            # "[ACC_SYNC] json dump error idx=%d: %s", idx, _je
                             # )
                             pass
 
                     # ── MAP_IN ──────────────────────────────────────────────────
                     cz_dto = dto.get('currencyZoneDTO') or {}
                     # _logger.info(
-                        # "[ACC_SYNC][MAP_IN] sku=%s important_fields={"
-                        # "currency=%s, brand=%s, country=%s, warranty=%s, "
-                        # "uom=unit, category=%s, price=%s, cost=%s, barcode=%s}",
-                        # sku,
-                        # cz_dto.get('cid') or 'N/A',
-                        # (dto.get('tmdto')      or {}).get('cid') or 'N/A',
-                        # (dto.get('codto')      or {}).get('cid') or 'N/A',
-                        # (dto.get('warrantydto') or {}).get('cid') or 'N/A',
-                        # (dto.get('groupdto')   or {}).get('name') or 'N/A',
-                        # dto.get('rtPrice', 0),
-                        # dto.get('orPrice', 0),
-                        # dto.get('barcode') or 'N/A',
+                    # "[ACC_SYNC][MAP_IN] sku=%s important_fields={"
+                    # "currency=%s, brand=%s, country=%s, warranty=%s, "
+                    # "uom=unit, category=%s, price=%s, cost=%s, barcode=%s}",
+                    # sku,
+                    # cz_dto.get('cid') or 'N/A',
+                    # (dto.get('tmdto')      or {}).get('cid') or 'N/A',
+                    # (dto.get('codto')      or {}).get('cid') or 'N/A',
+                    # (dto.get('warrantydto') or {}).get('cid') or 'N/A',
+                    # (dto.get('groupdto')   or {}).get('name') or 'N/A',
+                    # dto.get('rtPrice', 0),
+                    # dto.get('orPrice', 0),
+                    # dto.get('barcode') or 'N/A',
                     # )
 
                     # ── currency: bắt buộc ──────────────────────────────────────
@@ -2369,25 +2454,25 @@ class ProductSync(models.Model):
                         return None
 
                     # ── Đọc raw values từ RS ─────────────────────────────────────
-                    raw_design   = _pick('designdto',  'designDto',  'design')
-                    raw_shape    = _pick('shapedto',   'shapeDto',   'shape')
+                    raw_design = _pick('designdto', 'designDto', 'design')
+                    raw_shape = _pick('shapedto', 'shapeDto', 'shape')
                     raw_material = _pick('materialdto', 'materialDto', 'material')
-                    raw_color    = _pick('colordto',   'colorDto',   'color',
-                                        'acc_color', 'accColor')
-                    raw_width  = _pick('width',  'accWidth',  'acc_width',  'chieu_rong')
+                    raw_color = _pick('colordto', 'colorDto', 'color',
+                                      'acc_color', 'accColor')
+                    raw_width = _pick('width', 'accWidth', 'acc_width', 'chieu_rong')
                     raw_length = _pick('length', 'accLength', 'acc_length', 'chieu_dai')
                     raw_height = _pick('height', 'accHeight', 'acc_height', 'chieu_cao')
-                    raw_head   = _pick('head',   'accHead',   'acc_head',   'dau')
-                    raw_body   = _pick('body',   'accBody',   'acc_body',   'than')
+                    raw_head = _pick('head', 'accHead', 'acc_head', 'dau')
+                    raw_body = _pick('body', 'accBody', 'acc_body', 'than')
 
                     if _fdbg:
                         # _logger.info(
-                            # "[ACC_FIELD][RAW] sku=%s design=%r shape=%r "
-                            # "material=%r color=%r "
-                            # "width=%r length=%r height=%r head=%r body=%r",
-                            # sku,
-                            # raw_design, raw_shape, raw_material, raw_color,
-                            # raw_width, raw_length, raw_height, raw_head, raw_body,
+                        # "[ACC_FIELD][RAW] sku=%s design=%r shape=%r "
+                        # "material=%r color=%r "
+                        # "width=%r length=%r height=%r head=%r body=%r",
+                        # sku,
+                        # raw_design, raw_shape, raw_material, raw_color,
+                        # raw_width, raw_length, raw_height, raw_head, raw_body,
                         # )
                         pass
 
@@ -2420,47 +2505,47 @@ class ProductSync(models.Model):
 
                     # ── Cập nhật vals với các field phụ kiện ───────────────────────
                     acc_field_vals = {
-                        'design_id':   acc_design_id or False,
-                        'shape_id':    acc_shape_id  or False,
+                        'design_id': acc_design_id or False,
+                        'shape_id': acc_shape_id or False,
                         'material_id': acc_material_id or False,
-                        'color_id':    acc_color_id  or False,
-                        'acc_width':   _sf(raw_width),
-                        'acc_length':  _sf(raw_length),
-                        'acc_height':  _sf(raw_height),
-                        'acc_head':    _sf(raw_head),
-                        'acc_body':    _sf(raw_body),
+                        'color_id': acc_color_id or False,
+                        'acc_width': _sf(raw_width),
+                        'acc_length': _sf(raw_length),
+                        'acc_height': _sf(raw_height),
+                        'acc_head': _sf(raw_head),
+                        'acc_body': _sf(raw_body),
                     }
                     vals.update(acc_field_vals)
 
                     if _fdbg:
                         # _logger.info(
-                            # "[ACC_FIELD][MAPPED] sku=%s "
-                            # "design_id=%s shape_id=%s material_id=%s color_id=%s "
-                            # "acc_width=%s acc_length=%s acc_height=%s "
-                            # "acc_head=%s acc_body=%s",
-                            # sku,
-                            # acc_design_id, acc_shape_id, acc_material_id, acc_color_id,
-                            # _sf(raw_width), _sf(raw_length), _sf(raw_height),
-                            # _sf(raw_head), _sf(raw_body),
+                        # "[ACC_FIELD][MAPPED] sku=%s "
+                        # "design_id=%s shape_id=%s material_id=%s color_id=%s "
+                        # "acc_width=%s acc_length=%s acc_height=%s "
+                        # "acc_head=%s acc_body=%s",
+                        # sku,
+                        # acc_design_id, acc_shape_id, acc_material_id, acc_color_id,
+                        # _sf(raw_width), _sf(raw_length), _sf(raw_height),
+                        # _sf(raw_head), _sf(raw_body),
                         # )
                         pass
 
                     # ── MAP_OUT ─────────────────────────────────────────────────
                     # _logger.info(
-                        # "[ACC_SYNC][MAP_OUT] sku=%s mapped_vals={"
-                        # "default_code=%s, name=%s, type=%s, "
-                        # "categ_id=%s, brand_id=%s, country_id=%s, warranty_id=%s, "
-                        # "list_price=%s, standard_price=%s}",
-                        # sku,
-                        # vals.get('default_code'),
-                        # vals.get('name'),
-                        # vals.get('type'),
-                        # vals.get('categ_id'),
-                        # vals.get('brand_id'),
-                        # vals.get('country_id'),
-                        # vals.get('warranty_id'),
-                        # vals.get('list_price'),
-                        # vals.get('standard_price'),
+                    # "[ACC_SYNC][MAP_OUT] sku=%s mapped_vals={"
+                    # "default_code=%s, name=%s, type=%s, "
+                    # "categ_id=%s, brand_id=%s, country_id=%s, warranty_id=%s, "
+                    # "list_price=%s, standard_price=%s}",
+                    # sku,
+                    # vals.get('default_code'),
+                    # vals.get('name'),
+                    # vals.get('type'),
+                    # vals.get('categ_id'),
+                    # vals.get('brand_id'),
+                    # vals.get('country_id'),
+                    # vals.get('warranty_id'),
+                    # vals.get('list_price'),
+                    # vals.get('standard_price'),
                     # )
 
                     categ_id = vals.get('categ_id')
@@ -2469,8 +2554,8 @@ class ProductSync(models.Model):
                         if not categ.exists():
                             fallback = self.env.ref('product.product_category_all')
                             # _logger.warning(
-                                # "[ACC_SYNC][WARN] sku=%s categ_id=%s không tồn tại → dùng fallback %s",
-                                # sku, categ_id, fallback.id
+                            # "[ACC_SYNC][WARN] sku=%s categ_id=%s không tồn tại → dùng fallback %s",
+                            # sku, categ_id, fallback.id
                             # )
                             vals['categ_id'] = fallback.id
 
@@ -2483,7 +2568,7 @@ class ProductSync(models.Model):
                         saved_rec.write(vals)
                         if log_debug:
                             # _logger.info(
-                                # "[ACC_SYNC][WRITE_OK] sku=%s tmpl_id=%s", sku, pid
+                            # "[ACC_SYNC][WRITE_OK] sku=%s tmpl_id=%s", sku, pid
                             # )
                             pass
                     else:
@@ -2494,8 +2579,8 @@ class ProductSync(models.Model):
                         cache['products'][saved_rec.default_code] = saved_rec.id
                         if log_debug:
                             # _logger.info(
-                                # "[ACC_SYNC][CREATE_OK] sku=%s new_tmpl_id=%s",
-                                # sku, saved_rec.id
+                            # "[ACC_SYNC][CREATE_OK] sku=%s new_tmpl_id=%s",
+                            # sku, saved_rec.id
                             # )
                             pass
 
@@ -2504,22 +2589,22 @@ class ProductSync(models.Model):
                         try:
                             rb = saved_rec
                             # _logger.info(
-                                # "[ACC_FIELD][ODB_READBACK] sku=%s tmpl_id=%s "
-                                # "design_id=%s(%s) shape_id=%s(%s) "
-                                # "material_id=%s(%s) color_id=%s(%s) "
-                                # "acc_width=%s acc_length=%s acc_height=%s "
-                                # "acc_head=%s acc_body=%s",
-                                # sku, rb.id,
-                                # rb.design_id.id if rb.design_id else None,
-                                # rb.design_id.name if rb.design_id else None,
-                                # rb.shape_id.id if rb.shape_id else None,
-                                # rb.shape_id.name if rb.shape_id else None,
-                                # rb.material_id.id if rb.material_id else None,
-                                # rb.material_id.name if rb.material_id else None,
-                                # rb.color_id.id if rb.color_id else None,
-                                # rb.color_id.name if rb.color_id else None,
-                                # rb.acc_width, rb.acc_length, rb.acc_height,
-                                # rb.acc_head, rb.acc_body,
+                            # "[ACC_FIELD][ODB_READBACK] sku=%s tmpl_id=%s "
+                            # "design_id=%s(%s) shape_id=%s(%s) "
+                            # "material_id=%s(%s) color_id=%s(%s) "
+                            # "acc_width=%s acc_length=%s acc_height=%s "
+                            # "acc_head=%s acc_body=%s",
+                            # sku, rb.id,
+                            # rb.design_id.id if rb.design_id else None,
+                            # rb.design_id.name if rb.design_id else None,
+                            # rb.shape_id.id if rb.shape_id else None,
+                            # rb.shape_id.name if rb.shape_id else None,
+                            # rb.material_id.id if rb.material_id else None,
+                            # rb.material_id.name if rb.material_id else None,
+                            # rb.color_id.id if rb.color_id else None,
+                            # rb.color_id.name if rb.color_id else None,
+                            # rb.acc_width, rb.acc_length, rb.acc_height,
+                            # rb.acc_head, rb.acc_body,
                             # )
                         except Exception as _rb_err:
                             # _logger.warning("[ACC_FIELD][READBACK_ERR] sku=%s err=%s", sku, _rb_err)
@@ -2528,7 +2613,7 @@ class ProductSync(models.Model):
                     success += 1
 
             except Exception as exc:
-                errors  += 1
+                errors += 1
                 skipped += 1
                 self._record_sync_error(error_ctx, 'accessory', 'ITEM_ERR', ref=sku, exc=exc)
 
@@ -2548,30 +2633,30 @@ class ProductSync(models.Model):
                         if len(raw_str) > 2048:
                             raw_str = raw_str[:2048] + '...(truncated)'
                         # _logger.info(
-                            # "[ACC_SYNC][RAW_JSON] ERROR_SAMPLE idx=%d:\n%s",
-                            # idx, raw_str
+                        # "[ACC_SYNC][RAW_JSON] ERROR_SAMPLE idx=%d:\n%s",
+                        # idx, raw_str
                         # )
                         raw_logged += 1
                     except Exception:
                         pass
 
                 # _logger.exception(
-                    # "[ACC_SYNC][ERROR] sku=%s step=%s err=%s", sku, step, exc
+                # "[ACC_SYNC][ERROR] sku=%s step=%s err=%s", sku, step, exc
                 # )
                 # _logger.warning("[ACC_SYNC][SKIP] sku=%s", sku)
 
         # ── Tổng kết ────────────────────────────────────────────────────────────
         # _logger.info(
-            # "[ACC_SYNC][SUMMARY] total=%d success=%d skipped=%d errors=%d",
-            # total, success, skipped, errors
+        # "[ACC_SYNC][SUMMARY] total=%d success=%d skipped=%d errors=%d",
+        # total, success, skipped, errors
         # )
         # _logger.info(
-            # "[ACC_SYNC][ERROR_BY_STEP] currency=%d map=%d create=%d write=%d other=%d",
-            # err_by_step.get('currency', 0),
-            # err_by_step.get('map',      0),
-            # err_by_step.get('create',   0),
-            # err_by_step.get('write',    0),
-            # err_by_step.get('other',    0),
+        # "[ACC_SYNC][ERROR_BY_STEP] currency=%d map=%d create=%d write=%d other=%d",
+        # err_by_step.get('currency', 0),
+        # err_by_step.get('map',      0),
+        # err_by_step.get('create',   0),
+        # err_by_step.get('write',    0),
+        # err_by_step.get('other',    0),
         # )
 
         return success, errors
@@ -2595,8 +2680,8 @@ class ProductSync(models.Model):
         to_create, to_update = [], []
 
         has_child = False  # Hướng B: không còn dùng child model cho lens hay opt
-        child_vals_map = {}    # tmpl_id → child_vals (cho opt)
-        new_child_data = []    # [(idx, child_vals)] cho opt create
+        child_vals_map = {}  # tmpl_id → child_vals (cho opt)
+        new_child_data = []  # [(idx, child_vals)] cho opt create
 
         # _logger.info(f"🔄 Processing {total} {product_type} items...")
 
@@ -2638,7 +2723,7 @@ class ProductSync(models.Model):
                 _dc = (dto.get('cid') or '').strip() or 'N/A'
                 self._record_sync_error(error_ctx, product_type, 'PREPARE', ref=_dc, exc=e)
                 # _logger.error(
-                    # f"Prepare error [{product_type}] idx={idx} default_code={_dc}: {e}\n{traceback.format_exc()}"
+                # f"Prepare error [{product_type}] idx={idx} default_code={_dc}: {e}\n{traceback.format_exc()}"
                 # )
 
         # ─── Bước 2: Batch Create ─────────────────────────────────────────
@@ -2742,7 +2827,6 @@ class ProductSync(models.Model):
 
         return success, failed
 
-
     def sync_products_from_springboot(self):
         # If called from cron/server action, self might be empty
         rec = self
@@ -2761,7 +2845,8 @@ class ProductSync(models.Model):
         db = self.env.cr.dbname
 
         # Đánh dấu in_progress trên cursor gốc rồi commit ngay
-        self.write({'sync_status': 'in_progress', 'sync_log': 'Đang đồng bộ...', 'last_sync_date': fields.Datetime.now()})
+        self.write(
+            {'sync_status': 'in_progress', 'sync_log': 'Đang đồng bộ...', 'last_sync_date': fields.Datetime.now()})
         self.env.cr.commit()
 
         # Toàn bộ sync chạy trên cursor riêng biệt → tránh bị websocket/bus kill
@@ -2832,8 +2917,8 @@ class ProductSync(models.Model):
             counts_str = ", ".join([f"{k}={v}" for k, v in counts_sorted[:20]])
             samples = "\n".join(error_ctx.get('samples') or [])
             full_log = (
-                f"{msg}\n\nTóm tắt lỗi: {counts_str}"
-                + (f"\nVí dụ lỗi (tối đa {error_ctx.get('sample_limit', 0)}):\n{samples}" if samples else "")
+                    f"{msg}\n\nTóm tắt lỗi: {counts_str}"
+                    + (f"\nVí dụ lỗi (tối đa {error_ctx.get('sample_limit', 0)}):\n{samples}" if samples else "")
             )
 
         max_chars = error_ctx.get('max_chars', 20000)
@@ -2845,8 +2930,8 @@ class ProductSync(models.Model):
     def test_api_connection(self):
         try:
             token = self._get_access_token()
-            return {'type': 'ir.actions.client', 'tag': 'display_notification', 
+            return {'type': 'ir.actions.client', 'tag': 'display_notification',
                     'params': {'title': 'Kết nối thành công', 'message': 'Đã lấy được token.', 'type': 'success'}}
         except Exception as e:
-            return {'type': 'ir.actions.client', 'tag': 'display_notification', 
+            return {'type': 'ir.actions.client', 'tag': 'display_notification',
                     'params': {'title': 'Kết nối thất bại', 'message': str(e), 'type': 'danger'}}
