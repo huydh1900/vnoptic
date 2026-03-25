@@ -118,6 +118,113 @@ class ProductSync(models.Model):
 
         return rs_id or None, sku or None, code or None, product_name or None
 
+    def _item_identifier_for_log(self, item=None):
+        if isinstance(item, dict):
+            dto = item.get('productdto') or {}
+            if isinstance(dto, dict):
+                return str(dto.get('cid') or dto.get('id') or dto.get('externalId') or item.get('sku') or 'N/A')
+        return 'N/A'
+
+    def _to_float(self, value, default=0.0, nullable=False, strict=False, field_name='unknown', item=None, product_type='unknown'):
+        raw_value = value
+        invalid_tokens = {'', 'none', 'null', 'nan', 'n/a'}
+
+        if value is None:
+            if nullable:
+                return None
+            _logger.warning(
+                "Numeric normalize fallback (float) field=%s product=%s product_type=%s source=%r -> default=%r",
+                field_name,
+                self._item_identifier_for_log(item),
+                product_type,
+                raw_value,
+                default,
+            )
+            return default
+
+        if isinstance(value, str):
+            text = value.strip()
+            if text.lower() in invalid_tokens:
+                if nullable:
+                    return None
+                _logger.warning(
+                    "Numeric normalize fallback (float) field=%s product=%s product_type=%s source=%r -> default=%r",
+                    field_name,
+                    self._item_identifier_for_log(item),
+                    product_type,
+                    raw_value,
+                    default,
+                )
+                return default
+            value = text
+
+        try:
+            return float(value)
+        except (TypeError, ValueError) as exc:
+            if strict:
+                raise
+            fallback = None if nullable else default
+            _logger.warning(
+                "Numeric normalize fallback (float) field=%s product=%s product_type=%s source=%r -> fallback=%r error=%s",
+                field_name,
+                self._item_identifier_for_log(item),
+                product_type,
+                raw_value,
+                fallback,
+                exc,
+            )
+            return fallback
+
+    def _to_int(self, value, default=0, nullable=False, strict=False, field_name='unknown', item=None, product_type='unknown'):
+        raw_value = value
+        invalid_tokens = {'', 'none', 'null', 'nan', 'n/a'}
+
+        if value is None:
+            if nullable:
+                return None
+            _logger.warning(
+                "Numeric normalize fallback (int) field=%s product=%s product_type=%s source=%r -> default=%r",
+                field_name,
+                self._item_identifier_for_log(item),
+                product_type,
+                raw_value,
+                default,
+            )
+            return default
+
+        if isinstance(value, str):
+            text = value.strip().replace('mm', '').replace('MM', '').strip()
+            if text.lower() in invalid_tokens:
+                if nullable:
+                    return None
+                _logger.warning(
+                    "Numeric normalize fallback (int) field=%s product=%s product_type=%s source=%r -> default=%r",
+                    field_name,
+                    self._item_identifier_for_log(item),
+                    product_type,
+                    raw_value,
+                    default,
+                )
+                return default
+            value = text
+
+        try:
+            return int(float(value))
+        except (TypeError, ValueError) as exc:
+            if strict:
+                raise
+            fallback = None if nullable else default
+            _logger.warning(
+                "Numeric normalize fallback (int) field=%s product=%s product_type=%s source=%r -> fallback=%r error=%s",
+                field_name,
+                self._item_identifier_for_log(item),
+                product_type,
+                raw_value,
+                fallback,
+                exc,
+            )
+            return fallback
+
     def _sync_audit_record_issue(
         self,
         issue_kind,
@@ -2258,20 +2365,41 @@ class ProductSync(models.Model):
         if 'currency_id' in self.env['res.partner.bank']._fields:
             account_vals['currency_id'] = currency_id or False
 
-        account = self.env['res.partner.bank'].search([
+        account_model = self.env['res.partner.bank'].with_context(active_test=False)
+        account = account_model.search([
             ('partner_id', '=', partner.id),
             ('acc_number', '=', account_vals['acc_number']),
             ('bank_id', '=', account_vals['bank_id']),
         ], limit=1)
+        if not account:
+            # Fallback theo account number trong cùng partner để tránh create trùng bản ghi archived.
+            account = account_model.search([
+                ('partner_id', '=', partner.id),
+                ('acc_number', '=', account_vals['acc_number']),
+            ], limit=1)
+
         if account:
-            account.write(account_vals)
-            self._log_supplier_sync(
-                supplier_ref,
-                "partner.bank updated: account_id=%s bank_id=%s currency_id=%s",
-                account.id,
-                account_vals.get('bank_id'),
-                account_vals.get('currency_id'),
-            )
+            write_vals = dict(account_vals)
+            was_archived = 'active' in account._fields and not account.active
+            if was_archived:
+                write_vals['active'] = True
+            account.write(write_vals)
+            if was_archived:
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "partner.bank unarchived+updated: account_id=%s bank_id=%s currency_id=%s",
+                    account.id,
+                    account_vals.get('bank_id'),
+                    account_vals.get('currency_id'),
+                )
+            else:
+                self._log_supplier_sync(
+                    supplier_ref,
+                    "partner.bank updated: account_id=%s bank_id=%s currency_id=%s",
+                    account.id,
+                    account_vals.get('bank_id'),
+                    account_vals.get('currency_id'),
+                )
         else:
             account = self.env['res.partner.bank'].create(account_vals)
             self._log_supplier_sync(
@@ -2641,14 +2769,14 @@ class ProductSync(models.Model):
         if sup_id:
             seller_payloads.append({
                 'partner_id': sup_id,
-                'price': float(dto.get('orPrice') or 0),
+                'price': self._to_float(dto.get('orPrice'), default=0.0, field_name='orPrice', item=item, product_type=product_type),
                 'min_qty': 1.0,
                 'delay': 1,
                 'currency_id': currency_id or False,
             })
 
         # Tax (Purchase tax for suppliers)
-        tax_pct = float(dto.get('tax') or 0)
+        tax_pct = self._to_float(dto.get('tax'), default=0.0, field_name='tax', item=item, product_type=product_type)
         tax_id = False
         if tax_pct > 0:
             t_name = f"Thuế mua hàng {tax_pct}%"
@@ -2681,6 +2809,13 @@ class ProductSync(models.Model):
         is_storable = product_type in ['opt', 'lens']
         product_kind = 'consu'
         resolved_uom_id = self._resolve_rs_uom_id(item, dto, cache)
+        currency_rate = self._to_float(
+            (dto.get('currencyZoneDTO') or {}).get('value'),
+            default=1.0,
+            field_name='currencyZoneDTO.value',
+            item=item,
+            product_type=product_type,
+        )
 
         # Basic Vals
         vals = {
@@ -2689,8 +2824,8 @@ class ProductSync(models.Model):
             'type': product_kind,
             'is_storable': is_storable,  # Gọng/Lens = storable
             'categ_id': categ_id,
-            'list_price': float(dto.get('rtPrice') or 0),
-            'standard_price': float(dto.get('orPrice') or 0) * float((dto.get('currencyZoneDTO') or {}).get('value') or 1),  # Giá vốn: orPrice * tỷ giá (= x_or_price)
+            'list_price': self._to_float(dto.get('rtPrice'), default=0.0, field_name='rtPrice', item=item, product_type=product_type),
+            'standard_price': self._to_float(dto.get('orPrice'), default=0.0, field_name='orPrice', item=item, product_type=product_type) * currency_rate,  # Giá vốn: orPrice * tỷ giá (= x_or_price)
             'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else False,
             'seller_ids': False,
             '_seller_sync_payloads': seller_payloads,
@@ -2708,24 +2843,32 @@ class ProductSync(models.Model):
             'x_warning': dto.get('warning', ''),
             'x_preserve': dto.get('preserve', ''),
             'x_cid_ncc': dto.get('cidNcc', ''),
-            'x_accessory_total': int(dto.get('accessoryTotal') or 0),
+            'x_accessory_total': self._to_int(dto.get('accessoryTotal'), default=0, field_name='accessoryTotal', item=item, product_type=product_type),
             'status_product_id': status_id,
             'x_currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
-            'x_currency_zone_value': float((dto.get('currencyZoneDTO') or {}).get('value') or 0),
-            'x_ws_price': float(dto.get('wsPrice') or dto.get('wsPriceMax') or 0),
-            'x_ws_price_min': float(dto.get('wsPriceMin') or 0),
-            'x_ws_price_max': float(dto.get('wsPriceMax') or 0),
+            'x_currency_zone_value': self._to_float((dto.get('currencyZoneDTO') or {}).get('value'), default=0.0, field_name='currencyZoneDTO.value', item=item, product_type=product_type),
+            'x_ws_price': self._to_float(dto.get('wsPrice') or dto.get('wsPriceMax'), default=0.0, field_name='wsPrice', item=item, product_type=product_type),
+            'x_ws_price_min': self._to_float(dto.get('wsPriceMin'), default=0.0, field_name='wsPriceMin', item=item, product_type=product_type),
+            'x_ws_price_max': self._to_float(dto.get('wsPriceMax'), default=0.0, field_name='wsPriceMax', item=item, product_type=product_type),
             # x_or_price = giá nhập kho quy VND: orPrice (ngoại tệ) * tỷ giá
-            'x_or_price': float(dto.get('orPrice') or 0) * float((dto.get('currencyZoneDTO') or {}).get('value') or 1),
-            'manufacturer_months': int(
+            'x_or_price': self._to_float(dto.get('orPrice'), default=0.0, field_name='orPrice', item=item, product_type=product_type) * currency_rate,
+            'manufacturer_months': self._to_int(
                 (dto.get('warrantydto') or {}).get('manufacturerMonths')
                 or dto.get('manufacturerWarrantyMonths')
-                or 0
+                or 0,
+                default=0,
+                field_name='manufacturerMonths',
+                item=item,
+                product_type=product_type,
             ),
-            'company_months': int(
+            'company_months': self._to_int(
                 (dto.get('warrantydto') or {}).get('companyMonths')
                 or dto.get('companyWarrantyMonths')
-                or 0
+                or 0,
+                default=0,
+                field_name='companyMonths',
+                item=item,
+                product_type=product_type,
             ),
             'x_group_type_name': grp_type_name,
         }
@@ -2741,20 +2884,24 @@ class ProductSync(models.Model):
         # ─── Lens specs (template-level only; no variants) ────────────────
         if product_type == 'lens':
             def safe_float(val):
-                if val is None or val == '':
-                    return None
-                try:
-                    return float(val)
-                except (TypeError, ValueError):
-                    return None
+                return self._to_float(
+                    val,
+                    default=None,
+                    nullable=True,
+                    field_name='lens.safe_float',
+                    item=item,
+                    product_type=product_type,
+                )
 
             def safe_int(val):
-                if val is None or val == '':
-                    return None
-                try:
-                    return int(str(val).replace('mm', '').replace('MM', '').strip())
-                except (TypeError, ValueError):
-                    return None
+                return self._to_int(
+                    val,
+                    default=None,
+                    nullable=True,
+                    field_name='lens.safe_int',
+                    item=item,
+                    product_type=product_type,
+                )
 
             def pick_value(source, keys):
                 for key in keys:
@@ -3029,7 +3176,7 @@ class ProductSync(models.Model):
             )
 
             lens_display_vals = {
-                'lens_base_curve': float(item.get('base') or 0),
+                'lens_base_curve': self._to_float(item.get('base'), default=0.0, field_name='base', item=item, product_type=product_type),
                 # Many2one chuẩn (get-or-create)
                 'lens_design1_id': d1_id,
                 'lens_design2_id': d2_id,
@@ -3205,11 +3352,11 @@ class ProductSync(models.Model):
             'opt_sku': item.get('sku', ''),
             'opt_color': item.get('color', ''),
             'opt_gender': str(item.get('gender', '')) if item.get('gender') else False,
-            'opt_temple_width': int(item.get('templeWidth') or 0),
-            'opt_lens_width': int(item.get('lensWidth') or 0),
-            'opt_lens_span': int(item.get('lensSpan') or 0),
-            'opt_lens_height': int(item.get('lensHeight') or 0),
-            'opt_bridge_width': int(item.get('bridgeWidth') or 0),
+            'opt_temple_width': self._to_int(item.get('templeWidth'), default=0, field_name='templeWidth', item=item, product_type='opt'),
+            'opt_lens_width': self._to_int(item.get('lensWidth'), default=0, field_name='lensWidth', item=item, product_type='opt'),
+            'opt_lens_span': self._to_int(item.get('lensSpan'), default=0, field_name='lensSpan', item=item, product_type='opt'),
+            'opt_lens_height': self._to_int(item.get('lensHeight'), default=0, field_name='lensHeight', item=item, product_type='opt'),
+            'opt_bridge_width': self._to_int(item.get('bridgeWidth'), default=0, field_name='bridgeWidth', item=item, product_type='opt'),
             'opt_color_lens_id': self._get_id_with_fallback(cache, 'colors', item.get('colorLensdto')),
             # ─── Thiết kế gọng – auto-create nếu chưa có bản ghi master ──────────────
             'opt_frame_id': self._get_or_create_master(cache, 'frames', item.get('framedto')),
@@ -3256,12 +3403,16 @@ class ProductSync(models.Model):
                 item.get('colorTemple'), cache, log_label='colorTemple'
             ),
             # ─── RS adapter: field mới chuẩn hóa theo RS (dai_mat, ngang_mat, ...) ───
-            'dai_mat': float(item.get('lensLength') or item.get('daiMat') or 0),
-            'ngang_mat': float(item.get('lensWidth') or item.get('nangMat') or 0),
-            'bao_hanh_ban_le': int(
+            'dai_mat': self._to_float(item.get('lensLength') or item.get('daiMat'), default=0.0, field_name='dai_mat', item=item, product_type='opt'),
+            'ngang_mat': self._to_float(item.get('lensWidth') or item.get('nangMat'), default=0.0, field_name='ngang_mat', item=item, product_type='opt'),
+            'bao_hanh_ban_le': self._to_int(
                 (item.get('productdto') or {}).get('retailWarrantyMonths')
                 or item.get('baoHanhBanLe')
-                or 0
+                or 0,
+                default=0,
+                field_name='retailWarrantyMonths',
+                item=item,
+                product_type='opt',
             ),
         }
 
