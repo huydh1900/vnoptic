@@ -25,7 +25,7 @@ def detect_product_type(sheet):
     title_cell = sheet['D3'].value
     
     if not title_cell:
-        raise ValueError("Cannot detect product type: Cell D3 is empty")
+        raise ValueError("Không xác định được loại sản phẩm: ô D3 đang trống.")
     
     title = str(title_cell).upper()
     
@@ -36,7 +36,10 @@ def detect_product_type(sheet):
     elif 'PHỤ KIỆN' in title or 'PHU KIEN' in title:
         return 'accessory'
     else:
-        raise ValueError(f"Unknown product type in cell D3: {title_cell}")
+        raise ValueError(
+            f"Không xác định được loại sản phẩm từ ô D3 với giá trị '{title_cell}'. "
+            "Vui lòng kiểm tra lại đúng mẫu file import."
+        )
 
 
 def parse_headers(sheet, header_row=10):
@@ -202,7 +205,7 @@ def parse_excel_file(file_content, filename=''):
         headers = parse_headers(sheet, header_row=10)
         
         if not headers:
-            raise ValueError("No headers found in row 10")
+            raise ValueError("Thiếu tiêu đề cột tại dòng 10. Vui lòng kiểm tra lại file import.")
         
         # Parse data rows
         rows = parse_data_rows(sheet, headers, start_row=11)
@@ -216,4 +219,4 @@ def parse_excel_file(file_content, filename=''):
         }
     
     except Exception as e:
-        raise ValueError(f"Error parsing Excel file '{filename}': {str(e)}")
+        raise ValueError(f"Không thể đọc file import '{filename}': {str(e)}")

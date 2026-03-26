@@ -10,19 +10,25 @@
             <xpath expr="//form/sheet/group/group[2]/field[@name='title']" position="replace"/>
             <xpath expr="//form/sheet/group/group[2]/field[@name='website']" position="replace"/>
             <xpath expr="//form/sheet/group/group[2]/field[@name='function']" position="replace"/>
+            <xpath expr="//form/sheet/group/group[1]/div/field[@name='street2']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
             <field name="vat" position="after">
-                <field name="ref"/>
+                <field name="ref" string="Mã NCC"/>
+                <field name="code" invisible="1"/>
             </field>
         </field>
     </record>
-    <record id="vnoptic_view_partner_search_inherit" model="ir.ui.view">
-        <field name="name">vnoptic.view.partner.search.inherit</field>
-        <field name="model">res.partner</field>
-        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+
+    <record id="vnoptic_view_partner_bank_form_inherit" model="ir.ui.view">
+        <field name="name">vnoptic.view.partner.bank.form.inherit</field>
+        <field name="model">res.partner.bank</field>
+        <field name="inherit_id" ref="base.view_partner_bank_form"/>
         <field name="arch" type="xml">
-            <field name="name" position="after">
-                <field name="ref" string="Mã NCC"/>
-            </field>
+            <xpath expr="//form[@name='bank_account_form']/sheet/group/group[1]/field[@name='bank_id']" position="after">
+                <field name="bank_bic" string="Swift/BIC" readonly="1"/>
+                <field name="bank_street" readonly="1"/>
+            </xpath>
         </field>
     </record>
 </odoo>

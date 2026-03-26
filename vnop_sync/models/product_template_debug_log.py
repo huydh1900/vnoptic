@@ -11,8 +11,8 @@ class ProductTemplateDebugLog(models.Model):
         _logger.warning("WRITE VALS: %s", vals)
         return super().write(vals)
 
-    @api.model_create_multi
-    def create(self, vals_list):
+    @api.model
+    def create(self, vals):
         _logger.warning("SYNC CREATE product.template")
-        _logger.warning("CREATE VALS: %s", vals_list)
-        return super().create(vals_list)
+        _logger.warning("CREATE VALS: %s", vals)
+        return super().create(vals)

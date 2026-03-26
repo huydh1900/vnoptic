@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
+import logging
+import unicodedata
+import base64
+
 from odoo import models, fields, api
+
+
+_logger = logging.getLogger(__name__)
 
 
 class ProductCategory(models.Model):
@@ -11,19 +18,183 @@ class ProductCategory(models.Model):
 
 
 class ProductTemplateExtension(models.Model):
+
+    x_is_default_image = fields.Boolean(
+        string='Ảnh mặc định/lỗi',
+        compute='_compute_is_default_image',
+        store=False,
+        help='Đánh dấu nếu ảnh sản phẩm là mặc định hoặc lỗi (ví dụ: default.png từ RS hoặc không có ảnh)'
+    )
+
+    @api.depends('image_1920')
+    def _compute_is_default_image(self):
+        for rec in self:
+            # Show warning only when product image is missing.
+            rec.x_is_default_image = not bool(rec.image_1920)
+
     _inherit = 'product.template'
+    _QR_PRODUCT_BASE_URL = 'https://erp.vnoptictech.com.vn/product'
 
-    _sql_constraints = []
+    _CATEGORY_CODE_KIND_MAP = {
+        '06': 'lens',
+        '27': 'opt',
+        '20': 'accessory',
+    }
+    _CATEGORY_XMLID_KIND_MAP = {
+        'vnop_sync.product_category_lens': 'lens',
+        'vnop_sync.product_category_opt': 'opt',
+        'vnop_sync.product_category_accessory': 'accessory',
+    }
 
-    # Computed fields to replace product_type for UI logic
+    _PRODUCT_KIND_SELECTION = [
+        ('lens', 'Tròng kính'),
+        ('opt', 'Gọng kính'),
+        ('accessory', 'Phụ kiện'),
+        ('unknown', 'Chưa xác định'),
+    ]
+
+    # Source of truth for UI visibility and UI-level classification.
+    product_kind_ui = fields.Selection(
+        selection=_PRODUCT_KIND_SELECTION,
+        string='Loại sản phẩm (UI)',
+        compute='_compute_product_kind_ui',
+        store=True,
+        index=True,
+        readonly=True,
+        help='Phân loại suy ra từ danh mục (code 06/27/20 theo cây danh mục).'
+    )
     is_lens = fields.Boolean(compute='_compute_product_kind', store=False)
     is_opt = fields.Boolean(compute='_compute_product_kind', store=False)
 
-    @api.depends('product_type')
+    @api.model
+    def _map_kind_to_product_type(self, kind):
+        if kind == 'lens':
+            return 'lens'
+        if kind == 'opt':
+            return 'opt'
+        if kind == 'accessory':
+            return 'accessory'
+        return False
+
+    @api.model
+    def _normalize_kind_text(self, text):
+        base_text = (text or '').strip().lower()
+        normalized = unicodedata.normalize('NFKD', base_text)
+        return ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+
+    @api.model
+    def _get_kind_from_category_name_legacy(self, category):
+        # Backward-compat alias kept only to avoid accidental external references.
+        return self._get_kind_from_category_name(category)
+        current = category
+        while current:
+            name = self._normalize_kind_text(current.name)
+            if any(token in name for token in ('mat', 'trong', 'lens')):
+                return 'lens'
+            if any(token in name for token in ('gong', 'frame')):
+                return 'opt'
+            if any(token in name for token in ('phu kien', 'accessory')):
+                return 'accessory'
+            current = current.parent_id
+            continue
+            if any(token in name for token in ('tròng', 'trong', 'lens')):
+                return 'lens'
+            if any(token in name for token in ('gọng', 'gong', 'frame')):
+                return 'opt'
+            if any(token in name for token in ('phụ kiện', 'phu kien', 'accessory')):
+                return 'accessory'
+            current = current.parent_id
+        return False
+
+    @api.model
+    def _get_kind_from_category_name(self, category):
+        current = category
+        while current:
+            name = self._normalize_kind_text(current.name)
+            if any(token in name for token in ('mat', 'trong', 'lens')):
+                return 'lens'
+            if any(token in name for token in ('gong', 'frame')):
+                return 'opt'
+            if any(token in name for token in ('phu kien', 'accessory')):
+                return 'accessory'
+            current = current.parent_id
+        return False
+
+    @api.model
+    def _get_kind_from_category_xmlid_tree(self, category):
+        if not category:
+            return False
+
+        ancestor_ids = set()
+        if category.parent_path:
+            ancestor_ids = {
+                int(cid) for cid in category.parent_path.split('/') if cid
+            }
+        ancestor_ids.add(category.id)
+
+        for xmlid, kind in self._CATEGORY_XMLID_KIND_MAP.items():
+            root = self.env.ref(xmlid, raise_if_not_found=False)
+            if root and root.id in ancestor_ids:
+                return kind
+        return False
+
+    @api.model
+    def _get_kind_from_category(self, category):
+        current = category
+        while current:
+            code = (current.code or '').strip()
+            kind = self._CATEGORY_CODE_KIND_MAP.get(code)
+            if kind:
+                return kind
+            current = current.parent_id
+
+        xmlid_kind = self._get_kind_from_category_xmlid_tree(category)
+        if xmlid_kind:
+            return xmlid_kind
+
+        name_kind = self._get_kind_from_category_name(category)
+        if name_kind:
+            return name_kind
+
+        return 'unknown'
+
+    @api.model
+    def _get_kind_from_category_id(self, categ_id):
+        if not categ_id:
+            return 'unknown'
+        category = self.env['product.category'].browse(categ_id)
+        return self._get_kind_from_category(category)
+
+    @api.depends(
+        'categ_id',
+        'categ_id.code',
+        'categ_id.parent_id',
+        'categ_id.parent_id.code',
+        'categ_id.parent_path',
+        'product_type',
+    )
+    def _compute_product_kind_ui(self):
+        for record in self:
+            kind = record._get_kind_from_category(record.categ_id)
+            if kind == 'unknown' and record.product_type in ('lens', 'opt', 'accessory'):
+                kind = record.product_type
+            record.product_kind_ui = kind
+
+    @api.depends('product_kind_ui')
     def _compute_product_kind(self):
         for record in self:
-            record.is_opt = record.product_type == 'opt'
-            record.is_lens = record.product_type == 'lens'
+            record.is_opt = record.product_kind_ui == 'opt'
+            record.is_lens = record.product_kind_ui == 'lens'
+
+    @api.onchange('categ_id')
+    def _onchange_categ_id_sync_product_type(self):
+        """Sync integration field immediately on NewId when category changes."""
+        for record in self:
+            kind = record._get_kind_from_category(record.categ_id)
+            record.product_kind_ui = kind
+            mapped_type = record._map_kind_to_product_type(kind)
+            if mapped_type and record.product_type != mapped_type:
+                record.product_type = mapped_type
 
     # Keep product_type for now but make it computed or optional if needed
     # For now we just add the new logic alongside
@@ -31,6 +202,12 @@ class ProductTemplateExtension(models.Model):
         'Tên tiếng Anh',
         help="Product name in English"
     )
+
+    x_trade_name = fields.Char(
+        'Tên thương mại',
+        help="Commercial trade name"
+    )
+
 
     x_uses = fields.Text(
         'Công dụng',
@@ -73,6 +250,12 @@ class ProductTemplateExtension(models.Model):
         help="Wholesale price"
     )
 
+    x_or_price = fields.Float(
+        'Giá gốc',
+        digits='Product Price',
+        help="Original price from supplier"
+    )
+
     x_ws_price_min = fields.Float(
         'Giá sỉ Min',
         digits='Product Price',
@@ -102,6 +285,71 @@ class ProductTemplateExtension(models.Model):
         'Loại nhóm (từ API)',
         help="Product group type from API - for reference only"
     )
+
+    x_rs_product_id = fields.Char(
+        'ID sản phẩm',
+        copy=False,
+        index=True,
+        help='Định danh sản phẩm gốc từ RS (ưu tiên productdto.id, fallback productdto.externalId).'
+    )
+
+    x_qr_url = fields.Char(
+        'QR URL',
+        compute='_compute_x_qr_url',
+        compute_sudo=True,
+        store=True,
+        readonly=True,
+        help='URL sản phẩm dùng để sinh QR: https://erp.vnoptictech.com.vn/product/{x_rs_product_id}'
+    )
+
+    x_qr_image = fields.Image(
+        'QR Image',
+        compute='_compute_x_qr_image',
+        compute_sudo=True,
+        store=True,
+        readonly=True,
+        attachment=True,
+        max_width=512,
+        max_height=512,
+        help='Ảnh QR sinh tự động từ QR URL để hiển thị trên form sản phẩm.'
+    )
+
+    @api.depends('x_rs_product_id')
+    def _compute_x_qr_url(self):
+        for record in self:
+            rs_product_id = (record.x_rs_product_id or '').strip()
+            record.x_qr_url = (
+                f"{self._QR_PRODUCT_BASE_URL}/{rs_product_id}"
+                if rs_product_id else False
+            )
+
+    @api.depends('x_qr_url')
+    def _compute_x_qr_image(self):
+        report_model = self.env['ir.actions.report'].sudo()
+        for record in self:
+            if not record.x_qr_url:
+                record.x_qr_image = False
+                continue
+
+            try:
+                qr_png = report_model.barcode('QR', record.x_qr_url, width=180, height=180)
+                if isinstance(qr_png, memoryview):
+                    qr_png = qr_png.tobytes()
+                elif isinstance(qr_png, bytearray):
+                    qr_png = bytes(qr_png)
+                elif isinstance(qr_png, str):
+                    qr_png = qr_png.encode('utf-8')
+
+                if not isinstance(qr_png, bytes) or not qr_png:
+                    raise ValueError('barcode() returned empty/non-bytes payload')
+
+                if not qr_png.startswith(b'\x89PNG'):
+                    _logger.warning('QR payload for template %s is not PNG header', record.id)
+
+                record.x_qr_image = base64.b64encode(qr_png).decode('ascii')
+            except Exception as err:
+                _logger.exception('Cannot generate product QR for template %s (%s): %s', record.id, record.x_qr_url, err)
+                record.x_qr_image = False
 
     # ==================== ACCESSORY FIELDS ====================
     design_id = fields.Many2one('product.design', string='Thiết kế')
@@ -137,21 +385,13 @@ class ProductTemplateExtension(models.Model):
         help="Product brand"
     )
     warranty_id = fields.Many2one(
-        'product.warranty', 'Bảo hành hãng',
-        help="Product warranty (manufacturer)"
-    )
-    warranty_supplier_id = fields.Many2one(
-        'product.warranty', 'Bảo hành công ty',
-        help="Warranty provided by the company/supplier"
-    )
-    warranty_retail_id = fields.Many2one(
-        'product.warranty', 'Bảo hành bán lẻ',
-        help="Warranty for retail customers"
+        'product.warranty', 'Bảo hành',
+        help="Product warranty"
     )
     # Note: Supplier management uses standard Odoo field 'seller_ids' (One2many to product.supplierinfo)
     # This allows managing multiple suppliers with prices and conditions per supplier
     country_id = fields.Many2one(
-        'res.country', 'Xuất xứ',
+        'product.country', 'Xuất xứ',
         help="Country of origin for the product"
     )
 
@@ -161,17 +401,8 @@ class ProductTemplateExtension(models.Model):
     opt_ids = fields.One2many('product.opt', 'product_tmpl_id', 'Optical Details (Legacy)')
 
     # ==================== ADDITIONAL FIELDS FOR VIEW ====================
-    group_id = fields.Many2one('product.group', string='Nhóm sản phẩm (legacy)',
-                                help='[Deprecated] Dùng lens_group_id / opt_group_id / acc_group_id')
-    lens_group_id = fields.Many2one('product.group', string='Nhóm Tròng kính',
-                                     domain=[('product_type', '=', 'lens')],
-                                     help='Nhóm sản phẩm cho Tròng kính')
-    opt_group_id = fields.Many2one('product.group', string='Nhóm Gọng kính',
-                                    domain=[('product_type', '=', 'opt')],
-                                    help='Nhóm sản phẩm cho Gọng kính')
-    acc_group_id = fields.Many2one('product.group', string='Nhóm Phụ kiện',
-                                    domain=[('product_type', '=', 'accessory')],
-                                    help='Nhóm sản phẩm cho Phụ kiện')
+    group_id = fields.Many2one('product.group', string='Nhóm sản phẩm (theo loại)',
+                                help='Nhóm sản phẩm - tự động lọc theo phân loại nghiệp vụ')
     index_id = fields.Many2one('product.lens.index', string='Chiết suất', 
                                 help='Lens index for code generation (lens products only)')
     auto_generate_code = fields.Boolean('Tự động tạo mã', default=True,
@@ -181,10 +412,13 @@ class ProductTemplateExtension(models.Model):
     # ==================== LENS SPECS (Hướng B: field trực tiếp trên template) ====================
     # Thiết kế
     lens_sph_id = fields.Many2one('product.lens.power', string='SPH',
+        domain="[('type', '=', 'sph')]",
         help='Công suất cầu (Sphere)')
     lens_cyl_id = fields.Many2one('product.lens.power', string='CYL',
+        domain="[('type', '=', 'cyl')]",
         help='Công suất trụ (Cylinder)')
     lens_add_id = fields.Many2one('product.lens.power', string='ADD',
+        domain="[('type', '=', 'add')]",
         help='Addition (thấu kính đa tròng)')
     lens_base_curve = fields.Float('Base Curve', digits=(4, 2))
     lens_design1_id = fields.Many2one('product.design', string='Thiết kế 1')
@@ -212,13 +446,13 @@ class ProductTemplateExtension(models.Model):
     x_cyl = fields.Float('CYL', digits=(6, 2), help='Lens cylinder power (display only)')
     x_add = fields.Float('ADD', digits=(6, 2), help='Lens add power (display only)')
     x_axis = fields.Integer('Axis', help='Lens axis (display only)')
-    x_prism = fields.Char('Lăng kính', size=50, help='Lens prism (display only)')
-    x_prism_base = fields.Char('Đáy lăng kính', size=50, help='Lens prism base (display only)')
+    x_prism = fields.Char('Prism', size=50, help='Lens prism (display only)')
+    x_prism_base = fields.Char('Prism Base', size=50, help='Lens prism base (display only)')
     x_hmc = fields.Char('HMC (legacy)', help='Deprecated – dùng lens_cl_hmc_id')
     x_photochromic = fields.Char('Photochromic (legacy)', help='Deprecated – dùng lens_cl_pho_id')
     x_tinted = fields.Char('Tinted (legacy)', help='Deprecated – dùng lens_cl_tint_id')
     x_mir_coating = fields.Char('Màu tráng gương', help='Mirror coating (display only)')
-    x_diameter = fields.Float('Đường kính (mm)', digits=(6, 1), help='Lens diameter (display only)')
+    x_diameter = fields.Integer('Đường kính', help='Lens diameter (display only)')
 
     # ==================== OPT SPECS (Hướng B: field trực tiếp trên template) ====================
     # Thông tin cơ bản
@@ -391,22 +625,29 @@ class ProductTemplateExtension(models.Model):
         import logging as _logging
         _log = _logging.getLogger(__name__)
 
-        def _get_or_create_power(env, fval, power_type=None):
+        def _get_or_create_power(env, fval, power_type):
             if fval is None or fval == 0.0:
                 return False
             formatted = f"{fval:+.2f}"
-            rec = env['product.lens.power'].search([('value', '=', fval)], limit=1)
+            rec = env['product.lens.power'].search(
+                [('value', '=', fval), ('type', '=', power_type)], limit=1
+            )
             if rec:
                 return rec.id
             try:
-                new_rec = env['product.lens.power'].create({'value': fval})
+                new_rec = env['product.lens.power'].create({
+                    'name': formatted,
+                    'value': fval,
+                    'type': power_type,
+                })
+                _log.info("✅ migrate: created product.lens.power type=%s value=%s id=%s", power_type, formatted, new_rec.id)
                 return new_rec.id
             except Exception as e:
-                _log.warning("⚠️ migrate: cannot create lens.power value=%s: %s", formatted, e)
+                _log.warning("⚠️ migrate: cannot create lens.power type=%s value=%s: %s", power_type, formatted, e)
                 return False
 
         domain = [
-            ('product_type', '=', 'lens'),
+            ('product_kind_ui', '=', 'lens'),
             '|', '|',
             ('x_sph', '!=', 0.0),
             ('x_cyl', '!=', 0.0),
@@ -451,47 +692,98 @@ class ProductTemplateExtension(models.Model):
         }
 
     # ==================== PRODUCT CREATION LOGIC ====================
-    @api.model_create_multi
-    def create(self, vals_list):
-        from ..utils import product_code_utils
-        for vals in vals_list:
-            # Auto-generate product code if enabled and not provided
-            if vals.get('auto_generate_code', True) and not vals.get('default_code'):
-                categ_id = vals.get('categ_id')
-                brand_id = vals.get('brand_id')
-                index_id = vals.get('index_id')
-                if categ_id and brand_id:
-                    try:
-                        vals['default_code'] = product_code_utils.generate_product_code(
-                            self.env, categ_id, brand_id, index_id
-                        )
-                    except Exception as e:
-                        _logger.warning(f"Failed to auto-generate product code: {e}")
+    @api.model
+    def create(self, vals):
+        vals = dict(vals)
 
-            product_type = vals.get('product_type', 'lens')
-            if product_type != 'lens':
-                vals.pop('lens_ids', None)
-            if product_type != 'opt':
-                vals.pop('opt_ids', None)
+        mapped_type = self._map_kind_to_product_type(
+            self._get_kind_from_category_id(vals.get('categ_id'))
+        )
+        if mapped_type:
+            vals['product_type'] = mapped_type
 
-        products = super().create(vals_list)
+        # Auto-generate product code if enabled and not provided
+        if vals.get('auto_generate_code', True) and not vals.get('default_code'):
+            categ_id = vals.get('categ_id')  # Changed from group_id
+            brand_id = vals.get('brand_id')
+            index_id = vals.get('index_id')  # For lens products
+            
+            if categ_id and brand_id:  # Changed from group_id
+                from ..utils import product_code_utils
+                try:
+                    code = product_code_utils.generate_product_code(
+                        self.env, categ_id, brand_id, index_id  # Changed from group_id
+                    )
+                    vals['default_code'] = code
+                except Exception as e:
+                    # Log error but don't fail product creation
+                    _logger.warning(f"Failed to auto-generate product code: {e}")
+        
+        product_type = vals.get('product_type', 'lens')
 
-        for product in products:
-            if product.product_type == 'opt' and not product.opt_ids:
-                self.env['product.opt'].create({'product_tmpl_id': product.id})
+        if product_type != 'lens':
+            if 'lens_ids' in vals:
+                del vals['lens_ids']
 
-        return products
+        if product_type != 'opt':
+            if 'opt_ids' in vals:
+                del vals['opt_ids']
+
+        product = super().create(vals)
+        
+        # Auto-create opt record if needed (lens dùng field trực tiếp trên template - Hướng B)
+        if product.product_type == 'opt' and not product.opt_ids:
+            self.env['product.opt'].create({'product_tmpl_id': product.id})
+        
+        return product
 
     def write(self, vals):
-        if 'product_type' in vals:
-            new_type = vals['product_type']
-            if new_type != 'lens':
-                self.mapped('lens_ids').unlink()
-                vals.pop('lens_ids', None)
-            if new_type != 'opt':
-                self.mapped('opt_ids').unlink()
-                vals.pop('opt_ids', None)
+        vals = dict(vals)
+        if 'categ_id' in vals:
+            mapped_type = self._map_kind_to_product_type(
+                self._get_kind_from_category_id(vals.get('categ_id'))
+            )
+            if mapped_type:
+                vals['product_type'] = mapped_type
+
+        if vals.get('product_type') in ('lens', 'opt', 'accessory'):
+            if vals['product_type'] != 'lens':
+                if self.lens_ids:
+                    self.lens_ids.unlink()
+                if 'lens_ids' in vals:
+                    del vals['lens_ids']
+
+            if vals['product_type'] != 'opt':
+                if self.opt_ids:
+                    self.opt_ids.unlink()
+                if 'opt_ids' in vals:
+                    del vals['opt_ids']
+
         return super().write(vals)
+
+    @api.model
+    def action_backfill_product_type_from_category(self, limit=None):
+        """Backfill legacy records: align product_type from category-derived kind."""
+        templates = self.search([('categ_id', '!=', False)], limit=limit)
+        updated = 0
+
+        for template in templates:
+            mapped_type = template._map_kind_to_product_type(template.product_kind_ui)
+            if mapped_type and template.product_type != mapped_type:
+                template.write({'product_type': mapped_type})
+                updated += 1
+
+        total = len(templates)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Đồng bộ product_type theo danh mục',
+                'message': f'Đã cập nhật {updated}/{total} sản phẩm.',
+                'type': 'success',
+                'sticky': False,
+            }
+        }
 
     def action_create_missing_details(self):
         """Create missing opt records for products that have product_type but no details.
@@ -499,7 +791,7 @@ class ProductTemplateExtension(models.Model):
         created_opt = 0
         
         for product in self:
-            if product.product_type == 'opt' and not product.opt_ids:
+            if product.product_kind_ui == 'opt' and not product.opt_ids:
                 self.env['product.opt'].create({'product_tmpl_id': product.id})
                 created_opt += 1
         
@@ -523,7 +815,7 @@ class ProductTemplateExtension(models.Model):
         
         # Create opt records for opt products without details
         opt_products = self.search([
-            ('product_type', '=', 'opt'),
+            ('product_kind_ui', '=', 'opt'),
             ('opt_ids', '=', False)
         ])
         for product in opt_products:

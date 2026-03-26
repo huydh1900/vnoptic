@@ -6,3 +6,4 @@ class ProductDesign(models.Model):
     name = fields.Char('Tên thiết kế', required=True)
     code = fields.Char('Mã thiết kế')
     cid = fields.Char('Mã đồng bộ', index=True)
+    active = fields.Boolean(default=True)

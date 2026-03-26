@@ -5,6 +5,7 @@ access_product_brand_user,access_product_brand_user,model_product_brand,base.gro
 access_product_brand_manager,access_product_brand_manager,model_product_brand,base.group_system,1,1,1,1
 access_product_warranty_user,access_product_warranty_user,model_product_warranty,base.group_user,1,0,0,0
 access_product_warranty_manager,access_product_warranty_manager,model_product_warranty,base.group_system,1,1,1,1
+access_product_country_user,product.country user,model_product_country,base.group_user,1,1,1,1
 access_product_lens_user,product.lens user,model_product_lens,base.group_user,1,1,1,1
 access_product_opt_user,product.opt user,model_product_opt,base.group_user,1,1,1,1
 access_product_group_user,product.group user,model_product_group,base.group_user,1,1,1,1

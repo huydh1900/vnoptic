@@ -1,29 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <odoo>
     <!-- Extend product search view -->
-    <record id="product_template_search_inherit_custom" model="ir.ui.view">
-        <field name="name">product.template.search.inherit.custom</field>
+    <record id="product_template_search_inherit_short_code" model="ir.ui.view">
+        <field name="name">product.template.search.inherit.short_code</field>
         <field name="model">product.template</field>
         <field name="inherit_id" ref="product.product_template_search_view"/>
         <field name="priority">101</field>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='attribute_line_ids']" position="attributes">
-                <attribute name="domain">['|', ('product_tmpl_id.product_type', '!=', 'lens'), ('attribute_id.name',
-                    'not in', ('SPH','CYL','ADD'))]
-                </attribute>
-            </xpath>
-        </field>
-    </record>
-
-    <!-- Ẩn categ_id trong product_template_form_view (form chính) -->
-    <record id="product_template_form_hide_categ" model="ir.ui.view">
-        <field name="name">product.template.form.hide.categ</field>
-        <field name="model">product.template</field>
-        <field name="inherit_id" ref="product.product_template_form_view"/>
-        <field name="priority">100</field>
-        <field name="arch" type="xml">
-            <xpath expr="//field[@name='categ_id']" position="attributes">
-                <attribute name="invisible">1</attribute>
+                <attribute name="domain">['|', ('product_tmpl_id.product_kind_ui', '!=', 'lens'), ('attribute_id.name', 'not in', ('SPH','CYL','ADD'))]</attribute>
             </xpath>
         </field>
     </record>
@@ -34,37 +19,51 @@
         <field name="inherit_id" ref="product.product_template_only_form_view"/>
         <field name="priority">100</field>
         <field name="arch" type="xml">
-
+            
+            <!-- Đổi label "Tham chiếu" → "Mã viết tắt" cho default_code -->
             <xpath expr="//page[@name='general_information']//field[@name='default_code']" position="attributes">
-                <attribute name="invisible">1</attribute>
-            </xpath>
-
-            <!-- Ẩn Danh mục Avatax -->
-            <xpath expr="//field[@name='avatax_category_id']" position="attributes">
-                <attribute name="invisible">1</attribute>
-            </xpath>
-
-            <!-- Ẩn categ_id mặc định của Odoo (đã có trong section Phân loại sản phẩm) -->
-            <xpath expr="//page[@name='general_information']//field[@name='categ_id']" position="attributes">
-                <attribute name="invisible">1</attribute>
+                <attribute name="string">Mã viết tắt</attribute>
             </xpath>
 
             <!-- Add hidden computed fields for UI logic -->
+
             <xpath expr="//div[@class='oe_title']" position="after">
+                <field name="product_kind_ui" invisible="1"/>
                 <field name="is_lens" invisible="1"/>
                 <field name="is_opt" invisible="1"/>
+                <field name="x_is_default_image" invisible="1"/>
+            </xpath>
+
+            <xpath expr="//field[@name='image_1920']" position="replace">
+                <div class="oe_avatar" style="position:relative; display:inline-block;">
+                    <field
+                        name="image_1920"
+                        widget="image"
+                        options="{'convert_to_webp': True, 'preview_image': 'image_128'}"
+                    />
+                    <span invisible="not x_is_default_image"
+                          style="position:absolute; top:4px; left:4px; z-index:10; background:rgba(220,53,69,0.92); color:#fff; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; white-space:nowrap;">
+                        Lỗi RS
+                    </span>
+                </div>
+                <field name="x_qr_image" widget="image" class="oe_avatar oe_inline"
+                       options="{'size': [96, 96]}" readonly="1" nolabel="1"
+                       style="margin-left: -6px;"/>
             </xpath>
 
             <!-- Ẩn tab Thuộc tính & Biến thể cho lens và gọng kính -->
             <xpath expr="//page[.//field[@name='attribute_line_ids']]" position="attributes">
-                <attribute name="invisible">is_lens or is_opt</attribute>
+                <attribute name="invisible">product_kind_ui in ('lens', 'opt')</attribute>
             </xpath>
-
+            
             <!-- Removed product_type selection from header -->
-
+            
             <!-- Add Giá & Bảo hành into Sales tab (not general_information) -->
             <xpath expr="//page[@name='sales']" position="inside">
                 <group string="Thông tin giá">
+                    <group>
+                        <field name="x_or_price" string="Giá nhập kho (quy VNĐ)" invisible="1"/>
+                    </group>
                     <group>
                         <field name="x_ws_price" string="Giá sỉ"/>
                         <field name="x_ws_price_min" string="Giá sỉ tối thiểu"/>
@@ -76,79 +75,96 @@
 
             <!-- Add Product General Info Section -->
             <xpath expr="//sheet/notebook/page[@name='general_information']/group" position="before">
-                <!-- ── Thông tin chung ── -->
-                <group string="Thông tin chung">
+                <group string="Phân loại sản phẩm">
                     <group>
-                        <field name="default_code" string="Mã viết tắt"/>
-                        <field name="categ_id" string="Danh mục" options="{'no_create': True}"/>
-                        <field name="lens_group_id" invisible="product_type != 'lens'" options="{'no_create': True}"/>
-                        <field name="opt_group_id" invisible="product_type != 'opt'" options="{'no_create': True}"/>
-                        <field name="acc_group_id" invisible="product_type != 'accessory'" options="{'no_create': True}"/>
+                        <field name="categ_id" string="Danh mục sản phẩm" options="{'no_create': True}"/>
+                        <field name="uom_id" string="Đơn vị" options="{'no_create': True}"/>
+                        <field name="x_rs_product_id" string="ID sản phẩm"/>
+                        <field name="group_id" invisible="1"/>
                         <field name="brand_id"/>
+                        <field name="warranty_id" options="{'no_create': True}"/>
                         <field name="country_id" string="Xuất xứ" options="{'no_create': True}"/>
-                        <field name="uom_id" string="Đơn vị tính" options="{'no_create': True}"/>
                         <field name="index_id" options="{'no_create': True}" invisible="1"/>
                     </group>
                     <group>
-                        <field name="status_product_id" options="{'no_create': True}"/>
                         <field name="x_eng_name"/>
+                        <field name="x_trade_name"/>
+                        <field name="status_product_id" options="{'no_create': True}"/>
                         <field name="auto_generate_code"/>
-                        <field name="warranty_id" string="Bảo hành hãng" options="{'no_create': True}"/>
-                        <field name="warranty_supplier_id" options="{'no_create': True}"/>
-                        <field name="warranty_retail_id" options="{'no_create': True}"/>
                     </group>
                 </group>
 
-                <!-- ── Thiết kế Tròng (chỉ hiện khi is_lens) ── -->
-                <group string="Thiết kế Tròng" invisible="not is_lens">
-                    <group>
-                        <field name="lens_sph_id" string="SPH" options="{'no_create': False}"/>
-                        <field name="lens_cyl_id" string="CYL" options="{'no_create': False}"/>
-                        <field name="lens_add_id" string="ADD" options="{'no_create': False}"/>
-                        <field name="x_axis" string="Axis"/>
-                        <field name="x_diameter" string="Đường kính (mm)"/>
-                    </group>
-                    <group>
-                        <field name="lens_design1_id" string="Thiết kế 1" options="{'no_create': False}"/>
-                        <field name="lens_design2_id" string="Thiết kế 2" options="{'no_create': False}"/>
-                        <field name="x_prism" string="Lăng kính"/>
-                        <field name="x_prism_base" string="Đáy lăng kính"/>
-                    </group>
-                </group>
-
-                <!-- ── Chất liệu &amp; Tích hợp Tròng (chỉ hiện khi is_lens) ── -->
-                <group string="Chất liệu &amp; Tích hợp" invisible="not is_lens">
-                    <group>
-                        <field name="lens_material_id" string="Vật liệu" options="{'no_create': False}"/>
-                        <field name="lens_index_id" string="Chiết suất" options="{'no_create': False}"/>
-                        <field name="lens_uv_id" string="UV" options="{'no_create': False}"/>
-                        <field name="lens_coating_ids" string="Coating" widget="many2many_tags" options="{'no_create': False}"/>
-                    </group>
-                    <group>
-                        <field name="lens_cl_hmc_id" string="HMC" options="{'no_create': False}"/>
-                        <field name="lens_cl_pho_id" string="Photochromic" options="{'no_create': False}"/>
-                        <field name="lens_cl_tint_id" string="Tinted" options="{'no_create': False}"/>
-                    </group>
-                </group>
             </xpath>
-
+            
             <!-- Add custom tabs to notebook -->
             <xpath expr="//notebook" position="inside">
 
                 <!-- ══════════════════════════════════════════════════════════
                      Tabs Lens (Hướng B: field trực tiếp trên template)
-                     Hiển thị chỉ khi product_type = 'lens'
+                     Hiển thị chỉ khi product_kind_ui = 'lens'
                      ══════════════════════════════════════════════════════════ -->
+
+                <!-- Tab 1: Thiết kế Tròng -->
+                <page string="Thiết kế Tròng" name="lens_design_tab"
+                        invisible="product_kind_ui != 'lens'">
+                    <group string="Thiết kế (Many2one)">
+                        <group>
+                            <field name="lens_design1_id" string="Thiết kế 1"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_design2_id" string="Thiết kế 2"
+                                   options="{'no_create': False}"/>
+                        </group>
+                    </group>
+                    <group string="Công suất (Many2one)">
+                        <group>
+                            <field name="lens_sph_id" string="SPH"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_cyl_id" string="CYL"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_add_id" string="ADD"
+                                   options="{'no_create': False}"/>
+                            <field name="x_axis" string="Axis"/>
+                        </group>
+                        <group>
+                            <field name="x_prism" string="Prism"/>
+                            <field name="x_prism_base" string="Prism Base"/>
+                            <field name="x_diameter" string="Đường kính (mm)"/>
+                        </group>
+                    </group>
+                </page>
+
+                <!-- Tab 2: Chất liệu & Tích hợp Tròng -->
+                <page string="Chất liệu &amp; Tích hợp Tròng" name="lens_material_tab"
+                        invisible="product_kind_ui != 'lens'">
+                    <group string="Chất liệu &amp; Tích hợp">
+                        <group>
+                            <field name="lens_material_id" string="Vật liệu"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_index_id" string="Chiết suất"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_uv_id" string="UV"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_coating_ids" string="Coating" widget="many2many_tags"
+                                   options="{'no_create': False}"/>
+                        </group>
+                        <group>
+                            <field name="lens_cl_hmc_id" string="HMC"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_cl_pho_id" string="Photochromic"
+                                   options="{'no_create': False}"/>
+                            <field name="lens_cl_tint_id" string="Tinted"
+                                   options="{'no_create': False}"/>
+                        </group>
+                    </group>
+                </page>
 
                 <!-- Tab Legacy: product.lens cũ (chỉ hiện khi còn dữ liệu chưa migrate) -->
                 <page string="⚠ Dữ liệu Cũ (product.lens)" name="product_lens_legacy"
-                      invisible="not is_lens or not lens_ids">
+                        invisible="product_kind_ui != 'lens' or not lens_ids">
                     <div class="alert alert-warning" role="alert">
-                        <strong>⚠️ Dữ liệu Legacy:</strong>
-                        Tab này hiển thị dữ liệu cũ từ model <em>product.lens</em>.
+                        <strong>⚠️ Dữ liệu Legacy:</strong> Tab này hiển thị dữ liệu cũ từ model <em>product.lens</em>.
                         Hãy chạy wizard <b>Migrate Lens Data → Fields</b> (menu Cấu hình) để chuyển
-                        sang các field mới ở tab <b>"Thiết kế Tròng"</b> / <b>"Chất liệu Tròng"</b> / <b>"Tích hợp
-                        Tròng"</b>.
+                        sang các field mới ở tab <b>"Thiết kế Tròng"</b> / <b>"Chất liệu Tròng"</b> / <b>"Tích hợp Tròng"</b>.
                     </div>
                     <field name="lens_ids" nolabel="1">
                         <list create="0" delete="0">
@@ -163,15 +179,15 @@
                         </list>
                     </field>
                 </page>
-
+                
                 <!-- ══════════════════════════════════════════════════════════
                      Tabs Gọng (Hướng B: field trực tiếp trên template)
-                     Hiển thị chỉ khi is_opt = True
+                     Hiển thị chỉ khi product_kind_ui = 'opt'
                      ══════════════════════════════════════════════════════════ -->
 
                 <!-- Tab Gọng 1: Thông tin cơ bản -->
                 <page string="Thông tin Gọng" name="product_opt_info"
-                      invisible="not is_opt">
+                        invisible="product_kind_ui != 'opt'">
                     <group string="Thông tin chung">
                         <group>
                             <field name="opt_season"/>
@@ -188,7 +204,7 @@
 
                 <!-- Tab Gọng 2: Thiết kế -->
                 <page string="Thiết kế Gọng" name="product_opt_design"
-                      invisible="not is_opt">
+                        invisible="product_kind_ui != 'opt'">
                     <group string="Kiểu dáng">
                         <group>
                             <field name="opt_frame_id" options="{'no_create': True}"/>
@@ -205,7 +221,7 @@
 
                 <!-- Tab Gọng 3: Vật liệu -->
                 <page string="Vật liệu Gọng" name="product_opt_material"
-                      invisible="not is_opt">
+                        invisible="product_kind_ui != 'opt'">
                     <group string="Vật liệu">
                         <group>
                             <field name="opt_materials_front_ids" string="Mặt trước" widget="many2many_tags"
@@ -225,15 +241,14 @@
 
                 <!-- Tab Gọng 4: Màu sắc và Kích thước -->
                 <page string="Màu sắc và kích thước Gọng" name="product_opt_color_size"
-                      invisible="not is_opt">
+                        invisible="product_kind_ui != 'opt'">
                     <group string="Màu sắc">
                         <group>
                             <field name="opt_color_front_ids" string="Màu mặt trước"
                                    widget="many2many_tags" options="{'no_create': True}"/>
                             <field name="opt_color_temple_ids" string="Màu càng kính"
                                    widget="many2many_tags" options="{'no_create': True}"/>
-                            <field name="opt_color_lens_id" string="Màu mắt kính (trường mắt)"
-                                   options="{'no_create': True}"/>
+                            <field name="opt_color_lens_id" string="Màu mắt kính (trường mắt)" options="{'no_create': True}"/>
                         </group>
                     </group>
                     <group string="Kích thước (mm)">
@@ -250,8 +265,8 @@
                 </page>
 
                 <!-- Tab Gọng 6: Bảo hành -->
-                <page string="Bảo hành Gọng" name="product_opt_warranty"
-                      invisible="1">
+                    <page string="Bảo hành Gọng" name="product_opt_warranty"
+                          invisible="1">
                     <group string="Chính sách bảo hành">
                         <group>
                             <field name="warranty_template_id"
@@ -267,7 +282,7 @@
 
                 <!-- Tab Gọng 7: Phụ kiện đi kèm -->
                 <page string="Phụ kiện đi kèm" name="product_opt_accessories"
-                      invisible="not is_opt">
+                        invisible="product_kind_ui not in ('opt', 'lens', 'accessory')">
                     <group string="Phụ kiện">
                         <group>
                             <field name="has_box"/>
@@ -282,19 +297,19 @@
                 </page>
 
                 <!-- Tabs Phụ kiện / Sản phẩm khác (không phải lens/opt) -->
-                <page string="Thiết kế" name="accessory_design_tab" invisible="is_lens or is_opt">
+                <page string="Thiết kế" name="accessory_design_tab" invisible="product_kind_ui != 'accessory'">
                     <group>
                         <field name="design_id"/>
                         <field name="shape_id"/>
                     </group>
                 </page>
-                <page string="Vật liệu &amp; Màu sắc" name="accessory_material_color_tab" invisible="is_lens or is_opt">
+                <page string="Vật liệu &amp; Màu sắc" name="accessory_material_color_tab" invisible="product_kind_ui != 'accessory'">
                     <group>
                         <field name="material_id"/>
                         <field name="color_id"/>
                     </group>
                 </page>
-                <page string="Kích thước" name="accessory_size_tab" invisible="is_lens or is_opt">
+                <page string="Kích thước" name="accessory_size_tab" invisible="product_kind_ui != 'accessory'">
                     <group>
                         <field name="acc_width" string="Chiều rộng"/>
                         <field name="acc_length" string="Chiều dài"/>

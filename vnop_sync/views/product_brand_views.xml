@@ -9,6 +9,12 @@
                        filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
                 <field name="code"/>
                 <separator/>
+                <filter name="filter_active" string="Active" domain="[('active', '=', True)]"/>
+                <filter name="filter_archived" string="Archived" domain="[('active', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_by_active" string="Status" context="{'group_by': 'active'}"/>
+                </group>
             </search>
         </field>
     </record>
@@ -26,7 +32,7 @@
         <field name="res_model">product.brand</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_product_brand_search"/>
-        <field name="context">{}</field>
+        <field name="context">{'search_default_filter_active': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first Brand!</p>
             <p>Brands help organize products by manufacturer.</p>
@@ -40,6 +46,8 @@
             <list string="Brands">
                 <field name="name"/>
                 <field name="code"/>
+                <field name="product_count"/>
+                <field name="active"/>
             </list>
         </field>
     </record>
@@ -51,13 +59,24 @@
             <form string="Brand">
                 <sheet>
                     <div class="oe_button_box" name="button_box">
+                        <button name="%(action_product_template_brand)d"
+                                type="action"
+                                class="oe_stat_button"
+                                icon="fa-cubes"
+                                context="{'search_default_brand_id': id}"
+                                invisible="product_count == 0">
+                            <field name="product_count" widget="statinfo" string="Products"/>
+                        </button>
                     </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="bg-danger"
+                            invisible="active == True"/>
                     <group>
                         <group>
                             <field name="name" placeholder="VD: Essilor, Cadillac, ZenOptic"/>
                             <field name="code" placeholder="VD: 003, 004, 005"/>
                         </group>
                         <group>
+                            <field name="active" widget="boolean_toggle"/>
                         </group>
                     </group>
                     <notebook>

@@ -15,7 +15,6 @@ class ProductOpt(models.Model):
     serial = fields.Char('Serial', size=50)
     oem_ncc = fields.Char('OEM Supplier', size=50)
     sku = fields.Char('SKU', size=50)
-    color_code = fields.Char('Color Code', size=50)
     gender = fields.Selection([
         ('1', 'Male'),
         ('2', 'Female'),
@@ -23,11 +22,11 @@ class ProductOpt(models.Model):
     ], 'Gender')
 
     # Dimensions
-    temple_width = fields.Float('Temple Width (mm)', digits=(6, 1))
-    lens_width = fields.Float('Lens Width (mm)', digits=(6, 1))
-    lens_span = fields.Float('Lens Span (mm)', digits=(6, 1))
-    lens_height = fields.Float('Lens Height (mm)', digits=(6, 1))
-    bridge_width = fields.Float('Bridge Width (mm)', digits=(6, 1))
+    temple_width = fields.Integer('Temple Width')
+    lens_width = fields.Integer('Lens Width')
+    lens_span = fields.Integer('Lens Span')
+    lens_height = fields.Integer('Lens Height')
+    bridge_width = fields.Integer('Bridge Width')
 
     # Colors
     color = fields.Char('Color', size=50)

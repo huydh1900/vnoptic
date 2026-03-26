@@ -15,6 +15,7 @@
                             <field name="image" widget="image" readonly="1"/>
                             <field name="full_name" readonly="1"/>
                             <field name="eng_name" readonly="1"/>
+                            <field name="trade_name" readonly="1"/>
                             <field name="unit" readonly="1"/>
                             <field name="brand" readonly="1"/>
                             <field name="supplier" readonly="1"/>
@@ -189,6 +190,7 @@
                                     <field name="image" widget="image" string="Ảnh"/>
                                     <field name="full_name" string="Tên đầy đủ"/>
                                     <field name="eng_name" string="Tên tiếng Anh"/>
+                                    <field name="trade_name" string="Tên thương mại"/>
                                     <field name="unit" string="Đơn vị"/>
                                     <field name="brand" string="Thương hiệu"/>
                                     <field name="supplier" string="Nhà cung cấp"/>
@@ -252,6 +254,7 @@
                                     <field name="image" widget="image" string="Ảnh"/>
                                     <field name="full_name" string="Tên đầy đủ"/>
                                     <field name="eng_name" string="Tên tiếng Anh"/>
+                                    <field name="trade_name" string="Tên thương mại"/>
                                     <field name="unit" string="Đơn vị"/>
                                     <field name="brand" string="Thương hiệu"/>
                                     <field name="supplier" string="Nhà cung cấp"/>
@@ -319,6 +322,7 @@
                                     <field name="image" widget="image" string="Ảnh"/>
                                     <field name="full_name" string="Tên đầy đủ"/>
                                     <field name="eng_name" string="Tên tiếng Anh"/>
+                                    <field name="trade_name" string="Tên thương mại"/>
                                     <field name="unit" string="Đơn vị"/>
                                     <field name="brand" string="Thương hiệu"/>
                                     <field name="supplier" string="Nhà cung cấp"/>

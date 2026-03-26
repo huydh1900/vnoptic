@@ -6,3 +6,4 @@ class ProductShape(models.Model):
     name = fields.Char('Tên hình dáng', required=True)
     code = fields.Char('Mã hình dáng')
     cid = fields.Char('Mã đồng bộ', index=True)
+    active = fields.Boolean(default=True)

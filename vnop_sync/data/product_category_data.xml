@@ -5,19 +5,16 @@
         
         <record id="product_category_lens" model="product.category">
             <field name="name">Tròng kính</field>
-            <field name="parent_id" ref="product.product_category_all"/>
             <field name="code">06</field>
         </record>
         
         <record id="product_category_opt" model="product.category">
             <field name="name">Gọng kính</field>
-            <field name="parent_id" ref="product.product_category_all"/>
             <field name="code">27</field>
         </record>
         
         <record id="product_category_accessory" model="product.category">
             <field name="name">Phụ kiện</field>
-            <field name="parent_id" ref="product.product_category_all"/>
             <field name="code">20</field>
         </record>
         
