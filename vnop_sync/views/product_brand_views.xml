@@ -1,43 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_product_brand_search" model="ir.ui.view">
-        <field name="name">product.brand.search</field>
-        <field name="model">product.brand</field>
-        <field name="arch" type="xml">
-            <search string="Search Brands">
-                <field name="name" string="Brand"
-                       filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
-                <field name="code"/>
-                <separator/>
-            </search>
-        </field>
-    </record>
-
-    <record id="action_product_template_brand" model="ir.actions.act_window">
-        <field name="name">Products</field>
-        <field name="res_model">product.template</field>
-        <field name="view_mode">list,form</field>
-        <field name="domain">[('brand_id', '=', active_id)]</field>
-        <field name="context">{'default_brand_id': active_id}</field>
-    </record>
 
     <record id="action_product_brand" model="ir.actions.act_window">
-        <field name="name">Brands</field>
+        <field name="name">Thương hiệu</field>
         <field name="res_model">product.brand</field>
         <field name="view_mode">list,form</field>
-        <field name="search_view_id" ref="view_product_brand_search"/>
-        <field name="context">{}</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create your first Brand!</p>
-            <p>Brands help organize products by manufacturer.</p>
-        </field>
     </record>
 
     <record id="view_product_brand_tree" model="ir.ui.view">
         <field name="name">product.brand.tree</field>
         <field name="model">product.brand</field>
         <field name="arch" type="xml">
-            <list string="Brands">
+            <list>
                 <field name="name"/>
                 <field name="code"/>
             </list>
@@ -48,32 +22,21 @@
         <field name="name">product.brand.form</field>
         <field name="model">product.brand</field>
         <field name="arch" type="xml">
-            <form string="Brand">
+            <form>
                 <sheet>
-                    <div class="oe_button_box" name="button_box">
-                    </div>
                     <group>
-                        <group>
-                            <field name="name" placeholder="VD: Essilor, Cadillac, ZenOptic"/>
-                            <field name="code" placeholder="VD: 003, 004, 005"/>
-                        </group>
-                        <group>
-                        </group>
+                        <field name="name" placeholder="VD: Essilor, Cadillac, ZenOptic"/>
+                        <field name="code" placeholder="VD: 003, 004, 005"/>
                     </group>
-                    <notebook>
-                        <page string="Description" name="description">
-                            <field name="description" placeholder="Brand description..." nolabel="1"/>
-                        </page>
-                    </notebook>
                 </sheet>
             </form>
         </field>
     </record>
 
     <menuitem id="menu_product_brand"
-              name="Brands"
-              parent="menu_product_master_data"
+              name="Thương hiệu"
+              parent="purchase.menu_product_in_config_purchase"
               action="action_product_brand"
-              sequence="10"/>
+              sequence="5"/>
 
 </odoo>

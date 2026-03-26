@@ -14,6 +14,7 @@
         'views/product_warranty_views.xml',
         'views/product_warranty_template_views.xml',
         'views/product_tree_common_views.xml',
+        'views/product_category_views.xml',
         'views/product_template_views.xml',
         'wizard/product_excel_import_views.xml',
         'wizard/lens_variant_migration_wizard_views.xml',

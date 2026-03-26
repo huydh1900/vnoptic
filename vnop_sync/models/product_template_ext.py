@@ -7,7 +7,12 @@ class ProductCategory(models.Model):
     _inherit = 'product.category'
     
     code = fields.Char('Mã danh mục', size=2, index=True,
-                       help='Mã 2 số dùng cho tạo mã sản phẩm (VD: 06=Tròng kính, 27=Gọng kính, 20=Phụ kiện)')
+                       help='Mã danh mục dùng cho phân loại & tạo mã sản phẩm (VD: TK=Tròng kính, GK=Gọng kính, PK=Phụ kiện)')
+    group_ids = fields.One2many(
+        'product.group',
+        'category_id',
+        string='Nhóm sản phẩm'
+    )
 
 
 class ProductTemplateExtension(models.Model):
@@ -18,12 +23,57 @@ class ProductTemplateExtension(models.Model):
     # Computed fields to replace product_type for UI logic
     is_lens = fields.Boolean(compute='_compute_product_kind', store=False)
     is_opt = fields.Boolean(compute='_compute_product_kind', store=False)
+    is_accessory = fields.Boolean(compute='_compute_product_kind', store=False)
 
-    @api.depends('product_type')
+    @api.depends('product_type', 'categ_id')
     def _compute_product_kind(self):
         for record in self:
-            record.is_opt = record.product_type == 'opt'
-            record.is_lens = record.product_type == 'lens'
+            inferred = record._infer_product_type_from_category(record.categ_id) if record.categ_id else record.product_type
+            record.is_opt = inferred == 'opt'
+            record.is_lens = inferred == 'lens'
+            record.is_accessory = inferred == 'accessory'
+
+    def _infer_product_type_from_category(self, category):
+        """Infer business product_type from product.category (code/name), walking up parents."""
+        categ = category
+        while categ:
+            code = (getattr(categ, 'code', '') or '').strip()
+            if code:
+                code_upper = code.upper()
+                # Hỗ trợ cả mã legacy (06/27/20) và mã mới theo file data (TK/GK/PK/TB/LK)
+                if code_upper.startswith('06') or code_upper.startswith('TK'):
+                    return 'lens'
+                if code_upper.startswith('27') or code_upper.startswith('GK'):
+                    return 'opt'
+                if (code_upper.startswith('20')
+                        or code_upper.startswith('PK')
+                        or code_upper.startswith('TB')
+                        or code_upper.startswith('LK')):
+                    return 'accessory'
+            categ = categ.parent_id
+
+        # Fallback: infer from name keywords (when code is missing)
+        name = (getattr(category, 'name', '') or '').strip().lower() if category else ''
+        if any(k in name for k in ['tròng', 'trong', 'lens']):
+            return 'lens'
+        if any(k in name for k in ['gọng', 'gong', 'optical', 'opt']):
+            return 'opt'
+        if any(k in name for k in ['phụ kiện', 'phu kien', 'accessor']):
+            return 'accessory'
+        if any(k in name for k in ['all', 'tất cả', 'tat ca']):
+            return False
+        return False
+
+    @api.onchange('categ_id')
+    def _onchange_categ_id_reset_groups(self):
+        """Switch UI group field by category; clear groups when category changes."""
+        for rec in self:
+            inferred = rec._infer_product_type_from_category(rec.categ_id)
+            rec.lens_group_id = False
+            rec.opt_group_id = False
+            rec.acc_group_id = False
+            rec.group_id = False
+            rec.product_type = inferred
 
     # Keep product_type for now but make it computed or optional if needed
     # For now we just add the new logic alongside
@@ -161,8 +211,11 @@ class ProductTemplateExtension(models.Model):
     opt_ids = fields.One2many('product.opt', 'product_tmpl_id', 'Optical Details (Legacy)')
 
     # ==================== ADDITIONAL FIELDS FOR VIEW ====================
-    group_id = fields.Many2one('product.group', string='Nhóm sản phẩm (legacy)',
-                                help='[Deprecated] Dùng lens_group_id / opt_group_id / acc_group_id')
+    group_id = fields.Many2one(
+        'product.group',
+        string='Nhóm sản phẩm',
+        help='Nhóm sản phẩm (lọc theo cây danh mục).'
+    )
     lens_group_id = fields.Many2one('product.group', string='Nhóm Tròng kính',
                                      domain=[('product_type', '=', 'lens')],
                                      help='Nhóm sản phẩm cho Tròng kính')
@@ -172,6 +225,9 @@ class ProductTemplateExtension(models.Model):
     acc_group_id = fields.Many2one('product.group', string='Nhóm Phụ kiện',
                                     domain=[('product_type', '=', 'accessory')],
                                     help='Nhóm sản phẩm cho Phụ kiện')
+
+    # NOTE: lens_group_id/opt_group_id/acc_group_id giữ lại để tương thích dữ liệu cũ,
+    # UI hiện tại dùng group_id duy nhất và lọc theo danh mục.
     index_id = fields.Many2one('product.lens.index', string='Chiết suất', 
                                 help='Lens index for code generation (lens products only)')
     auto_generate_code = fields.Boolean('Tự động tạo mã', default=True,
@@ -255,7 +311,7 @@ class ProductTemplateExtension(models.Model):
     )
 
     # Thiết kế
-    opt_frame_id = fields.Many2one('product.frame', string='Kiểu gọng')
+    opt_frame_id = fields.Many2one('product.frame', string='Loại gọng')
     opt_frame_type_id = fields.Many2one('product.frame.type', string='Loại gọng')
     opt_shape_id = fields.Many2one('product.shape', string='Dáng gọng')
     opt_ve_id = fields.Many2one('product.ve', string='Ve')
@@ -455,6 +511,10 @@ class ProductTemplateExtension(models.Model):
     def create(self, vals_list):
         from ..utils import product_code_utils
         for vals in vals_list:
+            if 'product_type' not in vals and vals.get('categ_id'):
+                categ = self.env['product.category'].browse(vals['categ_id'])
+                vals['product_type'] = self._infer_product_type_from_category(categ)
+
             # Auto-generate product code if enabled and not provided
             if vals.get('auto_generate_code', True) and not vals.get('default_code'):
                 categ_id = vals.get('categ_id')
@@ -483,6 +543,18 @@ class ProductTemplateExtension(models.Model):
         return products
 
     def write(self, vals):
+        if 'categ_id' in vals:
+            # Clear groups when category changes, unless caller explicitly sets group fields.
+            if not any(k in vals for k in ('lens_group_id', 'opt_group_id', 'acc_group_id', 'group_id')):
+                vals.setdefault('lens_group_id', False)
+                vals.setdefault('opt_group_id', False)
+                vals.setdefault('acc_group_id', False)
+                vals.setdefault('group_id', False)
+
+            if 'product_type' not in vals and vals.get('categ_id'):
+                categ = self.env['product.category'].browse(vals['categ_id'])
+                vals['product_type'] = self._infer_product_type_from_category(categ)
+
         if 'product_type' in vals:
             new_type = vals['product_type']
             if new_type != 'lens':
@@ -530,4 +602,3 @@ class ProductTemplateExtension(models.Model):
             self.env['product.opt'].create({'product_tmpl_id': product.id})
         
         return True
-

@@ -8,7 +8,6 @@ access_product_warranty_manager,access_product_warranty_manager,model_product_wa
 access_product_lens_user,product.lens user,model_product_lens,base.group_user,1,1,1,1
 access_product_opt_user,product.opt user,model_product_opt,base.group_user,1,1,1,1
 access_product_group_user,product.group user,model_product_group,base.group_user,1,1,1,1
-access_product_group_type_user,product.group.type user,model_product_group_type,base.group_user,1,1,1,1
 access_product_status_user,product.status user,model_product_status,base.group_user,1,1,1,1
 access_product_design_user,product.design user,model_product_design,base.group_user,1,1,1,1
 access_product_material_user,product.material user,model_product_material,base.group_user,1,1,1,1

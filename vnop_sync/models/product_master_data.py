@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import models, fields
+from odoo import models, fields, api
 
 
 class ProductGroup(models.Model):
@@ -10,22 +10,50 @@ class ProductGroup(models.Model):
     name = fields.Char('Tên nhóm', required=True)
     description = fields.Text('Mô tả', size=200)
     cid = fields.Char("Mã nhóm", required=True)
-    group_type_id = fields.Many2one('product.group.type', string='Loại nhóm')
+    category_id = fields.Many2one(
+        'product.category',
+        string='Danh mục sản phẩm',
+        help='Danh mục mà nhóm này áp dụng (dùng để lọc nhóm theo cây danh mục).'
+    )
     product_type = fields.Selection([
-        ('lens', 'Tròng kính'),
-        ('opt', 'Gọng kính'),
-        ('accessory', 'Phụ kiện')
-    ], string='Phân loại nghiệp vụ', help='Nhóm này áp dụng cho loại sản phẩm nào')
+        ('DT', 'Tròng kính/Đơn tròng'),
+        ('HT', 'Tròng kính/Hai tròng'),
+        ('PT', 'Tròng kính/Phôi tròng'),
+        ('DAT', 'Tròng kính/Đa tròng'),
+        ('GK', 'Gọng kính'),
+        ('PK', 'Phụ kiện'),
+        ('TB', 'Trưng bày'),
+        ('LK', 'Linh kiện kỹ thuật'),
+    ], string='Phân loại')
 
+    def _infer_group_code_from_category(self, category):
+        categ = category
+        while categ:
+            code = (getattr(categ, 'code', '') or '').strip().upper()
+            if code:
+                return code
+            categ = categ.parent_id
+        return ''
 
-class ProductGroupType(models.Model):
-    _name = 'product.group.type'
-    _description = 'Product Group Type'
-    _order = 'name'
+    @api.model_create_multi
+    def create(self, vals_list):
+        allowed = {k for k, _ in self._fields['product_type'].selection}
+        for vals in vals_list:
+            categ_id = vals.get('category_id')
+            if categ_id:
+                code = self._infer_group_code_from_category(self.env['product.category'].browse(categ_id))
+                if code in allowed:
+                    vals['product_type'] = code
+        return super().create(vals_list)
 
-    name = fields.Char('Tên', required=True)
-    code = fields.Char('Mã')
-
+    def write(self, vals):
+        if vals.get('category_id'):
+            allowed = {k for k, _ in self._fields['product_type'].selection}
+            code = self._infer_group_code_from_category(self.env['product.category'].browse(vals['category_id']))
+            if code in allowed:
+                vals = dict(vals)
+                vals['product_type'] = code
+        return super().write(vals)
 
 class ProductStatus(models.Model):
     _name = 'product.status'

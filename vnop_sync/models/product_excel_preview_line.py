@@ -32,7 +32,7 @@ class ProductExcelPreviewLine(models.TransientModel):
     # Optical specific
     sku = fields.Char('SKU', readonly=True)
     model = fields.Char('Model', readonly=True)
-    frame_type = fields.Char('Kiểu gọng', readonly=True)
+    frame_type = fields.Char('Loại gọng', readonly=True)
     
     # Validation
     has_error = fields.Boolean('Có lỗi', readonly=True, default=False)
