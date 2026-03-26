@@ -26,13 +26,26 @@
             </xpath>
 
             <!-- Add hidden computed fields for UI logic -->
+
             <xpath expr="//div[@class='oe_title']" position="after">
                 <field name="product_kind_ui" invisible="1"/>
                 <field name="is_lens" invisible="1"/>
                 <field name="is_opt" invisible="1"/>
+                <field name="x_is_default_image" invisible="1"/>
             </xpath>
 
-            <xpath expr="//field[@name='image_1920']" position="after">
+            <xpath expr="//field[@name='image_1920']" position="replace">
+                <div class="oe_avatar" style="position:relative; display:inline-block;">
+                    <field
+                        name="image_1920"
+                        widget="image"
+                        options="{'convert_to_webp': True, 'preview_image': 'image_128'}"
+                    />
+                    <span invisible="not x_is_default_image"
+                          style="position:absolute; top:4px; left:4px; z-index:10; background:rgba(220,53,69,0.92); color:#fff; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; white-space:nowrap;">
+                        Lỗi RS
+                    </span>
+                </div>
                 <field name="x_qr_image" widget="image" class="oe_avatar oe_inline"
                        options="{'size': [96, 96]}" readonly="1" nolabel="1"
                        style="margin-left: -6px;"/>

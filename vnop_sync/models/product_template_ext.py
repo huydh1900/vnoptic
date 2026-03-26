@@ -18,6 +18,20 @@ class ProductCategory(models.Model):
 
 
 class ProductTemplateExtension(models.Model):
+
+    x_is_default_image = fields.Boolean(
+        string='Ảnh mặc định/lỗi',
+        compute='_compute_is_default_image',
+        store=False,
+        help='Đánh dấu nếu ảnh sản phẩm là mặc định hoặc lỗi (ví dụ: default.png từ RS hoặc không có ảnh)'
+    )
+
+    @api.depends('image_1920')
+    def _compute_is_default_image(self):
+        for rec in self:
+            # Show warning only when product image is missing.
+            rec.x_is_default_image = not bool(rec.image_1920)
+
     _inherit = 'product.template'
     _QR_PRODUCT_BASE_URL = 'https://erp.vnoptictech.com.vn/product'
 
