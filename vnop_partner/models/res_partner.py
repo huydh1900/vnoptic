@@ -12,6 +12,14 @@ class ResPartner(models.Model):
     ]
 
     code = fields.Char(string='Mã khách hàng', required=False)
+    fax = fields.Char(string='Fax')
+    is_supplier_sync_contact = fields.Boolean(
+        string='Supplier Sync Contact',
+        default=False,
+        index=True,
+        copy=False,
+        help='Technical marker for contact created/updated by supplier sync.',
+    )
 
     @api.model_create_multi
     def create(self, vals_list):

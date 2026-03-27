@@ -1938,7 +1938,17 @@ class ProductSync(models.Model):
                 if zone_value:
                     return str(zone_value).strip()
 
-        # IMPORTANT: do not fallback to product currency for supplier purchase currency.
+        # Supplier payload may omit currency; fallback to product currencyZoneDTO as inherited source.
+        value = self._rs_pick(dto, ['currencyCode', 'currency_code', 'currency'])
+        if value:
+            return str(value).strip()
+
+        zone = dto.get('currencyZoneDTO') if isinstance(dto, dict) else {}
+        if isinstance(zone, dict):
+            zone_value = zone.get('cid') or zone.get('code') or zone.get('name')
+            if zone_value:
+                return str(zone_value).strip()
+
         return ''
 
     def _extract_seller_payloads(self, vals):
@@ -2062,17 +2072,49 @@ class ProductSync(models.Model):
             'contactEmail', 'contact_email', 'email',
         ]))
 
-        contact = self.env['res.partner'].search([
+        partner_model = self.env['res.partner'].with_context(active_test=False)
+        base_domain = [
             ('parent_id', '=', partner.id),
             ('type', '=', 'contact'),
-            ('name', '=', contact_name),
-        ], limit=1)
+        ]
+
+        marker_field = 'is_supplier_sync_contact'
+        marker_supported = marker_field in partner_model._fields
+        synced_contacts = partner_model.browse()
+        if marker_supported:
+            synced_contacts = partner_model.search(base_domain + [(marker_field, '=', True)], order='id ASC')
+
+        contact = synced_contacts[:1] if synced_contacts else partner_model.browse()
+        if marker_supported and len(synced_contacts) > 1 and 'active' in partner_model._fields:
+            synced_contacts[1:].write({'active': False})
+
+        if not contact:
+            legacy_contacts = partner_model.search(base_domain, order='id ASC')
+            if marker_supported:
+                if len(legacy_contacts) == 1:
+                    contact = legacy_contacts[:1]
+                elif legacy_contacts:
+                    for legacy_contact in legacy_contacts:
+                        if contact_email and legacy_contact.email and legacy_contact.email == contact_email:
+                            contact = legacy_contact
+                            break
+                        if contact_phone and legacy_contact.phone and legacy_contact.phone == contact_phone:
+                            contact = legacy_contact
+                            break
+                        if legacy_contact.name and legacy_contact.name == contact_name:
+                            contact = legacy_contact
+                            break
+            elif legacy_contacts:
+                contact = legacy_contacts[:1]
+
         contact_vals = {
             'name': contact_name,
             'parent_id': partner.id,
             'type': 'contact',
             'is_company': False,
         }
+        if marker_supported:
+            contact_vals[marker_field] = True
         if contact_phone:
             contact_vals['phone'] = contact_phone
         if contact_email:
@@ -2416,7 +2458,8 @@ class ProductSync(models.Model):
         )
         acc_number = self._clean_placeholder_text(payload.get('bank_account'))
         bank_name = self._clean_placeholder_text(payload.get('bank_name'))
-        swift_code = self._clean_placeholder_text(payload.get('bank_swift'))
+        swift_raw = self._clean_placeholder_text(payload.get('bank_swift'))
+        swift_code = swift_raw or 'không'
         bank_street = self._clean_placeholder_text(payload.get('bank_address'))
         bank_branch = self._clean_placeholder_text(payload.get('bank_branch'))
         bank_country = self._clean_placeholder_text(payload.get('bank_country'))
@@ -2443,7 +2486,7 @@ class ProductSync(models.Model):
             bank_street,
         )
 
-        if not any([bank_name, swift_code]):
+        if not any([bank_name, swift_raw]):
             self._log_supplier_sync(
                 supplier_ref,
                 "skip res.bank upsert: both bank_name and swift are empty/placeholder",
@@ -2451,8 +2494,8 @@ class ProductSync(models.Model):
 
         country_id = self._resolve_country_id_any(bank_country)
         bank_domain = []
-        if swift_code:
-            bank_domain = [('bic', '=', swift_code)]
+        if swift_raw:
+            bank_domain = [('bic', '=', swift_raw)]
         elif bank_name and country_id:
             bank_domain = [('name', '=', bank_name), ('country', '=', country_id)]
         elif bank_name:
@@ -2463,8 +2506,7 @@ class ProductSync(models.Model):
         bank_vals = {}
         if bank_name:
             bank_vals['name'] = bank_name
-        if swift_code:
-            bank_vals['bic'] = swift_code
+        bank_vals['bic'] = swift_code
         if bank_street:
             bank_vals['street'] = bank_street
         if country_id:
@@ -2472,7 +2514,7 @@ class ProductSync(models.Model):
         if bank_branch and 'bank_branch_name' in self.env['res.bank']._fields:
             bank_vals['bank_branch_name'] = bank_branch
 
-        if bank_vals and not bank_vals.get('name') and swift_code:
+        if bank_vals and not bank_vals.get('name') and swift_raw:
             bank_vals['name'] = swift_code
 
         if bank:
@@ -2603,27 +2645,40 @@ class ProductSync(models.Model):
         if not partner and 'code' in self.env['res.partner']._fields:
             partner = self.env['res.partner'].search([('code', '=', ref)], limit=1)
 
-        phone = self._rs_pick(detail, ['phone', 'phoneNumber', 'telephone'])
-        email = self._clean_placeholder_text(self._rs_pick(detail, ['mail', 'email']))
-        vat = self._clean_placeholder_text(self._rs_pick(detail, ['taxCode', 'tax_code', 'taxNumber', 'tax_number', 'taxId', 'vat', 'mst']))
-        fax = self._clean_placeholder_text(self._rs_pick(detail, ['fax', 'faxNumber', 'fax_number']))
-        address_text = self._rs_pick(detail, ['address', 'street'])
-        city = self._rs_pick(detail, ['city'])
-        partner_country = self._rs_pick(detail, ['countryCode', 'country_code', 'country'])
+        def _pick_from_candidates(keys, clean=False, skip_placeholder=False):
+            for candidate in detail_candidates:
+                value = self._rs_pick(candidate, keys, skip_placeholder=skip_placeholder)
+                if clean:
+                    value = self._clean_placeholder_text(value)
+                if value:
+                    return value
+            return False
+
+        phone = _pick_from_candidates(['phone', 'phoneNumber', 'telephone'], clean=True)
+        email = _pick_from_candidates(['mail', 'email'], clean=True)
+        vat = _pick_from_candidates(
+            ['taxCode', 'tax_code', 'taxNumber', 'tax_number', 'taxId', 'vat', 'mst'],
+            clean=True,
+        )
+        fax = _pick_from_candidates(['fax', 'faxNumber', 'fax_number', 'faxNo', 'fax_no'], clean=True)
+        address_text = _pick_from_candidates(['address', 'street'], clean=True)
+        city = _pick_from_candidates(['city'], clean=True)
+        partner_country = _pick_from_candidates(['countryCode', 'country_code', 'country'], clean=True)
         if not partner_country and isinstance(detail.get('coDTO'), dict):
             partner_country = (
                 detail['coDTO'].get('cid')
                 or detail['coDTO'].get('code')
                 or detail['coDTO'].get('name')
             )
-        contact_person = self._clean_placeholder_text(self._rs_pick(detail, [
+        contact_person = _pick_from_candidates([
             'contactName', 'contact_name', 'contactPerson', 'contact_person',
             'contactPersonName', 'personContact', 'nguoiLienHe',
-        ]))
+        ], clean=True)
         self._log_alias_lookup(ref, detail, 'supplier_ref', ['cid', 'code', 'supplierCode', 'supplier_code'])
         self._log_alias_lookup(ref, detail, 'supplier_name', ['name', 'supplierName', 'supplier_name'])
         self._log_alias_lookup(ref, detail, 'phone', ['phone', 'phoneNumber', 'telephone'])
         self._log_alias_lookup(ref, detail, 'email', ['mail', 'email'])
+        self._log_alias_lookup(ref, detail, 'fax', ['fax', 'faxNumber', 'fax_number', 'faxNo', 'fax_no'])
         self._log_alias_lookup(ref, detail, 'address', ['address', 'street'])
         self._log_alias_lookup(ref, detail, 'vat', ['taxCode', 'tax_code', 'taxNumber', 'tax_number', 'taxId', 'vat', 'mst'])
         self._log_alias_lookup(ref, detail, 'contact_person', [
@@ -2674,8 +2729,10 @@ class ProductSync(models.Model):
         if vat:
             vals['vat'] = str(vat).strip()
         if fax:
-            # Odoo 18 base has no dedicated fax field; keep fax in mobile as safest standard slot.
-            vals['mobile'] = str(fax).strip()
+            if 'fax' in self.env['res.partner']._fields:
+                vals['fax'] = str(fax).strip()
+            elif 'mobile' in self.env['res.partner']._fields:
+                vals['mobile'] = str(fax).strip()
         if address_parts.get('street'):
             vals['street'] = address_parts['street']
         if address_parts.get('city'):

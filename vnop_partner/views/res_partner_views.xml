@@ -13,6 +13,9 @@
             <xpath expr="//form/sheet/group/group[1]/div/field[@name='street2']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
+            <xpath expr="//form/sheet/group/group[field[@name='vat']]/following-sibling::group[1]" position="inside">
+                <field name="fax" string="Fax"/>
+            </xpath>
             <field name="vat" position="after">
                 <field name="ref" string="Mã NCC"/>
                 <field name="code" invisible="1"/>
