@@ -1695,19 +1695,6 @@ class ProductSync(models.Model):
             'x_group_type_name': grp_type_name,
         }
 
-        # Sync ảnh sản phẩm từ imageUrl
-        image_url = dto.get('imageUrl') or ''
-        if image_url:
-            if image_url.startswith('/'):
-                _cfg = self._get_api_config()
-                image_url = _cfg['base_url'].rstrip('/') + image_url
-            try:
-                img_resp = requests.get(image_url, timeout=10, verify=False)
-                if img_resp.status_code == 200 and img_resp.content:
-                    vals['image_1920'] = base64.b64encode(img_resp.content).decode('utf-8')
-            except Exception:
-                pass
-
         # Sync QR URL từ Java (https://erp.vnoptictech.com.vn/product/{id})
         java_id = dto.get('id')
         if java_id:
