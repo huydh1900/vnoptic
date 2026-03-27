@@ -1,19 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <odoo>
-    <!-- Extend product search view -->
-    <record id="product_template_search_inherit_custom" model="ir.ui.view">
-        <field name="name">product.template.search.inherit.custom</field>
-        <field name="model">product.template</field>
-        <field name="inherit_id" ref="product.product_template_search_view"/>
-        <field name="priority">101</field>
-        <field name="arch" type="xml">
-            <xpath expr="//field[@name='attribute_line_ids']" position="attributes">
-                <attribute name="domain">['|', ('product_tmpl_id.product_type', '!=', 'lens'), ('attribute_id.name',
-                    'not in', ('SPH','CYL','ADD'))]
-                </attribute>
-            </xpath>
-        </field>
-    </record>
 
     <!-- Ẩn categ_id trong product_template_form_view (form chính) -->
     <record id="product_template_form_hide_categ" model="ir.ui.view">
@@ -36,20 +22,13 @@
         <field name="arch" type="xml">
 
             <xpath expr="//field[@name='image_1920']" position="replace">
-                <div style="display: flex; align-items: center; gap: 10px;">
-
-                    <!-- Ảnh sản phẩm -->
-                    <field name="image_1920" widget="image"
-                           class="oe_avatar"
-                           options="{'preview_image': 'image_128'}"/>
-
-                    <!-- QR code -->
-                    <field name="barcode_image" widget="image" nolabel="1"
-                           readonly="1"
-                           invisible="not barcode_image"
-                           options="{'size': [80, 80]}"
-                           style="border:1px solid #ddd; padding:4px; background:#fff;"/>
-                </div>
+                <field name="image_1920" widget="image" class="oe_avatar"
+                       options="{'convert_to_webp': True, 'preview_image': 'image_128'}"/>
+                <field name="qr_code" widget="image" nolabel="1" readonly="1"
+                       invisible="not qr_code"
+                       options="{'size': [100, 100]}"
+                       class="oe_avatar"
+                       style="margin-right:15px;"/>
             </xpath>
 
             <xpath expr="//page[@name='general_information']//field[@name='default_code']" position="attributes">

@@ -1,22 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-    <record id="view_product_sync_search" model="ir.ui.view">
-        <field name="name">product.sync.search</field>
-        <field name="model">product.sync</field>
-        <field name="arch" type="xml">
-            <search string="Tìm kiếm đồng bộ">
-                <field name="name"/>
-                <separator/>
-                <filter name="filter_success" string="Thành công" domain="[('sync_status', '=', 'success')]"/>
-                <filter name="filter_error" string="Lỗi" domain="[('sync_status', '=', 'error')]"/>
-                <filter name="filter_never" string="Chưa đồng bộ" domain="[('sync_status', '=', 'never')]"/>
-                <separator/>
-                <group expand="0" string="Nhóm theo">
-                    <filter name="group_by_status" string="Trạng thái" context="{'group_by': 'sync_status'}"/>
-                </group>
-            </search>
-        </field>
-    </record>
 
     <record id="view_product_sync_tree" model="ir.ui.view">
         <field name="name">product.sync.tree</field>
@@ -26,9 +9,6 @@
                 <field name="name"/>
                 <field name="last_sync_date"/>
                 <field name="total_synced"/>
-                <field name="lens_count" optional="hide"/>
-                <field name="opts_count" optional="hide"/>
-                <field name="other_count" optional="hide"/>
                 <field name="sync_status" widget="badge"
                        decoration-success="sync_status == 'success'"
                        decoration-danger="sync_status == 'error'"
@@ -51,10 +31,6 @@
                             confirm="Sync toàn bộ sản phẩm? Có thể mất nhiều thời gian."/>
                     <button name="sync_products_limited"
                             string="Đồng bộ 200 Test"
-                            type="object"
-                            invisible="id == False"/>
-                    <button name="test_api_connection"
-                            string="Kiểm tra kết nối"
                             type="object"
                             invisible="id == False"/>
                     <field name="sync_status" widget="statusbar" statusbar_visible="never,success,error"/>
@@ -84,44 +60,6 @@
                         <page string="Nhật ký" name="sync_log">
                             <field name="sync_log" widget="text" placeholder="Nhật ký sẽ hiển thị ở đây..."/>
                         </page>
-                        <page string="Thông tin" name="info">
-                            <group>
-                                <div class="alert alert-info" role="alert">
-                                    <h4>Hướng dẫn:</h4>
-                                    <ol>
-                                        <li>Nhập Spring Boot <strong>username</strong> và
-                                            <strong>password</strong>
-                                        </li>
-                                        <li>Nhấn <strong>"Kiểm tra kết nối"</strong> để xác thực
-                                        </li>
-                                        <li>Nhấn <strong>"Đồng bộ toàn bộ"</strong> để bắt đầu
-                                        </li>
-                                        <li>Sản phẩm sẽ được phân loại tự động:
-                                            <ul>
-                                                <li>
-                                                    <strong>Mắt</strong>
-                                                    
-                                                </li>
-                                                <li>
-                                                    <strong>Gọng</strong>
-                                                  
-                                                </li>
-                                                <li>
-                                                    <strong>Khác</strong>
-                                                   
-                                                </li>
-                                            </ul>
-                                        </li>
-                                    </ol>
-                                    <hr/>
-
-                                    <p>
-                                        <strong>Xác thực:</strong>
-                                        JWT Bearer Token (auto-login)
-                                    </p>
-                                </div>
-                            </group>
-                        </page>
                     </notebook>
                 </sheet>
             </form>
@@ -133,15 +71,6 @@
         <field name="name">Product Synchronization</field>
         <field name="res_model">product.sync</field>
         <field name="view_mode">list,form</field>
-        <field name="search_view_id" ref="view_product_sync_search"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                Tạo cấu hình đồng bộ đầu tiên!
-            </p>
-            <p>
-                Đồng bộ tất cả sản phẩm từ Spring Boot API với phân loại tự động.
-            </p>
-        </field>
     </record>
 
     <menuitem id="menu_product_sync_root"

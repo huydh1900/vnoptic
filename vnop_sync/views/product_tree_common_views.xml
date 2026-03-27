@@ -8,7 +8,7 @@
         <field name="arch" type="xml">
             <!-- Add common fields after name -->
             <xpath expr="//field[@name='name']" position="after">
-                <field name="default_code" string="Mã SP"/>
+                <field name="default_code" string="Mã viết tắt"/>
                 
                 <!-- Common fields -->
                 <field name="brand_id" optional="show"/>

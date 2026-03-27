@@ -29,24 +29,24 @@ class ProductTemplateExtension(models.Model):
     ], string='Loại tròng')
 
     x_java_qr_url = fields.Char(string='QR URL (Java)', copy=False)
-    barcode_image = fields.Binary(string='QR Code', compute='_compute_barcode_image', store=False)
+    qr_code = fields.Binary(string='QR Code', compute='_compute_qr_code', store=False)
 
     @api.depends('x_java_qr_url')
-    def _compute_barcode_image(self):
+    def _compute_qr_code(self):
         try:
             import qrcode
         except ImportError:
             for rec in self:
-                rec.barcode_image = False
+                rec.qr_code = False
             return
         for rec in self:
             if rec.x_java_qr_url:
                 img = qrcode.make(rec.x_java_qr_url)
                 buf = BytesIO()
                 img.save(buf, format='PNG')
-                rec.barcode_image = base64.b64encode(buf.getvalue()).decode()
+                rec.qr_code = base64.b64encode(buf.getvalue()).decode()
             else:
-                rec.barcode_image = False
+                rec.qr_code = False
 
     def _get_category_by_code(self, code):
         return self.env['product.category'].search([('code', '=', code)], limit=1)
