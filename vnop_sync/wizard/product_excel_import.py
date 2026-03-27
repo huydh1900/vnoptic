@@ -754,21 +754,33 @@ class ProductExcelImport(models.TransientModel):
         Prepare product values dictionary from row data.
         Extracted from _create_product for reuse in batch operations.
         """
+        name = row_data.get('FullName')
         product_vals = {
-            'name': row_data.get('FullName'),
+            'name': name,
             'x_eng_name': row_data.get('EngName'),
             'product_type': product_type,
             'type': 'consu',
         }
+
+        # Rule: names starting with "Mắt" belong to lens category code TK.
+        normalized_name = (name or '').strip().lower()
+        if normalized_name.startswith('mắt') or normalized_name.startswith('mat'):
+            product_vals['product_type'] = 'lens'
+            tk_category = self.env['product.category'].search([('code', '=', 'TK')], limit=1)
+            if tk_category:
+                product_vals['categ_id'] = tk_category.id
         
         # Group (required)
         group = cache.get_group(row_data.get('Group'))
         if group:
             product_vals['group_id'] = group.id
+            if product_type == 'lens' and group.product_type in ('DT', 'HT', 'DAT', 'PT'):
+                product_vals['len_type'] = group.product_type
 
-        categ_id = self._resolve_category_id(product_type, group)
-        if categ_id:
-            product_vals['categ_id'] = categ_id
+        if not product_vals.get('categ_id'):
+            categ_id = self._resolve_category_id(product_vals['product_type'], group)
+            if categ_id:
+                product_vals['categ_id'] = categ_id
         
         # Brand (required)
         brand = cache.get_brand(row_data.get('TradeMark'))

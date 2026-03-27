@@ -1268,63 +1268,36 @@ class ProductSync(models.Model):
                     return s
             return ''
 
-        # CID là khoá chính trong hệ thống RS, nhưng một số payload có thể dùng code/sku.
+        def _looks_like_code(s):
+            # Avoid treating English name (contains spaces) as a code/default_code.
+            return bool(s) and not any(ch.isspace() for ch in str(s))
+
+        def _pick_code(src, keys):
+            if not isinstance(src, dict):
+                return ''
+            for k in keys:
+                v = src.get(k)
+                if v in (None, False):
+                    continue
+                s = str(v).strip()
+                if s and _looks_like_code(s):
+                    return s
+            return ''
+
+        # CID là khoá chính trong hệ thống RS.
+        # Đồng nhất cho mọi loại sản phẩm: chỉ lấy các trường dạng "code" (không có khoảng trắng).
         cid = (
-            _pick_str(dto, ['cid', 'code', 'sku', 'default_code', 'defaultCode'])
-            or _pick_str(item, ['cid', 'code', 'sku', 'default_code', 'defaultCode'])
+            _pick_code(dto, ['cid', 'default_code', 'defaultCode', 'code', 'sku'])
+            or _pick_code(item, ['cid', 'default_code', 'defaultCode', 'code', 'sku'])
         )
         if not cid:
             raise ValueError("Missing CID")
 
-        # default_code là "Mã viết tắt" trên Odoo.
-        # Với gọng (opt), dự án có thể muốn dùng: model-color (legacy), hoặc cid, hoặc sku.
-        # Điều khiển bằng env `OPT_DEFAULT_CODE_SOURCE`:
-        #   - model_color (default): <model>-<color>
-        #   - cid: productdto.cid
-        #   - sku: opt.sku (fallback về cid)
-        #   - auto: ưu tiên cid nếu trùng model-color; nếu không thì sku; rồi model-color; rồi cid
+        # default_code là "Mã viết tắt" trên Odoo: sync thống nhất cho mọi loại sản phẩm.
         default_code = cid
-        legacy_opt_model_color = ''
-        if product_type == 'opt':
-            sku = _pick_str(item, ['sku']) or _pick_str(dto, ['sku'])
-            model_code = (
-                _pick_str(item, ['model', 'modelCode', 'model_code', 'modelCid', 'model_cid'])
-                or _pick_str(dto, ['model', 'modelCode', 'model_code', 'modelCid', 'model_cid'])
-            )
-            color_code = (
-                _pick_str(item, ['color', 'colorCode', 'color_code', 'colorCid', 'color_cid'])
-                or _pick_str(dto, ['color', 'colorCode', 'color_code', 'colorCid', 'color_cid'])
-            )
-            if model_code and color_code:
-                legacy_opt_model_color = f"{model_code}-{color_code}".strip()
-
-            def _norm_code(s):
-                return ''.join(str(s or '').split()).upper()
-
-            mode = (os.getenv('OPT_DEFAULT_CODE_SOURCE', 'model_color') or 'model_color').strip().lower()
-            if mode == 'cid':
-                default_code = cid
-            elif mode == 'sku':
-                default_code = sku or cid
-            elif mode == 'auto':
-                if legacy_opt_model_color and cid and _norm_code(cid) == _norm_code(legacy_opt_model_color):
-                    default_code = cid
-                elif sku:
-                    default_code = sku
-                elif legacy_opt_model_color:
-                    default_code = legacy_opt_model_color
-                else:
-                    default_code = cid
-            else:
-                # Legacy default
-                if legacy_opt_model_color:
-                    default_code = legacy_opt_model_color
-                elif sku:
-                    default_code = sku
-                else:
-                    default_code = cid
 
         product_name = dto.get('fullname') or 'Unknown'
+        forced_len_type = False
 
         # Category Logic: map theo Nhóm sản phẩm từ hệ thống Java (ưu tiên theo tên hiển thị)
         # Quy tắc:
@@ -1383,6 +1356,32 @@ class ProductSync(models.Model):
                         cache['groups'][_norm_group_key(found.name)] = grp_id
                     cache.setdefault('groups_by_id', {})[grp_id] = grp_id
 
+            # Rule override: tên bắt đầu bằng "Gọng" → group CID = OPT (bất kể payload).
+            # Rule override: tên bắt đầu bằng "Mắt Bifocal" → group CID = HTV và len_type = HT.
+            normalized_name = str(product_name or '').lstrip().lower()
+            force_group_cid = False
+            if normalized_name.startswith('gọng') or normalized_name.startswith('gong'):
+                force_group_cid = 'OPT'
+            elif normalized_name.startswith('mắt bifocal') or normalized_name.startswith('mat bifocal'):
+                force_group_cid = 'HTV'
+                forced_len_type = 'HT'
+
+            if force_group_cid:
+                force_key = _norm_group_key(force_group_cid)
+                force_id = cache.get('groups', {}).get(force_key)
+                if force_id:
+                    force_group = self.env['product.group'].browse(force_id)
+                    if force_group.exists():
+                        grp_rec = force_group
+                        grp_id = force_group.id
+                if not grp_id:
+                    force_group = self.env['product.group'].search([('cid', '=', force_group_cid)], limit=1)
+                    if force_group:
+                        grp_rec = force_group
+                        grp_id = force_group.id
+                        cache.setdefault('groups', {})[force_key] = grp_id
+                        cache.setdefault('groups_by_id', {})[grp_id] = grp_id
+
         # Map ngược danh mục: lấy trực tiếp từ group.category_id
         categ_id = False
         if grp_rec and getattr(grp_rec, 'category_id', False):
@@ -1391,6 +1390,19 @@ class ProductSync(models.Model):
         # Nếu không tìm được group hoặc group chưa map danh mục → fallback về All (tránh map sai theo quy tắc cũ)
         if not categ_id:
             categ_id = self.env.ref('product.product_category_all').id
+
+        # Rule override: Tên bắt đầu bằng "Mắt" → luôn thuộc danh mục TK
+        try:
+            normalized_name = str(product_name or '').lstrip().lower()
+            if normalized_name.startswith('mắt') or normalized_name.startswith('mat'):
+                tk_id = cache.get('categories_by_code', {}).get('TK')
+                if not tk_id:
+                    tk_cat = self.env['product.category'].search([('code', '=', 'TK')], limit=1) if 'code' in self.env['product.category']._fields else False
+                    tk_id = tk_cat.id if tk_cat else False
+                if tk_id:
+                    categ_id = tk_id
+        except Exception:
+            pass
 
         # Rule override: Tên bắt đầu bằng "Gọng" → luôn thuộc danh mục GK
         try:
@@ -1405,30 +1417,15 @@ class ProductSync(models.Model):
         except Exception:
             pass
 
-        # Rule override: Từ thứ 2 là "Bifocal" → danh mục HT và nhóm sản phẩm HTV
+        # Rule override: Từ thứ 2 là "Bifocal" → loại tròng Hai tròng (HT)
         try:
             stripped_name = str(product_name or '').strip()
             parts = re.split(r'\s+', stripped_name) if stripped_name else []
             if len(parts) >= 2:
                 second = re.sub(r'[^A-Za-z0-9]+', '', parts[1] or '').lower()
                 if second == 'bifocal':
-                    ht_id = cache.get('categories_by_code', {}).get('HT')
-                    if not ht_id:
-                        ht_cat = self.env['product.category'].search([('code', '=', 'HT')], limit=1) if 'code' in self.env['product.category']._fields else False
-                        ht_id = ht_cat.id if ht_cat else False
-                    if ht_id:
-                        categ_id = ht_id
-
-                    if 'product.group' in self.env:
-                        htv_key = _norm_group_key('HTV')
-                        htv_id = cache.get('groups', {}).get(htv_key)
-                        if not htv_id:
-                            htv = self.env['product.group'].search([('cid', '=', 'HTV')], limit=1)
-                            htv_id = htv.id if htv else False
-                            if htv_id:
-                                cache['groups'][htv_key] = htv_id
-                        if htv_id:
-                            grp_id = htv_id
+                    if product_type == 'lens':
+                        forced_len_type = 'HT'
         except Exception:
             pass
 
@@ -1678,7 +1675,6 @@ class ProductSync(models.Model):
             'x_guide': dto.get('guide', ''),
             'x_warning': dto.get('warning', ''),
             'x_preserve': dto.get('preserve', ''),
-            'x_cid_ncc': dto.get('cidNcc', ''),
             'x_accessory_total': int(dto.get('accessoryTotal') or 0),
             'status_product_id': status_id,
             'x_currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
@@ -1691,6 +1687,9 @@ class ProductSync(models.Model):
             'bao_hanh_ban_le': int((dto.get('warrantyRetailDTO') or {}).get('value') or 0),
             'x_group_type_name': grp_type_name,
         }
+
+        if forced_len_type:
+            vals['len_type'] = forced_len_type
 
         # Set company cho toàn bộ sản phẩm sync (nếu product.template có field company_id)
         if 'company_id' in self.env['product.template']._fields:
@@ -2049,11 +2048,6 @@ class ProductSync(models.Model):
             vals.update(self._prepare_opt_vals(item, cache))
 
         pid = cache['products'].get(default_code)
-        # Nếu đổi mode default_code cho opt, thử match ngược bằng mã legacy model-color để tránh tạo trùng.
-        if not pid and product_type == 'opt' and legacy_opt_model_color and legacy_opt_model_color != default_code:
-            pid = cache['products'].get(legacy_opt_model_color)
-            if pid:
-                cache.setdefault('products', {})[default_code] = pid
 
         return vals, pid
 

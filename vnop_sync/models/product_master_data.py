@@ -16,10 +16,10 @@ class ProductGroup(models.Model):
         help='Danh mục mà nhóm này áp dụng (dùng để lọc nhóm theo cây danh mục).'
     )
     product_type = fields.Selection([
-        ('DT', 'Tròng kính/Đơn tròng'),
-        ('HT', 'Tròng kính/Hai tròng'),
-        ('PT', 'Tròng kính/Phôi tròng'),
-        ('DAT', 'Tròng kính/Đa tròng'),
+        ('DT', 'Đơn tròng'),
+        ('HT', 'Hai tròng'),
+        ('PT', 'Phôi tròng'),
+        ('DAT', 'Đa tròng'),
         ('GK', 'Gọng kính'),
         ('PK', 'Phụ kiện'),
         ('TB', 'Trưng bày'),

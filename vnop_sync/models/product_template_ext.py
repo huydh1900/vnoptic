@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 
 class ProductCategory(models.Model):
     """Extend product.category to add code field for product code generation"""
     _inherit = 'product.category'
-    
+
     code = fields.Char('Mã danh mục', size=2, index=True,
                        help='Mã danh mục dùng cho phân loại & tạo mã sản phẩm (VD: TK=Tròng kính, GK=Gọng kính, PK=Phụ kiện)')
     group_ids = fields.One2many(
@@ -18,20 +19,44 @@ class ProductCategory(models.Model):
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
 
-    _sql_constraints = []
+    len_type = fields.Selection([
+        ('DT', 'Đơn tròng'),
+        ('HT', 'Hai tròng'),
+        ('DAT', 'Đa tròng'),
+        ('PT', 'Phôi tròng'),
+    ], string='Loại tròng')
 
-    # Computed fields to replace product_type for UI logic
-    is_lens = fields.Boolean(compute='_compute_product_kind', store=False)
-    is_opt = fields.Boolean(compute='_compute_product_kind', store=False)
-    is_accessory = fields.Boolean(compute='_compute_product_kind', store=False)
+    def _get_category_by_code(self, code):
+        return self.env['product.category'].search([('code', '=', code)], limit=1)
 
-    @api.depends('product_type', 'categ_id')
-    def _compute_product_kind(self):
-        for record in self:
-            inferred = record._infer_product_type_from_category(record.categ_id) if record.categ_id else record.product_type
-            record.is_opt = inferred == 'opt'
-            record.is_lens = inferred == 'lens'
-            record.is_accessory = inferred == 'accessory'
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            name = vals.get('name')
+            if name and self._name_is_lens_eye_prefix(name):
+                tk_category = self._get_category_by_code('TK')
+                if tk_category:
+                    vals['categ_id'] = tk_category.id
+
+            categ_id = vals.get('categ_id')
+            if categ_id:
+                inferred = self._infer_product_type_from_category(self.env['product.category'].browse(categ_id))
+                if inferred in ('lens', 'opt', 'accessory'):
+                    vals['product_type'] = inferred
+        return super().create(vals_list)
+
+    def write(self, vals):
+        name = vals.get('name')
+        if name and self._name_is_lens_eye_prefix(name):
+            tk_category = self._get_category_by_code('TK')
+            if tk_category:
+                vals = dict(vals, categ_id=tk_category.id)
+
+        if 'categ_id' in vals and vals.get('categ_id'):
+            inferred = self._infer_product_type_from_category(self.env['product.category'].browse(vals['categ_id']))
+            if inferred in ('lens', 'opt', 'accessory'):
+                vals = dict(vals, product_type=inferred)
+        return super().write(vals)
 
     def _infer_product_type_from_category(self, category):
         """Infer business product_type from product.category (code/name), walking up parents."""
@@ -73,7 +98,22 @@ class ProductTemplateExtension(models.Model):
             rec.opt_group_id = False
             rec.acc_group_id = False
             rec.group_id = False
+            rec.len_type = False
             rec.product_type = inferred
+
+    @api.onchange('len_type')
+    def _onchange_len_type_reset_group_id(self):
+        for rec in self:
+            if rec.product_type == 'lens':
+                rec.group_id = False
+
+    @api.constrains('default_code')
+    def _constrains_default_code_unique(self):
+        for rec in self:
+            if not rec.default_code:
+                continue
+            if self.search_count([('id', '!=', rec.id), ('default_code', '=', rec.default_code)]):
+                raise ValidationError("Mã viết tắt (default_code) phải là duy nhất.")
 
     # Keep product_type for now but make it computed or optional if needed
     # For now we just add the new logic alongside
@@ -100,12 +140,6 @@ class ProductTemplateExtension(models.Model):
     x_preserve = fields.Text(
         'Bảo quản',
         help="Storage and preservation guidelines"
-    )
-
-
-    x_cid_ncc = fields.Char(
-        'Mã NCC',
-        help="Supplier product code"
     )
 
     x_accessory_total = fields.Integer(
@@ -135,7 +169,6 @@ class ProductTemplateExtension(models.Model):
         help="Maximum wholesale price"
     )
 
-
     x_currency_zone_code = fields.Char(
         'Mã vùng tiền tệ',
         help="Currency zone code from API"
@@ -146,7 +179,6 @@ class ProductTemplateExtension(models.Model):
         digits=(12, 2),
         help="Currency zone exchange rate"
     )
-
 
     x_group_type_name = fields.Char(
         'Loại nhóm (từ API)',
@@ -177,7 +209,7 @@ class ProductTemplateExtension(models.Model):
         ('opt', 'Gọng kính'),
         ('accessory', 'Phụ kiện')
     ], string='Phân loại nghiệp vụ', default='lens',
-       help="Phân loại sản phẩm: Tròng kính / Gọng kính / Phụ kiện"
+        help="Phân loại sản phẩm: Tròng kính / Gọng kính / Phụ kiện"
     )
 
     # ==================== RELATIONAL FIELDS (for sync) ====================
@@ -217,31 +249,31 @@ class ProductTemplateExtension(models.Model):
         help='Nhóm sản phẩm (lọc theo cây danh mục).'
     )
     lens_group_id = fields.Many2one('product.group', string='Nhóm Tròng kính',
-                                     domain=[('product_type', '=', 'lens')],
-                                     help='Nhóm sản phẩm cho Tròng kính')
+                                    domain=[('product_type', '=', 'lens')],
+                                    help='Nhóm sản phẩm cho Tròng kính')
     opt_group_id = fields.Many2one('product.group', string='Nhóm Gọng kính',
-                                    domain=[('product_type', '=', 'opt')],
-                                    help='Nhóm sản phẩm cho Gọng kính')
+                                   domain=[('product_type', '=', 'opt')],
+                                   help='Nhóm sản phẩm cho Gọng kính')
     acc_group_id = fields.Many2one('product.group', string='Nhóm Phụ kiện',
-                                    domain=[('product_type', '=', 'accessory')],
-                                    help='Nhóm sản phẩm cho Phụ kiện')
+                                   domain=[('product_type', '=', 'accessory')],
+                                   help='Nhóm sản phẩm cho Phụ kiện')
 
     # NOTE: lens_group_id/opt_group_id/acc_group_id giữ lại để tương thích dữ liệu cũ,
     # UI hiện tại dùng group_id duy nhất và lọc theo danh mục.
-    index_id = fields.Many2one('product.lens.index', string='Chiết suất', 
-                                help='Lens index for code generation (lens products only)')
+    index_id = fields.Many2one('product.lens.index', string='Chiết suất',
+                               help='Lens index for code generation (lens products only)')
     auto_generate_code = fields.Boolean('Tự động tạo mã', default=True,
-                                         help='Automatically generate product code based on Group, Brand, and Index')
+                                        help='Automatically generate product code based on Group, Brand, and Index')
     status_product_id = fields.Many2one('product.status', 'Trạng thái')
 
     # ==================== LENS SPECS (Hướng B: field trực tiếp trên template) ====================
     # Thiết kế
     lens_sph_id = fields.Many2one('product.lens.power', string='SPH',
-        help='Công suất cầu (Sphere)')
+                                  help='Công suất cầu (Sphere)')
     lens_cyl_id = fields.Many2one('product.lens.power', string='CYL',
-        help='Công suất trụ (Cylinder)')
+                                  help='Công suất trụ (Cylinder)')
     lens_add_id = fields.Many2one('product.lens.power', string='ADD',
-        help='Addition (thấu kính đa tròng)')
+                                  help='Addition (thấu kính đa tròng)')
     lens_base_curve = fields.Float('Base Curve', digits=(4, 2))
     lens_design1_id = fields.Many2one('product.design', string='Thiết kế 1')
     lens_design2_id = fields.Many2one('product.design', string='Thiết kế 2')
@@ -285,6 +317,7 @@ class ProductTemplateExtension(models.Model):
     opt_sku = fields.Char('SKU', size=50)
     opt_color = fields.Char('Màu sắc', size=50)
     opt_gender = fields.Selection([
+        ('0', ''),
         ('1', 'Nam'), ('2', 'Nữ'), ('3', 'Unisex')
     ], string='Giới tính')
 
@@ -412,7 +445,7 @@ class ProductTemplateExtension(models.Model):
             record.lens_sph = record.lens_sph_id.name if record.lens_sph_id else ''
             record.lens_cyl = record.lens_cyl_id.name if record.lens_cyl_id else ''
             record.lens_index_name = record.lens_index_id.name if record.lens_index_id else ''
-    
+
     @api.depends('opt_frame_type_id', 'opt_shape_id')
     def _compute_opt_info(self):
         for record in self:
@@ -420,10 +453,10 @@ class ProductTemplateExtension(models.Model):
             record.opt_shape = record.opt_shape_id.name if record.opt_shape_id else ''
 
     # ==================== COMPUTED FIELD FOR PRIMARY SUPPLIER ====================
-    primary_supplier_id = fields.Many2one('res.partner', string='Nhà cung cấp chính', 
-                                           compute='_compute_primary_supplier', store=False, readonly=True,
-                                           help='Nhà cung cấp chính (lấy từ seller_ids đầu tiên)')
-    
+    primary_supplier_id = fields.Many2one('res.partner', string='Nhà cung cấp chính',
+                                          compute='_compute_primary_supplier', store=False, readonly=True,
+                                          help='Nhà cung cấp chính (lấy từ seller_ids đầu tiên)')
+
     @api.depends('seller_ids', 'seller_ids.partner_id')
     def _compute_primary_supplier(self):
         for record in self:
@@ -569,12 +602,12 @@ class ProductTemplateExtension(models.Model):
         """Create missing opt records for products that have product_type but no details.
         Lens products use direct fields on template (Hướng B), no child records needed."""
         created_opt = 0
-        
+
         for product in self:
             if product.product_type == 'opt' and not product.opt_ids:
                 self.env['product.opt'].create({'product_tmpl_id': product.id})
                 created_opt += 1
-        
+
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -592,7 +625,7 @@ class ProductTemplateExtension(models.Model):
         # Create lens records for lens products without details
         # Lens products use direct fields on template (Hướng B).
         # No auto-creation of product.lens records needed.
-        
+
         # Create opt records for opt products without details
         opt_products = self.search([
             ('product_type', '=', 'opt'),
@@ -600,5 +633,5 @@ class ProductTemplateExtension(models.Model):
         ])
         for product in opt_products:
             self.env['product.opt'].create({'product_tmpl_id': product.id})
-        
+
         return True

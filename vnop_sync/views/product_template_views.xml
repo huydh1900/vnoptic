@@ -49,16 +49,9 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- Add hidden computed fields for UI logic -->
-	            <xpath expr="//div[@class='oe_title']" position="after">
-	                <field name="is_lens" invisible="1"/>
-	                <field name="is_opt" invisible="1"/>
-	                <field name="is_accessory" invisible="1"/>
-	            </xpath>
-
-            <!-- Ẩn tab Thuộc tính & Biến thể cho lens và gọng kính -->
+            <!-- Ẩn tab Thuộc tính & Biến thể cho tròng và gọng kính -->
             <xpath expr="//page[.//field[@name='attribute_line_ids']]" position="attributes">
-                <attribute name="invisible">is_lens or is_opt</attribute>
+                <attribute name="invisible">product_type in ('lens', 'opt')</attribute>
             </xpath>
 
             <!-- Removed product_type selection from header -->
@@ -82,8 +75,9 @@
 	                    <group>
 	                        <field name="default_code" string="Mã viết tắt"/>
 	                        <field name="categ_id" string="Danh mục" options="{'no_create': True}"/>
+                            <field name="len_type" invisible="product_type != 'lens'"/>
 	                        <field name="group_id" string="Nhóm sản phẩm"
-	                               domain="[('category_id', 'child_of', categ_id)]"
+	                               domain="['&amp;', ('category_id', 'child_of', categ_id), '|', ('category_id.code', '!=', 'TK'), ('product_type', '=', len_type)]"
 	                               options="{'no_create': True}"/>
 	                        <field name="brand_id"/>
 	                        <field name="country_id" string="Xuất xứ" options="{'no_create': True}"/>
@@ -100,8 +94,8 @@
                     </group>
                 </group>
 
-                <!-- ── Thiết kế Tròng (chỉ hiện khi is_lens) ── -->
-                <group string="Thiết kế Tròng" invisible="not is_lens">
+                <!-- ── Thiết kế Tròng (chỉ hiện khi danh mục thuộc Tròng kính) ── -->
+                <group string="Thiết kế Tròng" invisible="product_type != 'lens'">
                     <group>
                         <field name="lens_sph_id" string="SPH" options="{'no_create': False}"/>
                         <field name="lens_cyl_id" string="CYL" options="{'no_create': False}"/>
@@ -117,8 +111,8 @@
                     </group>
                 </group>
 
-                <!-- ── Chất liệu &amp; Tích hợp Tròng (chỉ hiện khi is_lens) ── -->
-                <group string="Chất liệu &amp; Tích hợp" invisible="not is_lens">
+                <!-- ── Chất liệu &amp; Tích hợp Tròng (chỉ hiện khi danh mục thuộc Tròng kính) ── -->
+                <group string="Chất liệu &amp; Tích hợp" invisible="product_type != 'lens'">
                     <group>
                         <field name="lens_material_id" string="Vật liệu" options="{'no_create': False}"/>
                         <field name="lens_index_id" string="Chiết suất" options="{'no_create': False}"/>
@@ -143,7 +137,7 @@
 
                 <!-- Tab Legacy: product.lens cũ (chỉ hiện khi còn dữ liệu chưa migrate) -->
                 <page string="⚠ Dữ liệu Cũ (product.lens)" name="product_lens_legacy"
-                      invisible="not is_lens or not lens_ids">
+                      invisible="product_type != 'lens' or not lens_ids">
                     <div class="alert alert-warning" role="alert">
                         <strong>⚠️ Dữ liệu Legacy:</strong>
                         Tab này hiển thị dữ liệu cũ từ model <em>product.lens</em>.
@@ -165,14 +159,14 @@
                     </field>
                 </page>
 
-                <!-- ══════════════════════════════════════════════════════════
-                     Tabs Gọng (Hướng B: field trực tiếp trên template)
-                     Hiển thị chỉ khi is_opt = True
-                     ══════════════════════════════════════════════════════════ -->
+	                <!-- ══════════════════════════════════════════════════════════
+	                     Tabs Gọng (Hướng B: field trực tiếp trên template)
+	                     Hiển thị chỉ khi danh mục thuộc Gọng kính
+	                     ══════════════════════════════════════════════════════════ -->
 
-                <!-- Tab Gọng: gộp Thông tin / Thiết kế / Vật liệu / Màu sắc & Kích thước -->
-                <page string="Thông tin chi tiết" name="product_opt_detail"
-                      invisible="not is_opt">
+                 <!-- Tab Gọng: gộp Thông tin / Thiết kế / Vật liệu / Màu sắc & Kích thước -->
+                 <page string="Thông tin chi tiết" name="product_opt_detail"
+                      invisible="product_type != 'opt'">
                     <group string="Thông tin chung">
                         <group>
                             <field name="opt_season"/>
@@ -258,7 +252,7 @@
 
                 <!-- Tab Gọng 7: Phụ kiện đi kèm -->
                 <page string="Phụ kiện đi kèm" name="product_opt_accessories"
-                      invisible="not is_opt">
+                      invisible="product_type != 'opt'">
                     <group string="Phụ kiện">
                         <group>
                             <field name="has_box"/>
@@ -273,7 +267,7 @@
                 </page>
 
                 <!-- Tabs Phụ kiện / Sản phẩm khác (không phải lens/opt) -->
-                <page string="Thông tin chi tiết" name="accessory_detail" invisible="is_lens or is_opt">
+                <page string="Thông tin chi tiết" name="accessory_detail" invisible="product_type in ('lens', 'opt')">
                     <group string="Thiết kế">
                         <group>
                             <field name="design_id"/>
