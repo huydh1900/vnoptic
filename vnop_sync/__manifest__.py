@@ -8,7 +8,7 @@
         'data/ir_cron_data.xml',
         'data/uom_data.xml',
         'data/product_category_data.xml',
-        'data/company_data.xml',
+        'data/product_brand_data.xml',
         'views/product_sync_views.xml',
         'views/product_brand_views.xml',
         'views/product_warranty_views.xml',

@@ -1,5 +1,48 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <odoo>
+    <!-- Default group by categ_id khi mở menu Products trong Purchase -->
+    <function model="ir.actions.act_window" name="write">
+        <function model="ir.actions.act_window" name="search"
+            eval="[[('id', '=', ref('purchase.product_normal_action_puchased'))]]"/>
+        <value eval="{'context': {'search_default_filter_to_purchase': 1, 'purchase_product_template': 1, 'search_default_group_by_categ_id': 1}}"/>
+    </function>
+
+    <!-- Extend product search view -->
+    <record id="product_template_search_inherit_vnop" model="ir.ui.view">
+        <field name="name">product.template.search.inherit.vnop</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_search_view"/>
+        <field name="priority">102</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" filter_domain="['|', ('name', 'ilike', self), ('default_code', 'ilike', self)]" string="Tên / Mã sản phẩm"/>
+                <field name="brand_id" string="Thương hiệu"/>
+                <field name="categ_id" string="Danh mục"/>
+                <field name="group_id" string="Nhóm sản phẩm"/>
+                <field name="country_id" string="Xuất xứ"/>
+                <separator/>
+                <filter name="filter_lens" string="Tròng kính" domain="[('product_type','=','lens')]"/>
+                <filter name="filter_opt" string="Gọng kính" domain="[('product_type','=','opt')]"/>
+                <filter name="filter_acc" string="Phụ kiện" domain="[('product_type','=','accessory')]"/>
+                <separator/>
+                <filter name="filter_len_dt" string="Đơn tròng" domain="[('len_type','=','DT')]"/>
+                <filter name="filter_len_ht" string="Hai tròng" domain="[('len_type','=','HT')]"/>
+                <filter name="filter_len_dat" string="Đa tròng" domain="[('len_type','=','DAT')]"/>
+                <filter name="filter_len_pt" string="Phôi tròng" domain="[('len_type','=','PT')]"/>
+                <separator/>
+                <filter name="filter_active" string="Đang hoạt động" domain="[('active','=',True)]"/>
+                <group expand="0" string="Nhóm theo">
+                    <filter name="group_by_product_type" string="Loại sản phẩm" context="{'group_by': 'product_type'}"/>
+                    <filter name="group_by_len_type" string="Loại tròng" context="{'group_by': 'len_type'}"/>
+                    <filter name="group_by_categ_id" string="Danh mục" context="{'group_by': 'categ_id'}"/>
+                    <filter name="group_by_brand" string="Thương hiệu" context="{'group_by': 'brand_id'}"/>
+                    <filter name="group_by_group" string="Nhóm sản phẩm" context="{'group_by': 'group_id'}"/>
+                    <filter name="group_by_country" string="Xuất xứ" context="{'group_by': 'country_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
 
     <!-- Ẩn categ_id trong product_template_form_view (form chính) -->
     <record id="product_template_form_hide_categ" model="ir.ui.view">

@@ -575,10 +575,11 @@ class ProductTemplateExtension(models.Model):
                 categ_id = vals.get('categ_id')
                 brand_id = vals.get('brand_id')
                 index_id = vals.get('index_id')
+                group_id = vals.get('group_id')
                 if categ_id and brand_id:
                     try:
                         vals['default_code'] = product_code_utils.generate_product_code(
-                            self.env, categ_id, brand_id, index_id
+                            self.env, categ_id, brand_id, index_id, group_id=group_id
                         )
                     except Exception as e:
                         _logger.warning(f"Failed to auto-generate product code: {e}")

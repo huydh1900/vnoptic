@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="brand_urik" model="product.brand">
+        <field name="sequence">1</field>
+        <field name="name">Urik</field>
+        <field name="code">URIK</field>
+    </record>
+    <record id="brand_zenta" model="product.brand">
+        <field name="sequence">2</field>
+        <field name="name">Zenta</field>
+        <field name="code">ZENTA</field>
+    </record>
+    <record id="brand_cadillac" model="product.brand">
+        <field name="sequence">3</field>
+        <field name="name">Cadillac</field>
+        <field name="code">CADILLAC</field>
+    </record>
+    <record id="brand_zenoptic" model="product.brand">
+        <field name="sequence">4</field>
+        <field name="name">ZenOptic</field>
+        <field name="code">ZENOPTIC</field>
+    </record>
+    <record id="brand_levine" model="product.brand">
+        <field name="sequence">5</field>
+        <field name="name">LEVINE</field>
+        <field name="code">LEVINE</field>
+    </record>
+    <record id="brand_oryn" model="product.brand">
+        <field name="sequence">6</field>
+        <field name="name">ORYN</field>
+        <field name="code">ORYN</field>
+    </record>
+    <record id="brand_fio" model="product.brand">
+        <field name="sequence">7</field>
+        <field name="name">FIO</field>
+        <field name="code">FIO</field>
+    </record>
+    <record id="brand_vizo" model="product.brand">
+        <field name="sequence">8</field>
+        <field name="name">VIZO</field>
+        <field name="code">VIZO</field>
+    </record>
+    <record id="brand_kathy" model="product.brand">
+        <field name="sequence">9</field>
+        <field name="name">Kathy</field>
+        <field name="code">KATHY</field>
+    </record>
+    <record id="brand_subon" model="product.brand">
+        <field name="sequence">10</field>
+        <field name="name">SUBON</field>
+        <field name="code">SUBON</field>
+    </record>
+    <record id="brand_khong" model="product.brand">
+        <field name="sequence">11</field>
+        <field name="name">Không có thương hiệu</field>
+        <field name="code">NO_BRAND</field>
+    </record>
+    <record id="brand_levalens" model="product.brand">
+        <field name="sequence">12</field>
+        <field name="name">LEVALENS</field>
+        <field name="code">LEVALENS</field>
+    </record>
+    <record id="brand_vora" model="product.brand">
+        <field name="sequence">13</field>
+        <field name="name">VORA</field>
+        <field name="code">VORA</field>
+    </record>
+</odoo>

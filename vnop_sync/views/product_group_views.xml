@@ -1,42 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Product Group Search View -->
+    <record id="view_product_group_search" model="ir.ui.view">
+        <field name="name">product.group.search</field>
+        <field name="model">product.group</field>
+        <field name="arch" type="xml">
+            <search string="Tìm nhóm sản phẩm">
+                <field name="name" string="Tên nhóm"/>
+                <field name="cid" string="Mã nhóm"/>
+                <field name="category_id" string="Danh mục"/>
+                <separator/>
+                <filter name="filter_dt" string="Đơn tròng" domain="[('product_type','=','DT')]"/>
+                <filter name="filter_ht" string="Hai tròng" domain="[('product_type','=','HT')]"/>
+                <filter name="filter_dat" string="Đa tròng" domain="[('product_type','=','DAT')]"/>
+                <filter name="filter_pt" string="Phôi tròng" domain="[('product_type','=','PT')]"/>
+                <filter name="filter_gk" string="Gọng kính" domain="[('product_type','=','GK')]"/>
+                <filter name="filter_pk" string="Phụ kiện" domain="[('product_type','=','PK')]"/>
+                <filter name="filter_lk" string="Linh kiện" domain="[('product_type','=','LK')]"/>
+                <group expand="0" string="Nhóm theo">
+                    <filter name="group_by_product_type" string="Phân loại" context="{'group_by': 'product_type'}"/>
+                    <filter name="group_by_category" string="Danh mục" context="{'group_by': 'category_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
     <!-- Product Group Tree View -->
     <record id="view_product_group_tree" model="ir.ui.view">
         <field name="name">product.group.tree</field>
         <field name="model">product.group</field>
         <field name="arch" type="xml">
-            <list string="Nhóm sản phẩm">
-                <field name="cid"/>
+            <list string="Nhóm sản phẩm" editable="top" open_form_view="False">
+                <field name="sequence"/>
                 <field name="name"/>
-                <field name="product_type" widget="badge" 
-                       decoration-info="product_type == 'lens'"
-                       decoration-success="product_type == 'opt'"
-                       decoration-warning="product_type == 'accessory'"/>
+                <field name="cid"/>
+                <field name="description"/>
+                <field name="product_type"/>
             </list>
-        </field>
-    </record>
-
-    <!-- Product Group Form View -->
-    <record id="view_product_group_form" model="ir.ui.view">
-        <field name="name">product.group.form</field>
-        <field name="model">product.group</field>
-        <field name="arch" type="xml">
-            <form string="Nhóm sản phẩm">
-                <sheet>
-                    <group>
-                        <group>
-                            <field name="name"/>
-                            <field name="cid"/>
-                            <field name="product_type" widget="radio" options="{'horizontal': true}"/>
-                        </group>
-                        <group>
-                        </group>
-                    </group>
-                    <group>
-                        <field name="description"/>
-                    </group>
-                </sheet>
-            </form>
         </field>
     </record>
 
@@ -44,21 +44,14 @@
     <record id="action_product_group" model="ir.actions.act_window">
         <field name="name">Nhóm sản phẩm</field>
         <field name="res_model">product.group</field>
-        <field name="view_mode">list,form</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                Tạo nhóm sản phẩm đầu tiên
-            </p>
-            <p>
-                Nhóm sản phẩm được dùng để phân loại và tạo mã sản phẩm.
-            </p>
-        </field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_product_group_search"/>
     </record>
 
     <!-- Menu Item -->
     <menuitem id="menu_product_group"
               name="Nhóm sản phẩm"
-              parent="vnop_sync.menu_product_config"
+              parent="purchase.menu_product_in_config_purchase"
               action="action_product_group"
               sequence="10"/>
 </odoo>

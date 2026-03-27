@@ -38,6 +38,7 @@
             <field name="cid">DTC</field>
             <field name="category_id" ref="product_category_lens"/>
             <field name="product_type">DT</field>
+            <field name="sequence">5</field>
             <field name="description">Tròng kính / Đơn tròng</field>
         </record>
 
@@ -46,14 +47,16 @@
             <field name="cid">DTCL</field>
             <field name="category_id" ref="product_category_lens"/>
             <field name="product_type">DT</field>
+            <field name="sequence">6</field>
             <field name="description">Tròng kính / Đơn tròng</field>
         </record>
 
         <record id="group_lens_single_hyperopia" model="product.group">
-            <field name="name">Đơn tròng viễn</field>
+            <field name="name">Đơn tròng - Viễn</field>
             <field name="cid">DTV</field>
             <field name="category_id" ref="product_category_lens"/>
             <field name="product_type">DT</field>
+            <field name="sequence">8</field>
             <field name="description">Tròng kính / Đơn tròng</field>
         </record>
 
@@ -62,6 +65,7 @@
             <field name="cid">DTKS</field>
             <field name="category_id" ref="product_category_lens"/>
             <field name="product_type">DT</field>
+            <field name="sequence">7</field>
             <field name="description">Tròng kính / Đơn tròng</field>
         </record>
 
@@ -70,6 +74,7 @@
             <field name="cid">DTVL</field>
             <field name="category_id" ref="product_category_lens"/>
             <field name="product_type">DT</field>
+            <field name="sequence">9</field>
             <field name="description">Tròng kính / Đơn tròng</field>
         </record>
 
@@ -78,14 +83,7 @@
             <field name="cid">DTDMC</field>
             <field name="category_id" ref="product_category_lens"/>
             <field name="product_type">DT</field>
-            <field name="description">Tròng kính / Đơn tròng</field>
-        </record>
-
-        <record id="group_lens_single_photo_hyperopia" model="product.group">
-            <field name="name">Đơn tròng ĐM - Viễn</field>
-            <field name="cid">DTDMV</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">DT</field>
+            <field name="sequence">10</field>
             <field name="description">Tròng kính / Đơn tròng</field>
         </record>
 
@@ -94,6 +92,7 @@
             <field name="cid">DTDMKS</field>
             <field name="category_id" ref="product_category_lens"/>
             <field name="product_type">DT</field>
+            <field name="sequence">12</field>
             <field name="description">Tròng kính / Đơn tròng</field>
         </record>
 
@@ -102,6 +101,7 @@
             <field name="cid">DTDMCL</field>
             <field name="category_id" ref="product_category_lens"/>
             <field name="product_type">DT</field>
+            <field name="sequence">11</field>
             <field name="description">Tròng kính / Đơn tròng</field>
         </record>
 
@@ -110,6 +110,16 @@
             <field name="cid">DTDMVL</field>
             <field name="category_id" ref="product_category_lens"/>
             <field name="product_type">DT</field>
+            <field name="sequence">14</field>
+            <field name="description">Tròng kính / Đơn tròng</field>
+        </record>
+
+        <record id="group_lens_single_photo_hyperopia_astigmatism_color" model="product.group">
+            <field name="name">Đơn tròng ĐM - Viễn</field>
+            <field name="cid">DTDMV</field>
+            <field name="category_id" ref="product_category_lens"/>
+            <field name="product_type">DT</field>
+            <field name="sequence">13</field>
             <field name="description">Tròng kính / Đơn tròng</field>
         </record>
 
@@ -118,6 +128,7 @@
             <field name="cid">HTV</field>
             <field name="category_id" ref="product_category_lens"/>
             <field name="product_type">HT</field>
+            <field name="sequence">19</field>
             <field name="description">Tròng kính / Hai tròng</field>
         </record>
 
@@ -127,6 +138,7 @@
             <field name="cid">Thẻ</field>
             <field name="category_id" ref="product_category_accessory"/>
             <field name="product_type">PK</field>
+            <field name="sequence">30</field>
             <field name="description">Thẻ Bảo hành</field>
         </record>
 
@@ -135,6 +147,7 @@
             <field name="cid">MATERIAL</field>
             <field name="category_id" ref="product_category_display"/>
             <field name="product_type">TB</field>
+            <field name="sequence">29</field>
             <field name="description">Bảng màu acetate cho gọng kính</field>
         </record>
 
@@ -143,6 +156,7 @@
             <field name="cid">KHAY</field>
             <field name="category_id" ref="product_category_display"/>
             <field name="product_type">TB</field>
+            <field name="sequence">28</field>
             <field name="description">khay trưng bày</field>
         </record>
 
@@ -151,6 +165,7 @@
             <field name="cid">OPT</field>
             <field name="category_id" ref="product_category_opt"/>
             <field name="product_type">GK</field>
+            <field name="sequence">27</field>
             <field name="description">Gọng kính</field>
         </record>
 
@@ -159,6 +174,7 @@
             <field name="cid">DISPLAY</field>
             <field name="category_id" ref="product_category_display"/>
             <field name="product_type">TB</field>
+            <field name="sequence">26</field>
             <field name="description">Đồ trưng bày</field>
         </record>
 
@@ -167,6 +183,7 @@
             <field name="cid">P</field>
             <field name="category_id" ref="product_category_lens"/>
             <field name="product_type">PT</field>
+            <field name="sequence">25</field>
             <field name="description">Phôi tròng kính</field>
         </record>
 
@@ -175,14 +192,16 @@
             <field name="cid">SCREW</field>
             <field name="category_id" ref="product_category_technical_parts"/>
             <field name="product_type">LK</field>
+            <field name="sequence">24</field>
             <field name="description">Ốc, ve, vít</field>
         </record>
 
         <record id="group_technical_ve" model="product.group">
             <field name="name">Ve kính</field>
             <field name="cid">VE</field>
-            <field name="category_id" ref="product_category_technical_parts"/>
+            <field name="category_id" ref="product_category_accessory"/>
             <field name="product_type">LK</field>
+            <field name="sequence">23</field>
             <field name="description">Ve kính</field>
         </record>
 
@@ -191,6 +210,7 @@
             <field name="cid">CLOTH</field>
             <field name="category_id" ref="product_category_accessory"/>
             <field name="product_type">PK</field>
+            <field name="sequence">22</field>
             <field name="description">Khăn lau kính</field>
         </record>
 
@@ -199,15 +219,17 @@
             <field name="cid">CASE</field>
             <field name="category_id" ref="product_category_accessory"/>
             <field name="product_type">PK</field>
+            <field name="sequence">21</field>
             <field name="description">Vỏ bao</field>
         </record>
 
         <record id="group_technical_temple" model="product.group">
             <field name="name">PK càng</field>
             <field name="cid">TEMPLE</field>
-            <field name="category_id" ref="product_category_technical_parts"/>
+            <field name="category_id" ref="product_category_accessory"/>
             <field name="product_type">LK</field>
-            <field name="description">càng</field>
+            <field name="sequence">20</field>
+            <field name="description">Càng</field>
         </record>
 
         <record id="group_opt_sunglasses" model="product.group">
@@ -215,15 +237,17 @@
             <field name="cid">SUN</field>
             <field name="category_id" ref="product_category_opt"/>
             <field name="product_type">GK</field>
+            <field name="sequence">18</field>
             <field name="description">Kính râm</field>
         </record>
 
         <record id="group_opt_foldable_frames" model="product.group">
-            <field name="name">gọng gấp</field>
+            <field name="name">Gọng gấp</field>
             <field name="cid">GG</field>
             <field name="category_id" ref="product_category_opt"/>
             <field name="product_type">GK</field>
-            <field name="description">gọng gấp gọn</field>
+            <field name="sequence">17</field>
+            <field name="description">Gọng gấp gọn</field>
         </record>
         
     </data>

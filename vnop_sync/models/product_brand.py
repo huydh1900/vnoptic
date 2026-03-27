@@ -1,31 +1,23 @@
-from odoo import models, fields
+from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 
 class ProductBrand(models.Model):
     _name = 'product.brand'
     _description = 'Thương hiệu'
-    _order = 'name'
+    _order = 'sequence, name'
     _rec_name = 'name'
 
     name = fields.Char('Tên thương hiệu', required=True, index=True)
-    code = fields.Char('Mã thương hiệu (3 số)', size=3, index=True, 
-                       help='Mã 3 số dùng cho tạo mã sản phẩm (VD: 003, 004). Để trống sẽ dùng ID.')
+    code = fields.Char('Mã kí hiệu')
+    sequence = fields.Integer('STT', default=lambda self: (self.search([], order='sequence desc', limit=1).sequence or 0) + 1)
 
-    # SQL Constraints
     _sql_constraints = [
         ('name_unique', 'unique(name)', 'Brand name must be unique!'),
     ]
 
-    # Display Name
-    def name_get(self):
-        result = []
-        for record in self:
-            # Display name instead of code for better readability
-            if record.name:
-                name = record.name
-            elif record.code:
-                name = record.code
-            else:
-                name = 'Unknown Brand'
-            result.append((record.id, name))
-        return result
+    @api.constrains('sequence')
+    def _check_sequence_unique(self):
+        for rec in self:
+            if self.search_count([('sequence', '=', rec.sequence), ('id', '!=', rec.id)]):
+                raise ValidationError(f'STT {rec.sequence} đã tồn tại, vui lòng chọn STT khác!')

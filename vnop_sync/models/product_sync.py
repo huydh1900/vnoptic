@@ -1297,220 +1297,64 @@ class ProductSync(models.Model):
         # default_code là "Mã viết tắt" trên Odoo: sync thống nhất cho mọi loại sản phẩm.
         default_code = cid
 
+
         product_name = dto.get('fullname') or 'Unknown'
         forced_len_type = False
+        grp_type_name = ((dto.get('groupdto') or {}).get('groupTypedto') or {}).get('name', 'Khác')
 
-        # Category Logic: map theo Nhóm sản phẩm từ hệ thống Java (ưu tiên theo tên hiển thị)
-        # Quy tắc:
-        #   1) Resolve `product.group` theo groupdto.cid (mã kí hiệu) hoặc groupdto.name (tên hiển thị)
-        #   2) Lấy `categ_id` từ `product.group.category_id` (không dùng quy tắc cũ theo group type/name)
-        grp_dto = dto.get('groupdto') or {}
-        grp_type_name = (grp_dto.get('groupTypedto') or {}).get('name', 'Khác')
-
-        def _norm_group_key(s):
-            s = str(s or '').strip()
-            s = s.replace('–', '-').replace('—', '-')
-            s = re.sub(r'\s+', ' ', s)
-            s = re.sub(r'\s*-\s*', ' - ', s)
-            s = re.sub(r'\s+', ' ', s).strip()
-            return s.upper()
-
-        g_id = grp_dto.get('id')
-        g_cid = (grp_dto.get('cid') or '').strip()
-        g_name = (grp_dto.get('name') or '').strip()
-
-        g_cid_key = _norm_group_key(g_cid)
-        g_name_key = _norm_group_key(g_name)
-
+        # ── Resolve group/brand/categ từ default_code: [GG][BBB][III][XXXXX] ──
         grp_id = False
         grp_rec = None
-        if 'product.group' in self.env:
-            if g_id and g_id in cache.get('groups_by_id', {}):
-                grp_id = g_id
-            elif g_cid_key and g_cid_key in cache.get('groups', {}):
-                grp_id = cache['groups'][g_cid_key]
-            elif g_name_key and g_name_key in cache.get('groups', {}):
-                grp_id = cache['groups'][g_name_key]
-
-            if grp_id:
-                grp_rec = self.env['product.group'].browse(grp_id)
-                if not grp_rec.exists():
-                    grp_id = False
-                    grp_rec = None
-
-            # Fallback: lookup trực tiếp DB (ưu tiên cid, sau đó name)
-            if not grp_id and (g_cid_key or g_name):
-                found = False
-                if g_cid_key:
-                    found = self.env['product.group'].search([('cid', '=', g_cid_key)], limit=1)
-                if not found and g_name:
-                    found = self.env['product.group'].search([('name', '=', g_name)], limit=1)
-                if not found and g_name:
-                    found = self.env['product.group'].search([('name', 'ilike', g_name)], limit=1)
-                if found:
-                    grp_rec = found
-                    grp_id = found.id
-                    # cache cả cid và name (normalize)
-                    if found.cid:
-                        cache['groups'][_norm_group_key(found.cid)] = grp_id
-                    if found.name:
-                        cache['groups'][_norm_group_key(found.name)] = grp_id
-                    cache.setdefault('groups_by_id', {})[grp_id] = grp_id
-
-            # Rule override: tên bắt đầu bằng "Gọng" → group CID = OPT (bất kể payload).
-            # Rule override: tên bắt đầu bằng "Mắt Bifocal" → group CID = HTV và len_type = HT.
-            normalized_name = str(product_name or '').lstrip().lower()
-            force_group_cid = False
-            if normalized_name.startswith('gọng') or normalized_name.startswith('gong'):
-                force_group_cid = 'OPT'
-            elif normalized_name.startswith('mắt bifocal') or normalized_name.startswith('mat bifocal'):
-                force_group_cid = 'HTV'
-                forced_len_type = 'HT'
-
-            if force_group_cid:
-                force_key = _norm_group_key(force_group_cid)
-                force_id = cache.get('groups', {}).get(force_key)
-                if force_id:
-                    force_group = self.env['product.group'].browse(force_id)
-                    if force_group.exists():
-                        grp_rec = force_group
-                        grp_id = force_group.id
-                if not grp_id:
-                    force_group = self.env['product.group'].search([('cid', '=', force_group_cid)], limit=1)
-                    if force_group:
-                        grp_rec = force_group
-                        grp_id = force_group.id
-                        cache.setdefault('groups', {})[force_key] = grp_id
-                        cache.setdefault('groups_by_id', {})[grp_id] = grp_id
-
-        # Tự động fill loại tròng từ product_type của nhóm sản phẩm (nếu chưa bị force)
-        _lens_types = {'DT', 'HT', 'DAT', 'PT'}
-        if not forced_len_type and grp_rec and getattr(grp_rec, 'product_type', False):
-            if grp_rec.product_type in _lens_types:
-                forced_len_type = grp_rec.product_type
-
-        # Map ngược danh mục: lấy trực tiếp từ group.category_id
         categ_id = False
-        if grp_rec and getattr(grp_rec, 'category_id', False):
-            categ_id = grp_rec.category_id.id
+        _parsed_brand_id = False
 
-        # Nếu không tìm được group hoặc group chưa map danh mục → fallback về All (tránh map sai theo quy tắc cũ)
+        if default_code and len(default_code) >= 5:
+            try:
+                _grp_seq = int(default_code[:2])
+                _brd_seq = int(default_code[2:5])
+
+                # Rule: mã bắt đầu bằng "01" → danh mục TK, nhóm sequence=19, len_type=DT
+                if default_code[:2] == '01':
+                    _tk_cat = self.env['product.category'].search([('code', '=', 'TK')], limit=1) if 'code' in self.env['product.category']._fields else False
+                    if _tk_cat:
+                        categ_id = _tk_cat.id
+                    _grp_match = self.env['product.group'].search([('sequence', '=', 19)], limit=1)
+                    forced_len_type = 'DT'
+                # Rule: mã bắt đầu bằng "04" → danh mục GK, nhóm sequence=27
+                elif default_code[:2] == '04':
+                    _gk_cat = self.env['product.category'].search([('code', '=', 'GK')], limit=1) if 'code' in self.env['product.category']._fields else False
+                    if _gk_cat:
+                        categ_id = _gk_cat.id
+                    _grp_match = self.env['product.group'].search([('sequence', '=', 27)], limit=1)
+                # Rule: mã bắt đầu bằng "15" → danh mục TK, nhóm sequence=19, Bifocal → HT
+                elif default_code[:2] == '15':
+                    _tk_cat = self.env['product.category'].search([('code', '=', 'TK')], limit=1) if 'code' in self.env['product.category']._fields else False
+                    if _tk_cat:
+                        categ_id = _tk_cat.id
+                    _grp_match = self.env['product.group'].search([('sequence', '=', 19)], limit=1)
+                    if 'bifocal' in (product_name or '').lower():
+                        forced_len_type = 'HT'
+                else:
+                    _grp_match = self.env['product.group'].search([('sequence', '=', _grp_seq)], limit=1)
+                if _grp_match:
+                    grp_rec = _grp_match
+                    grp_id = _grp_match.id
+                    if not categ_id and getattr(_grp_match, 'category_id', False):
+                        categ_id = _grp_match.category_id.id
+
+                _brd_match = self.env['product.brand'].search([('sequence', '=', _brd_seq)], limit=1)
+                if _brd_match:
+                    _parsed_brand_id = _brd_match.id
+            except Exception:
+                pass
+
         if not categ_id:
             categ_id = self.env.ref('product.product_category_all').id
 
-        # Rule override: Tên bắt đầu bằng "Mắt" → luôn thuộc danh mục TK
-        try:
-            normalized_name = str(product_name or '').lstrip().lower()
-            if normalized_name.startswith('mắt') or normalized_name.startswith('mat'):
-                tk_id = cache.get('categories_by_code', {}).get('TK')
-                if not tk_id:
-                    tk_cat = self.env['product.category'].search([('code', '=', 'TK')], limit=1) if 'code' in self.env['product.category']._fields else False
-                    tk_id = tk_cat.id if tk_cat else False
-                if tk_id:
-                    categ_id = tk_id
-        except Exception:
-            pass
-
-        # Rule override: Tên bắt đầu bằng "Gọng" → luôn thuộc danh mục GK
-        try:
-            normalized_name = str(product_name or '').lstrip().lower()
-            if normalized_name.startswith('gọng') or normalized_name.startswith('gong'):
-                gk_id = cache.get('categories_by_code', {}).get('GK')
-                if not gk_id:
-                    gk_cat = self.env['product.category'].search([('code', '=', 'GK')], limit=1) if 'code' in self.env['product.category']._fields else False
-                    gk_id = gk_cat.id if gk_cat else False
-                if gk_id:
-                    categ_id = gk_id
-        except Exception:
-            pass
-
-        # Rule override: Từ thứ 2 là "Bifocal" → loại tròng Hai tròng (HT)
-        try:
-            stripped_name = str(product_name or '').strip()
-            parts = re.split(r'\s+', stripped_name) if stripped_name else []
-            if len(parts) >= 2:
-                second = re.sub(r'[^A-Za-z0-9]+', '', parts[1] or '').lower()
-                if second == 'bifocal':
-                    if product_type == 'lens':
-                        forced_len_type = 'HT'
-        except Exception:
-            pass
-
-        # Rule override: Tên bắt đầu bằng "Khăn" → danh mục PK và nhóm sản phẩm CLOTH
-        try:
-            normalized_name = str(product_name or '').lstrip().lower()
-            if normalized_name.startswith('khăn') or normalized_name.startswith('khan'):
-                pk_id = cache.get('categories_by_code', {}).get('PK')
-                if not pk_id:
-                    pk_cat = self.env['product.category'].search([('code', '=', 'PK')], limit=1) if 'code' in self.env['product.category']._fields else False
-                    pk_id = pk_cat.id if pk_cat else False
-                if pk_id:
-                    categ_id = pk_id
-
-                if 'product.group' in self.env:
-                    cloth_key = _norm_group_key('CLOTH')
-                    cloth_id = cache.get('groups', {}).get(cloth_key)
-                    if not cloth_id:
-                        cloth = self.env['product.group'].search([('cid', '=', 'CLOTH')], limit=1)
-                        cloth_id = cloth.id if cloth else False
-                        if cloth_id:
-                            cache['groups'][cloth_key] = cloth_id
-                    if cloth_id:
-                        grp_id = cloth_id
-        except Exception:
-            pass
-
-        # Rule override: Tên bắt đầu bằng "Càng" → danh mục LK và nhóm sản phẩm TEMPLE
-        try:
-            normalized_name = str(product_name or '').lstrip().lower()
-            if (normalized_name.startswith('càng')
-                    or normalized_name.startswith('cang')
-                    or normalized_name.startswith('chuôi')
-                    or normalized_name.startswith('chuoi')):
-                lk_id = cache.get('categories_by_code', {}).get('LK')
-                if not lk_id:
-                    lk_cat = self.env['product.category'].search([('code', '=', 'LK')], limit=1) if 'code' in self.env['product.category']._fields else False
-                    lk_id = lk_cat.id if lk_cat else False
-                if lk_id:
-                    categ_id = lk_id
-
-                # Force group TEMPLE
-                if 'product.group' in self.env:
-                    temple_key = _norm_group_key('TEMPLE')
-                    temple_id = cache.get('groups', {}).get(temple_key)
-                    if not temple_id:
-                        temple = self.env['product.group'].search([('cid', '=', 'TEMPLE')], limit=1)
-                        temple_id = temple.id if temple else False
-                        if temple_id:
-                            cache['groups'][temple_key] = temple_id
-                    if temple_id:
-                        grp_id = temple_id
-        except Exception:
-            pass
-
-        # Rule override: Tên bắt đầu bằng "Ve" → danh mục LK và nhóm sản phẩm VE
-        try:
-            normalized_name = str(product_name or '').lstrip().lower()
-            if normalized_name.startswith('ve ' ) or normalized_name == 've' or normalized_name.startswith('ve-'):
-                lk_id = cache.get('categories_by_code', {}).get('LK')
-                if not lk_id:
-                    lk_cat = self.env['product.category'].search([('code', '=', 'LK')], limit=1) if 'code' in self.env['product.category']._fields else False
-                    lk_id = lk_cat.id if lk_cat else False
-                if lk_id:
-                    categ_id = lk_id
-
-                if 'product.group' in self.env:
-                    ve_key = _norm_group_key('VE')
-                    ve_id = cache.get('groups', {}).get(ve_key)
-                    if not ve_id:
-                        ve = self.env['product.group'].search([('cid', '=', 'VE')], limit=1)
-                        ve_id = ve.id if ve else False
-                        if ve_id:
-                            cache['groups'][ve_key] = ve_id
-                    if ve_id:
-                        grp_id = ve_id
-        except Exception:
-            pass
+        # Fill loại tròng từ product_type của nhóm
+        _lens_types = {'DT', 'HT', 'DAT', 'PT'}
+        if grp_rec and getattr(grp_rec, 'product_type', False) and grp_rec.product_type in _lens_types:
+            forced_len_type = grp_rec.product_type
 
         # Currency lookup (cần trước seller_ids để truyền currency_id đúng)
         currency_zone_cid = (dto.get('currencyZoneDTO') or {}).get('cid', '')
@@ -1668,7 +1512,7 @@ class ProductSync(models.Model):
             'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else [(5,)],
             'seller_ids': seller_vals if seller_vals else [],
             'product_type': product_type,
-            'brand_id': self._get_or_create(cache, 'brands', 'product.brand', dto.get('tmdto')),
+            'brand_id': _parsed_brand_id or False,
             'country_id': self._get_or_create(cache, 'countries', 'res.country', dto.get('codto')),
             'warranty_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantydto')),
             'warranty_supplier_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantySupplierdto')),

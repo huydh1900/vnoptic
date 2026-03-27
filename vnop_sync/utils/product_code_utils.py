@@ -40,44 +40,43 @@ def _base36_encode(number):
     return result.rjust(5, '0')
 
 
-def _get_prefix_components(env, categ_id, brand_id, lens_index_id, lens_index_cache=None):
+def _get_prefix_components(env, categ_id, brand_id, lens_index_id, lens_index_cache=None, group_id=None):
     """
-    Helper to generate prefix string from category, brand, and lens index
-    
-    Returns: (categ_part, brand_part, index_part)
-    - categ_part: 2 digits from category.code (e.g., '06', '27', '20')
-    - brand_part: 3 digits from brand.code or brand.id (e.g., '003', '004')
-    - index_part: 3 digits from lens_index.cid (e.g., '167')
+    Quy tắc tạo mã: [GG][BBB][III][XXXXX]
+    - GG  : 2 số = sequence của product.group (zero-padded)
+    - BBB : 3 số = sequence của product.brand (zero-padded)
+    - III : 3 ký tự = cid của product.lens.index
     """
-    # Category Part (2 digits)
-    categ_part = '00'
-    if categ_id:
+    # Group Part (2 digits from group.sequence)
+    group_part = '00'
+    if group_id:
+        grp = env['product.group'].browse(group_id)
+        if grp.exists() and grp.sequence:
+            group_part = str(grp.sequence).zfill(2)[-2:]
+    elif categ_id:
+        # fallback: dùng category.code nếu không có group
         category = env['product.category'].browse(categ_id)
         if category.code:
-            categ_part = category.code[:2].ljust(2, '0')
-    
-    # Brand Part (3 digits)
+            group_part = category.code[:2].ljust(2, '0')
+
+    # Brand Part (3 digits from brand.sequence)
     brand_part = '000'
     if brand_id:
         brand = env['product.brand'].browse(brand_id)
-        if brand.code:
-            # Use brand.code if available
-            brand_part = brand.code[:3].zfill(3)
-        else:
-            # Fallback to brand ID
-            brand_part = f"{brand_id:03d}"
-    
-    # Index Part (3 digits) - only for lens products
-    index_part = "000"
+        if brand.exists() and brand.sequence:
+            brand_part = str(brand.sequence).zfill(3)[-3:]
+
+    # Index Part (3 chars from lens_index.cid)
+    index_part = '000'
     if lens_index_id:
         if lens_index_cache and lens_index_id in lens_index_cache:
             cid = lens_index_cache[lens_index_id]
         else:
             lens_index = env['product.lens.index'].browse(lens_index_id)
-            cid = lens_index.cid if lens_index and lens_index.cid else "000"
+            cid = lens_index.cid if lens_index and lens_index.cid else '000'
         index_part = cid[:3].ljust(3, '0')
-    
-    return categ_part, brand_part, index_part
+
+    return group_part, brand_part, index_part
 
 def _ensure_sequence_exists(env, prefix):
     """
@@ -129,20 +128,13 @@ def _ensure_sequence_exists(env, prefix):
         'company_id': False,
     })
 
-def generate_product_code(env, categ_id, brand_id, lens_index_id):
+def generate_product_code(env, categ_id, brand_id, lens_index_id, group_id=None):
     """
-    Generate a single product code using Base36 encoded sequence
-    
-    Args:
-        categ_id: product.category ID
-        brand_id: product.brand ID  
-        lens_index_id: product.lens.index ID (optional, only for lens)
-    
-    Returns:
-        13-character product code (e.g., '06004167000BL')
+    Generate a single product code.
+    Prefix = [GG][BBB][III] (group.sequence, brand.sequence, lens_index.cid)
     """
-    categ_part, brand_part, index_part = _get_prefix_components(env, categ_id, brand_id, lens_index_id)
-    prefix = f"{categ_part}{brand_part}{index_part}"
+    group_part, brand_part, index_part = _get_prefix_components(env, categ_id, brand_id, lens_index_id, group_id=group_id)
+    prefix = f"{group_part}{brand_part}{index_part}"
     
     sequence = _ensure_sequence_exists(env, prefix)
     
@@ -161,12 +153,11 @@ def generate_product_code(env, categ_id, brand_id, lens_index_id):
 
 def generate_product_codes_batch(env, code_requests):
     """
-    Generate product codes for multiple products at once.
-    code_requests: list of tuples (categ_id, brand_id, lens_index_id)
+    code_requests: list of tuples (categ_id, brand_id, lens_index_id, group_id)
     """
     if not code_requests:
         return []
-    
+
     # Cache lens index CIDs
     lens_index_cache = {}
     unique_lens_ids = set(req[2] for req in code_requests if req[2])
@@ -174,12 +165,12 @@ def generate_product_codes_batch(env, code_requests):
         lens_indexes = env['product.lens.index'].browse(list(unique_lens_ids))
         for li in lens_indexes:
             lens_index_cache[li.id] = li.cid[:3].ljust(3, '0') if li.cid else '000'
-    
-    # 1. Prepare all prefixes
+
     prefixes = []
-    for categ_id, brand_id, lens_index_id in code_requests:
-        c, b, i = _get_prefix_components(env, categ_id, brand_id, lens_index_id, lens_index_cache)
-        prefixes.append(f"{c}{b}{i}")
+    for categ_id, brand_id, lens_index_id, *rest in code_requests:
+        group_id = rest[0] if rest else None
+        g, b, i = _get_prefix_components(env, categ_id, brand_id, lens_index_id, lens_index_cache, group_id=group_id)
+        prefixes.append(f"{g}{b}{i}")
     
     # 2. Ensure sequences exist
     unique_prefixes = set(prefixes)

@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 
 class ProductGroup(models.Model):
     _name = 'product.group'
     _description = 'Product Group'
-    _order = 'name'
+    _order = 'sequence, name'
 
     name = fields.Char('Tên nhóm', required=True)
     description = fields.Text('Mô tả', size=200)
     cid = fields.Char("Mã nhóm", required=True)
+    sequence = fields.Integer('STT', default=lambda self: (self.search([], order='sequence desc', limit=1).sequence or 0) + 1)
     category_id = fields.Many2one(
         'product.category',
         string='Danh mục sản phẩm',
@@ -26,6 +28,16 @@ class ProductGroup(models.Model):
         ('LK', 'Linh kiện kỹ thuật'),
     ], string='Phân loại')
 
+    _sql_constraints = [
+        ('sequence_unique', 'unique(sequence)', 'STT nhóm sản phẩm phải là duy nhất!'),
+    ]
+
+    @api.constrains('sequence')
+    def _check_sequence_unique(self):
+        for rec in self:
+            if self.search_count([('sequence', '=', rec.sequence), ('id', '!=', rec.id)]):
+                raise ValidationError(f'STT {rec.sequence} đã tồn tại, vui lòng chọn STT khác!')
+
     def _infer_group_code_from_category(self, category):
         categ = category
         while categ:
@@ -38,7 +50,10 @@ class ProductGroup(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         allowed = {k for k, _ in self._fields['product_type'].selection}
-        for vals in vals_list:
+        max_seq = self.search([], order='sequence desc', limit=1).sequence
+        for i, vals in enumerate(vals_list):
+            if 'sequence' not in vals:
+                vals['sequence'] = max_seq + i + 1
             categ_id = vals.get('category_id')
             if categ_id:
                 code = self._infer_group_code_from_category(self.env['product.category'].browse(categ_id))
