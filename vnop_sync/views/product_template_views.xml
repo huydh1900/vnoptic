@@ -39,11 +39,6 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- Ẩn Danh mục Avatax -->
-            <xpath expr="//field[@name='avatax_category_id']" position="attributes">
-                <attribute name="invisible">1</attribute>
-            </xpath>
-
             <!-- Ẩn categ_id mặc định của Odoo (đã có trong section Phân loại sản phẩm) -->
             <xpath expr="//page[@name='general_information']//field[@name='categ_id']" position="attributes">
                 <attribute name="invisible">1</attribute>
