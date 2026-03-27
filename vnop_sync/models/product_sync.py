@@ -7,6 +7,7 @@ import os
 import time
 import random
 import re
+import base64
 import requests
 import urllib3
 from collections import defaultdict
@@ -1382,6 +1383,12 @@ class ProductSync(models.Model):
                         cache.setdefault('groups', {})[force_key] = grp_id
                         cache.setdefault('groups_by_id', {})[grp_id] = grp_id
 
+        # Tự động fill loại tròng từ product_type của nhóm sản phẩm (nếu chưa bị force)
+        _lens_types = {'DT', 'HT', 'DAT', 'PT'}
+        if not forced_len_type and grp_rec and getattr(grp_rec, 'product_type', False):
+            if grp_rec.product_type in _lens_types:
+                forced_len_type = grp_rec.product_type
+
         # Map ngược danh mục: lấy trực tiếp từ group.category_id
         categ_id = False
         if grp_rec and getattr(grp_rec, 'category_id', False):
@@ -1687,6 +1694,24 @@ class ProductSync(models.Model):
             'bao_hanh_ban_le': int((dto.get('warrantyRetailDTO') or {}).get('value') or 0),
             'x_group_type_name': grp_type_name,
         }
+
+        # Sync ảnh sản phẩm từ imageUrl
+        image_url = dto.get('imageUrl') or ''
+        if image_url:
+            if image_url.startswith('/'):
+                _cfg = self._get_api_config()
+                image_url = _cfg['base_url'].rstrip('/') + image_url
+            try:
+                img_resp = requests.get(image_url, timeout=10, verify=False)
+                if img_resp.status_code == 200 and img_resp.content:
+                    vals['image_1920'] = base64.b64encode(img_resp.content).decode('utf-8')
+            except Exception:
+                pass
+
+        # Sync QR URL từ Java (https://erp.vnoptictech.com.vn/product/{id})
+        java_id = dto.get('id')
+        if java_id:
+            vals['x_java_qr_url'] = f'https://erp.vnoptictech.com.vn/product/{java_id}'
 
         if forced_len_type:
             vals['len_type'] = forced_len_type

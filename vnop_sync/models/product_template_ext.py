@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import base64
+from io import BytesIO
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
@@ -25,6 +27,26 @@ class ProductTemplateExtension(models.Model):
         ('DAT', 'Đa tròng'),
         ('PT', 'Phôi tròng'),
     ], string='Loại tròng')
+
+    x_java_qr_url = fields.Char(string='QR URL (Java)', copy=False)
+    barcode_image = fields.Binary(string='QR Code', compute='_compute_barcode_image', store=False)
+
+    @api.depends('x_java_qr_url')
+    def _compute_barcode_image(self):
+        try:
+            import qrcode
+        except ImportError:
+            for rec in self:
+                rec.barcode_image = False
+            return
+        for rec in self:
+            if rec.x_java_qr_url:
+                img = qrcode.make(rec.x_java_qr_url)
+                buf = BytesIO()
+                img.save(buf, format='PNG')
+                rec.barcode_image = base64.b64encode(buf.getvalue()).decode()
+            else:
+                rec.barcode_image = False
 
     def _get_category_by_code(self, code):
         return self.env['product.category'].search([('code', '=', code)], limit=1)
