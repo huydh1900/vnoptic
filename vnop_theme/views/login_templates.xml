@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <template id="vnop_login_layout_custom" name="VNOP Login Layout">
+        <t t-call="web.frontend_layout">
+            <t t-set="html_data" t-value="{'style': 'height: 100%;'}"/>
+            <t t-set="body_classname" t-value="'bg-100 vnop-theme-login'"/>
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="vnop-login-page">
+                <section class="vnop-login-panel o_database_list">
+                    <div class="vnop-login-panel-inner">
+                        <div class="vnop-login-form-card">
+                            <div class="vnop-login-form-logo-wrap">
+                                <span class="vnop-login-form-logo-circle">
+                                    <img class="vnop-login-form-logo" src="/vnop_theme/static/src/img/image.png" alt="VNOPTIC Logo"/>
+                                </span>
+                            </div>
+
+                            <h2 class="vnop-login-title">
+                                <t t-esc="vnop_auth_title or 'Sign In'"/>
+                            </h2>
+
+                            <t t-out="0"/>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </t>
+    </template>
+
+    <template id="vnop_login_use_custom_layout" name="Use custom layout for login" inherit_id="web.login" priority="90">
+        <xpath expr="//t[@t-call='web.login_layout']" position="attributes">
+            <attribute name="t-call">vnop_theme.vnop_login_layout_custom</attribute>
+        </xpath>
+        <xpath expr="//owl-component[@name='web.user_switch']" position="replace"/>
+        <xpath expr="//form[contains(@t-attf-class, 'oe_login_form')]" position="attributes">
+            <attribute name="t-attf-class">oe_login_form</attribute>
+        </xpath>
+    </template>
+
+    <template id="vnop_signup_use_custom_layout" name="Use custom layout for signup" inherit_id="auth_signup.signup" priority="90">
+        <xpath expr="//t[@t-call='web.login_layout']" position="attributes">
+            <attribute name="t-call">vnop_theme.vnop_login_layout_custom</attribute>
+        </xpath>
+        <xpath expr="//form[1]" position="before">
+            <t t-set="vnop_auth_title">Sign Up</t>
+        </xpath>
+    </template>
+
+    <template id="vnop_reset_password_use_custom_layout" name="Use custom layout for reset password" inherit_id="auth_signup.reset_password" priority="90">
+        <xpath expr="//t[@t-call='web.login_layout']" position="attributes">
+            <attribute name="t-call">vnop_theme.vnop_login_layout_custom</attribute>
+        </xpath>
+        <xpath expr="//div[@t-if='message']" position="before">
+            <t t-set="vnop_auth_title">Reset Password</t>
+        </xpath>
+    </template>
+</odoo>
+

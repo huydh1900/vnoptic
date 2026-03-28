@@ -1,0 +1,175 @@
+.vnop-theme-login {
+    background: linear-gradient(145deg, #edf1f5 0%, #e6ebf1 100%);
+}
+
+.vnop-theme-login #wrapwrap,
+.vnop-theme-login #wrapwrap main {
+    min-height: 100vh;
+}
+
+.vnop-theme-login .vnop-login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 14px;
+}
+
+.vnop-theme-login .vnop-login-panel {
+    width: 100%;
+    max-width: 580px;
+    border-radius: 26px;
+    padding: 16px;
+    box-shadow: 0 20px 34px rgba(14, 54, 92, 0.24);
+}
+
+.vnop-theme-login .vnop-login-panel-inner {
+    width: 100%;
+}
+
+.vnop-theme-login .vnop-login-form-card {
+    border: none;
+    border-radius: 20px;
+    padding: 14px 14px 12px;
+    background: #ffffff;
+    box-shadow: 0 10px 24px rgba(20, 49, 80, 0.14);
+}
+
+.vnop-theme-login .vnop-login-form-logo-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.vnop-theme-login .vnop-login-form-logo-circle {
+    width: 170px;
+    height: 170px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: none;
+    box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.68), 0 14px 28px rgba(25, 71, 116, 0.23);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vnop-theme-login .vnop-login-form-logo {
+    width: 126px;
+    height: 126px;
+    object-fit: contain;
+}
+
+.vnop-theme-login .vnop-login-title {
+    margin: 0 0 10px;
+    font-size: 1.72rem;
+    color: #1b3152;
+    font-weight: 700;
+    text-align: center;
+}
+
+.vnop-theme-login .vnop-login-subtitle {
+    display: none !important;
+}
+
+.vnop-theme-login .o_user_switch {
+    display: none !important;
+}
+
+.vnop-theme-login .oe_login_form,
+.vnop-theme-login .oe_signup_form,
+.vnop-theme-login .oe_reset_password_form {
+    width: 100%;
+}
+
+.vnop-theme-login .oe_login_form .mb-3,
+.vnop-theme-login .oe_signup_form .mb-3,
+.vnop-theme-login .oe_reset_password_form .mb-3 {
+    margin-bottom: 0.7rem !important;
+}
+
+.vnop-theme-login .oe_login_form .form-label,
+.vnop-theme-login .oe_signup_form label,
+.vnop-theme-login .oe_reset_password_form label {
+    font-weight: 600;
+    color: #2d3f5f;
+    margin-bottom: 0.4rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.vnop-theme-login .oe_login_form .form-control,
+.vnop-theme-login .oe_signup_form .form-control,
+.vnop-theme-login .oe_reset_password_form .form-control,
+.vnop-theme-login .oe_signup_form .form-control-sm {
+    min-height: 42px;
+    border-radius: 12px;
+    border: 1px solid #d2d9e4;
+    font-size: 1rem;
+    box-shadow: none;
+    padding: 0.44rem 0.72rem;
+}
+
+.vnop-theme-login .oe_login_form .form-control:focus,
+.vnop-theme-login .oe_signup_form .form-control:focus,
+.vnop-theme-login .oe_reset_password_form .form-control:focus,
+.vnop-theme-login .oe_signup_form .form-control-sm:focus {
+    border-color: #d2d9e4;
+    box-shadow: 0 0 0 0.2rem rgba(44, 63, 88, 0.14);
+}
+
+.vnop-theme-login .oe_login_buttons,
+.vnop-theme-login .oe_signup_form .oe_login_buttons,
+.vnop-theme-login .oe_reset_password_form .oe_login_buttons {
+    margin-top: 0.4rem;
+}
+
+.vnop-theme-login .oe_login_buttons .btn-primary,
+.vnop-theme-login .oe_signup_form .btn-primary,
+.vnop-theme-login .oe_reset_password_form .btn-primary {
+    min-height: 44px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    background-color: #1d8fda;
+    border-color: #1d8fda;
+    box-shadow: 0 10px 18px rgba(9, 53, 107, 0.34);
+}
+
+.vnop-theme-login .oe_login_buttons .btn-primary:hover,
+.vnop-theme-login .oe_login_buttons .btn-primary:focus,
+.vnop-theme-login .oe_signup_form .btn-primary:hover,
+.vnop-theme-login .oe_signup_form .btn-primary:focus,
+.vnop-theme-login .oe_reset_password_form .btn-primary:hover,
+.vnop-theme-login .oe_reset_password_form .btn-primary:focus {
+    background-color: #157dc5;
+    border-color: #157dc5;
+    box-shadow: 0 12px 22px rgba(6, 41, 84, 0.42);
+}
+
+@media (max-width: 575.98px) {
+    .vnop-theme-login .vnop-login-page {
+        padding: 6px;
+    }
+
+    .vnop-theme-login .vnop-login-panel {
+        border-radius: 18px;
+        padding: 10px;
+    }
+
+    .vnop-theme-login .vnop-login-form-card {
+        border-radius: 14px;
+        padding: 12px 10px;
+    }
+
+    .vnop-theme-login .vnop-login-form-logo-circle {
+        width: 146px;
+        height: 146px;
+        box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.68), 0 12px 20px rgba(25, 71, 116, 0.22);
+    }
+
+    .vnop-theme-login .vnop-login-form-logo {
+        width: 108px;
+        height: 108px;
+    }
+}
