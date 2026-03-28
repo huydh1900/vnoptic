@@ -11,6 +11,7 @@
     "assets": {
         "web.assets_frontend": [
             "vnop_theme/static/src/scss/login.scss",
+            "vnop_theme/static/src/js/password_toggle.js",
         ],
     },
     "installable": True,
