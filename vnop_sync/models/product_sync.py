@@ -10,6 +10,7 @@ import re
 import base64
 import requests
 import urllib3
+from urllib.parse import urljoin
 from collections import defaultdict
 from odoo import models, fields, api, _
 from odoo.modules.registry import Registry
@@ -156,6 +157,207 @@ class ProductSync(models.Model):
         except (TypeError, ValueError):
             return default
 
+    def _is_placeholder_value(self, value):
+        """Return True when value is empty/demo placeholder like 'khong', 'none', 'n/a'."""
+        if value in (None, False):
+            return True
+
+        raw = str(value).strip()
+        if not raw:
+            return True
+
+        normalized = re.sub(r"[\s\-_/\.]+", "", raw.lower())
+        return normalized in {'khong', 'none', 'null', 'na', '""', "''"}
+
+    def _clean_placeholder_text(self, value):
+        """Normalize to stripped text and drop placeholders as False."""
+        if value in (None, False):
+            return False
+        text = str(value).strip()
+        if not text:
+            return False
+        return False if self._is_placeholder_value(text) else text
+
+    def _extract_rs_image_url(self, item):
+        """Extract RS product image URL/path from known payload aliases."""
+        dto = (
+            item.get('productdto')
+            or item.get('productDto')
+            or item.get('productDTO')
+            or {}
+        )
+
+        image_url = False
+        for source in (dto, item):
+            if not isinstance(source, dict):
+                continue
+            for key in ('imageUrl', 'imageURL', 'image', 'Image'):
+                value = source.get(key)
+                if value not in (None, '', False):
+                    image_url = value
+                    break
+            if image_url:
+                break
+
+        cleaned = self._clean_placeholder_text(image_url)
+        return str(cleaned).strip() if cleaned else False
+
+    def _is_rs_default_image_url(self, image_url):
+        """Return True when RS image path points to known default placeholder image."""
+        if not image_url:
+            return True
+
+        value = str(image_url).strip()
+        if not value:
+            return True
+
+        normalized = value.replace('\\', '/').lower()
+        default_endpoint = (os.getenv('RS_DEFAULT_IMAGE_ENDPOINT') or '/api/files/default.png').strip().lower()
+        default_endpoint = default_endpoint.replace('\\', '/')
+        if default_endpoint and normalized.endswith(default_endpoint):
+            return True
+
+        return normalized.endswith('/default.png') or normalized.endswith('/default.jpg') or '/default-image' in normalized
+
+    def _build_rs_image_full_url(self, image_url, cfg):
+        """Normalize RS image URL to absolute URL using configured base_url when needed."""
+        if not image_url:
+            return False
+        raw = str(image_url).strip()
+        if not raw:
+            return False
+
+        if raw.lower().startswith('http://') or raw.lower().startswith('https://'):
+            return raw
+
+        base_url = (cfg or {}).get('base_url') or ''
+        if not base_url:
+            return False
+        return urljoin(base_url.rstrip('/') + '/', raw.lstrip('/'))
+
+    def _fetch_rs_image_base64(self, image_url, image_sync_ctx=None, product_ref='', allow_default_fallback=True):
+        """Download RS image and return base64 string; return False on recoverable failure."""
+        if not image_url:
+            return False
+
+        ctx = image_sync_ctx or {}
+        cfg = ctx.get('cfg') or self._get_api_config()
+        token = ctx.get('token')
+        session = ctx.get('session') or self._make_session()
+
+        try:
+            timeout = int(os.getenv('PRODUCT_IMAGE_TIMEOUT', '20'))
+        except (TypeError, ValueError):
+            timeout = 20
+
+        image_full_url = self._build_rs_image_full_url(image_url, cfg)
+        if not image_full_url:
+            _logger.warning(
+                "⚠️ Skip sync image: cannot build full URL for product=%s image_url=%r",
+                product_ref or 'N/A',
+                image_url,
+            )
+            return False
+
+        headers = {'Accept': 'image/*,*/*'}
+        if token:
+            headers['Authorization'] = f'Bearer {token}'
+
+        def _download_image_as_b64(target_url):
+            resp = session.get(
+                target_url,
+                headers=headers,
+                verify=cfg.get('ssl_verify', False),
+                timeout=timeout,
+            )
+            resp.raise_for_status()
+
+            content = resp.content or b''
+            if not content:
+                _logger.warning("⚠️ Skip sync image: empty content product=%s url=%s", product_ref or 'N/A', target_url)
+                return False
+
+            content_type = (resp.headers.get('Content-Type') or '').lower()
+            if content_type and not content_type.startswith('image/'):
+                _logger.warning(
+                    "⚠️ Skip sync image: invalid content-type product=%s url=%s content_type=%s",
+                    product_ref or 'N/A',
+                    target_url,
+                    content_type,
+                )
+                return False
+
+            try:
+                return base64.b64encode(content).decode('ascii')
+            except Exception as e:
+                _logger.warning("⚠️ Skip sync image encode error: product=%s url=%s error=%s", product_ref or 'N/A', target_url, e)
+                return False
+
+        try:
+            image_b64 = _download_image_as_b64(image_full_url)
+            if image_b64:
+                return image_b64
+        except requests.exceptions.Timeout as e:
+            _logger.warning("⚠️ Skip sync image timeout: product=%s url=%s error=%s", product_ref or 'N/A', image_full_url, e)
+        except Exception as e:
+            _logger.warning("⚠️ Skip sync image download error: product=%s url=%s error=%s", product_ref or 'N/A', image_full_url, e)
+
+        if allow_default_fallback and not self._is_rs_default_image_url(image_url):
+            default_endpoint = (os.getenv('RS_DEFAULT_IMAGE_ENDPOINT') or '/api/files/default.png').strip()
+            default_url = self._build_rs_image_full_url(default_endpoint, cfg)
+            if default_url and default_url != image_full_url:
+                try:
+                    fallback_b64 = _download_image_as_b64(default_url)
+                    if fallback_b64:
+                        _logger.info(
+                            "ℹ️ Product image fallback to default image: product=%s failed_url=%s default_url=%s",
+                            product_ref or 'N/A',
+                            image_full_url,
+                            default_url,
+                        )
+                        return fallback_b64
+                except Exception as e:
+                    _logger.warning(
+                        "⚠️ Skip sync image fallback error: product=%s default_url=%s error=%s",
+                        product_ref or 'N/A',
+                        default_url,
+                        e,
+                    )
+
+        return False
+
+    def _apply_product_image_to_vals(self, item, vals, image_sync_ctx=None, existing_product_id=None):
+        """Set vals['image_1920'] only when RS image download succeeds."""
+        image_url = self._extract_rs_image_url(item)
+        if not image_url:
+            return
+
+        existing_has_image = False
+        if existing_product_id:
+            existing_tmpl = self.env['product.template'].browse(existing_product_id).exists()
+            existing_has_image = bool(existing_tmpl and existing_tmpl.image_1920)
+
+        is_default_image = self._is_rs_default_image_url(image_url)
+        if is_default_image and existing_has_image:
+            # Keep existing image if product already has one; only fill blank images with default image.
+            return
+
+        dto = (
+            item.get('productdto')
+            or item.get('productDto')
+            or item.get('productDTO')
+            or {}
+        )
+        product_ref = (dto.get('cid') or dto.get('id') or dto.get('externalId') or vals.get('default_code') or '').strip() or 'N/A'
+        image_b64 = self._fetch_rs_image_base64(
+            image_url,
+            image_sync_ctx=image_sync_ctx,
+            product_ref=product_ref,
+            allow_default_fallback=not existing_has_image,
+        )
+        if image_b64:
+            vals['image_1920'] = image_b64
+
     def _get_access_token(self):
         config = self._get_api_config()
         login_url = f"{config['base_url']}{config['login_endpoint']}"
@@ -250,7 +452,7 @@ class ProductSync(models.Model):
             if page >= total_pages:
                 break
 
-    def _sync_streaming(self, endpoint, token, product_type, child_model=None, cache=None, error_ctx=None, limit=None):
+    def _sync_streaming(self, endpoint, token, product_type, child_model=None, cache=None, error_ctx=None, limit=None, image_sync_ctx=None):
         """Fetch → process → commit từng batch. Không giữ data trong memory."""
         db = self.env.cr.dbname
         rec_id = self.id
@@ -264,7 +466,7 @@ class ProductSync(models.Model):
                     self_batch = env[self._name].browse(rec_id)
                     with cr.savepoint():
                         success, failed = self_batch._process_batch(
-                            items, cache, product_type, child_model, error_ctx=error_ctx
+                            items, cache, product_type, child_model, error_ctx=error_ctx, image_sync_ctx=image_sync_ctx
                         )
                     cr.commit()
                 total_success += success
@@ -1248,7 +1450,7 @@ class ProductSync(models.Model):
         # updated, skipped, missing_variant, missing_template
         # )
 
-    def _prepare_base_vals(self, item, cache, product_type, coating_ids=None, lens_template_key=None):
+    def _prepare_base_vals(self, item, cache, product_type, coating_ids=None, lens_template_key=None, image_sync_ctx=None):
         # Một số endpoint có thể trả key khác nhau (productdto/productDto/...) hoặc flatten trực tiếp.
         dto = (
             item.get('productdto')
@@ -1903,6 +2105,23 @@ class ProductSync(models.Model):
         if product_type == 'opt':
             vals.update(self._prepare_opt_vals(item, cache))
 
+        # Image sync: chỉ set image_1920 khi tải ảnh RS thành công.
+        if image_sync_ctx:
+            try:
+                self._apply_product_image_to_vals(
+                    item,
+                    vals,
+                    image_sync_ctx=image_sync_ctx,
+                    existing_product_id=cache['products'].get(default_code),
+                )
+            except Exception as e:
+                _logger.warning(
+                    "⚠️ Skip product image mapping due to unexpected error: product_type=%s default_code=%s error=%s",
+                    product_type,
+                    vals.get('default_code'),
+                    e,
+                )
+
         pid = cache['products'].get(default_code)
 
         return vals, pid
@@ -2115,7 +2334,7 @@ class ProductSync(models.Model):
                 type_map.append(f"{k}: {type(v).__name__}={v!r}")
         # _logger.info("%s TYPE MAP:\n  %s", prefix, '\n  '.join(type_map))
 
-    def _process_lens_variant_items(self, items, cache, error_ctx=None):
+    def _process_lens_variant_items(self, items, cache, error_ctx=None, image_sync_ctx=None):
         total = len(items)
         success = failed = 0
         # _logger.info(f"🔄 Processing {total} lens items (template-based)...")
@@ -2132,7 +2351,8 @@ class ProductSync(models.Model):
                 vals, _ = self._prepare_base_vals(
                     item, cache, 'lens',
                     coating_ids=coating_ids,
-                    lens_template_key=template_key
+                    lens_template_key=template_key,
+                    image_sync_ctx=image_sync_ctx,
                 )
                 if tmpl_id:
                     to_update.append((tmpl_id, vals))
@@ -2206,7 +2426,7 @@ class ProductSync(models.Model):
 
         return success, failed
 
-    def _process_accessory_batch(self, items, cache, error_ctx=None):
+    def _process_accessory_batch(self, items, cache, error_ctx=None, image_sync_ctx=None):
         """Xử lý accessories: mỗi record một savepoint độc lập + logging đầy đủ.
         HOÀN TOÀN TÁCH BIỆT khỏi lens/opt. Không sửa bất kỳ helper nào lens/opt dùng.
         """
@@ -2333,7 +2553,7 @@ class ProductSync(models.Model):
 
                     # ── map vals (dùng hàm chung — không sửa) ──────────────────
                     step = 'map'
-                    vals, pid = self._prepare_base_vals(item, cache, 'accessory')
+                    vals, pid = self._prepare_base_vals(item, cache, 'accessory', image_sync_ctx=image_sync_ctx)
 
                     # ── Accessory-specific field mapping (chỉ cho accessory) ──────────
                     step = 'acc_fields'
@@ -2565,19 +2785,19 @@ class ProductSync(models.Model):
 
         return success, errors
 
-    def _process_batch(self, items, cache, product_type, child_model=None, error_ctx=None):
+    def _process_batch(self, items, cache, product_type, child_model=None, error_ctx=None, image_sync_ctx=None):
         """
         Xử lý batch create/update sản phẩm từ API.
         - Lens và Opt: specs đã được map trực tiếp vào template (Hướng B).
         - Accessory và các loại khác: chỉ tạo/update product.template.
         """
         if product_type == 'lens':
-            return self._process_lens_variant_items(items, cache, error_ctx=error_ctx)
+            return self._process_lens_variant_items(items, cache, error_ctx=error_ctx, image_sync_ctx=image_sync_ctx)
 
         # Accessory: xử lý per-record với savepoint riêng + logging đầy đủ
         # KHÔNG thay đổi gì ở đây liên quan lens/opt
         if product_type == 'accessory':
-            return self._process_accessory_batch(items, cache, error_ctx=error_ctx)
+            return self._process_accessory_batch(items, cache, error_ctx=error_ctx, image_sync_ctx=image_sync_ctx)
 
         total = len(items)
         success = failed = 0
@@ -2603,7 +2823,7 @@ class ProductSync(models.Model):
                     # Log RAW structure cho opt (bật bằng LOG_LENS_RAW_STRUCTURE=True)
                     if product_type == 'opt':
                         self._debug_log_item_structure(item, idx)
-                    vals, pid = self._prepare_base_vals(item, cache, product_type)
+                    vals, pid = self._prepare_base_vals(item, cache, product_type, image_sync_ctx=image_sync_ctx)
                     c_vals = {}
                     # Log currency_id cho từng phụ kiện
                     if product_type == 'accessory':
@@ -2785,11 +3005,19 @@ class ProductSync(models.Model):
         token = self._get_access_token()
         cache = self._preload_all_data()
         cfg = self._get_api_config()
+        image_sync_ctx = {
+            'token': token,
+            'cfg': cfg,
+            'session': self._make_session(),
+        }
         stats = {}
         error_ctx = self._init_sync_error_ctx()
 
         # Lens
-        s, f = self._sync_streaming(cfg['lens_endpoint'], token, 'lens', cache=cache, error_ctx=error_ctx, limit=limit)
+        s, f = self._sync_streaming(
+            cfg['lens_endpoint'], token, 'lens', cache=cache, error_ctx=error_ctx, limit=limit,
+            image_sync_ctx=image_sync_ctx,
+        )
         stats['lens'] = s
         stats['failed'] = f
 
@@ -2799,12 +3027,18 @@ class ProductSync(models.Model):
             pass
 
         # Opt
-        s, f = self._sync_streaming(cfg['opts_endpoint'], token, 'opt', cache=cache, error_ctx=error_ctx, limit=limit)
+        s, f = self._sync_streaming(
+            cfg['opts_endpoint'], token, 'opt', cache=cache, error_ctx=error_ctx, limit=limit,
+            image_sync_ctx=image_sync_ctx,
+        )
         stats['opt'] = s
         stats['failed'] += f
 
         # Accessory
-        s, f = self._sync_streaming(cfg['types_endpoint'], token, 'accessory', cache=cache, error_ctx=error_ctx, limit=limit)
+        s, f = self._sync_streaming(
+            cfg['types_endpoint'], token, 'accessory', cache=cache, error_ctx=error_ctx, limit=limit,
+            image_sync_ctx=image_sync_ctx,
+        )
         stats['acc'] = s
         stats['failed'] += f
 
