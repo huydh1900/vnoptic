@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <template id="vnop_login_layout_custom" name="VNOP Login Layout">
+        <t t-call="web.frontend_layout">
+            <t t-set="html_data" t-value="{'style': 'height: 100%;'}"/>
+            <t t-set="body_classname" t-value="'bg-100 vnop-theme-login'"/>
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="vnop-login-page">
+                <section class="vnop-login-panel o_database_list">
+                    <div class="vnop-login-panel-inner">
+                        <div class="vnop-login-form-card">
+                            <div class="vnop-login-form-logo-wrap">
+                                <img class="vnop-login-form-logo" src="/vnop_theme/static/src/img/image.png" alt="VNOPTIC Logo"/>
+                            </div>
+
+                            <h2 class="vnop-login-title">
+                                <t t-esc="vnop_auth_title or 'Đăng nhập'"/>
+                            </h2>
+                            <p class="vnop-login-subtitle" t-if="vnop_auth_subtitle">
+                                <t t-esc="vnop_auth_subtitle"/>
+                            </p>
+
+                            <t t-out="0"/>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </t>
+    </template>
+
+    <template id="vnop_login_use_custom_layout" name="Use custom layout for login" inherit_id="web.login" priority="90">
+        <xpath expr="//t[@t-call='web.login_layout']" position="attributes">
+            <attribute name="t-call">vnop_theme.vnop_login_layout_custom</attribute>
+        </xpath>
+        <xpath expr="//owl-component[@name='web.user_switch']" position="replace"/>
+        <xpath expr="//form[contains(@t-attf-class, 'oe_login_form')]" position="attributes">
+            <attribute name="t-attf-class">oe_login_form</attribute>
+        </xpath>
+        <xpath expr="//form[contains(@t-attf-class, 'oe_login_form')]" position="before">
+            <t t-set="vnop_auth_title">Đăng Nhập</t>
+        </xpath>
+        <xpath expr="//label[@for='db']" position="replace">
+            <label for="db" class="col-form-label">Cơ sở dữ liệu</label>
+        </xpath>
+        <xpath expr="//a[@href='/web/database/selector']" position="replace">
+            <a role="button" href="/web/database/selector" class="btn btn-secondary">Chọn <i class="fa fa-database" role="img" aria-label="Database" title="Database"></i></a>
+        </xpath>
+        <xpath expr="//div[contains(concat(' ', normalize-space(@class), ' '), ' field-login ')]/label[@for='login']" position="replace">
+            <label for="login" class="form-label d-flex justify-content-between">Email *</label>
+        </xpath>
+        <xpath expr="//div[contains(concat(' ', normalize-space(@class), ' '), ' field-login ')]/input[@id='login']" position="attributes">
+            <attribute name="placeholder">Email</attribute>
+        </xpath>
+        <xpath expr="//label[@for='password']" position="replace">
+            <label for="password" class="form-label d-flex justify-content-between">Mật khẩu *</label>
+        </xpath>
+        <xpath expr="//input[@id='password']" position="attributes">
+            <attribute name="placeholder">Mật khẩu</attribute>
+        </xpath>
+        <xpath expr="//input[@id='password']" position="after">
+            <div class="vnop-forgot-password-wrap">
+                <a t-if="reset_password_enabled" class="btn btn-link btn-sm" tabindex="1" t-attf-href="/web/reset_password?{{ keep_query() }}">Quên mật khẩu?</a>
+            </div>
+        </xpath>
+        <xpath expr="//div[contains(concat(' ', normalize-space(@class), ' '), ' oe_login_buttons ')]/button[@type='submit' and contains(concat(' ', normalize-space(@class), ' '), ' btn-primary ')]" position="replace">
+            <button type="submit" class="btn btn-primary">Đăng nhập</button>
+        </xpath>
+        <xpath expr="//button[@type='submit' and @name='redirect']" position="replace"/>
+        <xpath expr="//p/a[contains(@t-attf-href, '/web/signup')]" position="replace"/>
+    </template>
+
+    <template id="vnop_auth_signup_fields_vi" name="Vietnamize auth signup/reset fields" inherit_id="auth_signup.fields" priority="95">
+        <xpath expr="//div[contains(concat(' ', normalize-space(@class), ' '), ' field-login ')]/label[@for='login']" position="replace">
+            <label for="login">Email *</label>
+        </xpath>
+        <xpath expr="//div[contains(concat(' ', normalize-space(@class), ' '), ' field-name ')]/label[@for='name']" position="replace">
+            <label for="name">Họ và tên *</label>
+        </xpath>
+        <xpath expr="//div[contains(concat(' ', normalize-space(@class), ' '), ' field-name ')]/input[@id='name']" position="attributes">
+            <attribute name="placeholder">Họ và tên</attribute>
+        </xpath>
+        <xpath expr="//div[contains(concat(' ', normalize-space(@class), ' '), ' field-password ')]/label[@for='password']" position="replace">
+            <label for="password">Mật khẩu *</label>
+        </xpath>
+        <xpath expr="//div[contains(concat(' ', normalize-space(@class), ' '), ' field-confirm_password ')]/label[@for='confirm_password']" position="replace">
+            <label for="confirm_password">Xác nhận mật khẩu *</label>
+        </xpath>
+    </template>
+
+    <template id="vnop_signup_use_custom_layout" name="Use custom layout for signup" inherit_id="auth_signup.signup" priority="90">
+        <xpath expr="//t[@t-call='web.login_layout']" position="attributes">
+            <attribute name="t-call">vnop_theme.vnop_login_layout_custom</attribute>
+        </xpath>
+        <xpath expr="//form[1]" position="before">
+            <t t-set="vnop_auth_title">Đăng ký</t>
+            <t t-set="vnop_auth_subtitle">Tạo tài khoản để bắt đầu sử dụng hệ thống</t>
+        </xpath>
+        <xpath expr="//form[contains(concat(' ', normalize-space(@class), ' '), ' oe_signup_form ')]//button[@type='submit' and contains(concat(' ', normalize-space(@class), ' '), ' btn-primary ')]" position="replace">
+            <button type="submit" class="btn btn-primary">Đăng ký</button>
+        </xpath>
+        <xpath expr="//form[contains(concat(' ', normalize-space(@class), ' '), ' oe_signup_form ')]//a[contains(@t-attf-href, '/web/login')]" position="replace">
+            <a t-attf-href="/web/login?{{ keep_query() }}" class="btn btn-link btn-sm" role="button">Đã có tài khoản?</a>
+        </xpath>
+    </template>
+
+    <template id="vnop_reset_password_use_custom_layout" name="Use custom layout for reset password" inherit_id="auth_signup.reset_password" priority="90">
+        <xpath expr="//t[@t-call='web.login_layout']" position="attributes">
+            <attribute name="t-call">vnop_theme.vnop_login_layout_custom</attribute>
+        </xpath>
+        <xpath expr="//form[1]" position="before">
+            <t t-set="vnop_auth_title">Đặt lại mật khẩu</t>
+            <t t-set="vnop_auth_subtitle">Nhập email để nhận hướng dẫn tạo mật khẩu mới</t>
+        </xpath>
+        <xpath expr="//div[contains(concat(' ', normalize-space(@class), ' '), ' field-login ')]/label[@for='login']" position="replace">
+            <label for="login" class="col-form-label">Email *</label>
+        </xpath>
+        <xpath expr="//div[contains(concat(' ', normalize-space(@class), ' '), ' field-login ')]/input[@id='login']" position="attributes">
+            <attribute name="placeholder">Email</attribute>
+        </xpath>
+        <xpath expr="//form[contains(concat(' ', normalize-space(@class), ' '), ' oe_reset_password_form ')]//button[@type='submit' and contains(concat(' ', normalize-space(@class), ' '), ' btn-primary ')]" position="replace">
+            <button type="submit" class="btn btn-primary">Đặt lại mật khẩu</button>
+        </xpath>
+        <xpath expr="//div[@t-if='message']/a[@href='/web/login']" position="replace">
+            <a href="/web/login" class="btn btn-link btn-sm float-start" role="button">Quay lại đăng nhập</a>
+        </xpath>
+        <xpath expr="//form[contains(concat(' ', normalize-space(@class), ' '), ' oe_reset_password_form ')]//a[@t-if='not token']" position="replace">
+            <a t-if="not token" t-attf-href="/web/login?{{ keep_query() }}">Quay lại đăng nhập</a>
+        </xpath>
+        <xpath expr="//form[contains(concat(' ', normalize-space(@class), ' '), ' oe_reset_password_form ')]//a[@t-if='invalid_token']" position="replace">
+            <a t-if="invalid_token" href="/web/login">Quay lại đăng nhập</a>
+        </xpath>
+    </template>
+</odoo>
+

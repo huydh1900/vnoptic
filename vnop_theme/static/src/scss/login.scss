@@ -1,0 +1,353 @@
+.vnop-theme-login {
+    --vnop-red-1: #970f1d;
+    --vnop-red-2: #be2137;
+    --vnop-red-3: #7c0914;
+    --vnop-surface: #eceff3;
+    --vnop-card-size: 460px;
+    --vnop-text-dark: #182133;
+    --vnop-text-muted: #606a7d;
+    --vnop-border: #d9dee8;
+    --vnop-focus: rgba(187, 34, 55, 0.2);
+    background: var(--vnop-surface);
+}
+
+.vnop-theme-login #wrapwrap,
+.vnop-theme-login #wrapwrap main {
+    min-height: 100vh;
+}
+
+.vnop-theme-login .vnop-login-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 14px;
+}
+
+.vnop-theme-login .vnop-login-hero {
+    display: none !important;
+}
+
+.vnop-theme-login .vnop-login-hero-inner {
+    width: 100%;
+    max-width: 560px;
+}
+
+.vnop-theme-login .vnop-login-hero-eyebrow {
+    margin: 0 0 0.95rem;
+    font-size: 0.92rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.vnop-theme-login .vnop-login-hero-title {
+    margin: 0;
+    font-size: 3.45rem;
+    line-height: 1.03;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+}
+
+.vnop-theme-login .vnop-login-hero-description {
+    margin: 24px 0 0;
+    max-width: 37ch;
+    font-size: 1.08rem;
+    line-height: 1.55;
+    opacity: 0.95;
+}
+
+.vnop-theme-login .vnop-login-hero-points {
+    list-style: none;
+    margin: 30px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.8rem;
+}
+
+.vnop-theme-login .vnop-login-hero-points li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 1rem;
+    line-height: 1.4;
+}
+
+.vnop-theme-login .vnop-login-hero-point-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.56);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    line-height: 1;
+}
+
+.vnop-theme-login .vnop-login-panel {
+    background: transparent;
+    width: 100%;
+    max-width: 560px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vnop-theme-login .vnop-login-panel-inner {
+    width: 100%;
+    max-width: 540px;
+    display: flex;
+    justify-content: center;
+}
+
+.vnop-theme-login .vnop-login-form-card {
+    width: 100%;
+    max-width: 500px;
+    min-height: auto;
+    background: #ffffff;
+    border: 1px solid #e4e8ef;
+    border-radius: 22px;
+    box-shadow: 0 18px 42px rgba(18, 28, 44, 0.14);
+    padding: 28px 28px 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.vnop-theme-login .vnop-login-form-logo-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.vnop-theme-login .vnop-login-form-logo {
+    width: 146px;
+    height: auto;
+    object-fit: contain;
+}
+
+.vnop-theme-login .vnop-login-title {
+    margin: 0;
+    text-align: center;
+    color: var(--vnop-text-dark);
+    font-size: 1.62rem;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.vnop-theme-login .vnop-login-subtitle {
+    margin: 0.35rem 0 1rem;
+    text-align: center;
+    color: var(--vnop-text-muted);
+    font-size: 0.92rem;
+    line-height: 1.35;
+}
+
+.vnop-theme-login .o_user_switch {
+    display: none !important;
+}
+
+.vnop-theme-login .oe_login_form,
+.vnop-theme-login .oe_signup_form,
+.vnop-theme-login .oe_reset_password_form {
+    width: 100%;
+}
+
+.vnop-theme-login .oe_login_form .alert,
+.vnop-theme-login .oe_signup_form .alert,
+.vnop-theme-login .oe_reset_password_form .alert {
+    border-radius: 10px;
+    margin-bottom: 0.8rem;
+}
+
+.vnop-theme-login .oe_login_form .mb-3,
+.vnop-theme-login .oe_signup_form .mb-3,
+.vnop-theme-login .oe_reset_password_form .mb-3 {
+    margin-bottom: 0.9rem !important;
+}
+
+.vnop-theme-login .vnop-forgot-password-wrap {
+    margin-top: 0.35rem;
+    text-align: right;
+}
+
+.vnop-theme-login .vnop-forgot-password-wrap .btn-link {
+    padding: 0;
+    font-size: 0.85rem;
+}
+
+.vnop-theme-login .oe_login_form label,
+.vnop-theme-login .oe_signup_form label,
+.vnop-theme-login .oe_reset_password_form label {
+    color: #3c4658;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.35rem;
+}
+
+.vnop-theme-login .oe_login_form .form-control,
+.vnop-theme-login .oe_login_form .form-control-sm,
+.vnop-theme-login .oe_signup_form .form-control,
+.vnop-theme-login .oe_signup_form .form-control-sm,
+.vnop-theme-login .oe_reset_password_form .form-control,
+.vnop-theme-login .oe_reset_password_form .form-control-sm {
+    min-height: 46px;
+    border: 1px solid var(--vnop-border);
+    border-radius: 10px;
+    box-shadow: none;
+    color: #253049;
+    font-size: 0.96rem;
+    padding: 0.55rem 0.82rem;
+}
+
+.vnop-theme-login .vnop-password-wrap {
+    position: relative;
+}
+
+.vnop-theme-login .vnop-password-wrap .form-control,
+.vnop-theme-login .vnop-password-wrap .form-control-sm {
+    padding-right: 2.8rem;
+}
+
+.vnop-theme-login .vnop-password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 0.55rem;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    color: #7f889a;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vnop-theme-login .vnop-password-toggle:hover,
+.vnop-theme-login .vnop-password-toggle:focus {
+    color: #243048;
+    background: rgba(36, 48, 72, 0.08);
+}
+
+.vnop-theme-login .oe_login_form .form-control::placeholder,
+.vnop-theme-login .oe_login_form .form-control-sm::placeholder,
+.vnop-theme-login .oe_signup_form .form-control::placeholder,
+.vnop-theme-login .oe_signup_form .form-control-sm::placeholder,
+.vnop-theme-login .oe_reset_password_form .form-control::placeholder,
+.vnop-theme-login .oe_reset_password_form .form-control-sm::placeholder {
+    color: #8c96a9;
+}
+
+.vnop-theme-login .oe_login_form .form-control:focus,
+.vnop-theme-login .oe_login_form .form-control-sm:focus,
+.vnop-theme-login .oe_signup_form .form-control:focus,
+.vnop-theme-login .oe_signup_form .form-control-sm:focus,
+.vnop-theme-login .oe_reset_password_form .form-control:focus,
+.vnop-theme-login .oe_reset_password_form .form-control-sm:focus {
+    border-color: #bf2a3f;
+    box-shadow: 0 0 0 0.2rem var(--vnop-focus);
+}
+
+.vnop-theme-login .oe_login_form .oe_login_buttons,
+.vnop-theme-login .oe_signup_form .oe_login_buttons,
+.vnop-theme-login .oe_reset_password_form .oe_login_buttons {
+    margin-top: 0.35rem;
+}
+
+.vnop-theme-login .oe_login_form .btn-primary,
+.vnop-theme-login .oe_signup_form .btn-primary,
+.vnop-theme-login .oe_reset_password_form .btn-primary {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 10px;
+    border: 1px solid #a71a2f;
+    background: linear-gradient(180deg, #c42a3f 0%, #af1830 100%);
+    color: #ffffff;
+    font-size: 0.98rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    box-shadow: 0 8px 18px rgba(158, 22, 40, 0.22);
+}
+
+.vnop-theme-login .oe_login_form .btn-primary:hover,
+.vnop-theme-login .oe_login_form .btn-primary:focus,
+.vnop-theme-login .oe_signup_form .btn-primary:hover,
+.vnop-theme-login .oe_signup_form .btn-primary:focus,
+.vnop-theme-login .oe_reset_password_form .btn-primary:hover,
+.vnop-theme-login .oe_reset_password_form .btn-primary:focus {
+    border-color: #940f24;
+    background: linear-gradient(180deg, #b72338 0%, #951024 100%);
+}
+
+.vnop-theme-login .oe_login_form a,
+.vnop-theme-login .oe_signup_form a,
+.vnop-theme-login .oe_reset_password_form a {
+    color: #9e1a31;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.vnop-theme-login .oe_login_form a:hover,
+.vnop-theme-login .oe_login_form a:focus,
+.vnop-theme-login .oe_signup_form a:hover,
+.vnop-theme-login .oe_signup_form a:focus,
+.vnop-theme-login .oe_reset_password_form a:hover,
+.vnop-theme-login .oe_reset_password_form a:focus {
+    color: #7f1023;
+    text-decoration: underline;
+}
+
+@media (max-width: 1199.98px) {
+    .vnop-theme-login {
+        --vnop-card-size: 420px;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .vnop-theme-login .vnop-login-page {
+        padding: 16px;
+    }
+
+    .vnop-theme-login .vnop-login-panel {
+        max-width: 520px;
+    }
+
+    .vnop-theme-login .vnop-login-form-card {
+        max-width: 520px;
+        min-height: auto;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .vnop-theme-login .vnop-login-panel {
+        max-width: 100%;
+    }
+
+    .vnop-theme-login .vnop-login-form-card {
+        border-radius: 16px;
+        padding: 18px 14px;
+    }
+
+    .vnop-theme-login .vnop-login-form-logo {
+        width: 128px;
+    }
+
+    .vnop-theme-login .vnop-login-subtitle {
+        margin-bottom: 0.75rem;
+        font-size: 0.88rem;
+    }
+}
