@@ -73,30 +73,16 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem id="menu_product_sync_root"
+    <!-- Top-level menu -->
+    <menuitem id="menu_vnop_sync_root"
               name="Đồng bộ sản phẩm"
-              sequence="50"/>
+              sequence="99"
+              web_icon="stock,static/description/icon.png"/>
 
-    <menuitem id="menu_product_sync_sync"
-              name="Đồng bộ hóa"
-              parent="menu_product_sync_root"
-              sequence="10"/>
-
-    <menuitem id="menu_product_sync_config"
-              name="Cấu hình"
-              parent="menu_product_sync_sync"
+    <menuitem id="menu_vnop_sync_product"
+              name="Đồng bộ sản phẩm"
+              parent="menu_vnop_sync_root"
               action="action_product_sync"
               sequence="10"/>
-
-    <menuitem id="menu_product_master_data"
-              name="Dữ liệu gốc"
-              parent="menu_product_sync_root"
-              sequence="20"/>
-    
-    <!-- Configuration submenu -->
-    <menuitem id="menu_product_config"
-              name="Cấu hình"
-              parent="menu_product_master_data"
-              sequence="100"/>
 
 </odoo>

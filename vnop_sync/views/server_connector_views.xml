@@ -1,14 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Form View -->
-    <record id="view_springboot_connector_form" model="ir.ui.view">
-        <field name="name">springboot.connector.form</field>
-        <field name="model">springboot.connector</field>
+
+    <record id="view_server_connector_tree" model="ir.ui.view">
+        <field name="name">server.connector.tree</field>
+        <field name="model">server.connector</field>
         <field name="arch" type="xml">
-            <form string="Spring Boot Connector">
+            <list string="API Connector">
+                <field name="api_url"/>
+                <field name="service_username" optional="hide"/>
+                <field name="last_sync_date" optional="show"/>
+                <field name="last_sync_status" optional="show" widget="badge"
+                       decoration-success="last_sync_status == 'success'"
+                       decoration-danger="last_sync_status == 'error'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_server_connector_form" model="ir.ui.view">
+        <field name="name">server.connector.form</field>
+        <field name="model">server.connector</field>
+        <field name="arch" type="xml">
+            <form string="API Connector">
                 <header>
                     <button name="test_connection" string="Test Connection"
-                            type="object" class="btn-primary"/>
+                            type="object" class="oe_highlight"/>
                 </header>
                 <sheet>
                     <group>
@@ -18,9 +33,9 @@
                             <field name="service_password" password="True"/>
                         </group>
                         <group string="Status">
-                            <field name="last_sync_date"/>
-                            <field name="last_sync_status"/>
-                            <field name="last_sync_message"/>
+                            <field name="last_sync_date" readonly="1"/>
+                            <field name="last_sync_status" readonly="1"/>
+                            <field name="last_sync_message" readonly="1"/>
                         </group>
                     </group>
                 </sheet>
@@ -28,17 +43,10 @@
         </field>
     </record>
 
-    <!-- Action -->
-    <record id="action_springboot_connector" model="ir.actions.act_window">
-        <field name="name">Spring Boot Connector</field>
-        <field name="res_model">springboot.connector</field>
-        <field name="view_mode">form</field>
+    <record id="action_server_connector" model="ir.actions.act_window">
+        <field name="name">API Connector</field>
+        <field name="res_model">server.connector</field>
+        <field name="view_mode">list,form</field>
     </record>
 
-    <!-- Menu -->
-    <menuitem id="menu_springboot_connector"
-              name="API Connector"
-              parent="vnop_sync.menu_product_config"
-              action="action_springboot_connector"
-              sequence="100"/>
 </odoo>

@@ -19,7 +19,7 @@
                 <!-- Price fields -->
                 <field name="list_price" string="Giá bán"/>
                 <field name="x_ws_price" optional="hide"/>
-                <field name="status_product_id" optional="hide"/>
+                <field name="product_status" optional="hide"/>
             </xpath>
         </field>
     </record>
@@ -33,9 +33,9 @@
             <!-- Add filter for product_type after filter_to_sell -->
             <xpath expr="//filter[@name='filter_to_sell']" position="after">
                 <separator/>
-                <filter string="Tròng kính" name="filter_lens" domain="[('product_type', '=', 'lens')]"/>
-                <filter string="Gọng kính" name="filter_opt" domain="[('product_type', '=', 'opt')]"/>
-                <filter string="Phụ kiện" name="filter_accessory" domain="[('product_type', '=', 'accessory')]"/>
+                <filter string="Tròng kính" name="filter_lens" domain="[('categ_code', '=', 'TK')]"/>
+                <filter string="Gọng kính" name="filter_opt" domain="[('categ_code', '=', 'GK')]"/>
+                <filter string="Phụ kiện" name="filter_accessory" domain="[('categ_code', 'in', ['PK', 'TB', 'LK'])]"/>
             </xpath>
         </field>
     </record>
@@ -48,9 +48,9 @@
             <!-- Add filter for product_type after filter_to_purchase -->
             <xpath expr="//filter[@name='filter_to_purchase']" position="after">
                 <separator/>
-                <filter string="Tròng kính" name="filter_lens" domain="[('product_type', '=', 'lens')]"/>
-                <filter string="Gọng kính" name="filter_opt" domain="[('product_type', '=', 'opt')]"/>
-                <filter string="Phụ kiện" name="filter_accessory" domain="[('product_type', '=', 'accessory')]"/>
+                <filter string="Tròng kính" name="filter_lens" domain="[('categ_code', '=', 'TK')]"/>
+                <filter string="Gọng kính" name="filter_opt" domain="[('categ_code', '=', 'GK')]"/>
+                <filter string="Phụ kiện" name="filter_accessory" domain="[('categ_code', 'in', ['PK', 'TB', 'LK'])]"/>
             </xpath>
         </field>
     </record>
@@ -63,9 +63,9 @@
             <!-- Add filter for product_type after goods -->
             <xpath expr="//filter[@name='goods']" position="after">
                 <separator/>
-                <filter string="Tròng kính" name="filter_lens" domain="[('product_type', '=', 'lens')]"/>
-                <filter string="Gọng kính" name="filter_opt" domain="[('product_type', '=', 'opt')]"/>
-                <filter string="Phụ kiện" name="filter_accessory" domain="[('product_type', '=', 'accessory')]"/>
+                <filter string="Tròng kính" name="filter_lens" domain="[('categ_code', '=', 'TK')]"/>
+                <filter string="Gọng kính" name="filter_opt" domain="[('categ_code', '=', 'GK')]"/>
+                <filter string="Phụ kiện" name="filter_accessory" domain="[('categ_code', 'in', ['PK', 'TB', 'LK'])]"/>
             </xpath>
         </field>
     </record>

@@ -19,10 +19,4 @@
         </field>
     </record>
 
-    <menuitem id="menu_product_brand"
-              name="Thương hiệu"
-              parent="purchase.menu_product_in_config_purchase"
-              action="action_product_brand"
-              sequence="5"/>
-
 </odoo>

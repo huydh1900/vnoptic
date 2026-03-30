@@ -5,19 +5,21 @@
     'depends': ['base', 'stock', 'product', 'purchase', 'account'],
     'data': [
         'security/ir.model.access.csv',
-        'data/ir_cron_data.xml',
         'data/uom_data.xml',
         'data/product_category_data.xml',
         'data/product_brand_data.xml',
         'views/product_sync_views.xml',
         'views/product_brand_views.xml',
         'views/product_warranty_views.xml',
-        'views/product_warranty_template_views.xml',
         'views/product_tree_common_views.xml',
         'views/product_category_views.xml',
         'views/product_template_views.xml',
         'views/product_group_views.xml',
         'views/product_lens_config_views.xml',
+        'views/product_master_data_config_views.xml',
+        'views/product_opt_lens_views.xml',
+        'views/server_connector_views.xml',
+        'views/vnop_sync_purchase_config_menus.xml',
     ],
     'external_dependencies': {
         'python': ['requests', 'Pillow', 'python-dotenv', 'openpyxl', 'xlsxwriter']

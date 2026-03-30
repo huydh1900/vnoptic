@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <menuitem id="menu_vnop_sync_master_lens"
+              name="Tròng kính"
+              parent="purchase.menu_product_in_config_purchase"
+              sequence="30"/>
+
+    <menuitem id="menu_vnop_sync_master_opt"
+              name="Gọng kính"
+              parent="purchase.menu_product_in_config_purchase"
+              sequence="40"/>
+
+    <menuitem id="menu_vnop_sync_master_accessory"
+              name="Phụ kiện"
+              parent="purchase.menu_product_in_config_purchase"
+              sequence="50"/>
+
+    <!-- ==================== PRODUCT ==================== -->
+    <menuitem id="menu_product_brand"
+              name="Thương hiệu"
+              parent="purchase.menu_product_in_config_purchase"
+              action="action_product_brand"
+              sequence="10"/>
+
+    <menuitem id="menu_product_group"
+              name="Nhóm sản phẩm"
+              parent="purchase.menu_product_in_config_purchase"
+              action="action_product_group"
+              sequence="20"/>
+
+    <menuitem id="menu_product_warranty"
+              name="Bảo hành"
+              parent="purchase.menu_product_in_config_purchase"
+              action="action_product_warranty"
+              sequence="30"/>
+
+    <!-- ==================== LENS ==================== -->
+    <menuitem id="menu_product_lens_index"
+              name="Chiết suất"
+              parent="menu_vnop_sync_master_lens"
+              action="action_product_lens_index"
+              sequence="10"/>
+
+    <menuitem id="menu_product_uv"
+              name="UV"
+              parent="menu_vnop_sync_master_lens"
+              action="action_product_uv"
+              sequence="20"/>
+
+    <menuitem id="menu_product_cl"
+              name="Màu (CL)"
+              parent="menu_vnop_sync_master_lens"
+              action="action_product_cl"
+              sequence="30"/>
+
+    <menuitem id="menu_product_coating"
+              name="Lớp phủ"
+              parent="menu_vnop_sync_master_lens"
+              action="action_product_coating"
+              sequence="40"/>
+
+    <menuitem id="menu_product_lens_power"
+              name="SPH/CYL"
+              parent="menu_vnop_sync_master_lens"
+              action="action_product_lens_power"
+              sequence="50"/>
+
+    <menuitem id="menu_product_lens_design"
+              name="Thiết kế (Lens)"
+              parent="menu_vnop_sync_master_lens"
+              action="action_product_lens_design"
+              sequence="60"/>
+
+    <menuitem id="menu_product_lens_material"
+              name="Vật liệu (Lens)"
+              parent="menu_vnop_sync_master_lens"
+              action="action_product_lens_material"
+              sequence="70"/>
+
+    <menuitem id="menu_product_lens_feature"
+              name="Tính năng (Lens)"
+              parent="menu_vnop_sync_master_lens"
+              action="action_product_lens_feature"
+              sequence="80"/>
+
+    <!-- ==================== OPT ==================== -->
+    <menuitem id="menu_product_frame"
+              name="Kiểu gọng"
+              parent="menu_vnop_sync_master_opt"
+              action="action_product_frame"
+              sequence="10"/>
+
+    <menuitem id="menu_product_frame_type"
+              name="Loại gọng"
+              parent="menu_vnop_sync_master_opt"
+              action="action_product_frame_type"
+              sequence="20"/>
+
+    <menuitem id="menu_product_shape"
+              name="Dáng"
+              parent="menu_vnop_sync_master_opt"
+              action="action_product_shape"
+              sequence="30"/>
+
+    <menuitem id="menu_product_ve"
+              name="Ve"
+              parent="menu_vnop_sync_master_opt"
+              action="action_product_ve"
+              sequence="40"/>
+
+    <menuitem id="menu_product_temple"
+              name="Càng kính"
+              parent="menu_vnop_sync_master_opt"
+              action="action_product_temple"
+              sequence="50"/>
+
+    <!-- ==================== ACCESSORY ==================== -->
+    <menuitem id="menu_accessory_design"
+              name="Thiết kế"
+              parent="menu_vnop_sync_master_accessory"
+              action="action_product_design"
+              sequence="10"/>
+
+    <menuitem id="menu_accessory_material"
+              name="Chất liệu"
+              parent="menu_vnop_sync_master_accessory"
+              action="action_product_material"
+              sequence="20"/>
+
+    <menuitem id="menu_accessory_shape"
+              name="Hình dáng"
+              parent="menu_vnop_sync_master_accessory"
+              action="action_product_shape"
+              sequence="30"/>
+
+    <menuitem id="menu_accessory_color"
+              name="Màu sắc"
+              parent="menu_vnop_sync_master_accessory"
+              action="action_product_color"
+              sequence="40"/>
+    
+</odoo>
+

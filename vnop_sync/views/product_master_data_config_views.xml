@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- ==================== ACCESSORY MASTER DATA ==================== -->
+    <record id="view_product_design_tree" model="ir.ui.view">
+        <field name="name">product.design.tree</field>
+        <field name="model">product.design</field>
+        <field name="arch" type="xml">
+            <list editable="top" open_form_view="True" string="Thiết kế">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="cid"/>
+                <field name="description" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_design_form" model="ir.ui.view">
+        <field name="name">product.design.form</field>
+        <field name="model">product.design</field>
+        <field name="arch" type="xml">
+            <form string="Thiết kế">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="code"/>
+                        <field name="cid"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_design" model="ir.actions.act_window">
+        <field name="name">Thiết kế</field>
+        <field name="res_model">product.design</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_material_tree" model="ir.ui.view">
+        <field name="name">product.material.tree</field>
+        <field name="model">product.material</field>
+        <field name="arch" type="xml">
+            <list editable="top" open_form_view="True" string="Chất liệu">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="cid"/>
+                <field name="description" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_material_form" model="ir.ui.view">
+        <field name="name">product.material.form</field>
+        <field name="model">product.material</field>
+        <field name="arch" type="xml">
+            <form string="Chất liệu">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="code"/>
+                        <field name="cid"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_material" model="ir.actions.act_window">
+        <field name="name">Chất liệu</field>
+        <field name="res_model">product.material</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_shape_tree" model="ir.ui.view">
+        <field name="name">product.shape.tree</field>
+        <field name="model">product.shape</field>
+        <field name="arch" type="xml">
+            <list editable="top" open_form_view="True" string="Hình dáng">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="cid"/>
+                <field name="description" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_shape_form" model="ir.ui.view">
+        <field name="name">product.shape.form</field>
+        <field name="model">product.shape</field>
+        <field name="arch" type="xml">
+            <form string="Hình dáng">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="code"/>
+                        <field name="cid"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_shape" model="ir.actions.act_window">
+        <field name="name">Hình dáng</field>
+        <field name="res_model">product.shape</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_color_tree" model="ir.ui.view">
+        <field name="name">product.color.tree</field>
+        <field name="model">product.color</field>
+        <field name="arch" type="xml">
+            <list editable="top" string="Màu sắc">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="cid"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_product_color" model="ir.actions.act_window">
+        <field name="name">Màu sắc</field>
+        <field name="res_model">product.color</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <!-- ==================== LENS/OPT CONFIG MASTER DATA ==================== -->
+    <record id="view_product_lens_index_tree" model="ir.ui.view">
+        <field name="name">product.lens.index.tree</field>
+        <field name="model">product.lens.index</field>
+        <field name="arch" type="xml">
+            <list editable="top" string="Chiết suất">
+                <field name="cid"/>
+                <field name="name"/>
+                <field name="description"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_product_lens_index" model="ir.actions.act_window">
+        <field name="name">Chiết suất</field>
+        <field name="res_model">product.lens.index</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_coating_tree" model="ir.ui.view">
+        <field name="name">product.coating.tree</field>
+        <field name="model">product.coating</field>
+        <field name="arch" type="xml">
+            <list editable="top" open_form_view="True" string="Lớp phủ">
+                <field name="name"/>
+                <field name="cid"/>
+                <field name="description" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_coating_form" model="ir.ui.view">
+        <field name="name">product.coating.form</field>
+        <field name="model">product.coating</field>
+        <field name="arch" type="xml">
+            <form string="Lớp phủ">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="cid"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_coating" model="ir.actions.act_window">
+        <field name="name">Lớp phủ</field>
+        <field name="res_model">product.coating</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_cl_tree" model="ir.ui.view">
+        <field name="name">product.cl.tree</field>
+        <field name="model">product.cl</field>
+        <field name="arch" type="xml">
+            <list editable="top" open_form_view="True" string="Màu (CL)">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="cid"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_cl_form" model="ir.ui.view">
+        <field name="name">product.cl.form</field>
+        <field name="model">product.cl</field>
+        <field name="arch" type="xml">
+            <form string="Màu (CL)">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="code"/>
+                        <field name="cid"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_cl" model="ir.actions.act_window">
+        <field name="name">Màu (CL)</field>
+        <field name="res_model">product.cl</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_uv_tree" model="ir.ui.view">
+        <field name="name">product.uv.tree</field>
+        <field name="model">product.uv</field>
+        <field name="arch" type="xml">
+            <list editable="top" open_form_view="True" string="UV">
+                <field name="name"/>
+                <field name="cid"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_uv_form" model="ir.ui.view">
+        <field name="name">product.uv.form</field>
+        <field name="model">product.uv</field>
+        <field name="arch" type="xml">
+            <form string="UV">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="cid"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_uv" model="ir.actions.act_window">
+        <field name="name">UV</field>
+        <field name="res_model">product.uv</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_frame_tree" model="ir.ui.view">
+        <field name="name">product.frame.tree</field>
+        <field name="model">product.frame</field>
+        <field name="arch" type="xml">
+            <list editable="top" open_form_view="True" string="Kiểu gọng">
+                <field name="name"/>
+                <field name="cid"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_frame_form" model="ir.ui.view">
+        <field name="name">product.frame.form</field>
+        <field name="model">product.frame</field>
+        <field name="arch" type="xml">
+            <form string="Kiểu gọng">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="cid"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_frame" model="ir.actions.act_window">
+        <field name="name">Kiểu gọng</field>
+        <field name="res_model">product.frame</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_frame_type_tree" model="ir.ui.view">
+        <field name="name">product.frame.type.tree</field>
+        <field name="model">product.frame.type</field>
+        <field name="arch" type="xml">
+            <list editable="top" open_form_view="True" string="Loại gọng">
+                <field name="name"/>
+                <field name="cid"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_frame_type_form" model="ir.ui.view">
+        <field name="name">product.frame.type.form</field>
+        <field name="model">product.frame.type</field>
+        <field name="arch" type="xml">
+            <form string="Loại gọng">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="cid"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_frame_type" model="ir.actions.act_window">
+        <field name="name">Loại gọng</field>
+        <field name="res_model">product.frame.type</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_ve_tree" model="ir.ui.view">
+        <field name="name">product.ve.tree</field>
+        <field name="model">product.ve</field>
+        <field name="arch" type="xml">
+            <list editable="top" open_form_view="True" string="Ve">
+                <field name="name"/>
+                <field name="cid"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_ve_form" model="ir.ui.view">
+        <field name="name">product.ve.form</field>
+        <field name="model">product.ve</field>
+        <field name="arch" type="xml">
+            <form string="Ve">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="cid"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_ve" model="ir.actions.act_window">
+        <field name="name">Ve</field>
+        <field name="res_model">product.ve</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_temple_tree" model="ir.ui.view">
+        <field name="name">product.temple.tree</field>
+        <field name="model">product.temple</field>
+        <field name="arch" type="xml">
+            <list editable="top" open_form_view="True" string="Càng kính">
+                <field name="name"/>
+                <field name="cid"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_temple_form" model="ir.ui.view">
+        <field name="name">product.temple.form</field>
+        <field name="model">product.temple</field>
+        <field name="arch" type="xml">
+            <form string="Càng kính">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="cid"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_temple" model="ir.actions.act_window">
+        <field name="name">Càng kính</field>
+        <field name="res_model">product.temple</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>
+

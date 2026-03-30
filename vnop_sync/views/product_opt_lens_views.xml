@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- ==================== PRODUCT LENS ==================== -->
+    <record id="view_product_lens_tree" model="ir.ui.view">
+        <field name="name">product.lens.tree</field>
+        <field name="model">product.lens</field>
+        <field name="arch" type="xml">
+            <list string="Chi tiết tròng kính">
+                <field name="product_tmpl_id"/>
+                <field name="product_id" optional="hide"/>
+                <field name="sph_id"/>
+                <field name="cyl_id"/>
+                <field name="axis" optional="hide"/>
+                <field name="lens_add" optional="hide"/>
+                <field name="design_id" optional="show"/>
+                <field name="material_id" optional="show"/>
+                <field name="index_id" optional="hide"/>
+                <field name="uv_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_lens_form" model="ir.ui.view">
+        <field name="name">product.lens.form</field>
+        <field name="model">product.lens</field>
+        <field name="arch" type="xml">
+            <form string="Chi tiết tròng kính">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="product_tmpl_id"/>
+                            <field name="product_id"/>
+                        </group>
+                        <group string="Power">
+                            <field name="sph_id"/>
+                            <field name="cyl_id"/>
+                            <field name="axis"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Thiết kế / Vật liệu">
+                            <field name="design_id"/>
+                            <field name="design1_id"/>
+                            <field name="design2_id"/>
+                            <field name="material_id"/>
+                            <field name="index_id"/>
+                            <field name="uv_id"/>
+                        </group>
+                        <group string="Thông số">
+                            <field name="lens_add"/>
+                            <field name="base_curve"/>
+                            <field name="diameter"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Coating" name="coating">
+                            <group>
+                                <field name="coating_ids" widget="many2many_tags"/>
+                                <field name="feature_ids" widget="many2many_tags"/>
+                            </group>
+                            <group string="Legacy">
+                                <field name="color_int"/>
+                                <field name="mir_coating"/>
+                                <field name="cl_hmc_id"/>
+                                <field name="cl_pho_id"/>
+                                <field name="cl_tint_id"/>
+                            </group>
+                        </page>
+                        <page string="Khác" name="misc">
+                            <group>
+                                <field name="corridor"/>
+                                <field name="abbe"/>
+                                <field name="prism"/>
+                                <field name="prism_base"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_lens" model="ir.actions.act_window">
+        <field name="name">Chi tiết tròng kính</field>
+        <field name="res_model">product.lens</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ==================== PRODUCT OPT ==================== -->
+    <record id="view_product_opt_tree" model="ir.ui.view">
+        <field name="name">product.opt.tree</field>
+        <field name="model">product.opt</field>
+        <field name="arch" type="xml">
+            <list string="Chi tiết gọng kính">
+                <field name="product_tmpl_id"/>
+                <field name="product_id" optional="hide"/>
+                <field name="model" optional="show"/>
+                <field name="serial" optional="hide"/>
+                <field name="sku" optional="hide"/>
+                <field name="gender" optional="show"/>
+                <field name="frame_id" optional="show"/>
+                <field name="frame_type_id" optional="hide"/>
+                <field name="shape_id" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_opt_form" model="ir.ui.view">
+        <field name="name">product.opt.form</field>
+        <field name="model">product.opt</field>
+        <field name="arch" type="xml">
+            <form string="Chi tiết gọng kính">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="product_tmpl_id"/>
+                            <field name="product_id"/>
+                        </group>
+                        <group>
+                            <field name="season"/>
+                            <field name="model"/>
+                            <field name="serial"/>
+                            <field name="sku"/>
+                            <field name="gender"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Kích thước" name="dimensions">
+                            <group>
+                                <field name="temple_width"/>
+                                <field name="lens_width"/>
+                                <field name="lens_span"/>
+                                <field name="lens_height"/>
+                                <field name="bridge_width"/>
+                            </group>
+                        </page>
+                        <page string="Màu sắc" name="colors">
+                            <group>
+                                <field name="color"/>
+                                <field name="color_code"/>
+                                <field name="color_front_id"/>
+                                <field name="color_temple_id"/>
+                                <field name="color_lens_id"/>
+                            </group>
+                        </page>
+                        <page string="Thiết kế" name="design">
+                            <group>
+                                <field name="frame_id"/>
+                                <field name="frame_type_id"/>
+                                <field name="shape_id"/>
+                                <field name="ve_id"/>
+                                <field name="temple_id"/>
+                            </group>
+                        </page>
+                        <page string="Chất liệu" name="materials">
+                            <group>
+                                <field name="material_ve_id"/>
+                                <field name="material_temple_tip_id"/>
+                                <field name="material_lens_id"/>
+                            </group>
+                            <group>
+                                <field name="materials_front_ids" widget="many2many_tags"/>
+                                <field name="materials_temple_ids" widget="many2many_tags"/>
+                            </group>
+                        </page>
+                        <page string="Lớp phủ" name="coating">
+                            <group>
+                                <field name="coating_ids" widget="many2many_tags"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_opt" model="ir.actions.act_window">
+        <field name="name">Chi tiết gọng kính</field>
+        <field name="res_model">product.opt</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>
+

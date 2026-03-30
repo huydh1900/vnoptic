@@ -14,7 +14,6 @@ from collections import defaultdict
 from odoo import models, fields, api, _
 from odoo.modules.registry import Registry
 from odoo.exceptions import UserError
-from ..utils import lens_variant_utils
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 _logger = logging.getLogger(__name__)
@@ -39,14 +38,6 @@ class ProductSync(models.Model):
     lens_count = fields.Integer('Sản phẩm Mắt', readonly=True)
     opts_count = fields.Integer('Sản phẩm Gọng', readonly=True)
     other_count = fields.Integer('Sản phẩm khác', readonly=True)
-
-    progress = fields.Float('Tiến độ (%)', readonly=True, compute='_compute_progress')
-
-    @api.depends('total_synced', 'total_failed')
-    def _compute_progress(self):
-        for record in self:
-            total = record.total_synced + record.total_failed
-            record.progress = (record.total_synced / total * 100) if total > 0 else 0
 
     @api.model
     def _load_env(self):
@@ -322,10 +313,8 @@ class ProductSync(models.Model):
         for t in self.env['account.tax'].search_read([('type_tax_use', '=', 'purchase')], ['id', 'name']):
             cache['taxes'][t['name']] = t['id']
 
-        # Statuses
-        if 'product.status' in self.env:
-            for s in self.env['product.status'].search_read([], ['id', 'name']):
-                cache['statuses'][s['name'].upper()] = s['id']
+        # Statuses (selection mapping: name → value)
+        cache['statuses'] = {'MỚI': 'new', 'HIỆN HÀNH': 'current', 'NEW': 'new', 'CURRENT': 'current'}
 
         # Master Data Config
         MODELS = [
@@ -984,10 +973,8 @@ class ProductSync(models.Model):
         material_code = (item.get('material') or '').strip()
         diameter = str(item.get('diameter') or '').replace('mm', '').replace('MM', '').strip()
         brand_code = (dto.get('tmdto') or {}).get('cid') or (dto.get('tmdto') or {}).get('name') or ''
-
-        return lens_variant_utils.build_lens_template_key(
-            cid, index_code, material_code, coating_codes, diameter, brand_code
-        )
+        coating_str = '-'.join(sorted(str(c).strip() for c in coating_codes if str(c).strip()))
+        return f"{cid}|{index_code}|{material_code}|{coating_str}|{diameter}|{brand_code}"
 
     def _cleanup_lens_template_variants(self, tmpl):
         """Chuẩn hoá lens template: xóa attribute lines và giữ 1 variant duy nhất."""
@@ -1133,13 +1120,32 @@ class ProductSync(models.Model):
             ('name', '=', value_name),
         ], limit=1)
 
+    @staticmethod
+    def _format_power_value(raw_val):
+        if raw_val is None or raw_val == '':
+            return False
+        try:
+            f = float(raw_val)
+        except (TypeError, ValueError):
+            return False
+        sign = '+' if f >= 0 else '-'
+        return f"{sign}{abs(f):.2f}"
+
+    @staticmethod
+    def _find_variant_by_values(template, value_ids):
+        value_set = set(value_ids)
+        for variant in template.product_variant_ids:
+            if set(variant.product_template_attribute_value_ids.mapped('product_attribute_value_id').ids) == value_set:
+                return variant
+        return False
+
     def _get_lens_variant(self, template, sph, cyl, add_val=None):
-        sph_val = lens_variant_utils.format_power_value(sph)
-        cyl_val = lens_variant_utils.format_power_value(cyl)
+        sph_val = self._format_power_value(sph)
+        cyl_val = self._format_power_value(cyl)
         if not sph_val or not cyl_val:
             return False
 
-        add_fmt = lens_variant_utils.format_power_value(add_val) if add_val not in (None, '', False) else False
+        add_fmt = self._format_power_value(add_val) if add_val not in (None, '', False) else False
 
         val_sph = self._find_attribute_value('SPH', sph_val)
         val_cyl = self._find_attribute_value('CYL', cyl_val)
@@ -1153,7 +1159,7 @@ class ProductSync(models.Model):
                 return False
             value_ids.append(val_add.id)
 
-        return lens_variant_utils.find_variant_by_values(template, value_ids)
+        return self._find_variant_by_values(template, value_ids)
 
     def _build_lens_template_key_from_stock(self, rec):
         coating_raw = rec.get('coating') or rec.get('coatings') or rec.get('coatingCodes') or []
@@ -1162,14 +1168,8 @@ class ProductSync(models.Model):
         else:
             coating_codes = [str(c).strip() for c in coating_raw if str(c).strip()]
 
-        return lens_variant_utils.build_lens_template_key(
-            rec.get('cid') or rec.get('CID') or '',
-            rec.get('index') or rec.get('Index') or '',
-            rec.get('material') or rec.get('Material') or '',
-            coating_codes,
-            rec.get('diameter') or rec.get('Diameter') or '',
-            rec.get('brand') or rec.get('Brand') or ''
-        )
+        coating_str = '-'.join(sorted(str(c).strip() for c in coating_codes if str(c).strip()))
+        return f"{rec.get('cid') or rec.get('CID') or ''}|{rec.get('index') or rec.get('Index') or ''}|{rec.get('material') or rec.get('Material') or ''}|{coating_str}|{rec.get('diameter') or rec.get('Diameter') or ''}|{rec.get('brand') or rec.get('Brand') or ''}"
 
     def _sync_lens_stock(self, token, cfg, cache):
         # Update stock.quant for template default variant only (aggregate by template key)
@@ -1475,24 +1475,10 @@ class ProductSync(models.Model):
                     cache['taxes'][t_name] = tax_id
 
         # Status
-        status_id = False
-        if 'product.status' in self.env:
-            status_name = (dto.get('statusProductdto') or {}).get('name', '')
-            if status_name:
-                status_key = status_name.upper()
-                if status_key in cache['statuses']:
-                    status_id = cache['statuses'][status_key]
-                else:
-                    # Create new status if not exists
-                    try:
-                        with self.env.cr.savepoint():
-                            ns = self.env['product.status'].create({'name': status_name})
-                        status_id = ns.id
-                    except Exception:
-                        ns = self.env['product.status'].search([('name', '=', status_name)], limit=1)
-                        status_id = ns.id if ns else False
-                    if status_id:
-                        cache['statuses'][status_key] = status_id
+        product_status = False
+        status_name = (dto.get('statusProductdto') or {}).get('name', '')
+        if status_name:
+            product_status = cache['statuses'].get(status_name.upper(), False)
 
         product_kind = 'consu'
 
@@ -1511,7 +1497,6 @@ class ProductSync(models.Model):
             ),
             'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else [(5,)],
             'seller_ids': seller_vals if seller_vals else [],
-            'product_type': product_type,
             'brand_id': _parsed_brand_id or False,
             'country_id': self._get_or_create(cache, 'countries', 'res.country', dto.get('codto')),
             'warranty_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantydto')),
@@ -1527,7 +1512,7 @@ class ProductSync(models.Model):
             'x_warning': dto.get('warning', ''),
             'x_preserve': dto.get('preserve', ''),
             'x_accessory_total': int(dto.get('accessoryTotal') or 0),
-            'status_product_id': status_id,
+            'product_status': product_status,
             'x_currency_zone_code': (dto.get('currencyZoneDTO') or {}).get('cid', ''),
             'x_currency_zone_value': self._to_float((dto.get('currencyZoneDTO') or {}).get('value'), default=0.0),
             'x_ws_price': self._to_float(dto.get('wsPrice') or dto.get('wsPriceMax'), default=0.0),
@@ -2492,24 +2477,6 @@ class ProductSync(models.Model):
                     if _fdbg:
                         try:
                             rb = saved_rec
-                            # _logger.info(
-                            # "[ACC_FIELD][ODB_READBACK] sku=%s tmpl_id=%s "
-                            # "design_id=%s(%s) shape_id=%s(%s) "
-                            # "material_id=%s(%s) color_id=%s(%s) "
-                            # "acc_width=%s acc_length=%s acc_height=%s "
-                            # "acc_head=%s acc_body=%s",
-                            # sku, rb.id,
-                            # rb.design_id.id if rb.design_id else None,
-                            # rb.design_id.name if rb.design_id else None,
-                            # rb.shape_id.id if rb.shape_id else None,
-                            # rb.shape_id.name if rb.shape_id else None,
-                            # rb.material_id.id if rb.material_id else None,
-                            # rb.material_id.name if rb.material_id else None,
-                            # rb.color_id.id if rb.color_id else None,
-                            # rb.color_id.name if rb.color_id else None,
-                            # rb.acc_width, rb.acc_length, rb.acc_height,
-                            # rb.acc_head, rb.acc_body,
-                            # )
                         except Exception as _rb_err:
                             # _logger.warning("[ACC_FIELD][READBACK_ERR] sku=%s err=%s", sku, _rb_err)
                             pass
@@ -2543,25 +2510,6 @@ class ProductSync(models.Model):
                         raw_logged += 1
                     except Exception:
                         pass
-
-                # _logger.exception(
-                # "[ACC_SYNC][ERROR] sku=%s step=%s err=%s", sku, step, exc
-                # )
-                # _logger.warning("[ACC_SYNC][SKIP] sku=%s", sku)
-
-        # ── Tổng kết ────────────────────────────────────────────────────────────
-        # _logger.info(
-        # "[ACC_SYNC][SUMMARY] total=%d success=%d skipped=%d errors=%d",
-        # total, success, skipped, errors
-        # )
-        # _logger.info(
-        # "[ACC_SYNC][ERROR_BY_STEP] currency=%d map=%d create=%d write=%d other=%d",
-        # err_by_step.get('currency', 0),
-        # err_by_step.get('map',      0),
-        # err_by_step.get('create',   0),
-        # err_by_step.get('write',    0),
-        # err_by_step.get('other',    0),
-        # )
 
         return success, errors
 

@@ -51,6 +51,16 @@ class ProductTemplateExtension(models.Model):
     def _get_category_by_code(self, code):
         return self.env['product.category'].search([('code', '=', code)], limit=1)
 
+    def _get_root_categ_code(self):
+        """Walk up category tree and return the first code found."""
+        categ = self.categ_id
+        while categ:
+            code = (getattr(categ, 'code', '') or '').strip().upper()
+            if code:
+                return code
+            categ = categ.parent_id
+        return ''
+
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
@@ -59,12 +69,6 @@ class ProductTemplateExtension(models.Model):
                 tk_category = self._get_category_by_code('TK')
                 if tk_category:
                     vals['categ_id'] = tk_category.id
-
-            categ_id = vals.get('categ_id')
-            if categ_id:
-                inferred = self._infer_product_type_from_category(self.env['product.category'].browse(categ_id))
-                if inferred in ('lens', 'opt', 'accessory'):
-                    vals['product_type'] = inferred
         return super().create(vals_list)
 
     def write(self, vals):
@@ -73,60 +77,22 @@ class ProductTemplateExtension(models.Model):
             tk_category = self._get_category_by_code('TK')
             if tk_category:
                 vals = dict(vals, categ_id=tk_category.id)
-
-        if 'categ_id' in vals and vals.get('categ_id'):
-            inferred = self._infer_product_type_from_category(self.env['product.category'].browse(vals['categ_id']))
-            if inferred in ('lens', 'opt', 'accessory'):
-                vals = dict(vals, product_type=inferred)
         return super().write(vals)
-
-    def _infer_product_type_from_category(self, category):
-        """Infer business product_type from product.category (code/name), walking up parents."""
-        categ = category
-        while categ:
-            code = (getattr(categ, 'code', '') or '').strip()
-            if code:
-                code_upper = code.upper()
-                # Hỗ trợ cả mã legacy (06/27/20) và mã mới theo file data (TK/GK/PK/TB/LK)
-                if code_upper.startswith('06') or code_upper.startswith('TK'):
-                    return 'lens'
-                if code_upper.startswith('27') or code_upper.startswith('GK'):
-                    return 'opt'
-                if (code_upper.startswith('20')
-                        or code_upper.startswith('PK')
-                        or code_upper.startswith('TB')
-                        or code_upper.startswith('LK')):
-                    return 'accessory'
-            categ = categ.parent_id
-
-        # Fallback: infer from name keywords (when code is missing)
-        name = (getattr(category, 'name', '') or '').strip().lower() if category else ''
-        if any(k in name for k in ['tròng', 'trong', 'lens']):
-            return 'lens'
-        if any(k in name for k in ['gọng', 'gong', 'optical', 'opt']):
-            return 'opt'
-        if any(k in name for k in ['phụ kiện', 'phu kien', 'accessor']):
-            return 'accessory'
-        if any(k in name for k in ['all', 'tất cả', 'tat ca']):
-            return False
-        return False
 
     @api.onchange('categ_id')
     def _onchange_categ_id_reset_groups(self):
-        """Switch UI group field by category; clear groups when category changes."""
+        """Clear groups when category changes."""
         for rec in self:
-            inferred = rec._infer_product_type_from_category(rec.categ_id)
             rec.lens_group_id = False
             rec.opt_group_id = False
             rec.acc_group_id = False
             rec.group_id = False
             rec.len_type = False
-            rec.product_type = inferred
 
     @api.onchange('len_type')
     def _onchange_len_type_reset_group_id(self):
         for rec in self:
-            if rec.product_type == 'lens':
+            if rec._get_root_categ_code() == 'TK':
                 rec.group_id = False
 
     @api.constrains('default_code')
@@ -137,8 +103,6 @@ class ProductTemplateExtension(models.Model):
             if self.search_count([('id', '!=', rec.id), ('default_code', '=', rec.default_code)]):
                 raise ValidationError("Mã viết tắt (default_code) phải là duy nhất.")
 
-    # Keep product_type for now but make it computed or optional if needed
-    # For now we just add the new logic alongside
     x_eng_name = fields.Char(
         'Tên tiếng Anh',
         help="Product name in English"
@@ -226,13 +190,24 @@ class ProductTemplateExtension(models.Model):
     )
 
     # ==================== PRODUCT TYPE (for sync categorization) ====================
-    product_type = fields.Selection([
-        ('lens', 'Tròng kính'),
-        ('opt', 'Gọng kính'),
-        ('accessory', 'Phụ kiện')
-    ], string='Phân loại nghiệp vụ', default='lens',
-        help="Phân loại sản phẩm: Tròng kính / Gọng kính / Phụ kiện"
+    categ_code = fields.Char(
+        string='Mã danh mục',
+        compute='_compute_categ_code',
+        store=True,
+        help="Mã danh mục gốc (walk up parent tree): TK=Tròng kính, GK=Gọng kính, PK/TB/LK=Phụ kiện..."
     )
+
+    @api.depends('categ_id', 'categ_id.code', 'categ_id.parent_id', 'categ_id.parent_id.code')
+    def _compute_categ_code(self):
+        for rec in self:
+            categ = rec.categ_id
+            code = ''
+            while categ:
+                code = (getattr(categ, 'code', '') or '').strip().upper()
+                if code:
+                    break
+                categ = categ.parent_id
+            rec.categ_code = code
 
     # ==================== RELATIONAL FIELDS (for sync) ====================
     brand_id = fields.Many2one(
@@ -271,13 +246,13 @@ class ProductTemplateExtension(models.Model):
         help='Nhóm sản phẩm (lọc theo cây danh mục).'
     )
     lens_group_id = fields.Many2one('product.group', string='Nhóm Tròng kính',
-                                    domain=[('product_type', '=', 'lens')],
+                                    domain=[('category_id.code', '=', 'TK')],
                                     help='Nhóm sản phẩm cho Tròng kính')
     opt_group_id = fields.Many2one('product.group', string='Nhóm Gọng kính',
-                                   domain=[('product_type', '=', 'opt')],
+                                   domain=[('category_id.code', '=', 'GK')],
                                    help='Nhóm sản phẩm cho Gọng kính')
     acc_group_id = fields.Many2one('product.group', string='Nhóm Phụ kiện',
-                                   domain=[('product_type', '=', 'accessory')],
+                                   domain=[('category_id.code', 'in', ('PK', 'TB', 'LK'))],
                                    help='Nhóm sản phẩm cho Phụ kiện')
 
     # NOTE: lens_group_id/opt_group_id/acc_group_id giữ lại để tương thích dữ liệu cũ,
@@ -286,7 +261,10 @@ class ProductTemplateExtension(models.Model):
                                help='Lens index for code generation (lens products only)')
     auto_generate_code = fields.Boolean('Tự động tạo mã', default=True,
                                         help='Automatically generate product code based on Group, Brand, and Index')
-    status_product_id = fields.Many2one('product.status', 'Trạng thái')
+    product_status = fields.Selection([
+        ('new', 'Mới'),
+        ('current', 'Hiện hành'),
+    ], string='Trạng thái')
 
     # ==================== LENS SPECS (Hướng B: field trực tiếp trên template) ====================
     # Thiết kế
@@ -390,11 +368,6 @@ class ProductTemplateExtension(models.Model):
     )
 
     # ==================== WARRANTY TEMPLATE (Hướng A – ERP chuẩn) ====================
-    warranty_template_id = fields.Many2one(
-        'product.warranty.template',
-        string='Chính sách bảo hành',
-        help='Chọn chính sách bảo hành áp dụng cho sản phẩm'
-    )
     manufacturer_months = fields.Integer(
         string='Bảo hành NSX (tháng)',
         default=0,
@@ -488,88 +461,9 @@ class ProductTemplateExtension(models.Model):
                 record.primary_supplier_id = False
 
     # ==================== PRODUCT CREATION LOGIC ====================
-    @api.model
-    def migrate_sph_cyl_to_many2one(self):
-        """Bước 3: Migrate x_sph/x_cyl/x_add (float legacy) → lens_sph_id/lens_cyl_id/lens_add_id (Many2one).
-        Có thể gọi từ shell, cron, hoặc nút bấm wizard.
-
-        Sau khi chạy xong, kiểm tra:
-          SELECT count(*) FROM product_template
-          WHERE (x_sph != 0 OR x_cyl != 0 OR x_add != 0)
-            AND (lens_sph_id IS NULL AND lens_cyl_id IS NULL AND lens_add_id IS NULL);
-        phải = 0.
-        """
-        import logging as _logging
-        _log = _logging.getLogger(__name__)
-
-        def _get_or_create_power(env, fval, power_type=None):
-            if fval is None or fval == 0.0:
-                return False
-            formatted = f"{fval:+.2f}"
-            rec = env['product.lens.power'].search([('value', '=', fval)], limit=1)
-            if rec:
-                return rec.id
-            try:
-                new_rec = env['product.lens.power'].create({'value': fval})
-                return new_rec.id
-            except Exception as e:
-                _log.warning("⚠️ migrate: cannot create lens.power value=%s: %s", formatted, e)
-                return False
-
-        domain = [
-            ('product_type', '=', 'lens'),
-            '|', '|',
-            ('x_sph', '!=', 0.0),
-            ('x_cyl', '!=', 0.0),
-            ('x_add', '!=', 0.0),
-        ]
-        templates = self.env['product.template'].search(domain)
-        migrated = 0
-        skipped = 0
-        for tmpl in templates:
-            write_vals = {}
-            if tmpl.x_sph and not tmpl.lens_sph_id:
-                pid = _get_or_create_power(self.env, tmpl.x_sph, 'sph')
-                if pid:
-                    write_vals['lens_sph_id'] = pid
-            if tmpl.x_cyl and not tmpl.lens_cyl_id:
-                pid = _get_or_create_power(self.env, tmpl.x_cyl, 'cyl')
-                if pid:
-                    write_vals['lens_cyl_id'] = pid
-            if tmpl.x_add and not tmpl.lens_add_id:
-                pid = _get_or_create_power(self.env, tmpl.x_add, 'add')
-                if pid:
-                    write_vals['lens_add_id'] = pid
-            if write_vals:
-                tmpl.write(write_vals)
-                migrated += 1
-            else:
-                skipped += 1
-
-        _log.warning(
-            "✅ migrate_sph_cyl_to_many2one DONE: migrated=%s, skipped=%s, total=%s",
-            migrated, skipped, len(templates)
-        )
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': 'Migration SPH/CYL/ADD xong',
-                'message': f'Đã migrate {migrated} template. Skipped: {skipped}.',
-                'type': 'success',
-                'sticky': False,
-            }
-        }
-
-    # ==================== PRODUCT CREATION LOGIC ====================
     @api.model_create_multi
     def create(self, vals_list):
-        from ..utils import product_code_utils
         for vals in vals_list:
-            if 'product_type' not in vals and vals.get('categ_id'):
-                categ = self.env['product.category'].browse(vals['categ_id'])
-                vals['product_type'] = self._infer_product_type_from_category(categ)
-
             # Auto-generate product code if enabled and not provided
             if vals.get('auto_generate_code', True) and not vals.get('default_code'):
                 categ_id = vals.get('categ_id')
@@ -578,25 +472,38 @@ class ProductTemplateExtension(models.Model):
                 group_id = vals.get('group_id')
                 if categ_id and brand_id:
                     try:
-                        vals['default_code'] = product_code_utils.generate_product_code(
-                            self.env, categ_id, brand_id, index_id, group_id=group_id
+                        vals['default_code'] = self._auto_generate_product_code(
+                            categ_id, brand_id, index_id, group_id=group_id
                         )
                     except Exception as e:
                         _logger.warning(f"Failed to auto-generate product code: {e}")
 
-            product_type = vals.get('product_type', 'lens')
-            if product_type != 'lens':
-                vals.pop('lens_ids', None)
-            if product_type != 'opt':
-                vals.pop('opt_ids', None)
+        return super().create(vals_list)
 
-        products = super().create(vals_list)
+    def _auto_generate_product_code(self, categ_id, brand_id, lens_index_id=None, group_id=None):
+        """Generate product code: <categ_code><brand_code>[<index_code>]-SEQ"""
+        categ = self.env['product.category'].browse(categ_id)
+        brand = self.env['product.brand'].browse(brand_id)
+        categ_code = (getattr(categ, 'code', '') or '').strip().upper()
+        brand_code = (getattr(brand, 'code', '') or brand.name or '').strip().upper()[:3]
+        prefix = f"{categ_code}{brand_code}"
+        if lens_index_id:
+            index = self.env['product.lens.index'].browse(lens_index_id)
+            index_code = (getattr(index, 'code', '') or '').strip().upper()
+            if index_code:
+                prefix += index_code
+        seq_code = f"product.code.{prefix.lower()}"
+        seq = self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
+        if not seq:
+            seq = self.env['ir.sequence'].sudo().create({
+                'name': f'Product Code {prefix}',
+                'code': seq_code,
+                'prefix': prefix,
+                'padding': 4,
+            })
+        return seq.next_by_code(seq_code)
 
-        for product in products:
-            if product.product_type == 'opt' and not product.opt_ids:
-                self.env['product.opt'].create({'product_tmpl_id': product.id})
-
-        return products
+        return super().create(vals_list)
 
     def write(self, vals):
         if 'categ_id' in vals:
@@ -606,55 +513,5 @@ class ProductTemplateExtension(models.Model):
                 vals.setdefault('opt_group_id', False)
                 vals.setdefault('acc_group_id', False)
                 vals.setdefault('group_id', False)
-
-            if 'product_type' not in vals and vals.get('categ_id'):
-                categ = self.env['product.category'].browse(vals['categ_id'])
-                vals['product_type'] = self._infer_product_type_from_category(categ)
-
-        if 'product_type' in vals:
-            new_type = vals['product_type']
-            if new_type != 'lens':
-                self.mapped('lens_ids').unlink()
-                vals.pop('lens_ids', None)
-            if new_type != 'opt':
-                self.mapped('opt_ids').unlink()
-                vals.pop('opt_ids', None)
         return super().write(vals)
 
-    def action_create_missing_details(self):
-        """Create missing opt records for products that have product_type but no details.
-        Lens products use direct fields on template (Hướng B), no child records needed."""
-        created_opt = 0
-
-        for product in self:
-            if product.product_type == 'opt' and not product.opt_ids:
-                self.env['product.opt'].create({'product_tmpl_id': product.id})
-                created_opt += 1
-
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': 'Đã tạo records',
-                'message': f'Tạo {created_opt} opt records (lens dùng field trực tiếp trên template)',
-                'type': 'success',
-                'sticky': False,
-            }
-        }
-
-    @api.model
-    def cron_create_all_missing_details(self):
-        """Cron job to create missing lens/opt records for ALL products"""
-        # Create lens records for lens products without details
-        # Lens products use direct fields on template (Hướng B).
-        # No auto-creation of product.lens records needed.
-
-        # Create opt records for opt products without details
-        opt_products = self.search([
-            ('product_type', '=', 'opt'),
-            ('opt_ids', '=', False)
-        ])
-        for product in opt_products:
-            self.env['product.opt'].create({'product_tmpl_id': product.id})
-
-        return True

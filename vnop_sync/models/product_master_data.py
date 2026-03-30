@@ -70,35 +70,6 @@ class ProductGroup(models.Model):
                 vals['product_type'] = code
         return super().write(vals)
 
-class ProductStatus(models.Model):
-    _name = 'product.status'
-    _description = 'Product Status'
-    _order = 'name'
-
-    name = fields.Char('Tên trạng thái', required=True)
-    description = fields.Text('Mô tả')
-
-
-class ProductDesign(models.Model):
-    _name = 'product.design'
-    _description = 'Product Design'
-    _order = 'name'
-
-    name = fields.Char('Tên thiết kế', required=True)
-    cid = fields.Char('Mã CID')
-    description = fields.Text('Mô tả')
-
-
-class ProductMaterial(models.Model):
-    _name = 'product.material'
-    _description = 'Product Material'
-    _order = 'name'
-
-    name = fields.Char('Tên chất liệu', required=True)
-    cid = fields.Char('Mã CID')
-    description = fields.Text('Mô tả')
-
-
 class ProductLensIndex(models.Model):
     _name = 'product.lens.index'
     _description = 'Lens Index'
@@ -153,15 +124,6 @@ class ProductFrameType(models.Model):
     _order = 'name'
 
     name = fields.Char('Loại gọng', required=True)
-    cid = fields.Char('Mã CID')
-
-
-class ProductShape(models.Model):
-    _name = 'product.shape'
-    _description = 'Product Shape'
-    _order = 'name'
-
-    name = fields.Char('Tên dáng', required=True)
     cid = fields.Char('Mã CID')
 
 

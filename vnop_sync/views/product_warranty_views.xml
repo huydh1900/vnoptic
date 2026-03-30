@@ -55,10 +55,4 @@
         </field>
     </record>
 
-    <menuitem id="menu_product_warranty"
-              name="Bảo hành"
-              parent="menu_product_master_data"
-              action="action_product_warranty"
-              sequence="20"/>
-
 </odoo>
