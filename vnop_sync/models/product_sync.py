@@ -169,6 +169,21 @@ class ProductSync(models.Model):
             return False
         return False if self._is_placeholder_value(text) else text
 
+    def _get_accessory_category_id(self, cache=None):
+        if cache and cache.get('misc', {}).get('_accessory_categ_id'):
+            return cache['misc']['_accessory_categ_id']
+
+        categ = self.env['product.category'].search([('code', '=', 'PK')], limit=1)
+        if not categ:
+            categ = self.env.ref('vnop_sync.product_category_accessory', raise_if_not_found=False)
+        if not categ:
+            categ = self.env.ref('product.product_category_all', raise_if_not_found=False)
+
+        categ_id = categ.id if categ else False
+        if cache is not None and categ_id:
+            cache.setdefault('misc', {})['_accessory_categ_id'] = categ_id
+        return categ_id
+
     def _extract_rs_image_url(self, item):
         """Extract RS product image URL/path from known payload aliases."""
         dto = (
@@ -1550,6 +1565,11 @@ class ProductSync(models.Model):
             except Exception:
                 pass
 
+        if product_type == 'accessory':
+            accessory_categ_id = self._get_accessory_category_id(cache)
+            if accessory_categ_id:
+                categ_id = accessory_categ_id
+
         if not categ_id:
             categ_id = self.env.ref('product.product_category_all').id
 
@@ -2661,7 +2681,8 @@ class ProductSync(models.Model):
                     if categ_id:
                         categ = self.env['product.category'].browse(categ_id)
                         if not categ.exists():
-                            fallback = self.env.ref('product.product_category_all')
+                            fallback_id = self._get_accessory_category_id(cache)
+                            fallback = self.env['product.category'].browse(fallback_id) if fallback_id else self.env.ref('product.product_category_all')
                             # _logger.warning(
                             # "[ACC_SYNC][WARN] sku=%s categ_id=%s không tồn tại → dùng fallback %s",
                             # sku, categ_id, fallback.id
