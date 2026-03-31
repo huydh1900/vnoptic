@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="default_vcb_provider" model="currency.rate.provider">
+        <field name="name">Vietcombank</field>
+        <field name="source">vcb</field>
+        <field name="active">True</field>
+    </record>
+</odoo>

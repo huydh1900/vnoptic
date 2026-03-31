@@ -45,6 +45,26 @@ class PurchaseOffer(models.Model):
         readonly=False,
         required=True,
     )
+    exchange_rate = fields.Float(
+        string="Tỷ giá",
+        digits=(12, 2),
+        help="Tỷ giá quy đổi sang VND (lấy từ res.currency.rate, có thể chỉnh tay)"
+    )
+
+    @api.onchange("currency_id")
+    def _onchange_currency_id_get_rate(self):
+        if not self.currency_id:
+            self.exchange_rate = 0.0
+            return
+        if self.currency_id.name == 'VND':
+            self.exchange_rate = 1.0
+            return
+        rate = self.env['res.currency.rate'].search([
+            ('currency_id', '=', self.currency_id.id),
+            ('company_id', '=', self.env.company.id),
+        ], order='name desc', limit=1)
+        # Odoo lưu rate = 1/vnd_per_unit → đảo lại để ra VND thực
+        self.exchange_rate = round(1.0 / rate.rate, 2) if rate and rate.rate else 0.0
     follow_up_date = fields.Date(string="Ngày hàng về dự kiến", tracking=True)
     approved_by = fields.Many2one("res.users", string="Người duyệt", readonly=True, copy=False, tracking=True)
     approved_date = fields.Datetime(string="Thời gian duyệt", readonly=True, copy=False, tracking=True)
@@ -86,6 +106,10 @@ class PurchaseOffer(models.Model):
             if vals.get("name", _("Mới")) == _("Mới"):
                 vals["name"] = sequence.next_by_code("purchase.offer") or _("Mới")
         return super().create(vals_list)
+
+    @api.onchange("partner_id")
+    def _onchange_partner_id_clear_lines(self):
+        self.line_ids = [(5, 0, 0)]
 
     def write(self, vals):
         if "follow_up_date" in vals:
@@ -295,6 +319,8 @@ class PurchaseOfferLine(models.Model):
 
     offer_id = fields.Many2one("purchase.offer", string="Đề nghị mua hàng", required=True, ondelete="cascade")
     product_id = fields.Many2one("product.product", string="Sản phẩm", required=True)
+    taxes_id = fields.Many2many("account.tax", string="Thuế",
+                                domain=[('type_tax_use', '=', 'purchase')])
     product_tmpl_id = fields.Many2one(
         "product.template",
         string="Mẫu sản phẩm",
@@ -320,6 +346,7 @@ class PurchaseOfferLine(models.Model):
             if line.product_id:
                 line.description = line.product_id.display_name
                 line.uom_id = line.product_id.uom_po_id.id or line.product_id.uom_id.id
+                line.taxes_id = line.product_id.supplier_taxes_id
 
     @api.depends("quantity", "expected_price")
     def _compute_subtotal(self):

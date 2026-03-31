@@ -2659,24 +2659,6 @@ class ProductSync(models.Model):
                         # )
                         pass
 
-                    # ── MAP_OUT ─────────────────────────────────────────────────
-                    # _logger.info(
-                    # "[ACC_SYNC][MAP_OUT] sku=%s mapped_vals={"
-                    # "default_code=%s, name=%s, type=%s, "
-                    # "categ_id=%s, brand_id=%s, country_id=%s, warranty_id=%s, "
-                    # "list_price=%s, standard_price=%s}",
-                    # sku,
-                    # vals.get('default_code'),
-                    # vals.get('name'),
-                    # vals.get('type'),
-                    # vals.get('categ_id'),
-                    # vals.get('brand_id'),
-                    # vals.get('country_id'),
-                    # vals.get('warranty_id'),
-                    # vals.get('list_price'),
-                    # vals.get('standard_price'),
-                    # )
-
                     categ_id = vals.get('categ_id')
                     if categ_id:
                         categ = self.env['product.category'].browse(categ_id)

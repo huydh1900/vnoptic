@@ -114,6 +114,7 @@
                                domain="['&amp;', ('category_id', 'child_of', categ_id), '|', ('category_id.code', '!=', 'TK'), ('product_type', '=', len_type)]"
                                options="{'no_create': True}"/>
                         <field name="brand_id"/>
+                        <field name="primary_supplier_id" string="Nhà cung cấp chính" readonly="1"/>
                         <field name="country_id" string="Xuất xứ" options="{'no_create': True}"/>
                         <field name="uom_id" string="Đơn vị tính" options="{'no_create': True}"/>
                         <field name="index_id" options="{'no_create': True}" invisible="1"/>

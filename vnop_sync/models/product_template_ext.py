@@ -449,7 +449,7 @@ class ProductTemplateExtension(models.Model):
 
     # ==================== COMPUTED FIELD FOR PRIMARY SUPPLIER ====================
     primary_supplier_id = fields.Many2one('res.partner', string='Nhà cung cấp chính',
-                                          compute='_compute_primary_supplier', store=False, readonly=True,
+                                          compute='_compute_primary_supplier', store=True, readonly=True,
                                           help='Nhà cung cấp chính (lấy từ seller_ids đầu tiên)')
 
     @api.depends('seller_ids', 'seller_ids.partner_id')
