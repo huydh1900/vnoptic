@@ -175,10 +175,12 @@ class ProductSync(models.Model):
     def _get_first_valid_value(self, source, keys):
         if not isinstance(source, dict):
             return False
+        lower_key_map = {str(k).lower(): k for k in source.keys()}
         for key in keys:
-            if key not in source:
+            actual_key = key if key in source else lower_key_map.get(str(key).lower())
+            if actual_key is None:
                 continue
-            cleaned = self._clean_placeholder_text(source.get(key))
+            cleaned = self._clean_placeholder_text(source.get(actual_key))
             if cleaned:
                 return cleaned
         return False
@@ -196,9 +198,14 @@ class ProductSync(models.Model):
         if isinstance(current, str) and self._is_placeholder_value(current):
             write_vals[field_name] = False
 
-    def _upsert_supplier_partner(self, supplier_detail, cache, currency_id=False):
+    def _upsert_supplier_partner(self, supplier_detail, cache, currency_id=False, supplier_root=False):
         supplier_ref = self._get_first_valid_value(supplier_detail, ['cid', 'code', 'supplierCode'])
+        if not supplier_ref and supplier_root:
+            supplier_ref = self._get_first_valid_value(supplier_root, ['cid', 'code', 'supplierCode'])
+
         supplier_name = self._get_first_valid_value(supplier_detail, ['name', 'supplierName'])
+        if not supplier_name and supplier_root:
+            supplier_name = self._get_first_valid_value(supplier_root, ['name', 'supplierName'])
         if not supplier_ref or not supplier_name:
             return False
 
@@ -214,8 +221,21 @@ class ProductSync(models.Model):
         email = self._get_first_valid_value(supplier_detail, ['mail', 'email'])
         address = self._get_first_valid_value(supplier_detail, ['address', 'street', 'fullAddress'])
         tax_id = self._get_first_valid_value(supplier_detail, ['taxId', 'taxID', 'taxid', 'taxCode'])
-        contact_name = self._get_first_valid_value(supplier_detail, ['contact', 'contactName', 'contactPerson'])
-        fax = self._get_first_valid_value(supplier_detail, ['fax', 'faxNumber'])
+        contact_aliases = [
+            'contact', 'contactName', 'contactPerson', 'contact_name', 'contact_person',
+            'supplierContact', 'supplier_contact', 'supplierContactName', 'supplier_contact_name',
+            'contactFullName', 'contact_full_name', 'representative', 'representativeName',
+        ]
+        fax_aliases = [
+            'fax', 'faxNumber', 'fax_number', 'faxNo', 'faxNO', 'faxno', 'facsimile',
+        ]
+        contact_name = self._get_first_valid_value(supplier_detail, contact_aliases)
+        if not contact_name and supplier_root:
+            contact_name = self._get_first_valid_value(supplier_root, contact_aliases)
+
+        fax = self._get_first_valid_value(supplier_detail, fax_aliases)
+        if not fax and supplier_root:
+            fax = self._get_first_valid_value(supplier_root, fax_aliases)
 
         if not partner:
             create_vals = {
@@ -1859,20 +1879,41 @@ class ProductSync(models.Model):
         supplier_line_vals = False
         s_dto = dto.get('supplierdto') or {}
         s_details = s_dto.get('supplierDetailDTOS', [])
-        if s_details:
-            s_det = s_details[0]
-            supplier_partner = self._upsert_supplier_partner(s_det, cache, currency_id=currency_id)
-            if supplier_partner:
-                self._upsert_supplier_bank_account(supplier_partner, s_det, currency_id=currency_id)
-                _seller_currency_id = currency_id or self.env.company.currency_id.id
-                supplier_line_vals = {
-                    'partner_id': supplier_partner.id,
-                    'price': self._to_float(dto.get('orPrice'), default=0.0),
-                    'min_qty': 1.0,
-                    'delay': 1,
-                    'currency_id': _seller_currency_id,
-                    'company_id': cache.get('_seller_company_id', self.env.company.id),
-                }
+        if isinstance(s_details, dict):
+            s_details = [s_details]
+
+        if not isinstance(s_details, list):
+            s_details = []
+
+        if not s_details and isinstance(s_dto, dict):
+            s_details = [s_dto]
+
+        supplier_partner = False
+        for s_det in s_details:
+            if not isinstance(s_det, dict):
+                continue
+            partner_candidate = self._upsert_supplier_partner(
+                s_det,
+                cache,
+                currency_id=currency_id,
+                supplier_root=s_dto,
+            )
+            if not partner_candidate:
+                continue
+
+            supplier_partner = partner_candidate
+            self._upsert_supplier_bank_account(supplier_partner, s_det, currency_id=currency_id)
+
+        if supplier_partner:
+            _seller_currency_id = currency_id or self.env.company.currency_id.id
+            supplier_line_vals = {
+                'partner_id': supplier_partner.id,
+                'price': self._to_float(dto.get('orPrice'), default=0.0),
+                'min_qty': 1.0,
+                'delay': 1,
+                'currency_id': _seller_currency_id,
+                'company_id': cache.get('_seller_company_id', self.env.company.id),
+            }
 
         # Tax (Purchase tax for suppliers)
         tax_pct = self._to_float(dto.get('tax'), default=0.0)
