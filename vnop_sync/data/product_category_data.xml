@@ -19,19 +19,6 @@
             <field name="code">PK</field>
         </record>
 
-        <!-- Nhóm con của Phụ kiện -->
-        <record id="product_category_display" model="product.category">
-            <field name="name">Trưng bày</field>
-            <field name="parent_id" ref="product.product_category_all"/>
-            <field name="code">TB</field>
-        </record>
-
-        <record id="product_category_technical_parts" model="product.category">
-            <field name="name">Linh kiện kỹ thuật</field>
-            <field name="parent_id" ref="product.product_category_all"/>
-            <field name="code">LK</field>
-        </record>
-
         <!-- Nhóm sản phẩm (group_id) -->
         <record id="group_lens_single_myopia" model="product.group">
             <field name="name">Đơn tròng cận</field>
@@ -145,7 +132,7 @@
         <record id="group_opt_acetate_color_board" model="product.group">
             <field name="name">Bảng màu acetate cho gọng kính</field>
             <field name="cid">MATERIAL</field>
-            <field name="category_id" ref="product_category_display"/>
+            <field name="category_id" ref="product_category_accessory"/>
             <field name="product_type">TB</field>
             <field name="sequence">29</field>
             <field name="description">Bảng màu acetate cho gọng kính</field>
@@ -154,7 +141,7 @@
         <record id="group_display_tray" model="product.group">
             <field name="name">Khay trưng bày</field>
             <field name="cid">KHAY</field>
-            <field name="category_id" ref="product_category_display"/>
+            <field name="category_id" ref="product_category_accessory"/>
             <field name="product_type">TB</field>
             <field name="sequence">28</field>
             <field name="description">khay trưng bày</field>
@@ -172,7 +159,7 @@
         <record id="group_display_items" model="product.group">
             <field name="name">Đồ trưng bày</field>
             <field name="cid">DISPLAY</field>
-            <field name="category_id" ref="product_category_display"/>
+            <field name="category_id" ref="product_category_accessory"/>
             <field name="product_type">TB</field>
             <field name="sequence">26</field>
             <field name="description">Đồ trưng bày</field>
@@ -190,7 +177,7 @@
         <record id="group_technical_screw" model="product.group">
             <field name="name">Ốc</field>
             <field name="cid">SCREW</field>
-            <field name="category_id" ref="product_category_technical_parts"/>
+            <field name="category_id" ref="product_category_accessory"/>
             <field name="product_type">LK</field>
             <field name="sequence">24</field>
             <field name="description">Ốc, ve, vít</field>
