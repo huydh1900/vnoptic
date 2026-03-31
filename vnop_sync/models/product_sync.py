@@ -7,6 +7,7 @@ import os
 import time
 import random
 import re
+import unicodedata
 import base64
 import requests
 import urllib3
@@ -157,7 +158,9 @@ class ProductSync(models.Model):
         if not raw:
             return True
 
-        normalized = re.sub(r"[\s\-_/\.]+", "", raw.lower())
+        normalized = unicodedata.normalize('NFKD', raw.lower())
+        normalized = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+        normalized = re.sub(r"[\s\-_/\.]+", "", normalized)
         return normalized in {'khong', 'none', 'null', 'na', '""', "''"}
 
     def _clean_placeholder_text(self, value):
@@ -168,6 +171,224 @@ class ProductSync(models.Model):
         if not text:
             return False
         return False if self._is_placeholder_value(text) else text
+
+    def _get_first_valid_value(self, source, keys):
+        if not isinstance(source, dict):
+            return False
+        for key in keys:
+            if key not in source:
+                continue
+            cleaned = self._clean_placeholder_text(source.get(key))
+            if cleaned:
+                return cleaned
+        return False
+
+    def _sanitize_bank_account_number(self, acc_number):
+        if not acc_number:
+            return False
+        sanitized = re.sub(r'\W+', '', str(acc_number)).upper()
+        return sanitized or False
+
+    def _cleanup_placeholder_field(self, record, field_name, write_vals):
+        if field_name in write_vals or field_name not in record._fields:
+            return
+        current = record[field_name]
+        if isinstance(current, str) and self._is_placeholder_value(current):
+            write_vals[field_name] = False
+
+    def _upsert_supplier_partner(self, supplier_detail, cache, currency_id=False):
+        supplier_ref = self._get_first_valid_value(supplier_detail, ['cid', 'code', 'supplierCode'])
+        supplier_name = self._get_first_valid_value(supplier_detail, ['name', 'supplierName'])
+        if not supplier_ref or not supplier_name:
+            return False
+
+        cache_key = supplier_ref.upper()
+        partner = False
+        partner_id = cache.get('suppliers', {}).get(cache_key)
+        if partner_id:
+            partner = self.env['res.partner'].browse(partner_id).exists()
+        if not partner:
+            partner = self.env['res.partner'].search([('ref', '=', supplier_ref)], limit=1)
+
+        phone = self._get_first_valid_value(supplier_detail, ['phone', 'phoneNumber', 'tel'])
+        email = self._get_first_valid_value(supplier_detail, ['mail', 'email'])
+        address = self._get_first_valid_value(supplier_detail, ['address', 'street', 'fullAddress'])
+        tax_id = self._get_first_valid_value(supplier_detail, ['taxId', 'taxID', 'taxid', 'taxCode'])
+        contact_name = self._get_first_valid_value(supplier_detail, ['contact', 'contactName', 'contactPerson'])
+        fax = self._get_first_valid_value(supplier_detail, ['fax', 'faxNumber'])
+
+        if not partner:
+            create_vals = {
+                'name': supplier_name,
+                'ref': supplier_ref,
+                'is_company': True,
+                'supplier_rank': 1,
+            }
+            if phone:
+                create_vals['phone'] = phone
+            if email:
+                create_vals['email'] = email
+            if address:
+                create_vals['street'] = address
+            if tax_id:
+                create_vals['vat'] = tax_id
+            if fax and 'x_supplier_fax' in self.env['res.partner']._fields:
+                create_vals['x_supplier_fax'] = fax
+            if contact_name and 'x_supplier_contact_name' in self.env['res.partner']._fields:
+                create_vals['x_supplier_contact_name'] = contact_name
+            if currency_id and 'property_purchase_currency_id' in self.env['res.partner']._fields:
+                create_vals['property_purchase_currency_id'] = currency_id
+
+            try:
+                with self.env.cr.savepoint():
+                    partner = self.env['res.partner'].create(create_vals)
+            except Exception:
+                partner = self.env['res.partner'].search([('ref', '=', supplier_ref)], limit=1)
+
+        if not partner:
+            return False
+
+        write_vals = {}
+        if supplier_name and partner.name != supplier_name:
+            write_vals['name'] = supplier_name
+        if not partner.supplier_rank:
+            write_vals['supplier_rank'] = 1
+
+        field_value_pairs = [
+            ('phone', phone),
+            ('email', email),
+            ('street', address),
+            ('vat', tax_id),
+            ('x_supplier_contact_name', contact_name),
+            ('x_supplier_fax', fax),
+        ]
+        for field_name, value in field_value_pairs:
+            if field_name not in partner._fields:
+                continue
+            if value and partner[field_name] != value:
+                write_vals[field_name] = value
+
+        if currency_id and 'property_purchase_currency_id' in partner._fields:
+            if partner.property_purchase_currency_id.id != currency_id:
+                write_vals['property_purchase_currency_id'] = currency_id
+
+        self._cleanup_placeholder_field(partner, 'phone', write_vals)
+        self._cleanup_placeholder_field(partner, 'email', write_vals)
+        self._cleanup_placeholder_field(partner, 'street', write_vals)
+        self._cleanup_placeholder_field(partner, 'vat', write_vals)
+        self._cleanup_placeholder_field(partner, 'x_supplier_contact_name', write_vals)
+        self._cleanup_placeholder_field(partner, 'x_supplier_fax', write_vals)
+
+        if write_vals:
+            partner.write(write_vals)
+
+        cache.setdefault('suppliers', {})[cache_key] = partner.id
+        return partner
+
+    def _upsert_supplier_bank_account(self, partner, supplier_detail, currency_id=False):
+        if not partner or not supplier_detail:
+            return False
+
+        bank_name = self._get_first_valid_value(supplier_detail, ['advisingBank', 'bankName', 'bank', 'bank_name'])
+        account_no = self._get_first_valid_value(
+            supplier_detail,
+            ['accountNo', 'accountNO', 'accountNumber', 'bankAccount', 'bank_account']
+        )
+        if not bank_name or not account_no:
+            return False
+
+        swift_code = self._get_first_valid_value(supplier_detail, ['swiftCode', 'swift', 'bic', 'swift_code'])
+        bank_address = self._get_first_valid_value(supplier_detail, ['bankAddress', 'bank_address', 'addressBank'])
+        branch_code = self._get_first_valid_value(supplier_detail, ['branchCode', 'branch', 'bankBranch'])
+
+        bank = self.env['res.bank'].search([('name', '=ilike', bank_name)], limit=1)
+        if not bank:
+            try:
+                with self.env.cr.savepoint():
+                    bank = self.env['res.bank'].create({'name': bank_name})
+            except Exception:
+                bank = self.env['res.bank'].search([('name', '=ilike', bank_name)], limit=1)
+
+        if not bank:
+            return False
+
+        bank_write_vals = {}
+        if swift_code and bank.bic != swift_code:
+            bank_write_vals['bic'] = swift_code
+        if bank_address and bank.street != bank_address:
+            bank_write_vals['street'] = bank_address
+        if branch_code and bank.street2 != branch_code:
+            bank_write_vals['street2'] = branch_code
+        if bank_write_vals:
+            bank.write(bank_write_vals)
+
+        sanitized_acc = self._sanitize_bank_account_number(account_no)
+        if not sanitized_acc:
+            return False
+
+        partner_bank_model = self.env['res.partner.bank'].with_context(active_test=False)
+        partner_bank = partner_bank_model.search([
+            ('partner_id', '=', partner.id),
+            ('sanitized_acc_number', '=', sanitized_acc),
+        ], limit=1)
+
+        if not partner_bank:
+            create_vals = {
+                'partner_id': partner.id,
+                'bank_id': bank.id,
+                'acc_number': account_no,
+            }
+            if currency_id:
+                create_vals['currency_id'] = currency_id
+            try:
+                with self.env.cr.savepoint():
+                    partner_bank = partner_bank_model.create(create_vals)
+            except Exception:
+                partner_bank = partner_bank_model.search([
+                    ('partner_id', '=', partner.id),
+                    ('sanitized_acc_number', '=', sanitized_acc),
+                ], limit=1)
+        else:
+            bank_vals = {}
+            if partner_bank.bank_id.id != bank.id:
+                bank_vals['bank_id'] = bank.id
+            if partner_bank.acc_number != account_no:
+                bank_vals['acc_number'] = account_no
+            if currency_id and partner_bank.currency_id.id != currency_id:
+                bank_vals['currency_id'] = currency_id
+            if bank_vals:
+                partner_bank.write(bank_vals)
+
+        return partner_bank
+
+    def _prepare_supplierinfo_commands(self, product_tmpl_id, supplier_line_vals):
+        if not supplier_line_vals:
+            return []
+
+        price_vals = {
+            'partner_id': supplier_line_vals['partner_id'],
+            'price': supplier_line_vals['price'],
+            'min_qty': supplier_line_vals['min_qty'],
+            'delay': supplier_line_vals['delay'],
+            'currency_id': supplier_line_vals['currency_id'],
+            'company_id': supplier_line_vals['company_id'],
+        }
+
+        if not product_tmpl_id:
+            return [(0, 0, price_vals)]
+
+        domain = [
+            ('product_tmpl_id', '=', product_tmpl_id),
+            ('partner_id', '=', supplier_line_vals['partner_id']),
+            ('min_qty', '=', supplier_line_vals['min_qty']),
+            ('delay', '=', supplier_line_vals['delay']),
+            ('currency_id', '=', supplier_line_vals['currency_id']),
+            ('company_id', '=', supplier_line_vals['company_id']),
+        ]
+        existing_line = self.env['product.supplierinfo'].search(domain, limit=1)
+        if existing_line:
+            return [(1, existing_line.id, price_vals)]
+        return [(0, 0, price_vals)]
 
     def _get_accessory_category_id(self, cache=None):
         if cache and cache.get('misc', {}).get('_accessory_categ_id'):
@@ -1634,44 +1855,24 @@ class ProductSync(models.Model):
                         cache.setdefault('acc_currency', {})[currency_zone_cid.upper()] = currency_id
                 cache['misc'][_cur_key] = currency_id
 
-        # Supplier Logic - Using seller_ids (Odoo standard)
-        seller_vals = []
+        # Supplier Logic
+        supplier_line_vals = False
         s_dto = dto.get('supplierdto') or {}
         s_details = s_dto.get('supplierDetailDTOS', [])
         if s_details:
             s_det = s_details[0]
-            s_cid, s_name = s_det.get('cid'), s_det.get('name')
-            if s_cid and s_name:
-                sup_id = False
-                if s_cid.upper() in cache['suppliers']:
-                    sup_id = cache['suppliers'][s_cid.upper()]
-                else:
-                    try:
-                        with self.env.cr.savepoint():
-                            sup = self.env['res.partner'].create({
-                                'name': s_name, 'ref': s_cid, 'is_company': True, 'supplier_rank': 1,
-                                'phone': s_det.get('phone', ''), 'email': s_det.get('mail', ''),
-                                'street': s_det.get('address', '')
-                            })
-                        sup_id = sup.id
-                    except Exception:
-                        sup = self.env['res.partner'].search([('ref', '=', s_cid)], limit=1)
-                        sup_id = sup.id if sup else False
-                    if sup_id:
-                        cache['suppliers'][s_cid.upper()] = sup_id
-
-                # Prepare seller_ids values — truyền currency_id đúng theo sản phẩm
-                # currency_id là NOT NULL trong DB → dùng company currency làm fallback nếu không tìm được
-                if sup_id:
-                    _seller_currency_id = currency_id or self.env.company.currency_id.id
-                    seller_vals.append((0, 0, {
-                        'partner_id': sup_id,
-                        'price': self._to_float(dto.get('orPrice'), default=0.0),
-                        'min_qty': 1.0,
-                        'delay': 1,
-                        'currency_id': _seller_currency_id,
-                        'company_id': cache.get('_seller_company_id', self.env.company.id),
-                    }))
+            supplier_partner = self._upsert_supplier_partner(s_det, cache, currency_id=currency_id)
+            if supplier_partner:
+                self._upsert_supplier_bank_account(supplier_partner, s_det, currency_id=currency_id)
+                _seller_currency_id = currency_id or self.env.company.currency_id.id
+                supplier_line_vals = {
+                    'partner_id': supplier_partner.id,
+                    'price': self._to_float(dto.get('orPrice'), default=0.0),
+                    'min_qty': 1.0,
+                    'delay': 1,
+                    'currency_id': _seller_currency_id,
+                    'company_id': cache.get('_seller_company_id', self.env.company.id),
+                }
 
         # Tax (Purchase tax for suppliers)
         tax_pct = self._to_float(dto.get('tax'), default=0.0)
@@ -1718,7 +1919,6 @@ class ProductSync(models.Model):
                 default=1.0
             ),
             'supplier_taxes_id': [(6, 0, [tax_id])] if tax_id else [(5,)],
-            'seller_ids': seller_vals if seller_vals else [],
             'brand_id': _parsed_brand_id or False,
             'country_id': self._get_or_create(cache, 'countries', 'res.country', dto.get('codto')),
             'warranty_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantydto')),
@@ -2128,6 +2328,14 @@ class ProductSync(models.Model):
                 )
 
         pid = cache['products'].get(default_code)
+        if not pid and default_code:
+            existing_tmpl = self.env['product.template'].search([('default_code', '=', default_code)], limit=1)
+            if existing_tmpl:
+                pid = existing_tmpl.id
+                cache['products'][default_code] = pid
+
+        if supplier_line_vals:
+            vals['seller_ids'] = self._prepare_supplierinfo_commands(pid, supplier_line_vals)
 
         return vals, pid
 

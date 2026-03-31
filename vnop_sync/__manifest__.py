@@ -14,6 +14,7 @@
         'views/product_tree_common_views.xml',
         'views/product_category_views.xml',
         'views/product_template_views.xml',
+        'views/res_partner_supplier_views.xml',
         'views/product_group_views.xml',
         'views/product_lens_config_views.xml',
         'views/product_master_data_config_views.xml',
