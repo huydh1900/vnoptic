@@ -10,15 +10,12 @@ class PurchaseOrder(models.Model):
         string='Ngày tạo',
         compute='_compute_create_date_tmp',
     )
-    delivery_schedule_ids = fields.Many2many(
+    delivery_schedule_id = fields.Many2one(
         'delivery.schedule',
-        'delivery_schedule_purchase_rel',
-        'purchase_id',
-        'schedule_id',
-        string='Lịch giao hàng'
+        string='Lịch giao hàng',
+        readonly=True,
     )
 
-    count_delivery_schedule = fields.Integer(compute='_compute_count_delivery_schedule')
     otk_log_count = fields.Integer(compute='_compute_otk_log_count')
 
     def _compute_otk_log_count(self):
@@ -85,11 +82,6 @@ class PurchaseOrder(models.Model):
                 )
         return super(PurchaseOrder, self).unlink()
 
-    @api.depends('delivery_schedule_ids')
-    def _compute_count_delivery_schedule(self):
-        for rec in self:
-            rec.count_delivery_schedule = len(rec.delivery_schedule_ids)
-
     def action_view_delivery_schedule(self):
         self.ensure_one()
         if not self.contract_id:
@@ -102,10 +94,10 @@ class PurchaseOrder(models.Model):
             'name': _('Lịch giao hàng'),
             'res_model': 'delivery.schedule',
             'view_mode': 'list,form',
-            'domain': [('id', 'in', self.delivery_schedule_ids.ids)],
+            'domain': [('purchase_id', '=', self.id)],
             'context': {
                 'default_partner_id': self.partner_id.id,
-                'default_purchase_ids': [(6, 0, [self.id])],
+                'default_purchase_id': self.id,
                 'from_purchase': True,
             },
             'target': 'current',

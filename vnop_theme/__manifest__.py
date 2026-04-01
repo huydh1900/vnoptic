@@ -13,7 +13,11 @@
             "vnop_theme/static/src/scss/login.scss",
             "vnop_theme/static/src/js/password_toggle.js",
         ],
+        "web.assets_backend": [
+            "vnop_theme/static/src/scss/view_backend.scss",
+        ],
     },
+
     "installable": True,
     "application": False,
     "license": "LGPL-3",

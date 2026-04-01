@@ -104,6 +104,12 @@ class PurchaseOffer(models.Model):
     )
     line_count = fields.Integer(string="Số dòng", compute="_compute_line_count")
     followup_alert_sent = fields.Boolean(string="Đã gửi cảnh báo theo dõi", copy=False, default=False)
+    has_received = fields.Boolean(compute='_compute_has_received')
+
+    @api.depends('line_ids.qty_received')
+    def _compute_has_received(self):
+        for rec in self:
+            rec.has_received = any(l.qty_received > 0 for l in rec.line_ids)
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -338,6 +344,7 @@ class PurchaseOfferLine(models.Model):
     description = fields.Char(string="Mô tả")
     uom_id = fields.Many2one("uom.uom", string="Đơn vị tính", required=True)
     quantity = fields.Float(string="Số lượng dự kiến", required=True, digits="Product Unit of Measure")
+    qty_received = fields.Float(string="SL đã nhận", digits="Product Unit of Measure", default=0.0)
     expected_price = fields.Monetary(string="Giá dự kiến", required=True, currency_field="currency_id")
     currency_id = fields.Many2one("res.currency", related="offer_id.currency_id", store=True, readonly=True)
     subtotal = fields.Monetary(

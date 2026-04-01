@@ -14,6 +14,7 @@
         'views/product_tree_common_views.xml',
         'views/product_category_views.xml',
         'views/product_template_views.xml',
+        'views/product_template_kanban_views.xml',
         'views/product_group_views.xml',
         'views/product_lens_config_views.xml',
         'views/product_master_data_config_views.xml',
@@ -27,6 +28,7 @@
     'assets': {
         'web.assets_backend': [
             'vnop_sync/static/src/scss/preview_long_text.scss',
+            'vnop_sync/static/src/scss/product_kanban_modern.scss',
             'vnop_sync/static/src/js/preview_long_text.js',
         ],
     },

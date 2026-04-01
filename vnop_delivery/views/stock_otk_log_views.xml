@@ -39,6 +39,7 @@
                             <field name="qty_otk"/>
                             <field name="qty_ng" class="text-danger"/>
                             <field name="qty_ok" class="text-success"/>
+                            <field name="qty_remaining" class="text-warning"/>
                             <field name="note"/>
                         </list>
                     </field>

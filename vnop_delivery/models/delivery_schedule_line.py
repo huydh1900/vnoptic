@@ -51,3 +51,4 @@ class DeliveryScheduleLine(models.Model):
         'res.currency',
         related='contract_line_id.currency_id', store=True,
     )
+    qty_received = fields.Float(string='Đã nhận', digits='Product Unit of Measure', default=0.0)
