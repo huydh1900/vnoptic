@@ -7,18 +7,13 @@
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
                 <field name="is_temp_location" invisible="1"/>
-                <field name="otk_count" invisible="1"/>
-                <button name="action_create_otk" type="object" string="Tạo phiếu OTK"
+                <button name="action_otk" type="object" string="OTK"
                         class="btn-primary"
-                        invisible="state != 'done' or not is_temp_location or otk_count != 0"/>
+                        invisible="state not in ('assigned') or not is_temp_location"/>
             </xpath>
-            <xpath expr="//div[@name='button_box']" position="inside">
-                <button name="action_view_otk" type="object" class="oe_stat_button" icon="fa-file-text-o"
-                        invisible="otk_count == 0">
-                    <field name="otk_count" widget="statinfo" string="Phiếu tổng hợp OTK"/>
-                </button>
+            <xpath expr="//button[@name='button_validate']" position="attributes">
+                <attribute name="invisible">is_temp_location</attribute>
             </xpath>
-
         </field>
     </record>
 </odoo>
