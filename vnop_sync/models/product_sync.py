@@ -3037,7 +3037,15 @@ class ProductSync(models.Model):
     def sync_products_limited(self, limit=1000):
         return self._run_sync(limit)
 
-    def _run_sync(self, limit=None):
+    def sync_data_only(self):
+        """Đồng bộ thông tin sản phẩm, bỏ qua ảnh."""
+        return self._run_sync(image_mode='off')
+
+    def sync_images_only(self):
+        """Chỉ đồng bộ ảnh sản phẩm."""
+        return self._run_sync(image_mode='always')
+
+    def _run_sync(self, limit=None, image_mode=None):
         self.ensure_one()
         rec_id = self.id
         db = self.env.cr.dbname
@@ -3053,7 +3061,7 @@ class ProductSync(models.Model):
             with Registry(db).cursor() as cr:
                 env = self.env(cr=cr)
                 rec = env[self._name].browse(rec_id)
-                msg, full_log, stats = rec._do_sync(limit)
+                msg, full_log, stats = rec._do_sync(limit, image_mode=image_mode)
                 rec.write({
                     'sync_status': 'success', 'sync_log': full_log,
                     'total_synced': stats['lens'] + stats['opt'] + stats['acc'],
@@ -3074,14 +3082,15 @@ class ProductSync(models.Model):
             return {'type': 'ir.actions.client', 'tag': 'display_notification',
                     'params': {'title': 'Đồng bộ thất bại', 'message': str(e)[:500], 'type': 'danger'}}
 
-    def _do_sync(self, limit=None):
+    def _do_sync(self, limit=None, image_mode=None):
         """Logic sync thực sự — chạy trên cursor riêng được truyền vào qua self.env."""
         token = self._get_access_token()
         cache = self._preload_all_data()
         cfg = self._get_api_config()
         product_tmpl = self.env['product.template']
         existing_ids = list(cache.get('products', {}).values())
-        image_mode = self._get_image_sync_mode(limit=limit)
+        if image_mode is None:
+            image_mode = self._get_image_sync_mode(limit=limit)
         track_source_url = 'x_rs_image_url' in product_tmpl._fields
         existing_image_url_map = {}
         try:
