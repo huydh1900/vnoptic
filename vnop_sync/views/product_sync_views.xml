@@ -29,6 +29,16 @@
                             class="oe_highlight"
                             invisible="id == False"
                             confirm="Sync toàn bộ sản phẩm? Có thể mất nhiều thời gian."/>
+                    <button name="sync_data_only"
+                            string="Đồng bộ thông tin"
+                            type="object"
+                            invisible="id == False"
+                            confirm="Sync thông tin sản phẩm (không sync ảnh)?"/>
+                    <button name="sync_images_only"
+                            string="Đồng bộ ảnh"
+                            type="object"
+                            invisible="id == False"
+                            confirm="Chỉ sync ảnh sản phẩm?"/>
                     <button name="sync_products_limited"
                             string="Đồng bộ 200 Test"
                             type="object"

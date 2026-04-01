@@ -19,6 +19,25 @@ class PurchaseOrder(models.Model):
     )
 
     count_delivery_schedule = fields.Integer(compute='_compute_count_delivery_schedule')
+    otk_log_count = fields.Integer(compute='_compute_otk_log_count')
+
+    def _compute_otk_log_count(self):
+        data = self.env['stock.otk.log'].read_group(
+            [('purchase_id', 'in', self.ids)], ['purchase_id'], ['purchase_id']
+        )
+        counts = {d['purchase_id'][0]: d['purchase_id_count'] for d in data}
+        for rec in self:
+            rec.otk_log_count = counts.get(rec.id, 0)
+
+    def action_view_otk_logs(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Lần OTK',
+            'res_model': 'stock.otk.log',
+            'view_mode': 'list,form',
+            'domain': [('purchase_id', '=', self.id)],
+        }
 
     def action_rfq_send(self):
         for order in self:

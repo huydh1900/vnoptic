@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_stock_otk_wizard_form" model="ir.ui.view">
+        <field name="name">stock.otk.wizard.form</field>
+        <field name="model">stock.otk.wizard</field>
+        <field name="arch" type="xml">
+            <form string="OTK - Kiểm hàng nhập kho">
+                <sheet>
+                    <field name="picking_id" invisible="1"/>
+                    <field name="line_ids">
+                        <list editable="bottom" create="0" delete="0">
+                            <field name="product_id" readonly="1"/>
+                            <field name="uom_id" readonly="1" optional="hide"/>
+                            <field name="qty_demand" readonly="1"/>
+                            <field name="qty_otk"/>
+                            <field name="qty_ng" class="text-danger"/>
+                            <field name="qty_ok" readonly="1" class="text-success"/>
+                            <field name="note"/>
+                        </list>
+                    </field>
+                </sheet>
+                <footer>
+                    <button name="action_confirm" string="Xác nhận OTK" type="object"
+                            class="btn-primary"
+                            confirm="Xác nhận? SL kiểm sẽ được nhập kho, phần còn lại tạo backorder."/>
+                    <button string="Huỷ" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

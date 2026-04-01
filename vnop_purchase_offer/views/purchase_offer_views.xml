@@ -52,13 +52,14 @@
                         </h1>
                     </div>
 
-                    <group string="Thông tin chung" col="4">
+                    <group string="Thông tin chung">
                         <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'"/>
                         <field name="total_qty" readonly="1"/>
                         <field name="partner_ref" readonly="1"/>
                         <field name="amount_total" widget="monetary" readonly="1"/>
                         <field name="contract_id" readonly="1" invisible="not contract_id"/>
                         <field name="currency_id" readonly="state != 'draft'"/>
+                        <field name="exchange_rate" readonly="state != 'draft'"/>
                         <field name="follow_up_date" readonly="state != 'draft'"/>
                     </group>
 
@@ -66,11 +67,12 @@
                         <page string="Sản phẩm">
                             <field name="line_ids" readonly="state != 'draft'">
                                 <list editable="bottom">
-                                    <field name="product_id"/>
+                                    <field name="product_id" domain="[('product_tmpl_id.primary_supplier_id', '=', parent.partner_id)]"/>
                                     <field name="description" optional="hide"/>
                                     <field name="uom_id" optional="hide"/>
                                     <field name="quantity" sum="Tổng SL dự kiến"/>
                                     <field name="expected_price"/>
+                                    <field name="taxes_id" widget="many2many_tags" optional="show"/>
                                     <field name="subtotal" sum="Tổng giá trị dự kiến"/>
                                     <field name="currency_id" column_invisible="1"/>
                                 </list>

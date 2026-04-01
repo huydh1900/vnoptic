@@ -1,7 +1,7 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_delivery_schedule,vnop_delivery.delivery_schedule,model_delivery_schedule,base.group_user,1,1,1,1
 access_delivery_schedule_line,vnop_delivery.delivery_schedule_line,model_delivery_schedule_line,base.group_user,1,1,1,1
-access_stock_otk,vnop_delivery.stock_otk,model_stock_otk,base.group_user,1,1,1,1
-access_stock_otk_line,vnop_delivery.stock_otk_line,model_stock_otk_line,base.group_user,1,1,1,1
-access_stock_otk_check,vnop_delivery.stock_otk_check,model_stock_otk_check,base.group_user,1,1,1,1
-access_stock_otk_check_line,vnop_delivery.stock_otk_check_line,model_stock_otk_check_line,base.group_user,1,1,1,1
+access_stock_otk_wizard,vnop_delivery.stock_otk_wizard,model_stock_otk_wizard,base.group_user,1,1,1,1
+access_stock_otk_wizard_line,vnop_delivery.stock_otk_wizard_line,model_stock_otk_wizard_line,base.group_user,1,1,1,1
+access_stock_otk_log,vnop_delivery.stock_otk_log,model_stock_otk_log,base.group_user,1,1,1,1
+access_stock_otk_log_line,vnop_delivery.stock_otk_log_line,model_stock_otk_log_line,base.group_user,1,1,1,1
