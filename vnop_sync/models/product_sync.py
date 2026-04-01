@@ -8,6 +8,7 @@ import time
 import random
 import re
 import base64
+from io import BytesIO
 import requests
 import urllib3
 from urllib.parse import urljoin
@@ -241,6 +242,65 @@ class ProductSync(models.Model):
             return False
         return urljoin(base_url.rstrip('/') + '/', raw.lstrip('/'))
 
+    def _get_image_sync_mode(self, limit=None):
+        """Image sync mode: off | missing | changed | always."""
+        default_mode = (os.getenv('PRODUCT_IMAGE_SYNC_MODE') or 'missing').strip().lower()
+        limited_mode = (os.getenv('PRODUCT_IMAGE_SYNC_MODE_LIMITED') or '').strip().lower()
+        mode = limited_mode if (limit and limited_mode) else default_mode
+        if mode not in {'off', 'missing', 'changed', 'always'}:
+            mode = 'missing'
+        return mode
+
+    def _optimize_image_bytes(self, content, content_type='', product_ref=''):
+        """Resize/compress image payload before storing into image_1920."""
+        if not content:
+            return content
+
+        compress = (os.getenv('PRODUCT_IMAGE_COMPRESS', 'true').strip().lower() == 'true')
+        if not compress:
+            return content
+
+        try:
+            max_dim = int(os.getenv('PRODUCT_IMAGE_MAX_DIM', '1280'))
+        except (TypeError, ValueError):
+            max_dim = 1280
+        max_dim = max(256, max_dim)
+
+        try:
+            jpeg_quality = int(os.getenv('PRODUCT_IMAGE_JPEG_QUALITY', '82'))
+        except (TypeError, ValueError):
+            jpeg_quality = 82
+        jpeg_quality = min(95, max(50, jpeg_quality))
+
+        try:
+            from PIL import Image
+        except Exception:
+            return content
+
+        try:
+            with Image.open(BytesIO(content)) as img:
+                img.load()
+                width, height = img.size
+                if width > max_dim or height > max_dim:
+                    resampling = getattr(getattr(Image, 'Resampling', Image), 'LANCZOS', Image.LANCZOS)
+                    img.thumbnail((max_dim, max_dim), resampling)
+
+                save_as_png = 'png' in (content_type or '').lower() and ('A' in img.getbands() or img.mode in ('RGBA', 'LA'))
+                output = BytesIO()
+                if save_as_png:
+                    img.save(output, format='PNG', optimize=True)
+                else:
+                    if img.mode not in ('RGB', 'L'):
+                        img = img.convert('RGB')
+                    img.save(output, format='JPEG', quality=jpeg_quality, optimize=True, progressive=True)
+                optimized = output.getvalue()
+                if optimized and len(optimized) < len(content):
+                    return optimized
+        except Exception as e:
+            _logger.debug("Skip image optimize product=%s error=%s", product_ref or 'N/A', e)
+
+        return content
+
     def _fetch_rs_image_base64(self, image_url, image_sync_ctx=None, product_ref='', allow_default_fallback=True):
         """Download RS image and return base64 string; return False on recoverable failure."""
         if not image_url:
@@ -293,28 +353,52 @@ class ProductSync(models.Model):
                 )
                 return False
 
+            content = self._optimize_image_bytes(content, content_type=content_type, product_ref=product_ref)
             try:
                 return base64.b64encode(content).decode('ascii')
             except Exception as e:
                 _logger.warning("⚠️ Skip sync image encode error: product=%s url=%s error=%s", product_ref or 'N/A', target_url, e)
                 return False
 
+        url_cache = ctx.setdefault('_url_cache', {})
+        image_stats = ctx.setdefault('stats', defaultdict(int))
+        image_stats['fetch_attempts'] += 1
         try:
-            image_b64 = _download_image_as_b64(image_full_url)
-            if image_b64:
-                return image_b64
+            url_cache_limit = int(os.getenv('PRODUCT_IMAGE_URL_CACHE_LIMIT', '1000'))
+        except (TypeError, ValueError):
+            url_cache_limit = 1000
+        url_cache_limit = max(0, url_cache_limit)
+
+        if image_full_url in url_cache:
+            image_stats['cache_hits'] += 1
+            return url_cache[image_full_url]
+
+        result = False
+        try:
+            result = _download_image_as_b64(image_full_url)
         except requests.exceptions.Timeout as e:
             _logger.warning("⚠️ Skip sync image timeout: product=%s url=%s error=%s", product_ref or 'N/A', image_full_url, e)
         except Exception as e:
             _logger.warning("⚠️ Skip sync image download error: product=%s url=%s error=%s", product_ref or 'N/A', image_full_url, e)
 
+        if result:
+            image_stats['downloaded'] += 1
+            if url_cache_limit and len(url_cache) < url_cache_limit:
+                url_cache[image_full_url] = result
+            return result
+
         if allow_default_fallback and not self._is_rs_default_image_url(image_url):
             default_endpoint = (os.getenv('RS_DEFAULT_IMAGE_ENDPOINT') or '/api/files/default.png').strip()
             default_url = self._build_rs_image_full_url(default_endpoint, cfg)
             if default_url and default_url != image_full_url:
+                if default_url in url_cache:
+                    return url_cache[default_url]
                 try:
                     fallback_b64 = _download_image_as_b64(default_url)
                     if fallback_b64:
+                        image_stats['fallback_downloaded'] += 1
+                        if url_cache_limit and len(url_cache) < url_cache_limit:
+                            url_cache[default_url] = fallback_b64
                         _logger.info(
                             "ℹ️ Product image fallback to default image: product=%s failed_url=%s default_url=%s",
                             product_ref or 'N/A',
@@ -334,19 +418,48 @@ class ProductSync(models.Model):
 
     def _apply_product_image_to_vals(self, item, vals, image_sync_ctx=None, existing_product_id=None):
         """Set vals['image_1920'] only when RS image download succeeds."""
+        ctx = image_sync_ctx or {}
+        mode = (ctx.get('mode') or 'missing').strip().lower()
+        image_stats = ctx.setdefault('stats', defaultdict(int))
+        if mode == 'off':
+            image_stats['mode_off_skipped'] += 1
+            return
+
         image_url = self._extract_rs_image_url(item)
         if not image_url:
+            image_stats['no_url_skipped'] += 1
+            return
+
+        cfg = ctx.get('cfg') or self._get_api_config()
+        image_full_url = self._build_rs_image_full_url(image_url, cfg)
+        if not image_full_url:
+            image_stats['invalid_url_skipped'] += 1
             return
 
         existing_has_image = False
+        existing_image_url = False
         if existing_product_id:
-            existing_tmpl = self.env['product.template'].browse(existing_product_id).exists()
-            existing_has_image = bool(existing_tmpl and existing_tmpl.image_1920)
+            has_image_set = ctx.get('_has_image_set')
+            if has_image_set is not None:
+                existing_has_image = existing_product_id in has_image_set
+            else:
+                existing_tmpl = self.env['product.template'].browse(existing_product_id).exists()
+                existing_has_image = bool(existing_tmpl and existing_tmpl.image_1920)
+            existing_image_url = (ctx.get('_existing_image_url_map') or {}).get(existing_product_id)
 
         is_default_image = self._is_rs_default_image_url(image_url)
         if is_default_image and existing_has_image:
             # Keep existing image if product already has one; only fill blank images with default image.
+            image_stats['default_kept'] += 1
             return
+
+        if existing_has_image:
+            if mode == 'missing':
+                image_stats['existing_kept'] += 1
+                return
+            if mode == 'changed' and existing_image_url and existing_image_url == image_full_url:
+                image_stats['unchanged_skipped'] += 1
+                return
 
         dto = (
             item.get('productdto')
@@ -356,13 +469,23 @@ class ProductSync(models.Model):
         )
         product_ref = (dto.get('cid') or dto.get('id') or dto.get('externalId') or vals.get('default_code') or '').strip() or 'N/A'
         image_b64 = self._fetch_rs_image_base64(
-            image_url,
+            image_full_url,
             image_sync_ctx=image_sync_ctx,
             product_ref=product_ref,
             allow_default_fallback=not existing_has_image,
         )
         if image_b64:
             vals['image_1920'] = image_b64
+            if ctx.get('track_source_url'):
+                vals['x_rs_image_url'] = image_full_url
+                vals['x_rs_image_synced_at'] = fields.Datetime.now()
+            image_stats['written'] += 1
+            if existing_product_id:
+                has_image_set = ctx.get('_has_image_set')
+                if isinstance(has_image_set, set):
+                    has_image_set.add(existing_product_id)
+                if ctx.get('_existing_image_url_map') is not None:
+                    ctx['_existing_image_url_map'][existing_product_id] = image_full_url
 
     def _get_access_token(self):
         config = self._get_api_config()
@@ -2956,10 +3079,36 @@ class ProductSync(models.Model):
         token = self._get_access_token()
         cache = self._preload_all_data()
         cfg = self._get_api_config()
+        product_tmpl = self.env['product.template']
+        existing_ids = list(cache.get('products', {}).values())
+        image_mode = self._get_image_sync_mode(limit=limit)
+        track_source_url = 'x_rs_image_url' in product_tmpl._fields
+        existing_image_url_map = {}
+        try:
+            has_image_set = set(
+                product_tmpl.search([
+                    ('id', 'in', existing_ids), ('image_1920', '!=', False)
+                ]).ids
+            ) if existing_ids else set()
+        except Exception:
+            has_image_set = set()
+        if track_source_url and existing_ids:
+            try:
+                for row in product_tmpl.search_read(
+                    [('id', 'in', existing_ids), ('x_rs_image_url', '!=', False)],
+                    ['id', 'x_rs_image_url'],
+                ):
+                    existing_image_url_map[row['id']] = (row.get('x_rs_image_url') or '').strip()
+            except Exception:
+                existing_image_url_map = {}
         image_sync_ctx = {
             'token': token,
             'cfg': cfg,
             'session': self._make_session(),
+            'mode': image_mode,
+            'track_source_url': track_source_url,
+            '_has_image_set': has_image_set,
+            '_existing_image_url_map': existing_image_url_map,
         }
         stats = {}
         error_ctx = self._init_sync_error_ctx()
@@ -2997,6 +3146,15 @@ class ProductSync(models.Model):
         msg = f"Đã đồng bộ {total} (Mắt:{stats['lens']}, Gọng:{stats['opt']}, Khác:{stats['acc']}). Lỗi: {stats['failed']}"
 
         lines = [msg]
+        image_stats = image_sync_ctx.get('stats') or {}
+        if image_stats:
+            lines.append(
+                "\n── Ảnh sản phẩm ──\n"
+                f"  mode={image_mode} | downloaded={image_stats.get('downloaded', 0)} | "
+                f"fallback={image_stats.get('fallback_downloaded', 0)} | write={image_stats.get('written', 0)} | "
+                f"cache_hit={image_stats.get('cache_hits', 0)} | unchanged_skip={image_stats.get('unchanged_skipped', 0)} | "
+                f"existing_skip={image_stats.get('existing_kept', 0)} | no_url_skip={image_stats.get('no_url_skipped', 0)}"
+            )
         if error_ctx.get('counts'):
             counts_sorted = sorted(error_ctx['counts'].items(), key=lambda kv: (-kv[1], kv[0]))
             lines.append("\n── Tóm tắt lỗi theo loại ──")

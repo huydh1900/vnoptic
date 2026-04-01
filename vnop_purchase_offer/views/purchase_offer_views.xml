@@ -52,7 +52,7 @@
                         </h1>
                     </div>
 
-                    <group string="Thông tin chung" col="4">
+                    <group string="Thông tin chung">
                         <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'"/>
                         <field name="total_qty" readonly="1"/>
                         <field name="partner_ref" readonly="1"/>

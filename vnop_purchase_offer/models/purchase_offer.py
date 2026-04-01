@@ -51,20 +51,26 @@ class PurchaseOffer(models.Model):
         help="Tỷ giá quy đổi sang VND (lấy từ res.currency.rate, có thể chỉnh tay)"
     )
 
+    def _get_exchange_rate_for_currency(self, currency):
+        self.ensure_one()
+        if not currency:
+            return 0.0
+        if currency.name == "VND":
+            return 1.0
+        company = self.company_id or self.env.company
+        rate = self.env["res.currency.rate"].search([
+            ("currency_id", "=", currency.id),
+            ("name", "<=", fields.Date.context_today(self)),
+            ("company_id", "in", [company.id, False]),
+        ], order="company_id desc, name desc", limit=1)
+        # Odoo lưu rate = 1/vnd_per_unit → đảo lại để ra VND thực
+        return round(1.0 / rate.rate, 2) if rate and rate.rate else 0.0
+
     @api.onchange("currency_id")
     def _onchange_currency_id_get_rate(self):
-        if not self.currency_id:
-            self.exchange_rate = 0.0
-            return
-        if self.currency_id.name == 'VND':
-            self.exchange_rate = 1.0
-            return
-        rate = self.env['res.currency.rate'].search([
-            ('currency_id', '=', self.currency_id.id),
-            ('company_id', '=', self.env.company.id),
-        ], order='name desc', limit=1)
-        # Odoo lưu rate = 1/vnd_per_unit → đảo lại để ra VND thực
-        self.exchange_rate = round(1.0 / rate.rate, 2) if rate and rate.rate else 0.0
+        for rec in self:
+            rec.exchange_rate = rec._get_exchange_rate_for_currency(rec.currency_id)
+
     follow_up_date = fields.Date(string="Ngày hàng về dự kiến", tracking=True)
     approved_by = fields.Many2one("res.users", string="Người duyệt", readonly=True, copy=False, tracking=True)
     approved_date = fields.Datetime(string="Thời gian duyệt", readonly=True, copy=False, tracking=True)
@@ -110,6 +116,7 @@ class PurchaseOffer(models.Model):
     @api.onchange("partner_id")
     def _onchange_partner_id_clear_lines(self):
         self.line_ids = [(5, 0, 0)]
+        self.exchange_rate = self._get_exchange_rate_for_currency(self.currency_id)
 
     def write(self, vals):
         if "follow_up_date" in vals:

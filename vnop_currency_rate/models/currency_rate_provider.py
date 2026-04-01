@@ -53,7 +53,9 @@ class CurrencyRateProvider(models.Model):
         """Trả về dict {currency_code: rate_vs_VND}"""
         url = f"https://v6.exchangerate-api.com/v6/{self.api_key or 'latest'}/latest/VND"
         try:
-            data = requests.get(url, timeout=10).json()
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
         except Exception as e:
             raise UserError(_("Không thể kết nối ExchangeRate-API: %s") % e)
         if data.get('result') != 'success':
@@ -105,29 +107,35 @@ class CurrencyRateProvider(models.Model):
         else:
             self.log = f"Không tìm thấy tỷ giá cho base currency {base_code}"
             return
+        if not base_vnd:
+            self.log = f"Tỷ giá base currency {base_code} không hợp lệ: {base_vnd}"
+            return
 
         currencies = self.currency_ids or Currency.search([('active', '=', True)])
+        target_currencies = currencies.filtered(lambda c: c.name.upper() != base_code)
+        existing_rates = Rate.search([
+            ('currency_id', 'in', target_currencies.ids),
+            ('name', '=', today),
+            ('company_id', '=', company.id),
+        ])
+        existing_map = {rate.currency_id.id: rate for rate in existing_rates}
 
-        for currency in currencies:
+        for currency in target_currencies:
             code = currency.name.upper()
             api_code = self._CURRENCY_CODE_MAP.get(code, code)
-            if code == base_code:
-                continue
             if api_code not in raw_rates:
                 logs.append(f"[SKIP] {code}: không có trong dữ liệu API")
                 continue
 
             foreign_vnd = raw_rates[api_code]
+            if not foreign_vnd:
+                logs.append(f"[SKIP] {code}: tỷ giá API không hợp lệ ({foreign_vnd})")
+                continue
             # Odoo rate = 1 unit foreign / base_vnd
             # Nếu base=VND: rate = 1/foreign_vnd
             odoo_rate = foreign_vnd / base_vnd if base_code != 'VND' else 1.0 / foreign_vnd
 
-            existing = Rate.search([
-                ('currency_id', '=', currency.id),
-                ('name', '=', today),
-                ('company_id', '=', company.id),
-            ], limit=1)
-
+            existing = existing_map.get(currency.id)
             if existing:
                 existing.rate = odoo_rate
             else:
@@ -139,11 +147,12 @@ class CurrencyRateProvider(models.Model):
                 })
             logs.append(f"[OK] {code}: 1 {code} = {foreign_vnd:,.0f} VND | odoo_rate={odoo_rate:.8f}")
 
+        log_content = '\n'.join(logs)
         self.write({
             'last_sync': fields.Datetime.now(),
-            'log': '\n'.join(logs),
+            'log': log_content,
         })
-        _logger.info("Currency rate sync done:\n%s", '\n'.join(logs))
+        _logger.info("Currency rate sync done:\n%s", log_content)
 
     @api.model
     def _cron_sync_all(self):
