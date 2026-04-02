@@ -114,6 +114,7 @@
 	                                    <field name="currency_id" column_invisible="1"/>
 	                                    <field name="qty_contract" readonly="1"/>
 	                                    <field name="qty_planned"/>
+	                                    <field name="qty_received" readonly="1" optional="show"/>
 	                                    <field name="price_unit" readonly="1" widget="monetary"/>
 	                                </list>
 	                            </field>

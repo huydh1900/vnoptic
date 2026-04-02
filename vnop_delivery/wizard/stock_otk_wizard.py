@@ -10,6 +10,15 @@ class StockOtkWizard(models.TransientModel):
 
     picking_id = fields.Many2one('stock.picking', required=True, readonly=True)
     line_ids = fields.One2many('stock.otk.wizard.line', 'wizard_id', string='Chi tiết kiểm')
+    surplus_note = fields.Char(string='Lưu ý', compute='_compute_surplus_note')
+    has_surplus = fields.Boolean(compute='_compute_surplus_note')
+
+    @api.depends('line_ids.qty_remaining')
+    def _compute_surplus_note(self):
+        for wiz in self:
+            has_surplus = any(l.qty_remaining > 0 for l in wiz.line_ids)
+            wiz.has_surplus = has_surplus
+            wiz.surplus_note = _('⚠️ Có sản phẩm SL dư, phần dư sẽ được giữ lại trong kho tạm.') if has_surplus else False
 
     @api.model
     def default_get(self, fields_list):
@@ -34,13 +43,16 @@ class StockOtkWizard(models.TransientModel):
         for line in self.line_ids:
             if float_compare(line.qty_otk, 0.0, precision_rounding=line.uom_id.rounding or 0.01) < 0:
                 raise ValidationError(_('SL kiểm không được âm: %s') % line.product_id.display_name)
-            if float_compare(line.qty_otk, line.qty_demand, precision_rounding=line.uom_id.rounding or 0.01) > 0:
-                raise ValidationError(_('SL kiểm vượt quá SL yêu cầu: %s') % line.product_id.display_name)
             if float_compare(line.qty_ng, line.qty_otk, precision_rounding=line.uom_id.rounding or 0.01) > 0:
                 raise ValidationError(_('SL không đạt vượt quá SL kiểm: %s') % line.product_id.display_name)
-            line.move_id.quantity = line.qty_otk
 
         picking = self.picking_id
+
+        # Set số lượng thực nhận theo qty_otk trước khi validate
+        for line in self.line_ids:
+            if line.move_id:
+                line.move_id.quantity = line.qty_otk
+
         res = picking.with_context(skip_immediate=True, skip_backorder=False).button_validate()
         if isinstance(res, dict) and res.get('res_model') == 'stock.backorder.confirmation':
             backorder_wizard = self.env['stock.backorder.confirmation'].with_context(
@@ -113,6 +125,27 @@ class StockOtkWizard(models.TransientModel):
             }) for l in self.line_ids if l.qty_otk > 0],
         })
 
+        # Cập nhật SL đã nhận trên delivery.schedule.line và purchase.offer.line
+        schedule = picking.delivery_schedule_id
+        if schedule:
+            # Gán schedule vào PO nếu chưa có
+            if picking.purchase_id and not picking.purchase_id.delivery_schedule_id:
+                picking.purchase_id.delivery_schedule_id = schedule
+
+            for line in self.line_ids:
+                if not line.qty_otk:
+                    continue
+                schedule_lines = schedule.line_ids.filtered(
+                    lambda sl: sl.product_id == line.product_id
+                )
+                for sl in schedule_lines:
+                    sl.qty_received += line.qty_otk
+                offer_line = schedule_lines.mapped(
+                    'contract_line_id.purchase_offer_line_id'
+                )[:1]
+                if offer_line:
+                    offer_line.qty_received += line.qty_otk
+
         return {'type': 'ir.actions.act_window_close'}
 
 
@@ -128,9 +161,24 @@ class StockOtkWizardLine(models.TransientModel):
     qty_otk = fields.Float(string='SL kiểm lần này')
     qty_ng = fields.Float(string='SL không đạt')
     qty_ok = fields.Float(string='SL đạt', compute='_compute_qty_ok', store=True)
+    qty_remaining = fields.Float(string='SL dư', compute='_compute_qty_remaining')
     note = fields.Char(string='Ghi chú')
 
-    @api.depends('qty_otk', 'qty_ng')
+    @api.constrains('qty_otk', 'qty_ng')
+    def _check_qty_not_negative(self):
+        for line in self:
+            if line.qty_otk < 0:
+                raise ValidationError(_('SL kiểm lần này không được âm: %s') % line.product_id.display_name)
+            if line.qty_ng < 0:
+                raise ValidationError(_('SL không đạt không được âm: %s') % line.product_id.display_name)
+
+    @api.depends('qty_otk', 'qty_ng', 'qty_demand')
     def _compute_qty_ok(self):
         for line in self:
-            line.qty_ok = line.qty_otk - line.qty_ng
+            base = min(line.qty_otk, line.qty_demand)
+            line.qty_ok = base - line.qty_ng
+
+    @api.depends('qty_demand', 'qty_otk')
+    def _compute_qty_remaining(self):
+        for line in self:
+            line.qty_remaining = max(line.qty_otk - line.qty_demand, 0.0)

@@ -37,8 +37,6 @@ class StockPicking(models.Model):
         res = super().button_validate()
         done_pickings = self.filtered(lambda p: p.state == 'done' and p.delivery_schedule_id)
         for picking in done_pickings:
-            missing_moves = picking.move_ids_without_package.filtered(lambda m: not m.delivery_schedule_id)
-            missing_moves.write({'delivery_schedule_id': picking.delivery_schedule_id.id})
             picking.delivery_schedule_id._sync_state_from_receipts()
         return res
 

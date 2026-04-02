@@ -27,4 +27,5 @@ class StockOtkLogLine(models.Model):
     qty_otk = fields.Float(string='SL kiểm', readonly=True)
     qty_ok = fields.Float(string='SL đạt', readonly=True)
     qty_ng = fields.Float(string='SL không đạt', readonly=True)
+    qty_remaining = fields.Float(string='SL dư', readonly=True)
     note = fields.Char(string='Ghi chú', readonly=True)

@@ -1,0 +1,41 @@
+// Border chỉ cho field có thể edit (không phải readonly)
+.o_form_view .o_field_widget:not(.o_readonly_modifier) {
+  &.o_field_char, &.o_field_text, &.o_field_integer,
+  &.o_field_float, &.o_field_monetary, &.o_field_date,
+  &.o_field_datetime, &.o_field_selection, &.o_field_many2one,
+  &.o_field_many2many, &.o_field_tags {
+    border: 1px solid rgba(223, 225, 223, 0.84);
+    border-radius: 5px;
+    padding: 5px 5px 5px 10px;
+  }
+}
+
+// Dấu * cho field required
+.o_form_view .o_wrap_field.o_field_optional_empty > label.o_form_label::after,
+.o_form_view .o_wrap_field > label.o_form_label.o_field_required::after {
+  content: " *";
+  color: #e74c3c;
+}
+
+.o_field_many2one_selection input {
+  border: none;
+  border-radius: 0 !important;
+  padding: 1px 0 !important;
+}
+
+.o_form_view .o_field_empty:empty {
+  min-height: 100% !important;
+}
+
+.o_input {
+  border: unset;
+}
+
+.hide-o-mail-Chatter button.o-mail-Chatter-sendMessage,
+.hide-o-mail-Chatter button.o-mail-Chatter-logNote,
+.hide-o-mail-Chatter button.btn.btn-link.text-action,
+.hide-o-mail-Chatter button.o-mail-Chatter-attachFiles,
+.hide-o-mail-Chatter .o-dropdown.dropdown.o-mail-Followers,
+.hide-o-mail-Chatter button.o-mail-Chatter-follow {
+  display: none !important;
+}

@@ -89,6 +89,7 @@ class DeliverySchedule(models.Model):
             if po:
                 po.button_confirm()
                 rec.purchase_id = po
+                po.picking_ids.write({'delivery_schedule_id': rec.id})
 
     def _create_po_from_schedule_lines(self):
         self.ensure_one()
@@ -129,10 +130,22 @@ class DeliverySchedule(models.Model):
             rec.incoterm_id = rec.contract_id.incoterm_id
             rec.port_loading = rec.contract_id.port_of_loading
             rec.port_discharge = rec.contract_id.destination
+
+            # Tính SL đã lên lịch từ các lần trước
+            existing = self.env['delivery.schedule'].search([
+                ('contract_id', '=', rec.contract_id.id),
+                ('id', '!=', rec._origin.id or 0),
+            ])
+            planned_by_cl = {}
+            for s in existing:
+                for l in s.line_ids:
+                    planned_by_cl[l.contract_line_id.id] = planned_by_cl.get(l.contract_line_id.id, 0) + l.qty_planned
+
             rec.line_ids = [(5, 0, 0)] + [(0, 0, {
                 'contract_line_id': line.id,
-                'qty_planned': line.product_qty,
-            }) for line in rec.contract_id.line_ids]
+                'qty_planned': max(line.product_qty - planned_by_cl.get(line.id, 0), 0),
+            }) for line in rec.contract_id.line_ids
+                if planned_by_cl.get(line.id, 0) < line.product_qty]
 
     def action_view_contract(self):
         self.ensure_one()

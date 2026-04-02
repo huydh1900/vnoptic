@@ -1,0 +1,160 @@
+.o_kanban_view .vnop_optic_card,
+.o_kanban_renderer .vnop_optic_card {
+    --vnop-card-bg: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    --vnop-card-border: #d8e7f6;
+    --vnop-chip-main: #0b63b8;
+    --vnop-chip-soft: #e9f3ff;
+    --vnop-chip-status: #156f5a;
+    --vnop-chip-status-bg: #dcf9ef;
+    --vnop-title: #12314f;
+    --vnop-text: #4c6279;
+    --vnop-price: #0f5ca8;
+    --vnop-price-ws: #167a63;
+}
+
+.o_kanban_record .vnop_optic_card {
+    background: var(--vnop-card-bg);
+    border: 1px solid var(--vnop-card-border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(16, 52, 87, 0.12);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    max-width: 302px;
+    margin: 0 auto;
+}
+
+.o_kanban_record .vnop_optic_card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(11, 50, 90, 0.18);
+    border-color: #9dc2e8;
+}
+
+.o_kanban_record .vnop_optic_card_media {
+    position: relative;
+    height: 168px;
+    background: linear-gradient(145deg, #edf5ff 0%, #dae9f7 100%);
+    border-bottom: 1px solid #dce9f7;
+}
+
+.o_kanban_record .vnop_optic_card_media .o_field_image,
+.o_kanban_record .vnop_optic_card_media .o_field_widget {
+    width: 100%;
+    height: 100%;
+}
+
+.o_kanban_record .vnop_optic_card_media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.o_kanban_record .vnop_optic_card_chips {
+    position: absolute;
+    inset: 12px 12px auto 12px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.o_kanban_record .vnop_chip {
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.3;
+}
+
+.o_kanban_record .vnop_chip_type {
+    background: var(--vnop-chip-soft);
+    color: var(--vnop-chip-main);
+}
+
+.o_kanban_record .vnop_chip_status {
+    background: var(--vnop-chip-status-bg);
+    color: var(--vnop-chip-status);
+}
+
+.o_kanban_record .vnop_optic_card_body {
+    padding: 11px 11px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.o_kanban_record .vnop_optic_title {
+    color: var(--vnop-title);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.35;
+    min-height: 40px;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+.o_kanban_record .vnop_optic_meta,
+.o_kanban_record .vnop_optic_specs {
+    color: var(--vnop-text);
+    font-size: 11px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.o_kanban_record .vnop_optic_meta span,
+.o_kanban_record .vnop_optic_specs span {
+    background: #f1f7fc;
+    border: 1px solid #dfebf8;
+    border-radius: 8px;
+    padding: 2px 7px;
+}
+
+.o_kanban_record .vnop_optic_specs i {
+    margin-right: 4px;
+}
+
+.o_kanban_record .vnop_optic_prices {
+    margin-top: 1px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.o_kanban_record .vnop_price_col {
+    border: 1px solid #dbe8f6;
+    border-radius: 10px;
+    background: #fff;
+    padding: 6px 8px;
+}
+
+.o_kanban_record .vnop_price_label {
+    display: block;
+    color: #6a7e92;
+    font-size: 10px;
+    margin-bottom: 2px;
+}
+
+.o_kanban_record .vnop_price_value {
+    color: var(--vnop-price);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.o_kanban_record .vnop_price_value_ws {
+    color: var(--vnop-price-ws);
+}
+
+@media (max-width: 768px) {
+    .o_kanban_record .vnop_optic_card_media {
+        height: 148px;
+    }
+
+    .o_kanban_record .vnop_optic_card {
+        max-width: 100%;
+    }
+}

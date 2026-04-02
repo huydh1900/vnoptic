@@ -52,15 +52,19 @@
                         </h1>
                     </div>
 
-                    <group string="Thông tin chung">
-                        <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'"/>
-                        <field name="total_qty" readonly="1"/>
-                        <field name="partner_ref" readonly="1"/>
-                        <field name="amount_total" widget="monetary" readonly="1"/>
-                        <field name="contract_id" readonly="1" invisible="not contract_id"/>
-                        <field name="currency_id" readonly="state != 'draft'"/>
-                        <field name="exchange_rate" readonly="state != 'draft'"/>
-                        <field name="follow_up_date" readonly="state != 'draft'"/>
+                    <group string="Thông tin chung" col="2">
+                        <group>
+                            <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'"/>
+                            <field name="partner_ref" readonly="1"/>
+                            <field name="follow_up_date" readonly="state != 'draft'"/>
+                            <field name="contract_id" readonly="1" invisible="not contract_id"/>
+                        </group>
+                        <group>
+                            <field name="currency_id" readonly="state != 'draft'"/>
+                            <field name="exchange_rate" readonly="state != 'draft'"/>
+                            <field name="total_qty" readonly="1"/>
+                            <field name="amount_total" widget="monetary" readonly="1"/>
+                        </group>
                     </group>
 
                     <notebook>
@@ -71,6 +75,7 @@
                                     <field name="description" optional="hide"/>
                                     <field name="uom_id" optional="hide"/>
                                     <field name="quantity" sum="Tổng SL dự kiến"/>
+                                    <field name="qty_received" readonly="1" sum="Tổng SL đã nhận" column_invisible="not parent.has_received"/>
                                     <field name="expected_price"/>
                                     <field name="taxes_id" widget="many2many_tags" optional="show"/>
                                     <field name="subtotal" sum="Tổng giá trị dự kiến"/>
@@ -84,12 +89,16 @@
                             </group>
                         </page>
                         <page string="Thông tin bổ sung">
-                            <group>
-                                <field name="purchaser_id" widget="many2one_avatar_user" readonly="1"/>
-                                <field name="create_date" string="Ngày lập đề nghị" readonly="1"/>
-                                <field name="company_id" readonly="1"/>
-                                <field name="approved_by" widget="many2one_avatar_user" readonly="1"/>
-                                <field name="approved_date" readonly="1"/>
+                            <group col="2">
+                                <group string="Khởi tạo">
+                                    <field name="purchaser_id" widget="many2one_avatar_user" readonly="1"/>
+                                    <field name="create_date" string="Ngày lập đề nghị" readonly="1"/>
+                                    <field name="company_id" readonly="1"/>
+                                </group>
+                                <group string="Phê duyệt">
+                                    <field name="approved_by" widget="many2one_avatar_user" readonly="1"/>
+                                    <field name="approved_date" readonly="1"/>
+                                </group>
                             </group>
                         </page>
                     </notebook>

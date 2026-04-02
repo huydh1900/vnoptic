@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="product_template_kanban_view_vnop_modern" model="ir.ui.view">
+        <field name="name">product.template.kanban.vnop.modern</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_kanban_view"/>
+        <field name="priority">130</field>
+        <field name="arch" type="xml">
+            <xpath expr="//kanban" position="attributes">
+                <attribute name="class" add="vnop_product_kanban" separator=" "/>
+                <attribute name="group_create">0</attribute>
+                <attribute name="group_delete">0</attribute>
+                <attribute name="group_edit">0</attribute>
+                <attribute name="quick_create">0</attribute>
+                <attribute name="records_draggable">0</attribute>
+            </xpath>
+
+            <xpath expr="//kanban" position="inside">
+                <field name="image_128"/>
+                <field name="default_code"/>
+                <field name="categ_code"/>
+                <field name="brand_id"/>
+                <field name="group_id"/>
+                <field name="country_id"/>
+                <field name="product_status"/>
+                <field name="qty_available"/>
+                <field name="uom_id"/>
+                <field name="currency_id"/>
+                <field name="list_price"/>
+                <field name="x_ws_price"/>
+            </xpath>
+
+            <xpath expr="//kanban/templates" position="replace">
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click vnop_optic_card">
+                            <div class="vnop_optic_card_media">
+                                <field name="image_128" widget="image"/>
+                                <div class="vnop_optic_card_chips">
+                                    <span class="vnop_chip vnop_chip_type" t-if="record.categ_code.raw_value == 'GK'">Gọng kính</span>
+                                    <span class="vnop_chip vnop_chip_type" t-if="record.categ_code.raw_value == 'TK'">Tròng kính</span>
+                                    <span class="vnop_chip vnop_chip_type" t-if="record.categ_code.raw_value &amp;&amp; !['GK', 'TK'].includes(record.categ_code.raw_value)">
+                                        <t t-esc="record.categ_code.value"/>
+                                    </span>
+                                    <span class="vnop_chip vnop_chip_status" t-if="record.product_status.raw_value">
+                                        <t t-esc="record.product_status.value"/>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="vnop_optic_card_body">
+                                <div class="vnop_optic_title" t-att-title="record.name.value">
+                                    <field name="name"/>
+                                </div>
+
+                                <div class="vnop_optic_meta">
+                                    <span t-if="record.default_code.raw_value">#<field name="default_code"/></span>
+                                    <span t-if="record.brand_id.raw_value"><field name="brand_id"/></span>
+                                    <span t-if="record.country_id.raw_value"><field name="country_id"/></span>
+                                </div>
+
+                                <div class="vnop_optic_specs">
+                                    <span t-if="record.group_id.raw_value">
+                                        <i class="fa fa-tag"/> <field name="group_id"/>
+                                    </span>
+                                    <span t-if="record.qty_available.raw_value || record.qty_available.raw_value === 0">
+                                        <i class="fa fa-cubes"/> <field name="qty_available"/>
+                                        <t t-if="record.uom_id.raw_value"> <field name="uom_id"/></t>
+                                    </span>
+                                </div>
+
+                                <div class="vnop_optic_prices">
+                                    <div class="vnop_price_col">
+                                        <span class="vnop_price_label">Giá lẻ</span>
+                                        <span class="vnop_price_value">
+                                            <field name="list_price" widget="monetary"/>
+                                        </span>
+                                    </div>
+                                    <div class="vnop_price_col" t-if="record.x_ws_price.raw_value">
+                                        <span class="vnop_price_label">Giá sỉ</span>
+                                        <span class="vnop_price_value vnop_price_value_ws">
+                                            <field name="x_ws_price" widget="monetary"/>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click vnop_optic_card">
+                            <div class="vnop_optic_card_media">
+                                <field name="image_128" widget="image"/>
+                                <div class="vnop_optic_card_chips">
+                                    <span class="vnop_chip vnop_chip_type" t-if="record.categ_code.raw_value == 'GK'">Gọng kính</span>
+                                    <span class="vnop_chip vnop_chip_type" t-if="record.categ_code.raw_value == 'TK'">Tròng kính</span>
+                                    <span class="vnop_chip vnop_chip_type" t-if="record.categ_code.raw_value &amp;&amp; !['GK', 'TK'].includes(record.categ_code.raw_value)">
+                                        <t t-esc="record.categ_code.value"/>
+                                    </span>
+                                    <span class="vnop_chip vnop_chip_status" t-if="record.product_status.raw_value">
+                                        <t t-esc="record.product_status.value"/>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="vnop_optic_card_body">
+                                <div class="vnop_optic_title" t-att-title="record.name.value">
+                                    <field name="name"/>
+                                </div>
+
+                                <div class="vnop_optic_meta">
+                                    <span t-if="record.default_code.raw_value">#<field name="default_code"/></span>
+                                    <span t-if="record.brand_id.raw_value"><field name="brand_id"/></span>
+                                    <span t-if="record.country_id.raw_value"><field name="country_id"/></span>
+                                </div>
+
+                                <div class="vnop_optic_specs">
+                                    <span t-if="record.group_id.raw_value">
+                                        <i class="fa fa-tag"/> <field name="group_id"/>
+                                    </span>
+                                    <span t-if="record.qty_available.raw_value || record.qty_available.raw_value === 0">
+                                        <i class="fa fa-cubes"/> <field name="qty_available"/>
+                                        <t t-if="record.uom_id.raw_value"> <field name="uom_id"/></t>
+                                    </span>
+                                </div>
+
+                                <div class="vnop_optic_prices">
+                                    <div class="vnop_price_col">
+                                        <span class="vnop_price_label">Giá lẻ</span>
+                                        <span class="vnop_price_value">
+                                            <field name="list_price" widget="monetary"/>
+                                        </span>
+                                    </div>
+                                    <div class="vnop_price_col" t-if="record.x_ws_price.raw_value">
+                                        <span class="vnop_price_label">Giá sỉ</span>
+                                        <span class="vnop_price_value vnop_price_value_ws">
+                                            <field name="x_ws_price" widget="monetary"/>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </xpath>
+        </field>
+    </record>
+</odoo>

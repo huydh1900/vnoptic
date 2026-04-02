@@ -1,5 +1,17 @@
 <odoo>
 
+    <record id="vnop_purchase_order_form_hide_picking" model="ir.ui.view">
+        <field name="name">vnop.purchase.order.form.hide.picking</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase_stock.purchase_order_view_form_inherit"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header/button[@name='action_view_picking']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+        </field>
+    </record>
+
+
 
     <record id="vnop_purchase_order_tree_inherit" model="ir.ui.view">
         <field name="name">vnop.purchase.order.tree.inherit</field>

@@ -122,7 +122,6 @@
                     <group>
                         <field name="product_status"/>
                         <field name="x_eng_name"/>
-                        <field name="auto_generate_code"/>
                         <field name="warranty_id" string="Bảo hành hãng" options="{'no_create': True}"/>
                         <field name="warranty_supplier_id" options="{'no_create': True}"/>
                         <field name="warranty_retail_id" options="{'no_create': True}"/>
