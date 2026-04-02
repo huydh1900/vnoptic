@@ -4,7 +4,6 @@ import json
 from psycopg2 import errors
 import time
 import os
-import time
 import random
 import re
 import base64
@@ -491,8 +490,6 @@ class ProductSync(models.Model):
         config = self._get_api_config()
         login_url = f"{config['base_url']}{config['login_endpoint']}"
         try:
-            # _logger.info(f"🔐 Getting token from: {login_url}")
-            pass
             response = requests.post(
                 login_url,
                 json={'username': config['service_username'], 'password': config['service_password']},
@@ -694,8 +691,6 @@ class ProductSync(models.Model):
         return total_success, total_failed
 
     def _preload_all_data(self):
-        # _logger.info("📦 Pre-loading existing data...")
-        pass
         cache = {'products': {}, 'categories': {}, 'suppliers': {}, 'taxes': {}, 'groups': {}, 'groups_by_id': {},
                  'statuses': {}}
 
@@ -1369,7 +1364,6 @@ class ProductSync(models.Model):
                 coating_ids.append(coating_id)
 
         if not normalized:
-            # _logger.info("🔎 _resolve_lens_coatings: no coating payload found in known keys")
             pass
 
         return coating_ids, coating_codes
@@ -1512,7 +1506,6 @@ class ProductSync(models.Model):
             return []
         except Exception as e:
             # _logger.warning(f"⚠️ Không lấy được tồn kho lens: {e}")
-            pass
             return []
 
     def _find_attribute_value(self, attr_name, value_name):
@@ -1590,7 +1583,6 @@ class ProductSync(models.Model):
         location = self._get_default_stock_location()
         if not location:
             # _logger.warning("⚠️ Không tìm thấy internal stock location để cập nhật tồn kho lens.")
-            pass
             return
 
         # _logger.info(f"📦 Lens stock records: {total}")
@@ -2095,7 +2087,6 @@ class ProductSync(models.Model):
                 cid = cache.get('designs', {}).get(key)
                 if cid:
                     # _logger.debug("✅ _goc_design cache hit name=%s id=%s", nm, cid)
-                    pass
                     return cid
                 found = self.env['product.design'].search([('name', '=', nm)], limit=1)
                 if found:
@@ -2110,7 +2101,6 @@ class ProductSync(models.Model):
                     return rec.id
                 except Exception as e:
                     # _logger.warning(f"⚠️ Không tạo được product.design name={nm!r}: {e}")
-                    pass
                     return False
 
             def _goc_material(name_raw):
@@ -2123,7 +2113,6 @@ class ProductSync(models.Model):
                 cid = cache.get('lens_materials', {}).get(key_lower)
                 if cid:
                     # _logger.debug("✅ _goc_material cache hit name=%s id=%s", nm, cid)
-                    pass
                     return cid
                 found = self.env['product.lens.material'].search([('name', '=', nm)], limit=1)
                 if found:
@@ -2138,14 +2127,12 @@ class ProductSync(models.Model):
                     return rec.id
                 except Exception as e:
                     # _logger.warning(f"⚠️ Không tạo được product.lens.material name={nm!r}: {e}")
-                    pass
                     return False
 
             def _goc_index(dto):
                 """Get or create product.lens.index from indexdto."""
                 if not dto:
                     # _logger.debug("🔎 _goc_index called with empty dto")
-                    pass
                     return False
                 cid = (dto.get('cid') or '').strip().upper()
                 name = (dto.get('name') or dto.get('value') or cid or '').strip()
@@ -2154,13 +2141,11 @@ class ProductSync(models.Model):
                     cached = cache.get('lens_indexes', {}).get(cid)
                     if cached:
                         # _logger.debug("✅ _goc_index cache hit by cid=%s id=%s", cid, cached)
-                        pass
                         return cached
                 if name:
                     cached = cache.get('lens_indexes', {}).get(name.upper())
                     if cached:
                         # _logger.debug("✅ _goc_index cache hit by name=%s id=%s", name, cached)
-                        pass
                         return cached
                 found = False
                 if cid:
@@ -2189,7 +2174,6 @@ class ProductSync(models.Model):
                     return rec.id
                 except Exception as e:
                     # _logger.warning(f"⚠️ Không tạo được product.lens.index cid={cid!r} name={name!r}: {e}")
-                    pass
                     return False
 
             def _goc_power(raw_val, power_type=None):
@@ -2336,7 +2320,6 @@ class ProductSync(models.Model):
         """
         if not dtos:
             # _logger.debug(f"🔍 M2M [{log_label}]: API không trả list hoặc rỗng.")
-            pass
             return [(5, 0, 0)]
 
         ids = []
@@ -2347,7 +2330,6 @@ class ProductSync(models.Model):
             name = (dto.get('name') or '').strip()
             if not cid and not name:
                 # _logger.debug(f"⚠️ M2M [{log_label}]: DTO không có cid/name hợp lệ: {dto}")
-                pass
                 continue
 
             # Tìm trong cache
@@ -2379,7 +2361,6 @@ class ProductSync(models.Model):
             if rid:
                 ids.append(rid)
             else:
-                # _logger.debug(f"⚠️ M2M [{log_label}]: Không tìm thấy cid={cid!r} name={name!r} trong cache[{cache_key!r}]")
                 pass
 
         return [(6, 0, ids)] if ids else [(5, 0, 0)]
@@ -3050,7 +3031,6 @@ class ProductSync(models.Model):
                         _, cv = b_child_refs[j]
                         if not cv:
                             # _logger.warning(f"⚠️ Bỏ qua child record rỗng cho product {rec.id}")
-                            pass
                             continue
                         cv['product_tmpl_id'] = rec.id
                         try:

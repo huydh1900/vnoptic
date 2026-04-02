@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+
+    <!-- ═══ Danh mục chi phí đến kho ═══ -->
+    <record id="product_category_landed_cost" model="product.category">
+        <field name="name">Chi phí mua hàng phân bổ</field>
+        <field name="property_cost_method">average</field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════
+         Nhóm: Vận chuyển
+         ═══════════════════════════════════════════ -->
+    <record id="landed_cost_cuoc_van_chuyen_quoc_te" model="product.template">
+        <field name="name">Cước vận chuyển quốc tế</field>
+        <field name="default_code">LC-VCQT</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">by_current_cost_price</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_cuoc_van_chuyen_noi_dia" model="product.template">
+        <field name="name">Cước vận chuyển nội địa</field>
+        <field name="default_code">LC-VCND</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">by_current_cost_price</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_boc_xep" model="product.template">
+        <field name="name">Phí bốc xếp</field>
+        <field name="default_code">LC-BX</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">by_quantity</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_xu_ly_hang_hoa" model="product.template">
+        <field name="name">Phí xử lý hàng hóa (Handling)</field>
+        <field name="default_code">LC-HDL</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">by_quantity</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <!-- ═══════════════════════════════════════════
+         Nhóm: Bảo hiểm
+         ═══════════════════════════════════════════ -->
+    <record id="landed_cost_phi_bao_hiem" model="product.template">
+        <field name="name">Phí bảo hiểm hàng hóa</field>
+        <field name="default_code">LC-BH</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">by_current_cost_price</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <!-- ═══════════════════════════════════════════
+         Nhóm: Thuế & Hải quan
+         ═══════════════════════════════════════════ -->
+    <record id="landed_cost_thue_nhap_khau" model="product.template">
+        <field name="name">Thuế nhập khẩu</field>
+        <field name="default_code">LC-TNK</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">by_current_cost_price</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_thong_quan" model="product.template">
+        <field name="name">Phí thông quan hải quan</field>
+        <field name="default_code">LC-TQHQ</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">equal</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_khai_bao_hai_quan" model="product.template">
+        <field name="name">Phí dịch vụ khai báo hải quan</field>
+        <field name="default_code">LC-KBHQ</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">equal</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <!-- ═══════════════════════════════════════════
+         Nhóm: Chứng từ
+         ═══════════════════════════════════════════ -->
+    <record id="landed_cost_phi_chung_tu" model="product.template">
+        <field name="name">Phí chứng từ</field>
+        <field name="default_code">LC-CT</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">equal</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_cap_co" model="product.template">
+        <field name="name">Phí cấp C/O</field>
+        <field name="default_code">LC-CO</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">equal</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_kiem_dinh" model="product.template">
+        <field name="name">Phí kiểm định hàng hóa</field>
+        <field name="default_code">LC-KD</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">by_quantity</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <!-- ═══════════════════════════════════════════
+         Nhóm: Ngân hàng
+         ═══════════════════════════════════════════ -->
+    <record id="landed_cost_phi_ngan_hang" model="product.template">
+        <field name="name">Phí ngân hàng</field>
+        <field name="default_code">LC-NH</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">equal</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_mo_lc" model="product.template">
+        <field name="name">Phí mở L/C</field>
+        <field name="default_code">LC-MLC</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">by_current_cost_price</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_chuyen_tien_quoc_te" model="product.template">
+        <field name="name">Phí chuyển tiền quốc tế</field>
+        <field name="default_code">LC-CTQT</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">equal</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <!-- ═══════════════════════════════════════════
+         Nhóm: Chi phí khác
+         ═══════════════════════════════════════════ -->
+    <record id="landed_cost_phi_luu_kho" model="product.template">
+        <field name="name">Phí lưu kho</field>
+        <field name="default_code">LC-LK</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">by_quantity</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_luu_container" model="product.template">
+        <field name="name">Phí lưu container</field>
+        <field name="default_code">LC-LCTN</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">equal</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_dem_det" model="product.template">
+        <field name="name">Phí lưu bãi (DEM/DET)</field>
+        <field name="default_code">LC-DD</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">equal</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_phat_sinh_khac" model="product.template">
+        <field name="name">Phí phát sinh khác</field>
+        <field name="default_code">LC-PSK</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">by_current_cost_price</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+</odoo>

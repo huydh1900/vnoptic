@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- ═══ List view riêng cho Chi phí phân bổ (ẩn các trường kính mắt) ═══ -->
+    <record id="landed_cost_product_list_view" model="ir.ui.view">
+        <field name="name">product.template.list.landed.cost</field>
+        <field name="model">product.template</field>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <list string="Chi phí mua hàng phân bổ">
+                <field name="name" string="Tên chi phí"/>
+                <field name="default_code" string="Mã" optional="show"/>
+                <field name="categ_id" string="Danh mục"/>
+                <field name="split_method_landed_cost" string="Phương pháp phân bổ"/>
+                <field name="list_price" string="Giá"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Đổi domain action gốc: chỉ hiện hàng hóa (consu) -->
+    <record id="purchase.product_normal_action_puchased" model="ir.actions.act_window">
+        <field name="name">Sản phẩm</field>
+        <field name="res_model">product.template</field>
+        <field name="view_mode">kanban,list,form,activity</field>
+        <field name="domain">[('type', '=', 'consu')]</field>
+        <field name="context">{"search_default_filter_to_purchase": 1, "purchase_product_template": 1, "default_type": "consu"}</field>
+        <field name="search_view_id" ref="product.product_template_search_view"/>
+    </record>
+
+    <!-- Action mới: Chi phí mua hàng phân bổ (service + landed_cost_ok) -->
+    <record id="action_landed_cost_products" model="ir.actions.act_window">
+        <field name="name">Chi phí mua hàng phân bổ</field>
+        <field name="res_model">product.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('type', '=', 'service'), ('landed_cost_ok', '=', True)]</field>
+        <field name="context">{"default_type": "service", "default_landed_cost_ok": True, "default_sale_ok": False, "default_purchase_ok": True}</field>
+        <field name="search_view_id" ref="product.product_template_search_view"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Chưa có chi phí phân bổ nào.
+            </p>
+            <p>
+                Tạo các loại chi phí (vận chuyển, bảo hiểm, hải quan...) để phân bổ vào giá vốn sản phẩm khi nhập kho.
+            </p>
+        </field>
+    </record>
+
+    <!-- Gắn list view riêng vào action Chi phí phân bổ -->
+    <record id="action_landed_cost_products_list" model="ir.actions.act_window.view">
+        <field name="sequence">1</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="landed_cost_product_list_view"/>
+        <field name="act_window_id" ref="action_landed_cost_products"/>
+    </record>
+
+    <!-- Đổi tên menu gốc -->
+    <record id="purchase.menu_procurement_partner_contact_form" model="ir.ui.menu">
+        <field name="name">Sản phẩm</field>
+        <field name="sequence">10</field>
+    </record>
+
+    <!-- Menu mới: Chi phí mua hàng phân bổ -->
+    <menuitem id="menu_landed_cost_products"
+              name="Chi phí mua hàng phân bổ"
+              action="action_landed_cost_products"
+              parent="purchase.menu_purchase_products"
+              sequence="20"/>
+
+</odoo>

@@ -44,7 +44,8 @@
     </record>
 
 
-    <!-- Ẩn categ_id trong product_template_form_view (form chính) -->
+    <!-- categ_id và default_code gốc luôn hiện (không ẩn) -->
+    <!-- Với consu: hiện cả gốc lẫn custom group "Thông tin chung" -->
     <record id="product_template_form_hide_categ" model="ir.ui.view">
         <field name="name">product.template.form.hide.categ</field>
         <field name="model">product.template</field>
@@ -52,7 +53,7 @@
         <field name="priority">100</field>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='categ_id']" position="attributes">
-                <attribute name="invisible">1</attribute>
+                <attribute name="invisible">0</attribute>
             </xpath>
         </field>
     </record>
@@ -68,19 +69,19 @@
                 <field name="image_1920" widget="image" class="oe_avatar"
                        options="{'convert_to_webp': True, 'preview_image': 'image_128'}"/>
                 <field name="qr_code" widget="image" nolabel="1" readonly="1"
-                       invisible="not qr_code"
+                       invisible="type != 'consu' or not qr_code"
                        options="{'size': [100, 100]}"
                        class="oe_avatar"
                        style="margin-right:15px;"/>
             </xpath>
 
+            <!-- default_code và categ_id gốc luôn hiện -->
             <xpath expr="//page[@name='general_information']//field[@name='default_code']" position="attributes">
-                <attribute name="invisible">1</attribute>
+                <attribute name="invisible">0</attribute>
             </xpath>
 
-            <!-- Ẩn categ_id mặc định của Odoo (đã có trong section Phân loại sản phẩm) -->
             <xpath expr="//page[@name='general_information']//field[@name='categ_id']" position="attributes">
-                <attribute name="invisible">1</attribute>
+                <attribute name="invisible">0</attribute>
             </xpath>
 
             <!-- Ẩn tab Thuộc tính & Biến thể cho tròng và gọng kính -->
@@ -92,7 +93,7 @@
 
             <!-- Add Giá & Bảo hành into Sales tab (not general_information) -->
             <xpath expr="//page[@name='sales']" position="inside">
-                <group string="Thông tin giá">
+                <group string="Thông tin giá" invisible="type != 'consu'">
                     <group>
                         <field name="x_ws_price" string="Giá sỉ"/>
                         <field name="x_ws_price_min" string="Giá sỉ tối thiểu"/>
@@ -105,7 +106,7 @@
             <!-- Add Product General Info Section -->
             <xpath expr="//sheet/notebook/page[@name='general_information']/group" position="before">
                 <!-- ── Thông tin chung ── -->
-                <group string="Thông tin chung">
+                <group string="Thông tin chung" invisible="type != 'consu'">
                     <group>
                         <field name="default_code" string="Mã viết tắt"/>
                         <field name="categ_id" string="Danh mục" options="{'no_create': True}"/>
@@ -129,7 +130,7 @@
                 </group>
 
                 <!-- ── Thiết kế Tròng (chỉ hiện khi danh mục thuộc Tròng kính) ── -->
-                <group string="Thiết kế Tròng" invisible="categ_code != 'TK'">
+                <group string="Thiết kế Tròng" invisible="type != 'consu' or categ_code != 'TK'">
                     <group>
                         <field name="lens_sph_id" string="SPH" options="{'no_create': False}"/>
                         <field name="lens_cyl_id" string="CYL" options="{'no_create': False}"/>
@@ -146,7 +147,7 @@
                 </group>
 
                 <!-- ── Chất liệu &amp; Tích hợp Tròng (chỉ hiện khi danh mục thuộc Tròng kính) ── -->
-                <group string="Chất liệu &amp; Tích hợp" invisible="categ_code != 'TK'">
+                <group string="Chất liệu &amp; Tích hợp" invisible="type != 'consu' or categ_code != 'TK'">
                     <group>
                         <field name="lens_material_id" string="Vật liệu" options="{'no_create': False}"/>
                         <field name="lens_index_id" string="Chiết suất" options="{'no_create': False}"/>
@@ -172,7 +173,7 @@
 
                 <!-- Tab Legacy: product.lens cũ (chỉ hiện khi còn dữ liệu chưa migrate) -->
                 <page string="⚠ Dữ liệu Cũ (product.lens)" name="product_lens_legacy"
-                      invisible="categ_code != 'TK' or not lens_ids">
+                      invisible="type != 'consu' or categ_code != 'TK' or not lens_ids">
                     <div class="alert alert-warning" role="alert">
                         <strong>⚠️ Dữ liệu Legacy:</strong>
                         Tab này hiển thị dữ liệu cũ từ model <em>product.lens</em>.
@@ -201,7 +202,7 @@
 
                 <!-- Tab Gọng: gộp Thông tin / Thiết kế / Vật liệu / Màu sắc & Kích thước -->
                 <page string="Thông tin chi tiết" name="product_opt_detail"
-                      invisible="categ_code != 'GK'">
+                      invisible="type != 'consu' or categ_code != 'GK'">
                     <group string="Thông tin chung">
                         <group>
                             <field name="opt_season"/>
@@ -285,7 +286,7 @@
 
                 <!-- Tab Gọng 7: Phụ kiện đi kèm -->
                 <page string="Phụ kiện đi kèm" name="product_opt_accessories"
-                      invisible="categ_code != 'GK'">
+                      invisible="type != 'consu' or categ_code != 'GK'">
                     <group string="Phụ kiện">
                         <group>
                             <field name="has_box"/>
@@ -300,7 +301,7 @@
                 </page>
 
                 <!-- Tabs Phụ kiện / Sản phẩm khác (không phải lens/opt) -->
-                <page string="Thông tin chi tiết" name="accessory_detail" invisible="categ_code in ('TK', 'GK', 'LK')">
+                <page string="Thông tin chi tiết" name="accessory_detail" invisible="type != 'consu' or categ_code in ('TK', 'GK', 'LK')">
                     <group string="Thiết kế">
                         <group>
                             <field name="design_id"/>
