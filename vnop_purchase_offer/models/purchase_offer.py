@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
+import logging
+
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
 
 
 class PurchaseOffer(models.Model):
@@ -64,7 +68,7 @@ class PurchaseOffer(models.Model):
             ("company_id", "in", [company.id, False]),
         ], order="company_id desc, name desc", limit=1)
         # Odoo lưu rate = 1/vnd_per_unit → đảo lại để ra VND thực
-        return round(1.0 / rate.rate, 2) if rate and rate.rate else 0.0
+        return round(1.0 / rate.rate, 2) if rate and rate.rate != 0 else 0.0
 
     @api.onchange("currency_id")
     def _onchange_currency_id_get_rate(self):
@@ -310,19 +314,22 @@ class PurchaseOffer(models.Model):
         records = self.search([("state", "in", active_states)])
         for rec in records:
             if rec.follow_up_date and not rec.followup_alert_sent and rec.follow_up_date <= remind_until:
-                summary = _("Đến hạn theo dõi đề nghị mua hàng")
-                note = _("Đề nghị mua hàng %s cần theo dõi với nhà cung cấp %s.") % (
-                    rec.display_name, rec.partner_id.display_name
-                )
-                rec._schedule_reminder_activity(rec.follow_up_date, summary, note)
-                rec._send_alert_email(
-                    _("Nhắc theo dõi đề nghị mua hàng %s") % rec.display_name,
-                    _(
-                        "<p>Đề nghị mua hàng <strong>%s</strong> đã đến ngày theo dõi.</p>"
-                        "<p>Nhà cung cấp: %s</p>"
-                    ) % (rec.display_name, rec.partner_id.display_name),
-                )
-                rec.followup_alert_sent = True
+                try:
+                    summary = _("Đến hạn theo dõi đề nghị mua hàng")
+                    note = _("Đề nghị mua hàng %s cần theo dõi với nhà cung cấp %s.") % (
+                        rec.display_name, rec.partner_id.display_name
+                    )
+                    rec._schedule_reminder_activity(rec.follow_up_date, summary, note)
+                    rec._send_alert_email(
+                        _("Nhắc theo dõi đề nghị mua hàng %s") % rec.display_name,
+                        _(
+                            "<p>Đề nghị mua hàng <strong>%s</strong> đã đến ngày theo dõi.</p>"
+                            "<p>Nhà cung cấp: %s</p>"
+                        ) % (rec.display_name, rec.partner_id.display_name),
+                    )
+                    rec.followup_alert_sent = True
+                except Exception as e:
+                    _logger.error("Lỗi xử lý reminder cho %s: %s", rec.display_name, e)
 
 
 class PurchaseOfferLine(models.Model):

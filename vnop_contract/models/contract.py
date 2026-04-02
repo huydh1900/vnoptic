@@ -199,16 +199,25 @@ class Contract(models.Model):
 
     @api.depends("receipt_ids", "receipt_ids.state")
     def _compute_receipt_metrics(self):
+        if not self.ids:
+            for rec in self:
+                rec.receipt_count_open = 0
+            return
         StockPicking = self.env["stock.picking"]
+        all_pickings = StockPicking.search([
+            "|",
+            ("contract_id", "in", self.ids),
+            ("move_ids_without_package.contract_id", "in", self.ids),
+            ("picking_type_code", "=", "incoming"),
+            ("state", "=", "done"),
+        ])
+        count_by_contract = {}
+        for pick in all_pickings:
+            cid = pick.contract_id.id
+            if cid:
+                count_by_contract[cid] = count_by_contract.get(cid, 0) + 1
         for rec in self:
-            incoming_done = StockPicking.search_count([
-                "|",
-                ("contract_id", "=", rec.id),
-                ("move_ids_without_package.contract_id", "=", rec.id),
-                ("picking_type_code", "=", "incoming"),
-                ("state", "=", "done"),
-            ])
-            rec.receipt_count_open = incoming_done
+            rec.receipt_count_open = count_by_contract.get(rec.id, 0)
 
     @api.depends("line_ids")
     def _compute_product_count(self):
@@ -263,6 +272,8 @@ class Contract(models.Model):
                 raise ValidationError(_("Vui lòng chọn Nhà cung cấp trước khi gửi duyệt."))
             if not rec.shipment_date:
                 raise ValidationError(_("Ngày giao hàng không được để trống!"))
+            if not rec.line_ids:
+                raise ValidationError(_("Hợp đồng phải có ít nhất một dòng sản phẩm."))
             rec._check_fifo_valuation()
             rec.write({'state': 'waiting'})
 

@@ -55,8 +55,7 @@ class ProductSync(models.Model):
                             key, value = line.split('=', 1)
                             os.environ.setdefault(key.strip(), value.strip())
             except Exception as e:
-                # _logger.warning(f"Could not load .env file: {e}")
-                pass
+                _logger.warning("Could not load .env file: %s", e)
 
     @api.model
     def _get_api_config(self):
@@ -111,6 +110,7 @@ class ProductSync(models.Model):
     def _record_sync_error(self, error_ctx, product_type, stage, ref, exc):
         """Ghi nhận lỗi dạng tóm tắt + sample (không làm phình DB/log quá mức)."""
         if not error_ctx:
+            _logger.warning("Sync error [%s:%s] ref=%s: %s", product_type, stage, ref, exc)
             return
 
         key = f"{(product_type or 'unknown').upper()}:{stage}"
@@ -364,9 +364,9 @@ class ProductSync(models.Model):
         image_stats = ctx.setdefault('stats', defaultdict(int))
         image_stats['fetch_attempts'] += 1
         try:
-            url_cache_limit = int(os.getenv('PRODUCT_IMAGE_URL_CACHE_LIMIT', '1000'))
+            url_cache_limit = int(os.getenv('PRODUCT_IMAGE_URL_CACHE_LIMIT', '10000'))
         except (TypeError, ValueError):
-            url_cache_limit = 1000
+            url_cache_limit = 10000
         url_cache_limit = max(0, url_cache_limit)
 
         if image_full_url in url_cache:
@@ -581,6 +581,90 @@ class ProductSync(models.Model):
             if page >= total_pages:
                 break
 
+    def _prefetch_images_parallel(self, items, image_sync_ctx):
+        """Download ảnh song song cho cả batch trước khi xử lý, lưu vào url_cache."""
+        if not image_sync_ctx:
+            return
+        mode = (image_sync_ctx.get('mode') or 'missing').strip().lower()
+        if mode == 'off':
+            return
+
+        cfg = image_sync_ctx.get('cfg') or self._get_api_config()
+        token = image_sync_ctx.get('token')
+        url_cache = image_sync_ctx.setdefault('_url_cache', {})
+
+        # Thu thập tất cả URL cần download
+        urls_to_fetch = []
+        for item in items:
+            image_url = self._extract_rs_image_url(item)
+            if not image_url:
+                continue
+            full_url = self._build_rs_image_full_url(image_url, cfg)
+            if full_url and full_url not in url_cache:
+                urls_to_fetch.append(full_url)
+
+        # Loại bỏ trùng lặp, giữ thứ tự
+        seen = set()
+        unique_urls = []
+        for u in urls_to_fetch:
+            if u not in seen:
+                seen.add(u)
+                unique_urls.append(u)
+
+        if not unique_urls:
+            return
+
+        try:
+            max_workers = int(os.getenv('PRODUCT_IMAGE_PARALLEL_WORKERS', '8'))
+        except (TypeError, ValueError):
+            max_workers = 8
+        max_workers = max(1, min(max_workers, 20))
+
+        try:
+            timeout = int(os.getenv('PRODUCT_IMAGE_TIMEOUT', '20'))
+        except (TypeError, ValueError):
+            timeout = 20
+
+        headers = {'Accept': 'image/*,*/*'}
+        if token:
+            headers['Authorization'] = f'Bearer {token}'
+        ssl_verify = cfg.get('ssl_verify', False)
+
+        import threading
+        _thread_local = threading.local()
+
+        def _download_one(target_url):
+            """Download 1 ảnh, trả về (url, base64_string) hoặc (url, False)."""
+            try:
+                # Mỗi thread dùng session riêng (requests.Session không thread-safe)
+                if not hasattr(_thread_local, 'session'):
+                    _thread_local.session = self._make_session()
+                resp = _thread_local.session.get(target_url, headers=headers, verify=ssl_verify, timeout=timeout)
+                resp.raise_for_status()
+                content = resp.content or b''
+                if not content:
+                    return (target_url, False)
+                content_type = (resp.headers.get('Content-Type') or '').lower()
+                if content_type and not content_type.startswith('image/'):
+                    return (target_url, False)
+                content = self._optimize_image_bytes(content, content_type=content_type)
+                return (target_url, base64.b64encode(content).decode('ascii'))
+            except Exception:
+                return (target_url, False)
+
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        image_stats = image_sync_ctx.setdefault('stats', defaultdict(int))
+        image_stats['fetch_attempts'] += len(unique_urls)
+
+        _logger.info("Prefetch %d ảnh song song (workers=%d)...", len(unique_urls), max_workers)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(_download_one, url): url for url in unique_urls}
+            for future in as_completed(futures):
+                url, result = future.result()
+                if result:
+                    url_cache[url] = result
+                    image_stats['downloaded'] += 1
+
     def _sync_streaming(self, endpoint, token, product_type, child_model=None, cache=None, error_ctx=None, limit=None, image_sync_ctx=None):
         """Fetch → process → commit từng batch. Không giữ data trong memory."""
         db = self.env.cr.dbname
@@ -589,6 +673,8 @@ class ProductSync(models.Model):
         total_success = total_failed = 0
 
         for batch_idx, items in enumerate(self._iter_batches(endpoint, token, batch_size, limit), start=1):
+            # Pre-download ảnh song song trước khi xử lý batch
+            self._prefetch_images_parallel(items, image_sync_ctx)
             try:
                 with Registry(db).cursor() as cr:
                     env = self.env(cr=cr)
@@ -646,8 +732,7 @@ class ProductSync(models.Model):
             cache['suppliers'][s['ref'].upper()] = s['id']
 
         # Company cho seller_ids
-        vnoptic_company = self.env['res.company'].search([('name', 'ilike', 'Công ty Kính mắt Việt Nam')], limit=1)
-        cache['_seller_company_id'] = vnoptic_company.id if vnoptic_company else self.env.company.id
+        cache['_seller_company_id'] = self.env.company.id
 
         # Taxes (Purchase taxes only)
         for t in self.env['account.tax'].search_read([('type_tax_use', '=', 'purchase')], ['id', 'name']):
@@ -800,8 +885,7 @@ class ProductSync(models.Model):
                 # _logger.info(f"✅ Auto-created product.cl cid={cid!r} name={name!r}")
                 return rid
             except Exception as e:
-                # _logger.warning(f"⚠️ Không tạo được product.cl cid={cid!r} name={name!r}: {e}")
-                pass
+                _logger.warning("Không tạo được product.cl cid=%r name=%r: %s", cid, name, e)
         return False
 
     # Mapping: cache key → (model name) cho các master data opt
@@ -835,8 +919,6 @@ class ProductSync(models.Model):
         # 2. Auto-create nếu không tìm thấy
         model_name = self._MASTER_MODEL_MAP.get(cache_key)
         if not model_name or not (name or cid):
-            # _logger.debug(f"⚠️ _get_or_create_master: không tìm thấy và không tạo được [{cache_key}] cid={cid!r} name={name!r}")
-            pass
             return False
 
         try:
@@ -853,8 +935,7 @@ class ProductSync(models.Model):
             # _logger.info(f"✅ Auto-created [{model_name}] cid={cid!r} name={name!r} → id={rid}")
             return rid
         except Exception as e:
-            # _logger.warning(f"⚠️ Không tạo được [{model_name}] cid={cid!r} name={name!r}: {e}")
-            pass
+            _logger.warning("Không tạo được [%s] cid=%r name=%r: %s", model_name, cid, name, e)
             return False
 
     def _color_dto_to_list(self, dto):
@@ -883,8 +964,7 @@ class ProductSync(models.Model):
             # _logger.info(f"✅ Auto-created product.cl name={name!r} id={rec.id}")
             return rec.id
         except Exception as e:
-            # _logger.warning(f"⚠️ Không tạo được product.cl name={name!r}: {e}")
-            pass
+            _logger.warning("Không tạo được product.cl name=%r: %s", name, e)
             return False
 
     def _resolve_color_string_to_m2m(self, color_str, cache, log_label=''):
@@ -895,8 +975,6 @@ class ProductSync(models.Model):
             return [(5, 0, 0)]
         rid = self._get_or_create_color_by_string(color_str, cache)
         if rid:
-            # _logger.debug(f"🔍 [{log_label}]: map string {color_str!r} → cl.id={rid}")
-            pass
             return [(6, 0, [rid])]
         return [(5, 0, 0)]
 
@@ -937,8 +1015,7 @@ class ProductSync(models.Model):
             if cid: cache[cache_key][cid.upper()] = new_id
             return new_id
         except Exception as e:
-            # _logger.error(f"Failed to create {model_name} for {cid}: {e}")
-            pass
+            _logger.error("Failed to create %s for %s: %s", model_name, cid, e)
             return False
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -1038,11 +1115,10 @@ class ProductSync(models.Model):
                         # 'result=%s sku=%s', field, input_repr, rec.id, sku
                         # )
                     except Exception as _act_err:
-                        # _logger.warning(
-                        # '[ACC_SYNC][REF] field=%s cannot activate currency %s: %s',
-                        # field, cid or name, _act_err
-                        # )
-                        pass
+                        _logger.warning(
+                            '[ACC_SYNC][REF] field=%s cannot activate currency %s: %s',
+                            field, cid or name, _act_err
+                        )
                 if rec:
                     rid = rec.id
                     if cid:
@@ -1187,8 +1263,7 @@ class ProductSync(models.Model):
             # _logger.info("✅ Auto-created product.uv cid=%s name=%s id=%s", cid or None, name, rec.id)
             return rec.id
         except Exception as e:
-            # _logger.warning("⚠️ Không tạo được product.uv cid=%s name=%s: %s", cid or None, name, e)
-            pass
+            _logger.warning("Không tạo được product.uv cid=%s name=%s: %s", cid or None, name, e)
             return False
 
     def _resolve_opt_material_dtos(self, item, key_variants, cache, log_label=''):
@@ -1199,21 +1274,15 @@ class ProductSync(models.Model):
         for key in key_variants:
             raw = item.get(key)
             if raw is not None:
-                # _logger.debug(f"🔍 [{log_label}]: tìm thấy key={key!r}, value={raw!r}")
-                pass
                 break
 
         if not raw:
-            # _logger.debug(f"🔍 [{log_label}]: API không trả dữ liệu (thử: {key_variants})")
-            pass
             return [(5, 0, 0)]
 
         # Nếu API trả về single dict thay vì list → bọc thành list
         if isinstance(raw, dict):
             raw = [raw]
         elif not isinstance(raw, list):
-            # _logger.debug(f"⚠️ [{log_label}]: kiểu dữ liệu không mong đợi: {type(raw)}")
-            pass
             return [(5, 0, 0)]
 
         return self._resolve_m2m_ids(raw, 'materials', cache,
@@ -1294,8 +1363,7 @@ class ProductSync(models.Model):
                     cache.setdefault('coatings', {})[c_name.upper()] = coating_id
                     # _logger.info("✅ Auto-created product.coating cid=%s name=%s", c_cid or None, c_name)
                 except Exception as e:
-                    # _logger.warning("⚠️ Không tạo được product.coating cid=%s name=%s: %s", c_cid or None, c_name, e)
-                    pass
+                    _logger.warning("Không tạo được product.coating cid=%s name=%s: %s", c_cid or None, c_name, e)
 
             if coating_id:
                 coating_ids.append(coating_id)
@@ -1347,11 +1415,10 @@ class ProductSync(models.Model):
             # tmpl.id, extra_count, keep_variant.id
             # )
         except Exception as e:
-            # _logger.warning(
-            # "⚠️ Lens cleanup tmpl=%s: cannot unlink extra variants (%s). Error: %s",
-            # tmpl.id, len(extra_variants), e
-            # )
-            pass
+            _logger.warning(
+                "Lens cleanup tmpl=%s: cannot unlink extra variants (%s). Error: %s",
+                tmpl.id, len(extra_variants), e
+            )
 
     def _get_or_create_lens_template(self, item, cache):
         coating_ids, coating_codes = self._resolve_lens_coatings(item, cache)

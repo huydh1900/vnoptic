@@ -41,7 +41,7 @@ class ContractLine(models.Model):
     qty_remaining = fields.Float(string="Còn lại", compute="_compute_qty_remaining",
                                  digits="Product Unit of Measure")
 
-    @api.constrains("product_qty", "qty_remaining")
+    @api.constrains("product_qty", "purchase_line_id")
     def _check_product_qty_not_exceed_remaining(self):
         for line in self:
             if line.product_qty < 0:
@@ -61,11 +61,20 @@ class ContractLine(models.Model):
 
     @api.constrains("purchase_line_id", "contract_id")
     def _check_purchase_line_unique_in_contract(self):
-        for line in self.filtered("purchase_line_id"):
-            duplicated = self.search_count([
-                ("id", "!=", line.id),
-                ("contract_id", "=", line.contract_id.id),
-                ("purchase_line_id", "=", line.purchase_line_id.id),
-            ])
-            if duplicated:
+        lines_with_po = self.filtered("purchase_line_id")
+        if not lines_with_po:
+            return
+        seen = set()
+        for line in lines_with_po:
+            key = (line.contract_id.id, line.purchase_line_id.id)
+            if key in seen:
                 raise UserError(_("Mỗi dòng PO chỉ được map với một dòng hợp đồng."))
+            seen.add(key)
+        # Kiểm tra trùng với các dòng đã có trong DB
+        duplicated = self.search_count([
+            ("id", "not in", lines_with_po.ids),
+            ("contract_id", "in", lines_with_po.mapped("contract_id").ids),
+            ("purchase_line_id", "in", lines_with_po.mapped("purchase_line_id").ids),
+        ])
+        if duplicated:
+            raise UserError(_("Mỗi dòng PO chỉ được map với một dòng hợp đồng."))

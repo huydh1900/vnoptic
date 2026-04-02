@@ -46,7 +46,7 @@ class CurrencyRateProvider(models.Model):
                 try:
                     rates[code] = float(sell)
                 except ValueError:
-                    pass
+                    _logger.warning("Không parse được tỷ giá cho %s: %r", code, sell)
         return rates
 
     def _fetch_exchangerate_api(self):

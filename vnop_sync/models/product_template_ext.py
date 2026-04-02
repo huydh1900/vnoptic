@@ -503,8 +503,6 @@ class ProductTemplateExtension(models.Model):
             })
         return seq.next_by_code(seq_code)
 
-        return super().create(vals_list)
-
     def write(self, vals):
         if 'categ_id' in vals:
             # Clear groups when category changes, unless caller explicitly sets group fields.

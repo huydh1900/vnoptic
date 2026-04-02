@@ -119,6 +119,11 @@ class AttachmentPreviewController(http.Controller):
         field = (params.get("field") or ["datas"])[0]
         if not model or not rec_id or not field:
             return None
+        # Chỉ cho phép truy cập field binary an toàn
+        ALLOWED_BINARY_FIELDS = {"datas", "image_1920", "image_1024", "image_512",
+                                  "image_256", "image_128", "raw", "db_datas"}
+        if field not in ALLOWED_BINARY_FIELDS:
+            return None
         try:
             rec_id = int(rec_id)
         except (TypeError, ValueError):

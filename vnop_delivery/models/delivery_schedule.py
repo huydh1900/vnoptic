@@ -70,6 +70,7 @@ class DeliverySchedule(models.Model):
         for rec in self:
             rec.picking_count = len(rec.picking_ids)
 
+    @api.depends('purchase_id')
     def _compute_purchase_count(self):
         for rec in self:
             rec.purchase_count = 1 if rec.purchase_id else 0
@@ -137,9 +138,9 @@ class DeliverySchedule(models.Model):
                 ('id', '!=', rec._origin.id or 0),
             ])
             planned_by_cl = {}
-            for s in existing:
-                for l in s.line_ids:
-                    planned_by_cl[l.contract_line_id.id] = planned_by_cl.get(l.contract_line_id.id, 0) + l.qty_planned
+            for l in existing.mapped('line_ids'):
+                cl_id = l.contract_line_id.id
+                planned_by_cl[cl_id] = planned_by_cl.get(cl_id, 0) + l.qty_planned
 
             rec.line_ids = [(5, 0, 0)] + [(0, 0, {
                 'contract_line_id': line.id,
@@ -181,5 +182,5 @@ class DeliverySchedule(models.Model):
                     ('move_id.state', '=', 'done'),
                     ('move_id.picking_id.picking_type_code', '=', 'incoming'),
                 ])
-                if any(row[done_field] > 0 for row in rows):
+                if any(getattr(row, done_field) > 0 for row in rows):
                     rec.state = 'confirmed'

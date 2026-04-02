@@ -62,9 +62,11 @@ class StockOtkWizard(models.TransientModel):
 
         # Tạo phiếu điều chuyển hàng đạt → kho chính, hàng lỗi → kho lỗi
         loc_temp = picking.location_dest_id
-        loc_stock = self.env.ref('stock.stock_location_stock')
-        loc_defect = self.env.ref('vnop_delivery.location_defect')
-        int_type = self.env.ref('stock.picking_type_internal')
+        loc_stock = self.env.ref('stock.stock_location_stock', raise_if_not_found=False)
+        loc_defect = self.env.ref('vnop_delivery.location_defect', raise_if_not_found=False)
+        int_type = self.env.ref('stock.picking_type_internal', raise_if_not_found=False)
+        if not loc_stock or not loc_defect or not int_type:
+            raise ValidationError(_('Thiếu cấu hình kho (stock location / picking type). Vui lòng kiểm tra lại.'))
 
         ok_lines = [(0, 0, {
             'name': l.product_id.display_name,
@@ -132,12 +134,15 @@ class StockOtkWizard(models.TransientModel):
             if picking.purchase_id and not picking.purchase_id.delivery_schedule_id:
                 picking.purchase_id.delivery_schedule_id = schedule
 
+            # Build map product_id → schedule_lines để tránh O(n²)
+            sl_by_product = {}
+            for sl in schedule.line_ids:
+                sl_by_product.setdefault(sl.product_id.id, self.env['delivery.schedule.line'])
+                sl_by_product[sl.product_id.id] |= sl
             for line in self.line_ids:
                 if not line.qty_otk:
                     continue
-                schedule_lines = schedule.line_ids.filtered(
-                    lambda sl: sl.product_id == line.product_id
-                )
+                schedule_lines = sl_by_product.get(line.product_id.id, self.env['delivery.schedule.line'])
                 for sl in schedule_lines:
                     sl.qty_received += line.qty_otk
                 offer_line = schedule_lines.mapped(
