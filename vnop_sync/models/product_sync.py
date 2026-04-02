@@ -161,8 +161,14 @@ class ProductSync(models.Model):
 
         normalized = unicodedata.normalize('NFKD', raw.lower())
         normalized = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
-        normalized = re.sub(r"[\s\-_/\.]+", "", normalized)
-        return normalized in {'khong', 'none', 'null', 'na', '""', "''"}
+        normalized = re.sub(r"[^a-z0-9]+", "", normalized)
+        if not normalized:
+            return True
+        return normalized in {
+            'khong', 'none', 'null', 'nil', 'na', 'nill', 'undefined', 'empty',
+            'khongco', 'khongapdung', 'khongxacdinh', 'khongcos', 'noco',
+            'khongbiet', 'khongro', '""', "''",
+        }
 
     def _clean_placeholder_text(self, value):
         """Normalize to stripped text and drop placeholders as False."""
@@ -186,6 +192,22 @@ class ProductSync(models.Model):
                 return cleaned
         return False
 
+    def _get_first_text_value(self, source, keys):
+        if not isinstance(source, dict):
+            return False
+        lower_key_map = {str(k).lower(): k for k in source.keys()}
+        for key in keys:
+            actual_key = key if key in source else lower_key_map.get(str(key).lower())
+            if actual_key is None:
+                continue
+            value = source.get(actual_key)
+            if value in (None, False):
+                continue
+            text = str(value).strip()
+            if text:
+                return text
+        return False
+
     def _sanitize_bank_account_number(self, acc_number):
         if not acc_number:
             return False
@@ -198,6 +220,49 @@ class ProductSync(models.Model):
         current = record[field_name]
         if isinstance(current, str) and self._is_placeholder_value(current):
             write_vals[field_name] = False
+
+    def _is_invalid_bank_token(self, value):
+        if value in (None, False):
+            return True
+        raw = str(value).strip()
+        if not raw:
+            return True
+        normalized = unicodedata.normalize('NFKD', raw.lower())
+        normalized = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+        normalized = re.sub(r"[^a-z0-9]+", "", normalized)
+        if not normalized:
+            return True
+        invalid_tokens = {'khong', 'none', 'null', 'na'}
+        if normalized in invalid_tokens:
+            return True
+        for token in invalid_tokens:
+            if normalized.startswith(token) and normalized[len(token):].isdigit():
+                return True
+        return False
+
+    def _is_invalid_bank_block(self, bank_name, account_no):
+        return self._is_invalid_bank_token(bank_name) or self._is_invalid_bank_token(account_no)
+
+    def _cleanup_invalid_partner_bank(self, partner):
+        if not partner:
+            return
+        partner_bank_model = self.env['res.partner.bank'].with_context(active_test=False)
+        partner_banks = partner_bank_model.search([('partner_id', '=', partner.id)])
+        for partner_bank in partner_banks:
+            bank = partner_bank.bank_id
+            bank_name = bank.name if bank else False
+            acc_number = partner_bank.acc_number
+            if not self._is_invalid_bank_block(bank_name, acc_number):
+                continue
+            partner_bank.write({'active': False})
+            if bank:
+                bank_write_vals = {}
+                if isinstance(bank.bic, str) and self._is_placeholder_value(bank.bic):
+                    bank_write_vals['bic'] = False
+                if isinstance(bank.street, str) and self._is_placeholder_value(bank.street):
+                    bank_write_vals['street'] = False
+                if bank_write_vals:
+                    bank.write(bank_write_vals)
 
     def _upsert_supplier_partner(self, supplier_detail, cache, currency_id=False, supplier_root=False):
         supplier_ref = self._get_first_valid_value(supplier_detail, ['cid', 'code', 'supplierCode'])
@@ -310,17 +375,23 @@ class ProductSync(models.Model):
         if not partner or not supplier_detail:
             return False
 
-        bank_name = self._get_first_valid_value(supplier_detail, ['advisingBank', 'bankName', 'bank', 'bank_name'])
-        account_no = self._get_first_valid_value(
+        bank_name_raw = self._get_first_text_value(supplier_detail, ['advisingBank', 'bankName', 'bank', 'bank_name'])
+        account_no_raw = self._get_first_text_value(
             supplier_detail,
             ['accountNo', 'accountNO', 'accountNumber', 'bankAccount', 'bank_account']
         )
+
+        if self._is_invalid_bank_block(bank_name_raw, account_no_raw):
+            self._cleanup_invalid_partner_bank(partner)
+            return False
+
+        bank_name = self._clean_placeholder_text(bank_name_raw)
+        account_no = self._clean_placeholder_text(account_no_raw)
         if not bank_name or not account_no:
             return False
 
         swift_code = self._get_first_valid_value(supplier_detail, ['swiftCode', 'swift', 'bic', 'swift_code'])
         bank_address = self._get_first_valid_value(supplier_detail, ['bankAddress', 'bank_address', 'addressBank'])
-        branch_code = self._get_first_valid_value(supplier_detail, ['branchCode', 'branch', 'bankBranch'])
 
         bank = self.env['res.bank'].search([('name', '=ilike', bank_name)], limit=1)
         if not bank:
@@ -338,8 +409,11 @@ class ProductSync(models.Model):
             bank_write_vals['bic'] = swift_code
         if bank_address and bank.street != bank_address:
             bank_write_vals['street'] = bank_address
-        if branch_code and bank.street2 != branch_code:
-            bank_write_vals['street2'] = branch_code
+        # Cleanup placeholder values from existing records if payload does not provide valid replacement.
+        if 'bic' not in bank_write_vals and isinstance(bank.bic, str) and self._is_placeholder_value(bank.bic):
+            bank_write_vals['bic'] = False
+        if 'street' not in bank_write_vals and isinstance(bank.street, str) and self._is_placeholder_value(bank.street):
+            bank_write_vals['street'] = False
         if bank_write_vals:
             bank.write(bank_write_vals)
 
