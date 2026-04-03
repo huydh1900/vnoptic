@@ -6,7 +6,7 @@
         <field name="name">product.design.tree</field>
         <field name="model">product.design</field>
         <field name="arch" type="xml">
-            <list editable="top" open_form_view="True" string="Thiết kế">
+            <list editable="top" string="Thiết kế">
                 <field name="name"/>
                 <field name="code"/>
                 <field name="cid"/>
@@ -42,7 +42,7 @@
         <field name="name">product.material.tree</field>
         <field name="model">product.material</field>
         <field name="arch" type="xml">
-            <list editable="top" open_form_view="True" string="Chất liệu">
+            <list editable="top" string="Chất liệu">
                 <field name="name"/>
                 <field name="code"/>
                 <field name="cid"/>
@@ -78,7 +78,7 @@
         <field name="name">product.shape.tree</field>
         <field name="model">product.shape</field>
         <field name="arch" type="xml">
-            <list editable="top" open_form_view="True" string="Hình dáng">
+            <list editable="top" string="Hình dáng">
                 <field name="name"/>
                 <field name="code"/>
                 <field name="cid"/>
@@ -151,7 +151,7 @@
         <field name="name">product.coating.tree</field>
         <field name="model">product.coating</field>
         <field name="arch" type="xml">
-            <list editable="top" open_form_view="True" string="Lớp phủ">
+            <list editable="top" string="Lớp phủ">
                 <field name="name"/>
                 <field name="cid"/>
                 <field name="description" optional="hide"/>
@@ -185,7 +185,7 @@
         <field name="name">product.cl.tree</field>
         <field name="model">product.cl</field>
         <field name="arch" type="xml">
-            <list editable="top" open_form_view="True" string="Màu (CL)">
+            <list editable="top" string="Màu (CL)">
                 <field name="name"/>
                 <field name="code"/>
                 <field name="cid"/>
@@ -219,7 +219,7 @@
         <field name="name">product.uv.tree</field>
         <field name="model">product.uv</field>
         <field name="arch" type="xml">
-            <list editable="top" open_form_view="True" string="UV">
+            <list editable="top" string="UV">
                 <field name="name"/>
                 <field name="cid"/>
             </list>
@@ -251,7 +251,7 @@
         <field name="name">product.frame.tree</field>
         <field name="model">product.frame</field>
         <field name="arch" type="xml">
-            <list editable="top" open_form_view="True" string="Kiểu gọng">
+            <list editable="top" string="Kiểu gọng">
                 <field name="name"/>
                 <field name="cid"/>
             </list>
@@ -283,7 +283,7 @@
         <field name="name">product.frame.type.tree</field>
         <field name="model">product.frame.type</field>
         <field name="arch" type="xml">
-            <list editable="top" open_form_view="True" string="Loại gọng">
+            <list editable="top" string="Loại gọng">
                 <field name="name"/>
                 <field name="cid"/>
             </list>
@@ -315,7 +315,7 @@
         <field name="name">product.ve.tree</field>
         <field name="model">product.ve</field>
         <field name="arch" type="xml">
-            <list editable="top" open_form_view="True" string="Ve">
+            <list editable="top" string="Ve">
                 <field name="name"/>
                 <field name="cid"/>
             </list>
@@ -347,7 +347,7 @@
         <field name="name">product.temple.tree</field>
         <field name="model">product.temple</field>
         <field name="arch" type="xml">
-            <list editable="top" open_form_view="True" string="Càng kính">
+            <list editable="top" string="Càng kính">
                 <field name="name"/>
                 <field name="cid"/>
             </list>
