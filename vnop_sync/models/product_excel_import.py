@@ -17,7 +17,7 @@ class ProductExcelImport(models.TransientModel):
     
     # File upload
     excel_file = fields.Binary(
-        string='Excel File',
+        string='Chọn file Excel',
         help='Upload Excel file with product data'
     )
     file_name = fields.Char('File Name')
@@ -27,7 +27,7 @@ class ProductExcelImport(models.TransientModel):
         ('lens', 'Lens'),
         ('opt', 'Optical Product'),
         ('accessory', 'Accessory')
-    ], string='Product Type', readonly=True)
+    ], string='Loại sản phẩm', readonly=True)
     
     # Preview data (One2many for table view with pagination)
     preview_line_ids = fields.One2many(
@@ -52,8 +52,8 @@ class ProductExcelImport(models.TransientModel):
     ], string='State', default='upload')
     
     # Results
-    success_count = fields.Integer('Successful Imports', readonly=True, default=0)
-    error_count = fields.Integer('Errors', readonly=True, default=0)
+    success_count = fields.Integer('Sản phẩm thành công', readonly=True, default=0)
+    error_count = fields.Integer('Số lỗi', readonly=True, default=0)
     error_log = fields.Text('Error Log', readonly=True)
     
     # Template download selection

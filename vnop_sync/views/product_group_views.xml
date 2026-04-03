@@ -6,9 +6,9 @@
         <field name="model">product.group</field>
         <field name="arch" type="xml">
             <search string="Tìm nhóm sản phẩm">
-                <field name="name" string="Tên nhóm"/>
-                <field name="cid" string="Mã nhóm"/>
-                <field name="category_id" string="Danh mục"/>
+                <field name="name"/>
+                <field name="cid"/>
+                <field name="category_id"/>
                 <separator/>
                 <filter name="filter_dt" string="Đơn tròng" domain="[('product_type','=','DT')]"/>
                 <filter name="filter_ht" string="Hai tròng" domain="[('product_type','=','HT')]"/>

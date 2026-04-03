@@ -169,7 +169,7 @@ class Contract(models.Model):
         tracking=True,
     )
 
-    product_count = fields.Integer(string="Số sản phẩm", compute="_compute_product_count")
+    product_count = fields.Integer(string="Sản phẩm", compute="_compute_product_count")
 
     @api.depends("line_ids.product_qty", "line_ids.qty_received", "line_ids.amount_total")
     def _compute_totals(self):

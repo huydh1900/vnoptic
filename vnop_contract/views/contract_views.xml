@@ -77,7 +77,7 @@
                                 type="object"
                                 class="oe_stat_button"
                                 icon="fa-cubes">
-                            <field name="product_count" widget="statinfo" string="Sản phẩm"/>
+                            <field name="product_count" widget="statinfo"/>
                         </button>
                     </div>
 
@@ -149,8 +149,8 @@
                         <page string="Thông tin bổ sung">
                             <group>
                                 <field name="company_id" readonly="1"/>
-                                <field name="create_uid" string="Người lập" readonly="1"/>
-                                <field name="create_date" string="Ngày tạo" readonly="1"/>
+                                <field name="create_uid" readonly="1"/>
+                                <field name="create_date" readonly="1"/>
                                 <field name="approved_by" widget="many2one_avatar_user" readonly="1"/>
                                 <field name="approved_date" readonly="1"/>
                             </group>

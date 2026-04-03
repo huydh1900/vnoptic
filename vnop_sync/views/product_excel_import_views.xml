@@ -8,7 +8,7 @@
             <list string="Preview Data" create="false" edit="false" delete="false" 
                   decoration-danger="has_error==True">
                 <field name="row_number"/>
-                <field name="generated_code" string="Mã tự động"/>
+                <field name="generated_code"/>
                 <field name="full_name"/>
                 <field name="group"/>
                 <field name="brand"/>
@@ -71,13 +71,13 @@
                             <group>
                                 <field name="excel_file" filename="file_name" 
                                        widget="binary" 
-                                       string="Chọn file Excel"/>
+                                       />
                                 <field name="file_name" invisible="1"/>
                                 <field name="template_type" invisible="1"/>
-                                <field name="employee_id" string="Nhân viên phụ trách"/>
+                                <field name="employee_id"/>
                             </group>
                             <group invisible="excel_file == False">
-                                <field name="product_type" readonly="1" string="Loại sản phẩm"/>
+                                <field name="product_type" readonly="1"/>
                             </group>
                         </group>
                     </div>
@@ -86,14 +86,14 @@
                     <notebook invisible="state != 'preview'">
                         <page string="Xem trước dữ liệu">
                             <group>
-                                <field name="product_type" readonly="1" string="Loại sản phẩm"/>
+                                <field name="product_type" readonly="1"/>
                             </group>
                             <separator string="Dữ liệu từ Excel (20 dòng/trang)"/>
                             <field name="preview_line_ids" nolabel="1">
                                 <list string="Preview Data" create="false" edit="false" delete="false"
                                       decoration-danger="has_error==True" limit="20">
                                     <field name="row_number"/>
-                                    <field name="generated_code" string="Mã tự động"/>
+                                    <field name="generated_code"/>
                                     <field name="full_name"/>
                                     <field name="group"/>
                                     <field name="brand"/>
@@ -122,8 +122,8 @@
                     <!-- DONE STATE -->
                     <group invisible="state != 'done'">
                         <group>
-                            <field name="success_count" readonly="1" string="Sản phẩm thành công"/>
-                            <field name="error_count" readonly="1" string="Số lỗi"/>
+                            <field name="success_count" readonly="1"/>
+                            <field name="error_count" readonly="1"/>
                         </group>
                     </group>
                     <group invisible="state != 'done' or error_log == False">

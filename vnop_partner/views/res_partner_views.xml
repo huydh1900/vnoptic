@@ -21,7 +21,7 @@
         <field name="inherit_id" ref="base.view_res_partner_filter"/>
         <field name="arch" type="xml">
             <field name="name" position="after">
-                <field name="ref" string="Mã NCC"/>
+                <field name="ref"/>
             </field>
         </field>
     </record>

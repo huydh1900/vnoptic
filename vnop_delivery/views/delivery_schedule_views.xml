@@ -43,7 +43,7 @@
                                 class="oe_stat_button"
                                 icon="fa-shopping-cart"
                                 invisible="not purchase_id">
-                            <field name="purchase_count" widget="statinfo" string="Đơn mua hàng"/>
+                            <field name="purchase_count" widget="statinfo"/>
                         </button>
                     </div>
 
@@ -121,7 +121,7 @@
 	                        </page>
                         <page string="Thông tin bổ sung">
                             <group>
-                                <field name="create_date" string="Thời gian tạo" readonly="1"/>
+                                <field name="create_date" readonly="1"/>
                             </group>
                         </page>
                     </notebook>

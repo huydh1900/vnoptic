@@ -21,7 +21,7 @@ class Contract(models.Model):
         copy=False,
     )
     purchase_offer_count = fields.Integer(
-        string="Số Đề nghị mua hàng",
+        string="Đề nghị mua hàng",
         compute="_compute_purchase_offer_count",
     )
 

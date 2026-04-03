@@ -56,7 +56,7 @@ class DeliverySchedule(models.Model):
     ], default='draft', string='Trạng thái', tracking=True)
 
     picking_count = fields.Integer(compute='_compute_picking_count')
-    purchase_count = fields.Integer(compute='_compute_purchase_count')
+    purchase_count = fields.Integer(string='Đơn mua hàng', compute='_compute_purchase_count')
     color = fields.Integer(string="Màu", compute="_compute_color", store=True)
 
     @api.depends('state')

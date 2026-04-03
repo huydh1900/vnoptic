@@ -14,7 +14,7 @@ class ProductGroup(models.Model):
     sequence = fields.Integer('STT', default=lambda self: (self.search([], order='sequence desc', limit=1).sequence or 0) + 1)
     category_id = fields.Many2one(
         'product.category',
-        string='Danh mục sản phẩm',
+        string='Danh mục',
         help='Danh mục mà nhóm này áp dụng (dùng để lọc nhóm theo cây danh mục).'
     )
     product_type = fields.Selection([

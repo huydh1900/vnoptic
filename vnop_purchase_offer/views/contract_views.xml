@@ -19,7 +19,7 @@
                         class="oe_stat_button"
                         icon="fa-list-alt"
                         invisible="not purchase_offer_count">
-                    <field name="purchase_offer_count" widget="statinfo" string="Đề nghị mua hàng"/>
+                    <field name="purchase_offer_count" widget="statinfo"/>
                 </button>
             </xpath>
 

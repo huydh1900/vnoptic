@@ -16,7 +16,7 @@ class PurchaseOrder(models.Model):
         readonly=True,
     )
 
-    otk_log_count = fields.Integer(compute='_compute_otk_log_count')
+    otk_log_count = fields.Integer(string='Lần OTK', compute='_compute_otk_log_count')
 
     def _compute_otk_log_count(self):
         data = self.env['stock.otk.log'].read_group(

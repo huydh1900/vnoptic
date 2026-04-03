@@ -40,13 +40,13 @@ class ProductLens(models.Model):
     axis = fields.Integer('Axis (0-180)')
     
     # 3. Addition (Manual Input, Validated)
-    lens_add = fields.Float('ADD', digits=(4, 2))
+    lens_add = fields.Float('Add', digits=(4, 2))
 
     # 4. Base Curve (Manual Input, Validated)
     base_curve = fields.Float('Base Curve', digits=(4, 2))
 
     # 5. Diameter (Manual Input, Validated)
-    diameter = fields.Float('Diameter (mm)', digits=(6, 1))
+    diameter = fields.Float('Đường kính', digits=(6, 1))
 
     # 6. Lens Design (Legacy fields from old system)
     design1_id = fields.Many2one('product.design', string='Thiết kế 1')

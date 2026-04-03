@@ -144,13 +144,13 @@ class ProductTemplateExtension(models.Model):
     )
 
     x_ws_price_min = fields.Float(
-        'Giá sỉ Min',
+        'Giá sỉ tối thiểu',
         digits='Product Price',
         help="Minimum wholesale price"
     )
 
     x_ws_price_max = fields.Float(
-        'Giá sỉ Max',
+        'Giá sỉ tối đa',
         digits='Product Price',
         help="Maximum wholesale price"
     )
@@ -242,7 +242,7 @@ class ProductTemplateExtension(models.Model):
     # ==================== ADDITIONAL FIELDS FOR VIEW ====================
     group_id = fields.Many2one(
         'product.group',
-        string='Nhóm sản phẩm',
+        string='Phân nhóm phụ',
         help='Nhóm sản phẩm (lọc theo cây danh mục).'
     )
     lens_group_id = fields.Many2one('product.group', string='Nhóm Tròng kính',
@@ -291,9 +291,9 @@ class ProductTemplateExtension(models.Model):
         string='Coating'
     )
     # Màu sắc HMC / Photochromic / Tinted (từ clhmcdto / clphodto / clTintdto)
-    lens_cl_hmc_id = fields.Many2one('product.cl', string='Màu HMC')
-    lens_cl_pho_id = fields.Many2one('product.cl', string='Màu Photochromic')
-    lens_cl_tint_id = fields.Many2one('product.cl', string='Màu Tinted')
+    lens_cl_hmc_id = fields.Many2one('product.cl', string='HMC')
+    lens_cl_pho_id = fields.Many2one('product.cl', string='Photochromic')
+    lens_cl_tint_id = fields.Many2one('product.cl', string='Tinted')
 
     # ==================== LENS SPECS (Custom display-only fields) ====================
     x_sph = fields.Float('SPH', digits=(6, 2), help='Lens sphere power (display only)')
@@ -310,9 +310,9 @@ class ProductTemplateExtension(models.Model):
     opt_season = fields.Char('Season', size=50)
     opt_model = fields.Char('Model', size=50)
     opt_serial = fields.Char('Serial', size=50)
-    opt_oem_ncc = fields.Char('OEM NCC', size=50)
+    opt_oem_ncc = fields.Char('Mã gốc NCC', size=50)
     opt_sku = fields.Char('SKU', size=50)
-    opt_color = fields.Char('Màu sắc', size=50)
+    opt_color = fields.Char('Mã màu', size=50)
     opt_gender = fields.Selection([
         ('0', ''),
         ('1', 'Nam'), ('2', 'Nữ'), ('3', 'Unisex')
@@ -326,44 +326,44 @@ class ProductTemplateExtension(models.Model):
     opt_bridge_width = fields.Integer('Cầu mũi (mm)')
 
     # Màu sắc
-    opt_color_lens_id = fields.Many2one('product.cl', string='Màu mắt kính')
+    opt_color_lens_id = fields.Many2one('product.cl', string='Màu mắt kính (trường mắt)')
     # Màu sắc - Many2many (mới, hỗ trợ nhiều màu)
     opt_color_front_ids = fields.Many2many(
         'product.cl', 'product_tmpl_color_front_rel',
-        'tmpl_id', 'cl_id', string='Màu mặt trước (M2M)'
+        'tmpl_id', 'cl_id', string='Màu mặt trước'
     )
     opt_color_temple_ids = fields.Many2many(
         'product.cl', 'product_tmpl_color_temple_rel',
-        'tmpl_id', 'cl_id', string='Màu càng kính (M2M)'
+        'tmpl_id', 'cl_id', string='Màu càng kính'
     )
 
     # Thiết kế
     opt_frame_id = fields.Many2one('product.frame', string='Loại gọng')
-    opt_frame_type_id = fields.Many2one('product.frame.type', string='Loại gọng')
-    opt_shape_id = fields.Many2one('product.shape', string='Dáng gọng')
+    opt_frame_type_id = fields.Many2one('product.frame.type', string='Kiểu loại')
+    opt_shape_id = fields.Many2one('product.shape', string='Kiểu dáng')
     opt_ve_id = fields.Many2one('product.ve', string='Ve')
     opt_temple_id = fields.Many2one('product.temple', string='Càng kính')
 
     # Chất liệu
-    opt_material_ve_id = fields.Many2one('product.material', string='Chất liệu ve')
-    opt_material_temple_tip_id = fields.Many2one('product.material', string='Chất liệu chuôi càng')
-    opt_material_lens_id = fields.Many2one('product.material', string='Chất liệu mắt')
+    opt_material_ve_id = fields.Many2one('product.material', string='Ve kính')
+    opt_material_temple_tip_id = fields.Many2one('product.material', string='Chuôi càng')
+    opt_material_lens_id = fields.Many2one('product.material', string='Mắt kính')
     opt_materials_front_ids = fields.Many2many(
         'product.material', 'product_tmpl_material_front_rel',
-        'tmpl_id', 'material_id', string='Chất liệu mặt trước'
+        'tmpl_id', 'material_id', string='Mặt trước'
     )
     opt_materials_temple_ids = fields.Many2many(
         'product.material', 'product_tmpl_material_temple_rel',
-        'tmpl_id', 'material_id', string='Chất liệu càng'
+        'tmpl_id', 'material_id', string='Càng'
     )
     opt_coating_ids = fields.Many2many(
         'product.coating', 'product_tmpl_opt_coating_rel',
-        'tmpl_id', 'coating_id', string='Lớp phủ'
+        'tmpl_id', 'coating_id', string='Lớp mạ'
     )
 
     # ==================== WARRANTY TEMPLATE (Hướng A – ERP chuẩn) ====================
     manufacturer_months = fields.Integer(
-        string='Bảo hành NSX (tháng)',
+        string='Bảo hành hãng (tháng)',
         default=0,
         store=True,
         help='Số tháng bảo hành do nhà sản xuất cung cấp (tự động lấy từ warranty_id hoặc sync API)'

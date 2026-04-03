@@ -92,7 +92,7 @@
                             <group col="2">
                                 <group string="Khởi tạo">
                                     <field name="purchaser_id" widget="many2one_avatar_user" readonly="1"/>
-                                    <field name="create_date" string="Ngày lập đề nghị" readonly="1"/>
+                                    <field name="create_date" readonly="1"/>
                                     <field name="company_id" readonly="1"/>
                                 </group>
                                 <group string="Phê duyệt">

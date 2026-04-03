@@ -1,0 +1,54 @@
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_template__default_code
+msgid "Internal Reference"
+msgstr "Mã viết tắt"
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_template__categ_id
+msgid "Product Category"
+msgstr "Danh mục"
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_template__list_price
+msgid "Sales Price"
+msgstr "Giá bán"
+
+#. module: uom
+#: model:ir.model.fields,field_description:uom.field_product_template__uom_id
+msgid "Unit of Measure"
+msgstr "Đơn vị tính"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_res_partner__country_id
+msgid "Country"
+msgstr "Xuất xứ"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_res_partner__ref
+msgid "Reference"
+msgstr "Mã NCC"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_res_partner_bank__bank_bic
+msgid "Bank Identifier Code"
+msgstr "Swift Code"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_mail_tracking_value__create_uid
+msgid "Created by"
+msgstr "Người lập"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_mail_tracking_value__create_date
+msgid "Created on"
+msgstr "Ngày tạo"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_ir_ui_view__sequence
+msgid "Sequence"
+msgstr "Lần"
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_template__split_method_landed_cost
+msgid "Default Split Method"
+msgstr "Phương pháp phân bổ"

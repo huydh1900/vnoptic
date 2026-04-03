@@ -12,11 +12,11 @@ class Contract(models.Model):
         readonly=True,
     )
     delivery_schedule_count = fields.Integer(
-        string="Số lịch giao hàng",
+        string="Lịch giao hàng",
         compute="_compute_delivery_schedule_count",
     )
     purchase_order_count = fields.Integer(
-        string="Số đơn mua",
+        string="Đơn mua",
         compute="_compute_purchase_order_count",
     )
 
