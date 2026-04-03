@@ -45,20 +45,6 @@ class Contract(models.Model):
         index=True,
     )
 
-    delivery_state = fields.Selection(
-        [
-            ("expected", "Dự kiến giao"),
-            ("partial", "Đã giao 1 phần"),
-            ("done", "Đã giao đủ"),
-            ("cancel", "Hủy"),
-        ],
-        string="Trạng thái giao",
-        default="expected",
-        tracking=True,
-        copy=False,
-        index=True,
-    )
-
     approved_date = fields.Datetime(string="Ngày duyệt", readonly=True, copy=False, tracking=True)
     approved_by = fields.Many2one("res.users", string="Người duyệt", readonly=True, copy=False, tracking=True)
 

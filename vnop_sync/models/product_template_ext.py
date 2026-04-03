@@ -302,9 +302,6 @@ class ProductTemplateExtension(models.Model):
     x_axis = fields.Integer('Axis', help='Lens axis (display only)')
     x_prism = fields.Char('Lăng kính', size=50, help='Lens prism (display only)')
     x_prism_base = fields.Char('Đáy lăng kính', size=50, help='Lens prism base (display only)')
-    x_hmc = fields.Char('HMC (legacy)', help='Deprecated – dùng lens_cl_hmc_id')
-    x_photochromic = fields.Char('Photochromic (legacy)', help='Deprecated – dùng lens_cl_pho_id')
-    x_tinted = fields.Char('Tinted (legacy)', help='Deprecated – dùng lens_cl_tint_id')
     x_mir_coating = fields.Char('Màu tráng gương', help='Mirror coating (display only)')
     x_diameter = fields.Float('Đường kính (mm)', digits=(6, 1), help='Lens diameter (display only)')
 
@@ -329,9 +326,6 @@ class ProductTemplateExtension(models.Model):
     opt_bridge_width = fields.Integer('Cầu mũi (mm)')
 
     # Màu sắc
-    # Màu sắc - Many2one (giữ tương thích legacy)
-    opt_color_front_id = fields.Many2one('product.cl', string='Màu mặt trước')
-    opt_color_temple_id = fields.Many2one('product.cl', string='Màu càng')
     opt_color_lens_id = fields.Many2one('product.cl', string='Màu mắt kính')
     # Màu sắc - Many2many (mới, hỗ trợ nhiều màu)
     opt_color_front_ids = fields.Many2many(

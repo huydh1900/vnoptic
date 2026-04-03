@@ -28,9 +28,7 @@
     },
     'assets': {
         'web.assets_backend': [
-            'vnop_sync/static/src/scss/preview_long_text.scss',
             'vnop_sync/static/src/scss/product_kanban_modern.scss',
-            'vnop_sync/static/src/js/preview_long_text.js',
         ],
     },
     'installable': True,
