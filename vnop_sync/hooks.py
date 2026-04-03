@@ -6,6 +6,7 @@ def post_init_hook(env):
     Generate initial SPH and CYL data for product.lens.power
     This runs only once after module installation.
     """
+    env['res.partner.bank'].migrate_invalid_bank_fields()
     # Use environment with superuser to ensure permissions
     # env argument in hook is actually a cursor in older versions or Environment in newer?
     # In Odoo 18 hooks usually receive cr or env. 

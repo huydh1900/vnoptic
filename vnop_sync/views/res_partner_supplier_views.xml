@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- Ẩn field 'ref' (Mã NCC) ở group 'misc' tab Bán hàng và Mua hàng, giữ lại ở block thông tin chính -->
+    <record id="view_partner_form_supplier_hide_ref_misc" model="ir.ui.view">
+        <field name="name">res.partner.form.supplier.hide.ref.misc</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="priority">1001</field>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='sales_purchases']//group[@name='misc']/field[@name='ref']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_partner_form_supplier_cleanup" model="ir.ui.view">
+        <field name="name">res.partner.form.supplier.cleanup</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="priority">999</field>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group/group/div[@class='o_address_format']/field[@name='street2']" position="attributes">
+                <attribute name="invisible">0</attribute>
+            </xpath>
+            <xpath expr="//sheet/group/group/div[@class='o_address_format']/field[@name='city']" position="attributes">
+                <attribute name="invisible">0</attribute>
+            </xpath>
+            <xpath expr="//sheet/group/group/div[@class='o_address_format']/field[@name='state_id']" position="attributes">
+                <attribute name="invisible">0</attribute>
+            </xpath>
+            <xpath expr="//sheet/group/group/div[@class='o_address_format']/field[@name='zip']" position="attributes">
+                <attribute name="invisible">0</attribute>
+            </xpath>
+
+            <xpath expr="//sheet/group/group/field[@name='mobile']" position="attributes">
+                <attribute name="invisible">0</attribute>
+            </xpath>
+            <xpath expr="//sheet/group/group/label[@for='mobile']" position="attributes">
+                <attribute name="invisible">0</attribute>
+            </xpath>
+            <xpath expr="//sheet/group/group/div[.//field[@name='mobile']]" position="attributes">
+                <attribute name="invisible">0</attribute>
+            </xpath>
+
+            <xpath expr="//form/sheet/group/group[2]" position="inside">
+                <field name="x_supplier_fax"/>
+                <field name="x_supplier_contact_name"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_partner_form_bank_columns" model="ir.ui.view">
+        <field name="name">res.partner.form.bank.columns</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="account.view_partner_property_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='banks']/field[@name='bank_ids']/list/field[@name='bank_id']" position="after">
+                <field name="bank_bic" string="Swift Code"/>
+                <field name="x_bank_address" string="Địa chỉ ngân hàng"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_partner_bank_form_supplier_ext" model="ir.ui.view">
+        <field name="name">res.partner.bank.form.supplier.ext</field>
+        <field name="model">res.partner.bank</field>
+        <field name="inherit_id" ref="account.view_partner_bank_form_inherit_account"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='bank_id']" position="after">
+                <field name="bank_bic" string="Swift Code"/>
+                <field name="x_bank_address"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_partner_bank_tree_supplier_ext" model="ir.ui.view">
+        <field name="name">res.partner.bank.tree.supplier.ext</field>
+        <field name="model">res.partner.bank</field>
+        <field name="inherit_id" ref="base.view_partner_bank_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='bank_name']" position="after">
+                <field name="bank_bic" string="Swift Code" optional="show"/>
+                <field name="x_bank_address" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

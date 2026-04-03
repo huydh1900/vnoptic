@@ -11,6 +11,7 @@ from . import product_design
 from . import product_shape
 from . import product_material
 from . import product_color
+from . import res_partner_supplier
 
 from . import product_template_debug_log
 
