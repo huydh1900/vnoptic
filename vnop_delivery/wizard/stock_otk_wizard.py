@@ -170,8 +170,14 @@ class StockOtkWizard(models.TransientModel):
             self._create_vendor_return(return_extras, picking)
 
         # Bước 6 & 7: Ghi log (kèm link transfer) + sync upstream
-        self._create_otk_log(picking, transfer_ok, transfer_ng)
+        otk_log = self._create_otk_log(picking, transfer_ok, transfer_ng)
         self._sync_delivery_schedule(picking)
+        schedule = picking.delivery_schedule_id
+        if schedule and otk_log:
+            try:
+                schedule.create_provisional_landed_cost_from_otk(otk_log)
+            except Exception as exc:
+                picking.message_post(body=_('Không thể tạo chi phí phân bổ tạm tính tự động: %s') % exc)
 
         return {'type': 'ir.actions.act_window_close'}
 
@@ -349,7 +355,7 @@ class StockOtkWizard(models.TransientModel):
                 'note': extra.note,
             }))
 
-        self.env['stock.otk.log'].create({
+        log = self.env['stock.otk.log'].create({
             'name': seq,
             'sequence': sequence,
             'picking_id': picking.id,
@@ -358,6 +364,7 @@ class StockOtkWizard(models.TransientModel):
             'transfer_ng_id': transfer_ng.id if transfer_ng else False,
             'line_ids': log_lines,
         })
+        return log
 
     def _sync_delivery_schedule(self, picking):
         """Cộng dồn qty_otk vào delivery.schedule.line.qty_received.

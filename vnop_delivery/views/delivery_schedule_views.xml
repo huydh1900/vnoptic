@@ -30,6 +30,11 @@
                             string="Xác nhận hàng về"
                             invisible="state != 'draft'"
                             class="oe_highlight"/>
+                    <button name="action_create_final_landed_cost_adjustment"
+                            type="object"
+                            string="Chốt điều chỉnh giá vốn"
+                            invisible="state != 'confirmed'"
+                            class="btn-secondary"/>
 
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,confirmed"/>
@@ -80,26 +85,16 @@
                             <field name="shipment_type"/>
                         </group>
                     </group>
-
-                    <group>
-                        <group string="Phí bổ sung &amp; tổng quan">
-                            <label for="insurance_fee"/>
-                            <div class="o_row">
-                                <field name="insurance_fee"/>
-                                <span>VND</span>
-                            </div>
-                            <label for="environment_fee"/>
-                            <div class="o_row">
-                                <field name="environment_fee"/>
-                                <span>VND</span>
-                            </div>
-                        </group>
-                        <group string="Chi phí dự tính">
+                    <group string="Chi phí dự tính">
+                        <group>
                             <field name="freight_est"/>
                             <field name="insurance_est"/>
                             <field name="duty_est"/>
+                        </group>
+                        <group>
                             <field name="tax_est"/>
                             <field name="other_cost_est"/>
+                            <field name="provisional_landed_cost_total" readonly="1"/>
                         </group>
                     </group>
 
@@ -112,13 +107,30 @@
 	                                    <field name="product_id" readonly="1"/>
 	                                    <field name="uom_id" readonly="1" optional="hide"/>
 	                                    <field name="currency_id" column_invisible="1"/>
-	                                    <field name="qty_contract" readonly="1"/>
-	                                    <field name="qty_planned"/>
-	                                    <field name="qty_received" readonly="1" optional="show"/>
+	                                    <field name="qty_contract" readonly="1" sum="Tổng SL hợp đồng"/>
+	                                    <field name="qty_planned" sum="Tổng SL dự kiến"/>
+	                                    <field name="qty_received" readonly="1" optional="show" sum="Tổng SL đã nhận"/>
 	                                    <field name="price_unit" readonly="1" widget="monetary"/>
 	                                </list>
 	                            </field>
 	                        </page>
+                        <page string="Chi phí thực tế và Phí bổ sung">
+                            <field name="extra_cost_line_ids">
+                                <list editable="bottom">
+                                    <field name="product_id"
+                                           context="{'default_landed_cost_ok': True, 'default_type': 'service'}"
+                                           domain="[('landed_cost_ok', '=', True)]"
+                                           required="1"/>
+                                    <field name="split_method"/>
+                                    <field name="amount" string="Thực tế" widget="monetary"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                            <group>
+                                <field name="final_landed_cost_total" readonly="1"/>
+                            </group>
+                        </page>
                         <page string="Thông tin bổ sung">
                             <group>
                                 <field name="create_date" readonly="1"/>

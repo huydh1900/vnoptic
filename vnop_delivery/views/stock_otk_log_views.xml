@@ -37,11 +37,11 @@
                         <list create="0" delete="0">
                             <field name="product_id"/>
                             <field name="uom_id" optional="hide"/>
-                            <field name="qty_demand"/>
-                            <field name="qty_otk"/>
-                            <field name="qty_ng" class="text-danger"/>
-                            <field name="qty_ok" class="text-success"/>
-                            <field name="qty_remaining" class="text-warning"/>
+                            <field name="qty_demand" sum="Tổng SL yêu cầu"/>
+                            <field name="qty_otk" sum="Tổng SL kiểm"/>
+                            <field name="qty_ng" class="text-danger" sum="Tổng SL không đạt"/>
+                            <field name="qty_ok" class="text-success" sum="Tổng SL đạt"/>
+                            <field name="qty_remaining" class="text-warning" sum="Tổng SL dư"/>
                             <field name="is_extra" optional="show"/>
                             <field name="action_type" optional="show"/>
                             <field name="note"/>

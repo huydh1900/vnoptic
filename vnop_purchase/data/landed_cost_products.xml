@@ -88,6 +88,18 @@
         <field name="purchase_ok" eval="True"/>
     </record>
 
+    <record id="landed_cost_thue_vat_nhap_khau" model="product.template">
+        <field name="name">Thuế VAT nhập khẩu</field>
+        <field name="default_code">LC-VAT</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">by_current_cost_price</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
     <record id="landed_cost_phi_thong_quan" model="product.template">
         <field name="name">Phí thông quan hải quan</field>
         <field name="default_code">LC-TQHQ</field>
@@ -236,6 +248,18 @@
         <field name="categ_id" ref="product_category_landed_cost"/>
         <field name="landed_cost_ok" eval="True"/>
         <field name="split_method_landed_cost">by_current_cost_price</field>
+        <field name="list_price">0</field>
+        <field name="sale_ok" eval="False"/>
+        <field name="purchase_ok" eval="True"/>
+    </record>
+
+    <record id="landed_cost_phi_moi_truong" model="product.template">
+        <field name="name">Phí môi trường</field>
+        <field name="default_code">LC-MT</field>
+        <field name="type">service</field>
+        <field name="categ_id" ref="product_category_landed_cost"/>
+        <field name="landed_cost_ok" eval="True"/>
+        <field name="split_method_landed_cost">equal</field>
         <field name="list_price">0</field>
         <field name="sale_ok" eval="False"/>
         <field name="purchase_ok" eval="True"/>

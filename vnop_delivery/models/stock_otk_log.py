@@ -22,6 +22,7 @@ class StockOtkLog(models.Model):
     # Link đến phiếu điều chuyển tạo bởi OTK lần này, phục vụ truy vết
     transfer_ok_id = fields.Many2one('stock.picking', string='Phiếu chuyển kho đạt', readonly=True)
     transfer_ng_id = fields.Many2one('stock.picking', string='Phiếu chuyển kho lỗi', readonly=True)
+    landed_cost_id = fields.Many2one('stock.landed.cost', string='Chi phí phân bổ tạm tính', readonly=True)
     line_ids = fields.One2many('stock.otk.log.line', 'log_id', string='Chi tiết')
 
 

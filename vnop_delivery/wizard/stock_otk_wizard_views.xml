@@ -25,11 +25,12 @@
                                     <field name="is_checked"/>
                                     <field name="product_id" readonly="1"/>
                                     <field name="uom_id" readonly="1" optional="hide"/>
-                                    <field name="qty_demand" readonly="1"/>
-                                    <field name="qty_otk"/>
-                                    <field name="qty_ng" class="text-danger" readonly="qty_otk == 0"/>
-                                    <field name="qty_ok" readonly="1" class="text-success"/>
+                                    <field name="qty_demand" readonly="1" sum="Tổng SL yêu cầu"/>
+                                    <field name="qty_otk" sum="Tổng SL kiểm"/>
+                                    <field name="qty_ng" class="text-danger" readonly="qty_otk == 0" sum="Tổng SL không đạt"/>
+                                    <field name="qty_ok" readonly="1" class="text-success" sum="Tổng SL đạt"/>
                                     <field name="qty_remaining" readonly="1" class="text-warning"
+                                           sum="Tổng SL dư"
                                            invisible="qty_remaining == 0"
                                            column_invisible="not parent.has_surplus"/>
                                     <field name="note"/>
@@ -41,9 +42,9 @@
                                 <list editable="bottom">
                                     <field name="product_id"/>
                                     <field name="uom_id" optional="hide"/>
-                                    <field name="qty_otk"/>
-                                    <field name="qty_ng" class="text-danger" readonly="qty_otk == 0"/>
-                                    <field name="qty_ok" readonly="1" class="text-success"/>
+                                    <field name="qty_otk" sum="Tổng SL kiểm"/>
+                                    <field name="qty_ng" class="text-danger" readonly="qty_otk == 0" sum="Tổng SL không đạt"/>
+                                    <field name="qty_ok" readonly="1" class="text-success" sum="Tổng SL đạt"/>
                                     <field name="action_type"/>
                                     <field name="note"/>
                                 </list>

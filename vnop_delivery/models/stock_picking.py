@@ -86,3 +86,9 @@ class StockPicking(models.Model):
         for schedule in self.mapped('delivery_schedule_id'):
             schedule._sync_state_from_receipts()
         return res
+
+    def action_view_stock_valuation_layers(self):
+        action = super().action_view_stock_valuation_layers()
+        domain = action.get('domain') or []
+        action['domain'] = domain + [('quantity', '>', 0)]
+        return action

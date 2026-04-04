@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': "vnop_delivery",
-    'depends': ['purchase', 'stock', 'vnop_contract', 'vnop_purchase_offer'],
+    'depends': ['purchase', 'stock', 'stock_landed_costs', 'vnop_contract', 'vnop_purchase_offer'],
 
     'data': [
         'security/ir.model.access.csv',
