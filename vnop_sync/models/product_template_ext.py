@@ -313,7 +313,7 @@ class ProductTemplateExtension(models.Model):
     opt_season = fields.Char('Season', size=50)
     opt_model = fields.Char('Model', size=50)
     opt_serial = fields.Char('Serial', size=50)
-    opt_oem_ncc = fields.Char('OEM NCC', size=50)
+    opt_oem_ncc = fields.Char('Mã gốc NCC', size=50)
     opt_sku = fields.Char('SKU', size=50)
     opt_color = fields.Char('Màu sắc', size=50)
     opt_gender = fields.Selection([
@@ -336,11 +336,11 @@ class ProductTemplateExtension(models.Model):
     # Màu sắc - Many2many (mới, hỗ trợ nhiều màu)
     opt_color_front_ids = fields.Many2many(
         'product.cl', 'product_tmpl_color_front_rel',
-        'tmpl_id', 'cl_id', string='Màu mặt trước (M2M)'
+        'tmpl_id', 'cl_id', string='Màu mặt trước'
     )
     opt_color_temple_ids = fields.Many2many(
         'product.cl', 'product_tmpl_color_temple_rel',
-        'tmpl_id', 'cl_id', string='Màu càng kính (M2M)'
+        'tmpl_id', 'cl_id', string='Màu càng kính'
     )
 
     # Thiết kế

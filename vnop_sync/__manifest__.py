@@ -2,9 +2,10 @@
     'name': 'Product Sync from Server',
     'version': '18.0.1.0.4',
     'category': 'Inventory',
-    'depends': ['base', 'stock', 'product', 'purchase', 'account'],
+    'depends': ['base', 'stock', 'product', 'purchase', 'account', 'base_import'],
     'data': [
         'security/ir.model.access.csv',
+        'data/product_import_export_templates.xml',
         'data/uom_data.xml',
         'data/product_category_data.xml',
         'data/product_brand_data.xml',
@@ -21,6 +22,7 @@
         'views/product_master_data_config_views.xml',
         'views/product_opt_lens_views.xml',
         'views/server_connector_views.xml',
+        'views/product_export_template_wizard.xml',
         'views/vnop_sync_purchase_config_menus.xml',
     ],
     'external_dependencies': {
@@ -31,6 +33,8 @@
             'vnop_sync/static/src/scss/preview_long_text.scss',
             'vnop_sync/static/src/scss/product_kanban_modern.scss',
             'vnop_sync/static/src/js/preview_long_text.js',
+            'vnop_sync/static/src/js/product_export_cog_menu.js',
+            'vnop_sync/static/src/xml/product_export_cog_menu.xml',
         ],
     },
     'installable': True,
