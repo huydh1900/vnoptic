@@ -29,6 +29,8 @@
                         <group>
                             <field name="date"/>
                             <field name="user_id"/>
+                            <field name="transfer_ok_id" invisible="not transfer_ok_id"/>
+                            <field name="transfer_ng_id" invisible="not transfer_ng_id"/>
                         </group>
                     </group>
                     <field name="line_ids">
@@ -40,6 +42,8 @@
                             <field name="qty_ng" class="text-danger"/>
                             <field name="qty_ok" class="text-success"/>
                             <field name="qty_remaining" class="text-warning"/>
+                            <field name="is_extra" optional="show"/>
+                            <field name="action_type" optional="show"/>
                             <field name="note"/>
                         </list>
                     </field>

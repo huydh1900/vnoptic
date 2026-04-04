@@ -1,15 +1,10 @@
-from odoo import fields, models, api, _
-from odoo.exceptions import ValidationError
-from odoo.exceptions import UserError
+from odoo import api, fields, models, _
+from odoo.exceptions import UserError, ValidationError
 
 
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
-    create_date_tmp = fields.Date(
-        string='Ngày tạo',
-        compute='_compute_create_date_tmp',
-    )
     delivery_schedule_id = fields.Many2one(
         'delivery.schedule',
         string='Lịch giao hàng',
@@ -66,13 +61,6 @@ class PurchaseOrder(models.Model):
     def action_need_revision(self):
         for rec in self:
             rec.write({'state': 'need_revision'})
-
-    @api.depends('create_date')
-    def _compute_create_date_tmp(self):
-        for rec in self:
-            rec.create_date_tmp = (
-                rec.create_date.date() if rec.create_date else False
-            )
 
     def unlink(self):
         for order in self:

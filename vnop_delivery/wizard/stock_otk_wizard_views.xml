@@ -7,25 +7,54 @@
             <form string="OTK - Kiểm hàng nhập kho">
                 <sheet>
                     <field name="picking_id" invisible="1"/>
+                    <field name="has_surplus" invisible="1"/>
+                    <field name="has_extra" invisible="1"/>
                     <field name="surplus_note" readonly="1" invisible="not surplus_note"
                            class="text-warning" style="font-weight:bold;"/>
-                    <field name="line_ids">
-                        <list editable="bottom" create="0" delete="0">
-                            <field name="product_id" readonly="1"/>
-                            <field name="uom_id" readonly="1" optional="hide"/>
-                            <field name="qty_demand" readonly="1"/>
-                            <field name="qty_otk"/>
-                            <field name="qty_ng" class="text-danger"/>
-                            <field name="qty_ok" readonly="1" class="text-success"/>
-                            <field name="qty_remaining" readonly="1" class="text-warning" invisible="qty_remaining == 0" column_invisible="not parent.has_surplus"/>
-                            <field name="note"/>
-                        </list>
-                    </field>
+
+                    <group>
+                        <group>
+                            <field name="create_backorder"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Chi tiết kiểm hàng" name="page_lines">
+                            <field name="line_ids">
+                                <list editable="bottom" create="0" delete="0">
+                                    <field name="is_checked"/>
+                                    <field name="product_id" readonly="1"/>
+                                    <field name="uom_id" readonly="1" optional="hide"/>
+                                    <field name="qty_demand" readonly="1"/>
+                                    <field name="qty_otk"/>
+                                    <field name="qty_ng" class="text-danger" readonly="qty_otk == 0"/>
+                                    <field name="qty_ok" readonly="1" class="text-success"/>
+                                    <field name="qty_remaining" readonly="1" class="text-warning"
+                                           invisible="qty_remaining == 0"
+                                           column_invisible="not parent.has_surplus"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="SP ngoài PO" name="page_extra">
+                            <field name="extra_line_ids">
+                                <list editable="bottom">
+                                    <field name="product_id"/>
+                                    <field name="uom_id" optional="hide"/>
+                                    <field name="qty_otk"/>
+                                    <field name="qty_ng" class="text-danger" readonly="qty_otk == 0"/>
+                                    <field name="qty_ok" readonly="1" class="text-success"/>
+                                    <field name="action_type"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
                 <footer>
                     <button name="action_confirm" string="Xác nhận OTK" type="object"
                             class="btn-primary"
-                            confirm="Xác nhận? SL kiểm sẽ được nhập kho, phần còn lại tạo backorder."/>
+                            confirm="Xác nhận OTK? SL kiểm sẽ được nhập kho theo kết quả kiểm."/>
                     <button string="Huỷ" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import base64
 import logging
 
 from odoo import api, fields, models, _
@@ -100,6 +101,12 @@ class PurchaseOffer(models.Model):
         store=True,
         digits="Product Unit of Measure",
     )
+    total_qty_received = fields.Float(
+        string="Tổng SL đã nhận",
+        compute="_compute_totals",
+        store=True,
+        digits="Product Unit of Measure",
+    )
     amount_total = fields.Monetary(
         string="Tổng giá trị dự kiến",
         compute="_compute_totals",
@@ -133,10 +140,11 @@ class PurchaseOffer(models.Model):
             vals["followup_alert_sent"] = False
         return super().write(vals)
 
-    @api.depends("line_ids.quantity", "line_ids.subtotal")
+    @api.depends("line_ids.quantity", "line_ids.subtotal", "line_ids.qty_received")
     def _compute_totals(self):
         for rec in self:
             rec.total_qty = sum(rec.line_ids.mapped("quantity"))
+            rec.total_qty_received = sum(rec.line_ids.mapped("qty_received"))
             rec.amount_total = sum(rec.line_ids.mapped("subtotal"))
 
     @api.depends("line_ids")
@@ -168,13 +176,6 @@ class PurchaseOffer(models.Model):
 
     def action_cancel(self):
         self.write({"state": "cancelled"})
-
-    def action_reset_to_draft(self):
-        self.write({
-            "state": "draft",
-            "approved_by": False,
-            "approved_date": False,
-        })
 
     def _validate_before_approval(self):
         for rec in self:
@@ -267,6 +268,34 @@ class PurchaseOffer(models.Model):
             "view_mode": "form",
             "res_id": self.contract_id.id,
             "target": "current",
+        }
+
+    def action_import_lines_excel(self):
+        """Mở wizard import custom cho purchase.offer.line."""
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "purchase.offer.import.wizard",
+            "view_mode": "form",
+            "target": "new",
+            "context": {"default_offer_id": self.id},
+        }
+
+    def action_download_template(self):
+        """Tải template Excel mẫu cho purchase.offer.line."""
+        self.ensure_one()
+        from ..wizard.purchase_offer_import_wizard import PurchaseOfferImportWizard
+        content = PurchaseOfferImportWizard.generate_template()
+        attachment = self.env["ir.attachment"].create({
+            "name": "Template_DNMH.xlsx",
+            "type": "binary",
+            "datas": base64.b64encode(content),
+            "mimetype": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        })
+        return {
+            "type": "ir.actions.act_url",
+            "url": "/web/content/%d?download=true" % attachment.id,
+            "target": "self",
         }
 
     def _schedule_reminder_activity(self, deadline, summary, note):

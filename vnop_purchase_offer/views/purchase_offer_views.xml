@@ -11,6 +11,7 @@
                 <field name="contract_id"/>
                 <field name="follow_up_date"/>
                 <field name="total_qty"/>
+                <field name="total_qty_received" optional="show"/>
                 <field name="amount_total" widget="monetary"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="state"
@@ -31,9 +32,7 @@
                 <header>
                     <button name="action_submit" type="object" string="Gửi duyệt" class="btn-primary" invisible="state != 'draft'"/>
                     <button name="action_approve" type="object" string="Phê duyệt" class="oe_highlight" invisible="state != 'waiting_approval'"/>
-                    <button name="action_view_contract" type="object" string="Mở hợp đồng" invisible="not contract_id"/>
                     <button name="action_cancel" type="object" string="Hủy" class="btn-secondary" invisible="state in ('cancelled', 'converted')"/>
-                    <button name="action_reset_to_draft" type="object" string="Về nháp" class="btn-secondary" invisible="state == 'draft'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,waiting_approval,approved,converted,cancelled"/>
                 </header>
 
@@ -63,12 +62,21 @@
                             <field name="currency_id" readonly="state != 'draft'"/>
                             <field name="exchange_rate" readonly="state != 'draft'"/>
                             <field name="total_qty" readonly="1"/>
+                            <field name="total_qty_received" readonly="1"/>
                             <field name="amount_total" widget="monetary" readonly="1"/>
                         </group>
                     </group>
 
                     <notebook>
                         <page string="Sản phẩm">
+                            <div class="mb-2" invisible="state != 'draft'">
+                                <button name="action_download_template" type="object"
+                                        string="Tải template mẫu" icon="fa-download"
+                                        class="btn-link"/>
+                                <button name="action_import_lines_excel" type="object"
+                                        string="Import Excel" icon="fa-upload"
+                                        class="btn-link"/>
+                            </div>
                             <field name="line_ids" readonly="state != 'draft'">
                                 <list editable="bottom">
                                     <field name="product_id" domain="[('product_tmpl_id.primary_supplier_id', '=', parent.partner_id)]"/>

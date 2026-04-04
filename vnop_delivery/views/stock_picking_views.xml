@@ -11,6 +11,18 @@
                         class="btn-primary"
                         invisible="state not in ('assigned') or not is_temp_location"/>
             </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_otk_transfer_ok" type="object"
+                        class="oe_stat_button" icon="fa-check-circle"
+                        invisible="otk_transfer_ok_count == 0">
+                    <field name="otk_transfer_ok_count" string="Kho đạt" widget="statinfo"/>
+                </button>
+                <button name="action_view_otk_transfer_ng" type="object"
+                        class="oe_stat_button" icon="fa-exclamation-triangle"
+                        invisible="otk_transfer_ng_count == 0">
+                    <field name="otk_transfer_ng_count" string="Kho lỗi" widget="statinfo"/>
+                </button>
+            </xpath>
             <xpath expr="//button[@name='button_validate']" position="attributes">
                 <attribute name="invisible">is_temp_location</attribute>
             </xpath>
