@@ -38,6 +38,7 @@ class ProductExportTemplateWizard(models.TransientModel):
 
     _FIELD_LABEL_OVERRIDES = {
         'default_code': 'Mã sản phẩm',
+        'image_1920': 'Hình ảnh (URL)',
         'name': 'Tên đầy đủ',
         'x_eng_name': 'Tên tiếng Anh',
         'categ_id': 'Nhóm',
@@ -57,6 +58,7 @@ class ProductExportTemplateWizard(models.TransientModel):
         'x_guide': 'Hướng dẫn sử dụng',
         'x_warning': 'Cảnh báo',
         'x_preserve': 'Bảo quản',
+        'description': 'Mô tả',
         'description_sale': 'Mô tả bán hàng',
         'taxes_id': 'Thuế bán',
         'supplier_taxes_id': 'Thuế mua',
@@ -88,7 +90,7 @@ class ProductExportTemplateWizard(models.TransientModel):
         product_model = self.env['product.template']
         templates = product_model._vnop_export_templates()
         fields_list = templates.get(config['template_key']) or []
-        fields_list = [name for name in fields_list if name in product_model._fields]
+        fields_list = self._prepare_fields_for_export(product_model, fields_list)
         if not fields_list:
             raise UserError('Không tìm thấy danh sách cột cho template đã chọn.')
 
@@ -111,6 +113,29 @@ class ProductExportTemplateWizard(models.TransientModel):
             'filename': f"Bảng_mẫu_import_{config['file_key']}.xlsx",
             'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         }
+
+    def _prepare_fields_for_export(self, product_model, raw_fields):
+        fields_list = []
+        seen = set()
+
+        for field_name in raw_fields:
+            if field_name in product_model._fields and field_name not in seen:
+                fields_list.append(field_name)
+                seen.add(field_name)
+
+        if 'image_1920' in product_model._fields and 'image_1920' not in seen:
+            if 'default_code' in fields_list:
+                insert_at = fields_list.index('default_code') + 1
+            else:
+                insert_at = 0
+            fields_list.insert(insert_at, 'image_1920')
+            seen.add('image_1920')
+
+        if 'description' in product_model._fields:
+            fields_list = [name for name in fields_list if name != 'description']
+            fields_list.append('description')
+
+        return fields_list
 
     def _label_for_field(self, product_model, field_name):
         if field_name in self._FIELD_LABEL_OVERRIDES:
@@ -145,6 +170,9 @@ class ProductExportTemplateWizard(models.TransientModel):
         guide = workbook.add_worksheet('Hướng_dẫn')
 
         last_col = max(0, len(fields_list) - 1)
+        required_bg = '#F9CB9C'
+        optional_bg = '#CFE2F3'
+
         title_style = workbook.add_format({
             'bold': True,
             'font_color': '#0B4EA2',
@@ -161,7 +189,7 @@ class ProductExportTemplateWizard(models.TransientModel):
         })
         required_style = workbook.add_format({
             'bold': True,
-            'bg_color': '#FDE9D9',
+            'bg_color': required_bg,
             'border': 1,
             'text_wrap': True,
             'align': 'center',
@@ -169,21 +197,21 @@ class ProductExportTemplateWizard(models.TransientModel):
         })
         optional_style = workbook.add_format({
             'bold': True,
-            'bg_color': '#E7F4FF',
+            'bg_color': optional_bg,
             'border': 1,
             'text_wrap': True,
             'align': 'center',
             'valign': 'vcenter',
         })
         code_required_style = workbook.add_format({
-            'bg_color': '#FDE9D9',
+            'bg_color': required_bg,
             'font_color': '#8A2D00',
             'border': 1,
             'align': 'center',
             'valign': 'vcenter',
         })
         code_optional_style = workbook.add_format({
-            'bg_color': '#E7F4FF',
+            'bg_color': optional_bg,
             'font_color': '#0B4EA2',
             'border': 1,
             'align': 'center',
@@ -217,6 +245,24 @@ class ProductExportTemplateWizard(models.TransientModel):
         guide_title = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#0B4EA2'})
         guide_head = workbook.add_format({'bold': True, 'bg_color': '#E8EEF7', 'border': 1})
         guide_text = workbook.add_format({'text_wrap': True, 'valign': 'top', 'border': 1})
+        guide_icon_required = workbook.add_format({
+            'bg_color': required_bg,
+            'font_color': '#FFFFFF',
+            'bold': True,
+            'font_size': 16,
+            'border': 1,
+            'align': 'center',
+            'valign': 'vcenter',
+        })
+        guide_icon_optional = workbook.add_format({
+            'bg_color': optional_bg,
+            'font_color': '#FFFFFF',
+            'bold': True,
+            'font_size': 16,
+            'border': 1,
+            'align': 'center',
+            'valign': 'vcenter',
+        })
 
         guide.write(0, 0, f"HƯỚNG DẪN NHẬP LIỆU - {config['display_name']}", guide_title)
         guide.write(2, 0, 'Mục', guide_head)
@@ -231,9 +277,9 @@ class ProductExportTemplateWizard(models.TransientModel):
         guide.write(6, 1, 'Mã trường kỹ thuật dùng cho import.', guide_text)
         guide.write(7, 0, 'Từ dòng 6 trở đi', guide_text)
         guide.write(7, 1, 'Dữ liệu người dùng nhập, mỗi sản phẩm 1 dòng.', guide_text)
-        guide.write(8, 0, 'Màu nền cam', guide_text)
+        guide.write(8, 0, '●', guide_icon_required)
         guide.write(8, 1, 'Cột bắt buộc nhập.', guide_text)
-        guide.write(9, 0, 'Màu nền xanh', guide_text)
+        guide.write(9, 0, '●', guide_icon_optional)
         guide.write(9, 1, 'Cột tùy chọn.', guide_text)
         guide.set_column(0, 0, 24)
         guide.set_column(1, 1, 86)
