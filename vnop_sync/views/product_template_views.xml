@@ -61,6 +61,14 @@
                        style="margin-right:15px;"/>
             </xpath>
 
+            <!-- Ẩn field base trong group_standard_price khi là hàng hóa (consu) -->
+            <xpath expr="//group[@name='group_standard_price']/field[@name='categ_id']" position="attributes">
+                <attribute name="invisible">type == 'consu'</attribute>
+            </xpath>
+            <xpath expr="//group[@name='group_standard_price']/field[@name='default_code']" position="attributes">
+                <attribute name="invisible" add="type == 'consu'" separator=" or "/>
+            </xpath>
+
             <!-- Ẩn tab Thuộc tính & Biến thể cho tròng và gọng kính -->
             <xpath expr="//page[.//field[@name='attribute_line_ids']]" position="attributes">
                 <attribute name="invisible">categ_code in ('TK', 'GK')</attribute>
