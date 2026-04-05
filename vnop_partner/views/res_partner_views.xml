@@ -13,6 +13,18 @@
             <field name="vat" position="after">
                 <field name="ref"/>
             </field>
+            <xpath expr="(//field[@name='state_id'])[1]" position="attributes">
+                <attribute name="string">Tỉnh</attribute>
+                <attribute name="placeholder">Tỉnh</attribute>
+            </xpath>
+            <xpath expr="(//field[@name='state_id'])[2]" position="attributes">
+                <attribute name="string">Tỉnh</attribute>
+                <attribute name="placeholder">Tỉnh</attribute>
+            </xpath>
+            <xpath expr="(//field[@name='state_id'])[3]" position="attributes">
+                <attribute name="string">Tỉnh</attribute>
+                <attribute name="placeholder">Tỉnh</attribute>
+            </xpath>
         </field>
     </record>
     <record id="vnoptic_view_partner_search_inherit" model="ir.ui.view">
