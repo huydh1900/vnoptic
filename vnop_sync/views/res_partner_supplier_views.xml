@@ -21,13 +21,13 @@
         <field name="priority">999</field>
         <field name="arch" type="xml">
             <xpath expr="//sheet/group/group/div[@class='o_address_format']/field[@name='street2']" position="attributes">
-                <attribute name="invisible">0</attribute>
+                <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//sheet/group/group/div[@class='o_address_format']/field[@name='city']" position="attributes">
                 <attribute name="invisible">0</attribute>
             </xpath>
             <xpath expr="//sheet/group/group/div[@class='o_address_format']/field[@name='state_id']" position="attributes">
-                <attribute name="invisible">0</attribute>
+                <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//sheet/group/group/div[@class='o_address_format']/field[@name='zip']" position="attributes">
                 <attribute name="invisible">0</attribute>
@@ -45,7 +45,6 @@
 
             <xpath expr="//form/sheet/group/group[2]" position="inside">
                 <field name="x_supplier_fax"/>
-                <field name="x_supplier_contact_name"/>
             </xpath>
         </field>
     </record>
@@ -70,6 +69,7 @@
             <xpath expr="//field[@name='bank_id']" position="after">
                 <field name="bank_bic" string="Swift Code"/>
                 <field name="x_bank_address"/>
+                <!-- Đã bỏ x_bank_country, dùng trực tiếp bank_id.country nếu cần -->
             </xpath>
         </field>
     </record>

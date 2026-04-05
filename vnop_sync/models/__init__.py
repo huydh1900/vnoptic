@@ -12,6 +12,7 @@ from . import product_shape
 from . import product_material
 from . import product_color
 from . import res_partner_supplier
+from . import res_bank_display_name_patch
 
 from . import product_template_debug_log
 from . import product_import_base_inherit

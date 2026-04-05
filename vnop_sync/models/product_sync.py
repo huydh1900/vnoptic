@@ -208,6 +208,99 @@ class ProductSync(models.Model):
                 return text
         return False
 
+    def _get_first_dict_value(self, source, keys):
+        if not isinstance(source, dict):
+            return False
+        lower_key_map = {str(k).lower(): k for k in source.keys()}
+        for key in keys:
+            actual_key = key if key in source else lower_key_map.get(str(key).lower())
+            if actual_key is None:
+                continue
+            value = source.get(actual_key)
+            if isinstance(value, dict) and value:
+                return value
+        return False
+
+    def _normalize_country_lookup_text(self, value):
+        if value in (None, False):
+            return ''
+        text = str(value).strip().lower()
+        if not text:
+            return ''
+        normalized = unicodedata.normalize('NFKD', text)
+        normalized = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+        normalized = re.sub(r'[^a-z0-9]+', ' ', normalized).strip()
+        return re.sub(r'\s+', ' ', normalized)
+
+    def _resolve_country_from_text(self, country_text):
+        cleaned_country = self._clean_placeholder_text(country_text)
+        if not cleaned_country:
+            return False
+
+        text = str(cleaned_country).strip()
+        code_candidate = text.upper()
+        if re.fullmatch(r'[A-Z]{2,3}', code_candidate):
+            rec = self.env['res.country'].search([('code', '=ilike', code_candidate)], limit=1)
+            if rec:
+                return rec.id
+
+        rec = self.env['res.country'].search([('name', '=ilike', text)], limit=1)
+        if rec:
+            return rec.id
+
+        target = self._normalize_country_lookup_text(text)
+        if not target:
+            return False
+
+        for country in self.env['res.country'].search([]):
+            if self._normalize_country_lookup_text(country.name) == target:
+                return country.id
+        return False
+
+    def _resolve_country_from_rs_dto(self, country_dto):
+        if not isinstance(country_dto, dict):
+            return False
+
+        cid = self._clean_placeholder_text(country_dto.get('cid') or country_dto.get('code'))
+        if cid:
+            rec = self.env['res.country'].search([('code', '=ilike', str(cid).strip())], limit=1)
+            if rec:
+                return rec.id
+
+        country_name = self._clean_placeholder_text(country_dto.get('name') or country_dto.get('value'))
+        return self._resolve_country_from_text(country_name)
+
+    def _build_supplier_partner_address_vals(self, address):
+        cleaned_address = self._clean_placeholder_text(address)
+        if not cleaned_address:
+            return {}
+
+        address_text = str(cleaned_address).strip().strip(',')
+        if not address_text:
+            return {}
+
+        parts = [part.strip() for part in address_text.split(',') if part and part.strip()]
+
+        # Chỉ parse city/country khi địa chỉ đủ 4 phần: đường, huyện, thành phố, quốc gia.
+        if len(parts) < 4:
+            return {
+                'street': address_text,
+                'street2': False,
+                'city': False,
+                'country_id': False,
+            }
+
+        country_name = parts[-1]
+        city_name = parts[-2]
+        street_name = ', '.join(parts[:-2])
+
+        return {
+            'street': street_name,
+            'street2': False,
+            'city': city_name,
+            'country_id': self._resolve_country_from_text(country_name) or False,
+        }
+
     def _sanitize_bank_account_number(self, acc_number):
         if not acc_number:
             return False
@@ -286,6 +379,7 @@ class ProductSync(models.Model):
         phone = self._get_first_valid_value(supplier_detail, ['phone', 'phoneNumber', 'tel'])
         email = self._get_first_valid_value(supplier_detail, ['mail', 'email'])
         address = self._get_first_valid_value(supplier_detail, ['address', 'street', 'fullAddress'])
+        address_vals = self._build_supplier_partner_address_vals(address) if address else {}
         tax_id = self._get_first_valid_value(supplier_detail, ['taxId', 'taxID', 'taxid', 'taxCode'])
         contact_aliases = [
             'contact', 'contactName', 'contactPerson', 'contact_name', 'contact_person',
@@ -314,14 +408,14 @@ class ProductSync(models.Model):
                 create_vals['phone'] = phone
             if email:
                 create_vals['email'] = email
-            if address:
-                create_vals['street'] = address
+            if address_vals:
+                for field_name, value in address_vals.items():
+                    if value:
+                        create_vals[field_name] = value
             if tax_id:
                 create_vals['vat'] = tax_id
             if fax and 'x_supplier_fax' in self.env['res.partner']._fields:
                 create_vals['x_supplier_fax'] = fax
-            if contact_name and 'x_supplier_contact_name' in self.env['res.partner']._fields:
-                create_vals['x_supplier_contact_name'] = contact_name
             if currency_id and 'property_purchase_currency_id' in self.env['res.partner']._fields:
                 create_vals['property_purchase_currency_id'] = currency_id
 
@@ -343,9 +437,7 @@ class ProductSync(models.Model):
         field_value_pairs = [
             ('phone', phone),
             ('email', email),
-            ('street', address),
             ('vat', tax_id),
-            ('x_supplier_contact_name', contact_name),
             ('x_supplier_fax', fax),
         ]
         for field_name, value in field_value_pairs:
@@ -354,6 +446,17 @@ class ProductSync(models.Model):
             if value and partner[field_name] != value:
                 write_vals[field_name] = value
 
+        if address_vals:
+            for field_name, value in address_vals.items():
+                if field_name not in partner._fields:
+                    continue
+                if field_name == 'country_id':
+                    current_value = partner.country_id.id or False
+                else:
+                    current_value = partner[field_name] or False
+                if current_value != (value or False):
+                    write_vals[field_name] = value or False
+
         if currency_id and 'property_purchase_currency_id' in partner._fields:
             if partner.property_purchase_currency_id.id != currency_id:
                 write_vals['property_purchase_currency_id'] = currency_id
@@ -361,17 +464,56 @@ class ProductSync(models.Model):
         self._cleanup_placeholder_field(partner, 'phone', write_vals)
         self._cleanup_placeholder_field(partner, 'email', write_vals)
         self._cleanup_placeholder_field(partner, 'street', write_vals)
+        self._cleanup_placeholder_field(partner, 'street2', write_vals)
+        self._cleanup_placeholder_field(partner, 'city', write_vals)
         self._cleanup_placeholder_field(partner, 'vat', write_vals)
-        self._cleanup_placeholder_field(partner, 'x_supplier_contact_name', write_vals)
         self._cleanup_placeholder_field(partner, 'x_supplier_fax', write_vals)
 
         if write_vals:
             partner.write(write_vals)
 
+        self._upsert_supplier_contact(partner, contact_name)
+
         cache.setdefault('suppliers', {})[cache_key] = partner.id
         return partner
 
-    def _upsert_supplier_bank_account(self, partner, supplier_detail, currency_id=False):
+    def _upsert_supplier_contact(self, partner, contact_name):
+        if not partner or not contact_name:
+            return False
+
+        clean_contact_name = contact_name.strip() if isinstance(contact_name, str) else False
+        if not clean_contact_name:
+            return False
+
+        contact = self.env['res.partner'].search([
+            ('parent_id', '=', partner.id),
+            ('type', '=', 'contact'),
+            ('name', '=ilike', clean_contact_name),
+        ], limit=1)
+
+        if contact:
+            return contact
+
+        nameless_contact = self.env['res.partner'].search([
+            ('parent_id', '=', partner.id),
+            ('type', '=', 'contact'),
+            '|',
+            ('name', '=', False),
+            ('name', '=', ''),
+        ], limit=1)
+
+        if nameless_contact:
+            nameless_contact.write({'name': clean_contact_name})
+            return nameless_contact
+
+        return self.env['res.partner'].create({
+            'name': clean_contact_name,
+            'parent_id': partner.id,
+            'type': 'contact',
+            'is_company': False,
+        })
+
+    def _upsert_supplier_bank_account(self, partner, supplier_detail, currency_id=False, supplier_root=False):
         if not partner or not supplier_detail:
             return False
 
@@ -392,6 +534,16 @@ class ProductSync(models.Model):
 
         swift_code = self._get_first_valid_value(supplier_detail, ['swiftCode', 'swift', 'bic', 'swift_code'])
         bank_address = self._get_first_valid_value(supplier_detail, ['bankAddress', 'bank_address', 'addressBank'])
+        bank_country_dto = self._get_first_dict_value(
+            supplier_detail,
+            ['coDTO', 'coDto', 'countryDTO', 'countryDto', 'bankCountryDTO', 'bankCountryDto']
+        )
+        if not bank_country_dto and supplier_root:
+            bank_country_dto = self._get_first_dict_value(
+                supplier_root,
+                ['coDTO', 'coDto', 'countryDTO', 'countryDto', 'bankCountryDTO', 'bankCountryDto']
+            )
+        bank_country_id = self._resolve_country_from_rs_dto(bank_country_dto)
 
         bank = self.env['res.bank'].search([('name', '=ilike', bank_name)], limit=1)
         if not bank:
@@ -409,6 +561,8 @@ class ProductSync(models.Model):
             bank_write_vals['bic'] = swift_code
         if bank_address and bank.street != bank_address:
             bank_write_vals['street'] = bank_address
+        if bank_country_id and bank.country.id != bank_country_id:
+            bank_write_vals['country'] = bank_country_id
         # Cleanup placeholder values from existing records if payload does not provide valid replacement.
         if 'bic' not in bank_write_vals and isinstance(bank.bic, str) and self._is_placeholder_value(bank.bic):
             bank_write_vals['bic'] = False
@@ -2099,7 +2253,12 @@ class ProductSync(models.Model):
                 continue
 
             supplier_partner = partner_candidate
-            self._upsert_supplier_bank_account(supplier_partner, s_det, currency_id=currency_id)
+            self._upsert_supplier_bank_account(
+                supplier_partner,
+                s_det,
+                currency_id=currency_id,
+                supplier_root=s_dto,
+            )
 
         if supplier_partner:
             _seller_currency_id = currency_id or self.env.company.currency_id.id
