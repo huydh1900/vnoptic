@@ -59,3 +59,6 @@ def post_init_hook(env):
             {'name': 'Photochromic Grey', 'feature_type': 'photochromic'},
             {'name': 'Photochromic Brown', 'feature_type': 'photochromic'},
         ])
+
+    # Keep export templates in sync with vnop import rules.
+    env['product.template']._ensure_vnop_export_templates()

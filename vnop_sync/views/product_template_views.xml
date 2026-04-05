@@ -69,6 +69,10 @@
                 <attribute name="invisible" add="type == 'consu'" separator=" or "/>
             </xpath>
 
+            <xpath expr="//page[@name='general_information']//group[@name='internal_notes']" position="attributes">
+                <attribute name="string">Mô tả</attribute>
+            </xpath>
+
             <!-- Ẩn tab Thuộc tính & Biến thể cho tròng và gọng kính -->
             <xpath expr="//page[.//field[@name='attribute_line_ids']]" position="attributes">
                 <attribute name="invisible">categ_code in ('TK', 'GK')</attribute>
