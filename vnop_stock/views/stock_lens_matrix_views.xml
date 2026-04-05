@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_lens_stock_matrix" model="ir.actions.client">
+        <field name="name">Tồn kho Tròng kính theo Độ</field>
+        <field name="tag">vnop_stock.lens_stock_matrix</field>
+    </record>
+
+    <menuitem id="menu_lens_stock_matrix"
+              name="Tồn kho Tròng kính theo Độ"
+              parent="stock.menu_stock_root"
+              action="action_lens_stock_matrix"
+              sequence="1"/>
+
+</odoo>

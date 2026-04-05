@@ -2500,25 +2500,35 @@ class ProductSync(models.Model):
                     return False
 
             def _goc_power(raw_val, power_type=None):
-                """Get or create product.lens.power by float value."""
+                """Get or create product.lens.power by (value, power_type).
+
+                - power_type in ('sph', 'cyl'): match/create bản ghi có đúng loại.
+                - power_type ngoài danh sách (vd 'add') hoặc None: match/create bản ghi
+                  có power_type = False (legacy/ADD), không đụng tới SPH/CYL master data.
+                """
                 if raw_val is None or raw_val == '':
                     return False
                 try:
                     fval = float(raw_val)
                 except (TypeError, ValueError):
                     return False
-                formatted = f"{fval:+.2f}"
-                cached = cache.get('lens_powers_m2o', {}).get(fval)
+                ptype = power_type if power_type in ('sph', 'cyl') else False
+                cache_key = (fval, ptype)
+                cached = cache.get('lens_powers_m2o', {}).get(cache_key)
                 if cached:
                     return cached
-                found = self.env['product.lens.power'].search([('value', '=', fval)], limit=1)
+                domain = [('value', '=', fval), ('power_type', '=', ptype)]
+                found = self.env['product.lens.power'].search(domain, limit=1)
                 if found:
-                    cache.setdefault('lens_powers_m2o', {})[fval] = found.id
+                    cache.setdefault('lens_powers_m2o', {})[cache_key] = found.id
                     return found.id
                 try:
                     with self.env.cr.savepoint():
-                        rec = self.env['product.lens.power'].create({'value': fval})
-                    cache.setdefault('lens_powers_m2o', {})[fval] = rec.id
+                        rec = self.env['product.lens.power'].create({
+                            'value': fval,
+                            'power_type': ptype or False,
+                        })
+                    cache.setdefault('lens_powers_m2o', {})[cache_key] = rec.id
                     return rec.id
                 except Exception:
                     return False

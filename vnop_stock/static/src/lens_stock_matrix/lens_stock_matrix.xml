@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="vnop_stock.LensStockMatrix">
+        <div class="o_lens_stock_matrix o_action_manager">
+            <div class="o_lsm_header">
+                <div class="o_lsm_title">
+                    <h2>Tồn kho Tròng kính theo Độ</h2>
+                    <p class="text-muted mb-0">
+                        Ma trận tồn kho – cột: <b>SPH (Độ cận)</b>, dòng: <b>CYL (Độ loạn)</b>
+                    </p>
+                </div>
+                <div class="o_lsm_actions">
+                    <span class="o_lsm_total_badge" t-if="!state.loading">
+                        Tổng tồn: <b><t t-esc="formatQty(state.grandTotal)"/></b>
+                    </span>
+                    <button class="btn btn-primary" t-on-click="onRefresh">
+                        <i class="fa fa-refresh me-1"/> Làm mới
+                    </button>
+                </div>
+            </div>
+
+            <div class="o_lsm_body">
+                <div t-if="state.loading" class="o_lsm_loading">
+                    <i class="fa fa-spinner fa-spin fa-2x"/>
+                    <div class="mt-2">Đang tải dữ liệu tồn kho...</div>
+                </div>
+
+                <div t-elif="!state.sphAxis.length or !state.cylAxis.length"
+                     class="o_lsm_empty">
+                    <i class="fa fa-inbox fa-3x text-muted"/>
+                    <h4 class="mt-3">Chưa cấu hình danh mục SPH/CYL</h4>
+                    <p class="text-muted">
+                        Vui lòng khai báo giá trị độ trong <b>product.lens.power</b> trước khi xem ma trận tồn kho.
+                    </p>
+                </div>
+
+                <div t-else="" class="o_lsm_table_wrap">
+                    <table class="o_lsm_table">
+                        <thead>
+                            <tr>
+                                <th class="o_lsm_corner">
+                                    <span class="o_lsm_corner_cyl">CYL ↓</span>
+                                    <span class="o_lsm_corner_sph">SPH →</span>
+                                </th>
+                                <th t-foreach="state.sphAxis" t-as="sph" t-key="sph.id"
+                                    class="o_lsm_col_head">
+                                    <t t-esc="sph.name"/>
+                                </th>
+                                <th class="o_lsm_total_head">Tổng</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="state.cylAxis" t-as="cyl" t-key="cyl.id">
+                                <th class="o_lsm_row_head">
+                                    <t t-esc="cyl.name"/>
+                                </th>
+                                <td t-foreach="state.sphAxis" t-as="sph" t-key="sph.id"
+                                    class="o_lsm_cell"
+                                    t-att-style="cellStyle(getCell(cyl.id, sph.id))">
+                                    <t t-esc="formatQty(getCell(cyl.id, sph.id))"/>
+                                </td>
+                                <td class="o_lsm_row_total">
+                                    <t t-esc="formatQty(state.rowTotals[cyl.id] || 0)"/>
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th class="o_lsm_row_head">Tổng</th>
+                                <td t-foreach="state.sphAxis" t-as="sph" t-key="sph.id"
+                                    class="o_lsm_col_total">
+                                    <t t-esc="formatQty(state.colTotals[sph.id] || 0)"/>
+                                </td>
+                                <td class="o_lsm_grand_total">
+                                    <t t-esc="formatQty(state.grandTotal)"/>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </t>
+
+</templates>

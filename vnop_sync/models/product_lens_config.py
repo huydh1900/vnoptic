@@ -4,9 +4,16 @@ from odoo import models, fields, api
 class LensPower(models.Model):
     _name = 'product.lens.power'
     _description = 'Lens Power Value (SPH/CYL)'
-    _order = 'value, id'
+    _order = 'power_type, value, id'
 
     value = fields.Float('Giá trị', required=True, digits=(4, 2))
+    power_type = fields.Selection(
+        [('sph', 'SPH'), ('cyl', 'CYL')],
+        string='Loại độ',
+        index=True,
+        help='Phân loại độ: SPH (độ cận) hoặc CYL (độ loạn). '
+             'Bỏ trống cho ADD hoặc dữ liệu legacy.',
+    )
     name = fields.Char(compute='_compute_name', store=True)
 
     @api.depends('value')
@@ -15,7 +22,11 @@ class LensPower(models.Model):
             r.name = "0.00" if r.value == 0.0 else f"{r.value:+.2f}"
 
     _sql_constraints = [
-        ('value_uniq', 'unique (value)', 'The power value must be unique!')
+        (
+            'value_type_uniq',
+            'unique (value, power_type)',
+            'Mỗi cặp (giá trị, loại độ) phải là duy nhất!',
+        ),
     ]
 
 class LensDesign(models.Model):

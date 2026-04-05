@@ -1,8 +1,8 @@
 {
     'name': 'Product Sync from Server',
-    'version': '18.0.1.0.5',
+    'version': '18.0.1.0.8',
     'category': 'Inventory',
-    'depends': ['base', 'stock', 'product', 'purchase', 'account', 'l10n_vn', 'queue_job'],
+    'depends': ['base', 'stock', 'product', 'purchase', 'account', 'l10n_vn', 'queue_job', 'queue_job_cron_jobrunner'],
     'data': [
         'security/ir.model.access.csv',
         'data/uom_data.xml',
