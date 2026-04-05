@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Đề nghị mua hàng",
-    "depends": ["purchase", "mail", "vnop_contract"],
+    "depends": ["purchase", "mail", "vnop_contract", "vnop_sync"],
     "data": [
         "security/ir.model.access.csv",
         "data/purchase_offer_data.xml",

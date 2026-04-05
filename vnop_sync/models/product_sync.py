@@ -30,6 +30,7 @@ class ProductSync(models.Model):
     last_sync_date = fields.Datetime('Ngày đồng bộ cuối', readonly=True)
     sync_status = fields.Selection([
         ('never', 'Chưa đồng bộ'),
+        ('queued', 'Đang chờ'),
         ('in_progress', 'Đang đồng bộ'),
         ('success', 'Thành công'),
         ('error', 'Lỗi')])
@@ -3402,62 +3403,119 @@ class ProductSync(models.Model):
 
         return success, failed
 
+    # ------------------------------------------------------------------
+    # Queue Job integration (OCA queue_job): mỗi nút sync chỉ enqueue một
+    # `queue.job`, worker/cron jobrunner sẽ xử lý bất đồng bộ trong cron
+    # worker → không bị HTTP worker timeout / proxy cắt kết nối.
+    # ------------------------------------------------------------------
+    _SYNC_JOB_DESCRIPTIONS = {
+        'full': 'vnop_sync: Đồng bộ toàn bộ sản phẩm (thông tin + ảnh)',
+        'data': 'vnop_sync: Đồng bộ thông tin sản phẩm (bỏ qua ảnh)',
+        'images': 'vnop_sync: Đồng bộ ảnh sản phẩm',
+        'limited': 'vnop_sync: Đồng bộ giới hạn',
+    }
+
+    def _enqueue_sync_job(self, job, limit=0):
+        """Đẩy 1 `queue.job` để xử lý bất đồng bộ."""
+        self.ensure_one()
+        if self.sync_status in ('queued', 'in_progress'):
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Đã có job đang chạy',
+                    'message': 'Bản ghi này đang trong hàng đợi hoặc đang đồng bộ, vui lòng đợi hoàn tất.',
+                    'type': 'warning',
+                },
+            }
+        description = self._SYNC_JOB_DESCRIPTIONS.get(job, 'vnop_sync: Đồng bộ sản phẩm')
+        if job == 'limited' and limit:
+            description = f'{description} ({int(limit)} bản ghi)'
+        self.write({
+            'sync_status': 'queued',
+            'sync_log': f'Đã enqueue: {description}. Queue Job worker sẽ xử lý.',
+            'last_sync_date': fields.Datetime.now(),
+        })
+        self.with_delay(description=description)._run_sync_job(job, int(limit or 0))
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Đã xếp hàng đồng bộ',
+                'message': 'Kiểm tra tiến độ tại menu Queue / Jobs hoặc refresh form này.',
+                'type': 'success',
+            },
+        }
+
+    def _run_sync_job(self, job, limit=0):
+        """Được queue_job gọi bất đồng bộ để thực thi 1 job sync.
+
+        Chạy trong cron worker (nhờ `queue_job_cron_jobrunner`) hoặc trong
+        JobRunner process riêng — không bị `limit_time_cpu`/`limit_time_real`
+        của HTTP worker. Chỉ cần đảm bảo `limit_time_real_cron` đủ lớn.
+        """
+        self.ensure_one()
+        image_mode = None
+        job_limit = int(limit) or None
+        if job == 'data':
+            image_mode = 'off'
+        elif job == 'images':
+            image_mode = 'always'
+        elif job == 'limited':
+            job_limit = job_limit or 1000
+        # else 'full' → default (image_mode=None = auto)
+
+        try:
+            msg, full_log, stats = self._do_sync(limit=job_limit, image_mode=image_mode)
+        except Exception as e:
+            # queue_job sẽ tự rollback + đánh dấu job failed với traceback.
+            # Ghi thêm trạng thái lỗi trên product.sync bằng cursor riêng để
+            # user thấy trên UI (nếu không, record vẫn ở state 'queued').
+            _logger.exception("[vnop_sync] queue_job %s thất bại", job)
+            try:
+                with Registry(self.env.cr.dbname).cursor() as new_cr:
+                    new_env = self.env(cr=new_cr)
+                    new_env[self._name].browse(self.id).write({
+                        'sync_status': 'error',
+                        'sync_log': f'Lỗi khi chạy job {job}: {str(e)[:2000]}',
+                        'last_sync_date': fields.Datetime.now(),
+                    })
+            except Exception:
+                pass
+            raise
+
+        self.write({
+            'sync_status': 'success',
+            'sync_log': full_log,
+            'total_synced': stats['lens'] + stats['opt'] + stats['acc'],
+            'total_failed': stats['failed'],
+            'lens_count': stats['lens'],
+            'opts_count': stats['opt'],
+            'other_count': stats['acc'],
+            'last_sync_date': fields.Datetime.now(),
+        })
+        _logger.info("[vnop_sync] queue_job %s hoàn tất: %s", job, msg)
+        return msg
+
     def sync_products_from_springboot(self):
-        # If called from cron/server action, self might be empty
+        # Enqueue thay vì chạy trực tiếp (tránh HTTP worker timeout).
         rec = self
         if not rec:
             rec = self.search([], limit=1, order='last_sync_date desc')
             if not rec:
                 rec = self.create({'name': 'Đồng bộ tự động hàng ngày'})
-        return rec._run_sync()
+        return rec._enqueue_sync_job('full')
 
     def sync_products_limited(self, limit=1000):
-        return self._run_sync(limit)
+        return self._enqueue_sync_job('limited', limit=limit)
 
     def sync_data_only(self):
         """Đồng bộ thông tin sản phẩm, bỏ qua ảnh."""
-        return self._run_sync(image_mode='off')
+        return self._enqueue_sync_job('data')
 
     def sync_images_only(self):
         """Chỉ đồng bộ ảnh sản phẩm."""
-        return self._run_sync(image_mode='always')
-
-    def _run_sync(self, limit=None, image_mode=None):
-        self.ensure_one()
-        rec_id = self.id
-        db = self.env.cr.dbname
-
-        # Đánh dấu in_progress trên cursor gốc rồi commit ngay
-        self.write(
-            {'sync_status': 'in_progress', 'sync_log': 'Đang đồng bộ...', 'last_sync_date': fields.Datetime.now()})
-        self.env.cr.commit()
-
-        # Toàn bộ sync chạy trên cursor riêng biệt → tránh bị websocket/bus kill
-        try:
-            from odoo import registry as Registry
-            with Registry(db).cursor() as cr:
-                env = self.env(cr=cr)
-                rec = env[self._name].browse(rec_id)
-                msg, full_log, stats = rec._do_sync(limit, image_mode=image_mode)
-                rec.write({
-                    'sync_status': 'success', 'sync_log': full_log,
-                    'total_synced': stats['lens'] + stats['opt'] + stats['acc'],
-                    'total_failed': stats['failed'],
-                    'lens_count': stats['lens'], 'opts_count': stats['opt'], 'other_count': stats['acc'],
-                })
-                # cr.commit() tự động khi thoát with block thành công
-            return {'type': 'ir.actions.client', 'tag': 'display_notification',
-                    'params': {'title': 'Đồng bộ hoàn tất', 'message': msg, 'type': 'success'}}
-        except Exception as e:
-            try:
-                with Registry(db).cursor() as cr:
-                    self.env(cr=cr)[self._name].browse(rec_id).write(
-                        {'sync_status': 'error', 'sync_log': str(e)[:1000]}
-                    )
-            except Exception:
-                pass
-            return {'type': 'ir.actions.client', 'tag': 'display_notification',
-                    'params': {'title': 'Đồng bộ thất bại', 'message': str(e)[:500], 'type': 'danger'}}
+        return self._enqueue_sync_job('images')
 
     def _do_sync(self, limit=None, image_mode=None):
         """Logic sync thực sự — chạy trên cursor riêng được truyền vào qua self.env."""
