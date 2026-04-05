@@ -5,6 +5,7 @@
     'data': [
         'security/ir.model.access.csv',
         'data/landed_cost_products.xml',
+        'data/menu_hide.xml',
         'views/purchase_order_views.xml',
         'views/purchase_product_menus.xml',
     ],

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="0">
+
+    <record id="sale.report_sales_team" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <record id="sale.menu_sale_report" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <record id="mail.menu_root_discuss" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+</odoo>

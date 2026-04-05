@@ -27,7 +27,7 @@
                 <field name="uom_id"/>
                 <field name="currency_id"/>
                 <field name="list_price"/>
-                <field name="x_ws_price"/>
+                <field name="standard_price"/>
             </xpath>
 
             <xpath expr="//kanban/templates" position="replace">
@@ -90,9 +90,11 @@
                                     <span class="vnop_uom" t-if="record.uom_id.raw_value"><field name="uom_id"/></span>
                                 </div>
                                 <div class="vnop_price">
-                                    <span class="vnop_price_main"><field name="list_price" widget="monetary"/></span>
-                                    <span class="vnop_price_ws" t-if="record.x_ws_price.raw_value">
-                                        Sỉ <field name="x_ws_price" widget="monetary"/>
+                                    <span class="vnop_price_main">
+                                        <field name="list_price" widget="monetary"/>
+                                    </span>
+                                    <span class="vnop_price_cost">
+                                        <field name="standard_price" widget="monetary"/>
                                     </span>
                                 </div>
                             </div>

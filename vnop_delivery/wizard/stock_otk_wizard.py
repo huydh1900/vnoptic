@@ -184,7 +184,7 @@ class StockOtkWizard(models.TransientModel):
     def _get_transfer_locations(self):
         """Lấy 3 tham chiếu cần thiết cho internal transfer: kho chính, kho lỗi, picking type."""
         loc_stock = self.env.ref('stock.stock_location_stock', raise_if_not_found=False)
-        loc_defect = self.env.ref('vnop_delivery.location_defect', raise_if_not_found=False)
+        loc_defect = self.env.ref('vnop_stock.location_defect', raise_if_not_found=False)
         int_type = self.env.ref('stock.picking_type_internal', raise_if_not_found=False)
         if not loc_stock or not loc_defect or not int_type:
             raise ValidationError(

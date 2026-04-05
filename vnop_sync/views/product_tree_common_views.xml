@@ -6,10 +6,16 @@
         <field name="inherit_id" ref="product.product_template_tree_view"/>
         <field name="priority">100</field>
         <field name="arch" type="xml">
+            <!-- Move default_code before name -->
+            <xpath expr="//field[@name='name']" position="before">
+                <field name="default_code" position="move"/>
+            </xpath>
+            <!-- Hide product_tag_ids column -->
+            <field name="product_tag_ids" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
             <!-- Add common fields after name -->
             <xpath expr="//field[@name='name']" position="after">
-                <field name="default_code"/>
-                
                 <!-- Common fields -->
                 <field name="brand_id" optional="show"/>
                 <field name="group_id" optional="show"/>
@@ -17,7 +23,6 @@
                 <field name="country_id" optional="hide"/>
                 
                 <!-- Price fields -->
-                <field name="list_price"/>
                 <field name="x_ws_price" optional="hide"/>
                 <field name="product_status" optional="hide"/>
             </xpath>

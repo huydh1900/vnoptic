@@ -1044,9 +1044,19 @@ class ProductSync(models.Model):
         # Company cho seller_ids
         cache['_seller_company_id'] = self.env.company.id
 
-        # Taxes (Purchase taxes only)
-        for t in self.env['account.tax'].search_read([('type_tax_use', '=', 'purchase')], ['id', 'name']):
-            cache['taxes'][t['name']] = t['id']
+        # Taxes (Purchase taxes only) — key theo amount (%) để map theo thuế suất,
+        # tái sử dụng các tax mua hàng có sẵn của l10n_vn ("Thuế GTGT được khấu trừ X%").
+        company_id = self.env.company.id
+        tax_domain = [
+            ('type_tax_use', '=', 'purchase'),
+            ('amount_type', '=', 'percent'),
+            ('company_id', 'in', [company_id, False]),
+        ]
+        for t in self.env['account.tax'].search_read(
+            tax_domain, ['id', 'amount', 'company_id'], order='company_id desc, id asc'
+        ):
+            # company_id desc để tax của chính company ghi đè tax global (nếu có cùng amount)
+            cache['taxes'].setdefault(t['amount'], t['id'])
 
         # Statuses (selection mapping: name → value)
         cache['statuses'] = {'MỚI': 'new', 'HIỆN HÀNH': 'current', 'NEW': 'new', 'CURRENT': 'current'}
@@ -2171,28 +2181,25 @@ class ProductSync(models.Model):
                 'company_id': cache.get('_seller_company_id', self.env.company.id),
             }
 
-        # Tax (Purchase tax for suppliers)
+        # Tax (Purchase tax for suppliers) — map theo thuế suất vào tax có sẵn
+        # (ưu tiên thuế mua hàng của l10n_vn). Không tự tạo tax mới để tránh
+        # trùng lặp với chart of accounts Việt Nam.
         tax_pct = self._to_float(dto.get('tax'), default=0.0)
         tax_id = False
         if tax_pct > 0:
-            t_name = f"Thuế mua hàng {tax_pct}%"
-            if t_name in cache['taxes']:
-                tax_id = cache['taxes'][t_name]
+            if tax_pct in cache['taxes']:
+                tax_id = cache['taxes'][tax_pct]
             else:
-                try:
-                    with self.env.cr.savepoint():
-                        nt = self.env['account.tax'].create({
-                            'name': t_name,
-                            'amount': tax_pct,
-                            'amount_type': 'percent',
-                            'type_tax_use': 'purchase'
-                        })
-                    tax_id = nt.id
-                except Exception:
-                    nt = self.env['account.tax'].search([('name', '=', t_name)], limit=1)
-                    tax_id = nt.id if nt else False
+                company_id = cache.get('_seller_company_id', self.env.company.id)
+                nt = self.env['account.tax'].search([
+                    ('type_tax_use', '=', 'purchase'),
+                    ('amount_type', '=', 'percent'),
+                    ('amount', '=', tax_pct),
+                    ('company_id', 'in', [company_id, False]),
+                ], order='company_id desc, id asc', limit=1)
+                tax_id = nt.id if nt else False
                 if tax_id:
-                    cache['taxes'][t_name] = tax_id
+                    cache['taxes'][tax_pct] = tax_id
 
         # Status
         product_status = False

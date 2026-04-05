@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_partner_form_channel" model="ir.ui.view">
+        <field name="name">res.partner.form.channel</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='vat']" position="after">
+                <field name="channel_type"
+                       invisible="context.get('res_partner_search_mode') == 'supplier'"/>
+            </xpath>
+            <xpath expr="(//field[@name='street2'])[1]" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="(//field[@name='street2'])[2]" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="account.res_partner_action_customer" model="ir.actions.act_window">
+        <field name="domain">[('customer_rank', '>', 0)]</field>
+    </record>
+
+    <record id="account.res_partner_action_supplier" model="ir.actions.act_window">
+        <field name="domain">[('supplier_rank', '>', 0)]</field>
+    </record>
+
+    <record id="view_res_partner_filter_channel" model="ir.ui.view">
+        <field name="name">res.partner.search.channel</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='type_company']" position="after">
+                <separator/>
+                <filter string="Khách buôn" name="filter_wholesale"
+                        domain="[('channel_type', '=', 'wholesale')]"/>
+                <filter string="Khách lẻ" name="filter_retail"
+                        domain="[('channel_type', '=', 'retail')]"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
