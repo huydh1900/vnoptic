@@ -96,7 +96,8 @@
                                     <field name="quantity" sum="Tổng SL dự kiến"/>
                                     <field name="qty_received" readonly="1" sum="Tổng SL đã nhận" column_invisible="not parent.has_received"/>
                                     <field name="expected_price"/>
-                                    <field name="taxes_id" widget="many2many_tags" optional="show"/>
+                                    <field name="taxes_id" widget="many2many_tags" optional="show"
+                                           domain="[('type_tax_use', '=', 'purchase')]"/>
                                     <field name="subtotal" sum="Tổng giá trị dự kiến"/>
                                     <field name="currency_id" column_invisible="1"/>
                                 </list>

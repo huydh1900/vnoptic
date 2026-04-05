@@ -29,6 +29,30 @@ class LensPower(models.Model):
         ),
     ]
 
+class LensAdd(models.Model):
+    """Giá trị ADD (Addition Power) cho tròng đa tròng / hai tròng.
+
+    Tách riêng khỏi `product.lens.power` vì ADD chỉ là số dương (thường
+    0.00 → +3.50), còn SPH/CYL thường âm. Việc tách model giúp semantic
+    rõ ràng và tránh lẫn master data.
+    """
+    _name = 'product.lens.add'
+    _description = 'Lens Addition Power (ADD)'
+    _order = 'value, id'
+
+    value = fields.Float('Giá trị', required=True, digits=(4, 2))
+    name = fields.Char(compute='_compute_name', store=True)
+
+    @api.depends('value')
+    def _compute_name(self):
+        for r in self:
+            r.name = "0.00" if r.value == 0.0 else f"{r.value:+.2f}"
+
+    _sql_constraints = [
+        ('value_uniq', 'unique (value)', 'Giá trị ADD phải là duy nhất!'),
+    ]
+
+
 class LensDesign(models.Model):
     _name = 'product.lens.design'
     _description = 'Lens Design Type'

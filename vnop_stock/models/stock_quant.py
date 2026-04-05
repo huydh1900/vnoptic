@@ -9,9 +9,10 @@ class StockQuant(models.Model):
     def get_lens_stock_matrix(self):
         """Return lens on-hand stock aggregated by SPH (column) × CYL (row).
 
-        Luôn trả về full grid: trục SPH/CYL lấy từ toàn bộ product.lens.power
-        (không phụ thuộc vào việc có tồn kho hay không). Các ô không có dữ liệu
-        sẽ bỏ trống phía frontend.
+        Trục ngang (SPH - độ cận) và trục dọc (CYL - độ loạn) được lấy từ
+        toàn bộ bản ghi `product.lens.power` có `power_type` tương ứng,
+        sắp giảm dần theo value (0 → âm dần). Ma trận luôn hiển thị full
+        grid theo master data; ô không có tồn kho sẽ bỏ trống.
 
         Structure::
 
@@ -25,8 +26,13 @@ class StockQuant(models.Model):
             }
         """
         Power = self.env['product.lens.power']
-        sph_records = Power.search([('power_type', '=', 'sph')], order='value')
-        cyl_records = Power.search([('power_type', '=', 'cyl')], order='value')
+        # Sort giảm dần theo value để hiển thị 0 → âm dần
+        sph_records = Power.search(
+            [('power_type', '=', 'sph')], order='value desc'
+        )
+        cyl_records = Power.search(
+            [('power_type', '=', 'cyl')], order='value desc'
+        )
 
         def _serialize(rec):
             return {'id': rec.id, 'name': rec.name, 'value': rec.value}

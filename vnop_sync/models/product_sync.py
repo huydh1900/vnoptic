@@ -21,6 +21,13 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 _logger = logging.getLogger(__name__)
 
 
+class _TokenExpiredError(Exception):
+    """Raised when Spring Boot API trả 401/403 giữa chừng khi đang paging.
+    Caller sẽ bắt exception này, gọi lại `_get_access_token` để refresh
+    token và retry page hiện tại."""
+    pass
+
+
 class ProductSync(models.Model):
     _name = 'product.sync'
     _description = 'Product Synchronization'
@@ -849,9 +856,18 @@ class ProductSync(models.Model):
                     verify=config['ssl_verify'],
                     timeout=config['api_timeout']
                 )
+                # Phát hiện token hết hạn / bị revoke giữa chừng:
+                # raise exception riêng để caller (_iter_batches) biết và refresh token.
+                if response.status_code in (401, 403):
+                    raise _TokenExpiredError(
+                        f"HTTP {response.status_code} at page={page} url={url}"
+                    )
                 response.raise_for_status()
                 data = response.json()
                 return data
+            except _TokenExpiredError:
+                # Không retry tại tầng này — caller chịu trách nhiệm refresh token.
+                raise
             except (requests.exceptions.ConnectTimeout,
                     requests.exceptions.ReadTimeout,
                     requests.exceptions.ConnectionError) as e:
@@ -867,14 +883,41 @@ class ProductSync(models.Model):
                 raise UserError(_(f"API request failed: {str(e)}"))
 
     def _iter_batches(self, endpoint, token, batch_size=1000, limit=None):
-        """Generator: yield từng batch items, không giữ toàn bộ data trong memory."""
+        """Generator: yield từng batch items, không giữ toàn bộ data trong memory.
+
+        Tự động refresh token khi API trả 401/403 (token hết hạn giữa chừng
+        trong quá trình paging dài). Retry tối đa `MAX_AUTH_REFRESH` lần để
+        tránh loop vô hạn nếu credential thực sự sai.
+        """
+        MAX_AUTH_REFRESH = 3
         config = self._get_api_config()
         session = self._make_session()
         page = 0
         fetched = 0
+        current_token = token
+        auth_refresh_count = 0
 
         while True:
-            res = self._fetch_paged_api(endpoint, token, page, batch_size, session=session, config=config)
+            try:
+                res = self._fetch_paged_api(
+                    endpoint, current_token, page, batch_size,
+                    session=session, config=config,
+                )
+            except _TokenExpiredError as e:
+                if auth_refresh_count >= MAX_AUTH_REFRESH:
+                    raise UserError(_(
+                        f"API auth vẫn thất bại sau {MAX_AUTH_REFRESH} lần refresh token: {e}"
+                    ))
+                auth_refresh_count += 1
+                _logger.warning(
+                    "🔑 Token Spring Boot hết hạn tại page=%s, refresh lần %s/%s...",
+                    page, auth_refresh_count, MAX_AUTH_REFRESH,
+                )
+                current_token = self._get_access_token()
+                session = self._make_session()
+                # Retry lại đúng page hiện tại với token mới
+                continue
+
             content = res.get('content', [])
             if not content:
                 break
@@ -2499,12 +2542,11 @@ class ProductSync(models.Model):
                     # _logger.warning(f"⚠️ Không tạo được product.lens.index cid={cid!r} name={name!r}: {e}")
                     return False
 
-            def _goc_power(raw_val, power_type=None):
+            def _goc_power(raw_val, power_type):
                 """Get or create product.lens.power by (value, power_type).
 
-                - power_type in ('sph', 'cyl'): match/create bản ghi có đúng loại.
-                - power_type ngoài danh sách (vd 'add') hoặc None: match/create bản ghi
-                  có power_type = False (legacy/ADD), không đụng tới SPH/CYL master data.
+                Chỉ dùng cho SPH / CYL. ADD có hàm riêng `_goc_add` tạo trên
+                model tách biệt `product.lens.add`.
                 """
                 if raw_val is None or raw_val == '':
                     return False
@@ -2512,12 +2554,13 @@ class ProductSync(models.Model):
                     fval = float(raw_val)
                 except (TypeError, ValueError):
                     return False
-                ptype = power_type if power_type in ('sph', 'cyl') else False
-                cache_key = (fval, ptype)
+                if power_type not in ('sph', 'cyl'):
+                    return False
+                cache_key = (fval, power_type)
                 cached = cache.get('lens_powers_m2o', {}).get(cache_key)
                 if cached:
                     return cached
-                domain = [('value', '=', fval), ('power_type', '=', ptype)]
+                domain = [('value', '=', fval), ('power_type', '=', power_type)]
                 found = self.env['product.lens.power'].search(domain, limit=1)
                 if found:
                     cache.setdefault('lens_powers_m2o', {})[cache_key] = found.id
@@ -2526,9 +2569,35 @@ class ProductSync(models.Model):
                     with self.env.cr.savepoint():
                         rec = self.env['product.lens.power'].create({
                             'value': fval,
-                            'power_type': ptype or False,
+                            'power_type': power_type,
                         })
                     cache.setdefault('lens_powers_m2o', {})[cache_key] = rec.id
+                    return rec.id
+                except Exception:
+                    return False
+
+            def _goc_add(raw_val):
+                """Get or create product.lens.add by value (master data riêng
+                cho ADD power, tách khỏi SPH/CYL)."""
+                if raw_val is None or raw_val == '':
+                    return False
+                try:
+                    fval = float(raw_val)
+                except (TypeError, ValueError):
+                    return False
+                cached = cache.get('lens_add_m2o', {}).get(fval)
+                if cached:
+                    return cached
+                found = self.env['product.lens.add'].search(
+                    [('value', '=', fval)], limit=1
+                )
+                if found:
+                    cache.setdefault('lens_add_m2o', {})[fval] = found.id
+                    return found.id
+                try:
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.lens.add'].create({'value': fval})
+                    cache.setdefault('lens_add_m2o', {})[fval] = rec.id
                     return rec.id
                 except Exception:
                     return False
@@ -2580,7 +2649,7 @@ class ProductSync(models.Model):
                 # SPH / CYL / ADD → Many2one (get-or-create từ product.lens.power)
                 'lens_sph_id': _goc_power(extract_number(sph_raw), 'sph'),
                 'lens_cyl_id': _goc_power(extract_number(cyl_raw), 'cyl'),
-                'lens_add_id': _goc_power(extract_number(add_raw), 'add'),
+                'lens_add_id': _goc_add(extract_number(add_raw)),
                 # Giữ lại x_sph/x_cyl/x_add (float legacy) để migrate sau
                 'x_sph': safe_float(extract_number(sph_raw)),
                 'x_cyl': safe_float(extract_number(cyl_raw)),

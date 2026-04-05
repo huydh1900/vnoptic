@@ -15,9 +15,12 @@ export class LensStockMatrix extends Component {
             sphAxis: [],
             cylAxis: [],
             matrix: {},
-            rowTotals: {},
-            colTotals: {},
-            grandTotal: 0,
+            // Giá trị đang gõ trong ô input (chưa áp dụng)
+            sphSearchDraft: "",
+            cylSearchDraft: "",
+            // Giá trị đã apply — chỉ thay đổi khi bấm nút Tìm kiếm / Enter
+            sphSearchApplied: "",
+            cylSearchApplied: "",
         });
 
         onWillStart(async () => {
@@ -35,14 +38,55 @@ export class LensStockMatrix extends Component {
         this.state.sphAxis = data.sph_axis || [];
         this.state.cylAxis = data.cyl_axis || [];
         this.state.matrix = data.matrix || {};
-        this.state.rowTotals = data.row_totals || {};
-        this.state.colTotals = data.col_totals || {};
-        this.state.grandTotal = data.grand_total || 0;
         this.state.loading = false;
     }
 
-    async onRefresh() {
-        await this.loadData();
+    /** Axis được lọc theo từ khóa tìm kiếm (so khớp chuỗi trên `name`). */
+    _filterAxis(axis, term) {
+        const q = (term || "").trim().toLowerCase();
+        if (!q) {
+            return axis;
+        }
+        return axis.filter((item) =>
+            (item.name || "").toLowerCase().includes(q)
+        );
+    }
+
+    get filteredSphAxis() {
+        return this._filterAxis(this.state.sphAxis, this.state.sphSearchApplied);
+    }
+
+    get filteredCylAxis() {
+        return this._filterAxis(this.state.cylAxis, this.state.cylSearchApplied);
+    }
+
+    onSphSearchInput(ev) {
+        this.state.sphSearchDraft = ev.target.value;
+    }
+
+    onCylSearchInput(ev) {
+        this.state.cylSearchDraft = ev.target.value;
+    }
+
+    /** Apply giá trị draft → view mới render theo giá trị đã apply. */
+    onApplySearch() {
+        this.state.sphSearchApplied = this.state.sphSearchDraft;
+        this.state.cylSearchApplied = this.state.cylSearchDraft;
+    }
+
+    /** Enter trong ô input = bấm nút Tìm kiếm. */
+    onSearchKeydown(ev) {
+        if (ev.key === "Enter") {
+            ev.preventDefault();
+            this.onApplySearch();
+        }
+    }
+
+    onClearSearch() {
+        this.state.sphSearchDraft = "";
+        this.state.cylSearchDraft = "";
+        this.state.sphSearchApplied = "";
+        this.state.cylSearchApplied = "";
     }
 
     getCell(cylId, sphId) {
@@ -53,14 +97,47 @@ export class LensStockMatrix extends Component {
         return row[sphId] || 0;
     }
 
-    /** Cell intensity 0..1 relative to the largest cell value in the matrix. */
+    /** Tổng theo dòng (CYL) chỉ tính các cột SPH đang hiển thị. */
+    getRowTotal(cylId) {
+        let total = 0;
+        for (const sph of this.filteredSphAxis) {
+            total += this.getCell(cylId, sph.id);
+        }
+        return total;
+    }
+
+    /** Tổng theo cột (SPH) chỉ tính các dòng CYL đang hiển thị. */
+    getColTotal(sphId) {
+        let total = 0;
+        for (const cyl of this.filteredCylAxis) {
+            total += this.getCell(cyl.id, sphId);
+        }
+        return total;
+    }
+
+    get grandTotal() {
+        let total = 0;
+        for (const cyl of this.filteredCylAxis) {
+            for (const sph of this.filteredSphAxis) {
+                total += this.getCell(cyl.id, sph.id);
+            }
+        }
+        return total;
+    }
+
+    /**
+     * Cell intensity 0..1 relative to the largest VISIBLE cell value.
+     * Tính lại theo tập hợp ô đang hiển thị để heat-map phản ánh
+     * đúng phạm vi user đang xem.
+     */
     getHeat(qty) {
         if (!qty) {
             return 0;
         }
         let max = 0;
-        for (const row of Object.values(this.state.matrix)) {
-            for (const v of Object.values(row)) {
+        for (const cyl of this.filteredCylAxis) {
+            for (const sph of this.filteredSphAxis) {
+                const v = this.getCell(cyl.id, sph.id);
                 if (v > max) {
                     max = v;
                 }

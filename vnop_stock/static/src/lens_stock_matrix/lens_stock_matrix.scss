@@ -26,6 +26,62 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .o_lsm_search {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            padding: 6px 10px;
+            background: #f7faff;
+            border: 1px solid #e0e7f3;
+            border-radius: 8px;
+
+            .o_lsm_search_field {
+                display: flex;
+                flex-direction: column;
+                min-width: 130px;
+
+                label {
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #6b7280;
+                    text-transform: uppercase;
+                    letter-spacing: 0.3px;
+                    margin-bottom: 2px;
+                }
+
+                input {
+                    font-variant-numeric: tabular-nums;
+                    border-color: #d6e2f5;
+
+                    &:focus {
+                        border-color: #2d73de;
+                        box-shadow: 0 0 0 2px rgba(45, 115, 222, 0.15);
+                    }
+                }
+            }
+
+            .o_lsm_search_btn {
+                align-self: flex-end;
+                margin-bottom: 0;
+                height: 31px;
+                white-space: nowrap;
+            }
+
+            .o_lsm_clear {
+                align-self: flex-end;
+                margin-bottom: 0;
+                height: 31px;
+                padding: 4px 8px;
+                color: #6b7280;
+
+                &:hover {
+                    color: #dc2626;
+                }
+            }
         }
 
         .o_lsm_total_badge {

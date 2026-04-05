@@ -42,6 +42,24 @@
         <field name="context">{'search_default_group_power_type': 1}</field>
     </record>
 
+    <!-- Lens ADD Views -->
+    <record id="view_product_lens_add_tree" model="ir.ui.view">
+        <field name="name">product.lens.add.tree</field>
+        <field name="model">product.lens.add</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="value"/>
+                <field name="name" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_product_lens_add" model="ir.actions.act_window">
+        <field name="name">Lens ADD (Addition)</field>
+        <field name="res_model">product.lens.add</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
     <!-- Lens Design Views -->
     <record id="view_product_lens_design_tree" model="ir.ui.view">
         <field name="name">product.lens.design.tree</field>

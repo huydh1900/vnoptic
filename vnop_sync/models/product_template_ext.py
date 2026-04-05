@@ -272,7 +272,7 @@ class ProductTemplateExtension(models.Model):
                                   help='Công suất cầu (Sphere)')
     lens_cyl_id = fields.Many2one('product.lens.power', string='CYL',
                                   help='Công suất trụ (Cylinder)')
-    lens_add_id = fields.Many2one('product.lens.power', string='ADD',
+    lens_add_id = fields.Many2one('product.lens.add', string='ADD',
                                   help='Addition (thấu kính đa tròng)')
     lens_base_curve = fields.Float('Base Curve', digits=(4, 2))
     lens_design1_id = fields.Many2one('product.design', string='Thiết kế 1')
