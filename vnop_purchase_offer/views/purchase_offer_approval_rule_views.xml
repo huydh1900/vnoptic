@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="purchase_offer_approval_rule_tree_view" model="ir.ui.view">
+        <field name="name">purchase.offer.approval.rule.list</field>
+        <field name="model">purchase.offer.approval.rule</field>
+        <field name="arch" type="xml">
+            <list string="Quy tắc phê duyệt DNMH">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="min_amount" widget="monetary"/>
+                <field name="max_amount" widget="monetary"/>
+                <field name="approver_id" widget="many2one_avatar_user"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="purchase_offer_approval_rule_form_view" model="ir.ui.view">
+        <field name="name">purchase.offer.approval.rule.form</field>
+        <field name="model">purchase.offer.approval.rule</field>
+        <field name="arch" type="xml">
+            <form string="Quy tắc phê duyệt DNMH">
+                <sheet>
+                    <widget name="web_ribbon" title="Lưu trữ" bg_color="text-bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="VD: Dưới 5 triệu"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="min_amount" widget="monetary"/>
+                            <field name="max_amount" widget="monetary"
+                                   help="Để 0 nếu không giới hạn trên"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="approver_id" widget="many2one_avatar_user"/>
+                            <field name="sequence"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="purchase_offer_approval_rule_action" model="ir.actions.act_window">
+        <field name="name">Quy tắc phê duyệt DNMH</field>
+        <field name="res_model">purchase.offer.approval.rule</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Tạo quy tắc phê duyệt theo giá trị đề nghị mua hàng
+            </p>
+            <p>
+                Ví dụ: đơn dưới 5.000.000 → nhân viên A duyệt;
+                đơn từ 5.000.000 trở lên → quản lý B duyệt.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="purchase_offer_approval_rule_menu"
+              name="Phê duyệt đề nghị mua hàng"
+              parent="purchase.menu_purchase_config"
+              action="purchase_offer_approval_rule_action"
+              sequence="50"/>
+
+</odoo>

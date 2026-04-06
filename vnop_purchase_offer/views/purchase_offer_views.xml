@@ -67,6 +67,17 @@
                         </group>
                     </group>
 
+                    <group string="Thông tin bổ sung" col="2">
+                        <group string="Khởi tạo">
+                            <field name="create_uid" string="Người tạo" widget="many2one_avatar_user" readonly="1"/>
+                            <field name="create_date" string="Ngày tạo" readonly="1"/>
+                        </group>
+                        <group string="Phê duyệt">
+                            <field name="approved_by" widget="many2one_avatar_user"/>
+                            <field name="approved_date" readonly="1"/>
+                        </group>
+                    </group>
+
                     <notebook>
                         <page string="Sản phẩm">
                             <div class="mb-2" invisible="state != 'draft'">
@@ -85,7 +96,8 @@
                                     <field name="quantity" sum="Tổng SL dự kiến"/>
                                     <field name="qty_received" readonly="1" sum="Tổng SL đã nhận" column_invisible="not parent.has_received"/>
                                     <field name="expected_price"/>
-                                    <field name="taxes_id" widget="many2many_tags" optional="show"/>
+                                    <field name="taxes_id" widget="many2many_tags" optional="show"
+                                           domain="[('type_tax_use', '=', 'purchase')]"/>
                                     <field name="subtotal" sum="Tổng giá trị dự kiến"/>
                                     <field name="currency_id" column_invisible="1"/>
                                 </list>
@@ -94,19 +106,6 @@
                         <page string="Ghi chú">
                             <group>
                                 <field name="note" placeholder="Nhập ghi chú nội bộ..." readonly="state != 'draft'"/>
-                            </group>
-                        </page>
-                        <page string="Thông tin bổ sung">
-                            <group col="2">
-                                <group string="Khởi tạo">
-                                    <field name="purchaser_id" widget="many2one_avatar_user" readonly="1"/>
-                                    <field name="create_date" readonly="1"/>
-                                    <field name="company_id" readonly="1"/>
-                                </group>
-                                <group string="Phê duyệt">
-                                    <field name="approved_by" widget="many2one_avatar_user" readonly="1"/>
-                                    <field name="approved_date" readonly="1"/>
-                                </group>
                             </group>
                         </page>
                     </notebook>
@@ -127,6 +126,6 @@
               name="Đề nghị mua hàng"
               parent="purchase.menu_procurement_management"
               action="purchase_offer_action"
-              sequence="30"/>
+              sequence="1"/>
 
 </odoo>

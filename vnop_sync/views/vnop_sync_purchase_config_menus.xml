@@ -66,6 +66,12 @@
               action="action_product_lens_power"
               sequence="50"/>
 
+    <menuitem id="menu_product_lens_add"
+              name="ADD"
+              parent="menu_vnop_sync_master_lens"
+              action="action_product_lens_add"
+              sequence="55"/>
+
     <menuitem id="menu_product_lens_design"
               name="Thiết kế (Lens)"
               parent="menu_vnop_sync_master_lens"

@@ -6,15 +6,57 @@
         <field name="model">product.lens.power</field>
         <field name="arch" type="xml">
             <list editable="bottom">
+                <field name="power_type"/>
                 <field name="value"/>
                 <field name="name" optional="hide"/>
             </list>
         </field>
     </record>
 
+    <record id="view_product_lens_power_search" model="ir.ui.view">
+        <field name="name">product.lens.power.search</field>
+        <field name="model">product.lens.power</field>
+        <field name="arch" type="xml">
+            <search string="Lens Powers">
+                <field name="value"/>
+                <field name="name"/>
+                <filter name="filter_sph" string="SPH"
+                        domain="[('power_type', '=', 'sph')]"/>
+                <filter name="filter_cyl" string="CYL"
+                        domain="[('power_type', '=', 'cyl')]"/>
+                <filter name="filter_legacy" string="Không phân loại (ADD/Legacy)"
+                        domain="[('power_type', '=', False)]"/>
+                <group expand="1" string="Nhóm theo">
+                    <filter name="group_power_type" string="Loại độ"
+                            context="{'group_by': 'power_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
     <record id="action_product_lens_power" model="ir.actions.act_window">
         <field name="name">Lens Powers (SPH/CYL)</field>
         <field name="res_model">product.lens.power</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_product_lens_power_search"/>
+        <field name="context">{'search_default_group_power_type': 1}</field>
+    </record>
+
+    <!-- Lens ADD Views -->
+    <record id="view_product_lens_add_tree" model="ir.ui.view">
+        <field name="name">product.lens.add.tree</field>
+        <field name="model">product.lens.add</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="value"/>
+                <field name="name" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_product_lens_add" model="ir.actions.act_window">
+        <field name="name">Lens ADD (Addition)</field>
+        <field name="res_model">product.lens.add</field>
         <field name="view_mode">list,form</field>
     </record>
 

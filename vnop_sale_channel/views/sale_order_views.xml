@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_order_form_channel" model="ir.ui.view">
+        <field name="name">sale.order.form.channel</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='payment_term_id']" position="before">
+                <field name="channel_type"/>
+            </xpath>
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="domain">[('customer_rank', '>', 0)]</attribute>
+            </xpath>
+            <xpath expr="//page[@name='customer_signature']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="(//field[@name='pricelist_id'])[1]" position="attributes">
+                <attribute name="domain">[('channel_type', 'in', [channel_type, False])]</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_sales_order_filter_channel" model="ir.ui.view">
+        <field name="name">sale.order.search.channel</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_sales_order_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <separator/>
+                <filter string="Bán buôn" name="filter_channel_wholesale"
+                        domain="[('channel_type', '=', 'wholesale')]"/>
+                <filter string="Bán lẻ" name="filter_channel_retail"
+                        domain="[('channel_type', '=', 'retail')]"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

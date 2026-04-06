@@ -36,13 +36,6 @@ class PurchaseOffer(models.Model):
         required=True,
         default=lambda self: self.env.company,
     )
-    purchaser_id = fields.Many2one(
-        "res.users",
-        string="Người mua",
-        required=True,
-        default=lambda self: self.env.user,
-        tracking=True,
-    )
     currency_id = fields.Many2one(
         "res.currency",
         string="Tiền tệ",
@@ -77,7 +70,15 @@ class PurchaseOffer(models.Model):
             rec.exchange_rate = rec._get_exchange_rate_for_currency(rec.currency_id)
 
     follow_up_date = fields.Date(string="Ngày hàng về dự kiến", tracking=True)
-    approved_by = fields.Many2one("res.users", string="Người duyệt", readonly=True, copy=False, tracking=True)
+    approved_by = fields.Many2one(
+        "res.users",
+        string="Người phê duyệt đề xuất",
+        compute="_compute_approved_by",
+        store=True,
+        copy=False,
+        tracking=True,
+        help="Tự động xác định theo Quy tắc phê duyệt DNMH dựa trên giá trị đơn.",
+    )
     approved_date = fields.Datetime(string="Thời gian duyệt", readonly=True, copy=False, tracking=True)
     state = fields.Selection(
         [
@@ -147,6 +148,13 @@ class PurchaseOffer(models.Model):
             rec.total_qty_received = sum(rec.line_ids.mapped("qty_received"))
             rec.amount_total = sum(rec.line_ids.mapped("subtotal"))
 
+    @api.depends("amount_total", "company_id")
+    def _compute_approved_by(self):
+        Rule = self.env["purchase.offer.approval.rule"]
+        for rec in self:
+            rule = Rule._find_rule_for_amount(rec.amount_total, rec.company_id)
+            rec.approved_by = rule.approver_id if rule else False
+
     @api.depends("line_ids")
     def _compute_line_count(self):
         for rec in self:
@@ -168,11 +176,39 @@ class PurchaseOffer(models.Model):
         if any(rec.state != "waiting_approval" for rec in self):
             raise UserError(_("Chỉ đề nghị mua hàng ở trạng thái Chờ duyệt mới được phê duyệt."))
         self._validate_before_approval()
+        for rec in self:
+            rec._check_approver_permission()
         self.write({
             "state": "approved",
-            "approved_by": self.env.user.id,
             "approved_date": fields.Datetime.now(),
         })
+
+    def _check_approver_permission(self):
+        """Kiểm tra user hiện tại có quyền duyệt đề nghị theo quy tắc amount.
+
+        Nếu chưa cấu hình quy tắc nào cho công ty: cho phép mọi user duyệt
+        (giữ tương thích khi chưa setup). Nếu có quy tắc khớp giá trị đơn mà
+        user hiện tại không phải người được chỉ định: chặn.
+        """
+        self.ensure_one()
+        Rule = self.env["purchase.offer.approval.rule"]
+        if not Rule.search_count([("company_id", "=", self.company_id.id)]):
+            return
+        rule = Rule._find_rule_for_amount(self.amount_total, self.company_id)
+        if not rule:
+            raise UserError(_(
+                "Không tìm thấy quy tắc phê duyệt phù hợp với giá trị đề nghị %s. "
+                "Vui lòng kiểm tra cấu hình trong menu Cấu hình > Phê duyệt DNMH."
+            ) % self.amount_total)
+        if not rule.approver_id:
+            raise UserError(_(
+                "Quy tắc '%s' chưa được cấu hình người phê duyệt. "
+                "Vui lòng cập nhật trong menu Cấu hình > Phê duyệt DNMH."
+            ) % rule.name)
+        if rule.approver_id != self.env.user:
+            raise UserError(_(
+                "Đề nghị này cần được phê duyệt bởi: %s (theo quy tắc '%s')."
+            ) % (rule.approver_id.display_name, rule.name))
 
     def action_cancel(self):
         self.write({"state": "cancelled"})
@@ -300,7 +336,7 @@ class PurchaseOffer(models.Model):
 
     def _schedule_reminder_activity(self, deadline, summary, note):
         self.ensure_one()
-        if not self.purchaser_id:
+        if not self.create_uid:
             return
         activity_type = self.env.ref("mail.mail_activity_data_todo", raise_if_not_found=False)
         if not activity_type:
@@ -310,14 +346,14 @@ class PurchaseOffer(models.Model):
             ("res_model_id", "=", model_id),
             ("res_id", "=", self.id),
             ("activity_type_id", "=", activity_type.id),
-            ("user_id", "=", self.purchaser_id.id),
+            ("user_id", "=", self.create_uid.id),
             ("summary", "=", summary),
             ("date_deadline", "=", deadline),
         ])
         if not existing:
             self.activity_schedule(
                 "mail.mail_activity_data_todo",
-                user_id=self.purchaser_id.id,
+                user_id=self.create_uid.id,
                 date_deadline=deadline,
                 summary=summary,
                 note=note,
@@ -325,7 +361,7 @@ class PurchaseOffer(models.Model):
 
     def _send_alert_email(self, subject, body_html):
         self.ensure_one()
-        email_to = self.purchaser_id.partner_id.email
+        email_to = self.create_uid.partner_id.email
         if not email_to:
             return
         self.env["mail.mail"].sudo().create({
@@ -397,6 +433,7 @@ class PurchaseOfferLine(models.Model):
                 line.description = line.product_id.display_name
                 line.uom_id = line.product_id.uom_po_id.id or line.product_id.uom_id.id
                 line.taxes_id = line.product_id.supplier_taxes_id
+                line.expected_price = line.product_id.standard_price
 
     @api.depends("quantity", "expected_price")
     def _compute_subtotal(self):

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Ẩn menu Reporting của Purchase -->
+    <record id="purchase.purchase_report_main" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+    <!-- Ẩn menu con Reporting → Purchase -->
+    <record id="purchase.purchase_report" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+</odoo>

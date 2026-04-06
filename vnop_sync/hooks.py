@@ -7,26 +7,9 @@ def post_init_hook(env):
     This runs only once after module installation.
     """
     env['res.partner.bank'].migrate_invalid_bank_fields()
-    # Use environment with superuser to ensure permissions
-    # env argument in hook is actually a cursor in older versions or Environment in newer?
-    # In Odoo 18 hooks usually receive cr or env. 
-    # Let's assume standard signature: def post_init_hook(env) -> Odoo 17+ style
-    
-    # Check if data exists
-    Power = env['product.lens.power']
-    if Power.search_count([]) > 0:
-        return
+    # SPH/CYL master data KHÔNG seed sẵn — sẽ được tạo on-demand khi sync
+    # sản phẩm từ API (xem `_goc_power` trong product_sync.py).
 
-    vals_list = []
-    sph_min, sph_max, step = -25.00, 25.00, 0.25
-    current = sph_min
-    while current <= sph_max + 0.001:
-        vals_list.append({'value': current})
-        current += step
-
-    if vals_list:
-        Power.create(vals_list)
-        
     # 3. Generate Basic Designs
     Design = env['product.lens.design']
     if Design.search_count([]) == 0:

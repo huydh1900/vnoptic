@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="pricelist_wholesale" model="product.pricelist">
+        <field name="name">Bảng giá bán buôn</field>
+        <field name="channel_type">wholesale</field>
+        <field name="sequence">10</field>
+    </record>
+
+    <record id="pricelist_retail" model="product.pricelist">
+        <field name="name">Bảng giá bán lẻ</field>
+        <field name="channel_type">retail</field>
+        <field name="sequence">20</field>
+    </record>
+
+</odoo>

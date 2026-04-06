@@ -56,7 +56,7 @@ class StockPicking(models.Model):
 
     @api.depends('location_dest_id')
     def _compute_is_temp_location(self):
-        temp = self.env.ref('vnop_delivery.location_temp_incoming', raise_if_not_found=False)
+        temp = self.env.ref('vnop_stock.location_temp_incoming', raise_if_not_found=False)
         for rec in self:
             rec.is_temp_location = bool(temp and rec.location_dest_id.id == temp.id)
 

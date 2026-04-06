@@ -43,7 +43,7 @@
                             string="Đồng bộ 200 Test"
                             type="object"
                             invisible="id == False"/>
-                    <field name="sync_status" widget="statusbar" statusbar_visible="never,success,error"/>
+                    <field name="sync_status" widget="statusbar" statusbar_visible="never,queued,in_progress,success,error"/>
                 </header>
                 <sheet>
                     <div class="oe_title">

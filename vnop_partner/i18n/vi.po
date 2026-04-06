@@ -1,3 +1,14 @@
+# Translations for vnop_partner (overrides base terms).
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: vi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_model_data__reference
 #: model:ir.model.fields,field_description:base.field_res_partner__ref
@@ -5,3 +16,13 @@
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 msgid "Reference"
 msgstr "Mã NCC"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_res_partner__state_id
+#: model:ir.model.fields,field_description:base.field_res_company__state_id
+#: model:ir.model.fields,field_description:base.field_res_users__state_id
+#: model_terms:ir.ui.view,arch_db:base.view_partner_form
+#: model_terms:ir.ui.view,arch_db:base.view_company_form
+#: model_terms:ir.ui.view,arch_db:base.view_res_bank_form
+msgid "State"
+msgstr "Tỉnh"

@@ -21,6 +21,13 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 _logger = logging.getLogger(__name__)
 
 
+class _TokenExpiredError(Exception):
+    """Raised when Spring Boot API trả 401/403 giữa chừng khi đang paging.
+    Caller sẽ bắt exception này, gọi lại `_get_access_token` để refresh
+    token và retry page hiện tại."""
+    pass
+
+
 class ProductSync(models.Model):
     _name = 'product.sync'
     _description = 'Product Synchronization'
@@ -30,6 +37,7 @@ class ProductSync(models.Model):
     last_sync_date = fields.Datetime('Ngày đồng bộ cuối', readonly=True)
     sync_status = fields.Selection([
         ('never', 'Chưa đồng bộ'),
+        ('queued', 'Đang chờ'),
         ('in_progress', 'Đang đồng bộ'),
         ('success', 'Thành công'),
         ('error', 'Lỗi')])
@@ -1002,9 +1010,18 @@ class ProductSync(models.Model):
                     verify=config['ssl_verify'],
                     timeout=config['api_timeout']
                 )
+                # Phát hiện token hết hạn / bị revoke giữa chừng:
+                # raise exception riêng để caller (_iter_batches) biết và refresh token.
+                if response.status_code in (401, 403):
+                    raise _TokenExpiredError(
+                        f"HTTP {response.status_code} at page={page} url={url}"
+                    )
                 response.raise_for_status()
                 data = response.json()
                 return data
+            except _TokenExpiredError:
+                # Không retry tại tầng này — caller chịu trách nhiệm refresh token.
+                raise
             except (requests.exceptions.ConnectTimeout,
                     requests.exceptions.ReadTimeout,
                     requests.exceptions.ConnectionError) as e:
@@ -1020,14 +1037,41 @@ class ProductSync(models.Model):
                 raise UserError(_(f"API request failed: {str(e)}"))
 
     def _iter_batches(self, endpoint, token, batch_size=1000, limit=None):
-        """Generator: yield từng batch items, không giữ toàn bộ data trong memory."""
+        """Generator: yield từng batch items, không giữ toàn bộ data trong memory.
+
+        Tự động refresh token khi API trả 401/403 (token hết hạn giữa chừng
+        trong quá trình paging dài). Retry tối đa `MAX_AUTH_REFRESH` lần để
+        tránh loop vô hạn nếu credential thực sự sai.
+        """
+        MAX_AUTH_REFRESH = 3
         config = self._get_api_config()
         session = self._make_session()
         page = 0
         fetched = 0
+        current_token = token
+        auth_refresh_count = 0
 
         while True:
-            res = self._fetch_paged_api(endpoint, token, page, batch_size, session=session, config=config)
+            try:
+                res = self._fetch_paged_api(
+                    endpoint, current_token, page, batch_size,
+                    session=session, config=config,
+                )
+            except _TokenExpiredError as e:
+                if auth_refresh_count >= MAX_AUTH_REFRESH:
+                    raise UserError(_(
+                        f"API auth vẫn thất bại sau {MAX_AUTH_REFRESH} lần refresh token: {e}"
+                    ))
+                auth_refresh_count += 1
+                _logger.warning(
+                    "🔑 Token Spring Boot hết hạn tại page=%s, refresh lần %s/%s...",
+                    page, auth_refresh_count, MAX_AUTH_REFRESH,
+                )
+                current_token = self._get_access_token()
+                session = self._make_session()
+                # Retry lại đúng page hiện tại với token mới
+                continue
+
             content = res.get('content', [])
             if not content:
                 break
@@ -1198,9 +1242,19 @@ class ProductSync(models.Model):
         # Company cho seller_ids
         cache['_seller_company_id'] = self.env.company.id
 
-        # Taxes (Purchase taxes only)
-        for t in self.env['account.tax'].search_read([('type_tax_use', '=', 'purchase')], ['id', 'name']):
-            cache['taxes'][t['name']] = t['id']
+        # Taxes (Purchase taxes only) — key theo amount (%) để map theo thuế suất,
+        # tái sử dụng các tax mua hàng có sẵn của l10n_vn ("Thuế GTGT được khấu trừ X%").
+        company_id = self.env.company.id
+        tax_domain = [
+            ('type_tax_use', '=', 'purchase'),
+            ('amount_type', '=', 'percent'),
+            ('company_id', 'in', [company_id, False]),
+        ]
+        for t in self.env['account.tax'].search_read(
+            tax_domain, ['id', 'amount', 'company_id'], order='company_id desc, id asc'
+        ):
+            # company_id desc để tax của chính company ghi đè tax global (nếu có cùng amount)
+            cache['taxes'].setdefault(t['amount'], t['id'])
 
         # Statuses (selection mapping: name → value)
         cache['statuses'] = {'MỚI': 'new', 'HIỆN HÀNH': 'current', 'NEW': 'new', 'CURRENT': 'current'}
@@ -2330,28 +2384,25 @@ class ProductSync(models.Model):
                 'company_id': cache.get('_seller_company_id', self.env.company.id),
             }
 
-        # Tax (Purchase tax for suppliers)
+        # Tax (Purchase tax for suppliers) — map theo thuế suất vào tax có sẵn
+        # (ưu tiên thuế mua hàng của l10n_vn). Không tự tạo tax mới để tránh
+        # trùng lặp với chart of accounts Việt Nam.
         tax_pct = self._to_float(dto.get('tax'), default=0.0)
         tax_id = False
         if tax_pct > 0:
-            t_name = f"Thuế mua hàng {tax_pct}%"
-            if t_name in cache['taxes']:
-                tax_id = cache['taxes'][t_name]
+            if tax_pct in cache['taxes']:
+                tax_id = cache['taxes'][tax_pct]
             else:
-                try:
-                    with self.env.cr.savepoint():
-                        nt = self.env['account.tax'].create({
-                            'name': t_name,
-                            'amount': tax_pct,
-                            'amount_type': 'percent',
-                            'type_tax_use': 'purchase'
-                        })
-                    tax_id = nt.id
-                except Exception:
-                    nt = self.env['account.tax'].search([('name', '=', t_name)], limit=1)
-                    tax_id = nt.id if nt else False
+                company_id = cache.get('_seller_company_id', self.env.company.id)
+                nt = self.env['account.tax'].search([
+                    ('type_tax_use', '=', 'purchase'),
+                    ('amount_type', '=', 'percent'),
+                    ('amount', '=', tax_pct),
+                    ('company_id', 'in', [company_id, False]),
+                ], order='company_id desc, id asc', limit=1)
+                tax_id = nt.id if nt else False
                 if tax_id:
-                    cache['taxes'][t_name] = tax_id
+                    cache['taxes'][tax_pct] = tax_id
 
         # Status
         product_status = False
@@ -2650,26 +2701,62 @@ class ProductSync(models.Model):
                     # _logger.warning(f"⚠️ Không tạo được product.lens.index cid={cid!r} name={name!r}: {e}")
                     return False
 
-            def _goc_power(raw_val, power_type=None):
-                """Get or create product.lens.power by float value."""
+            def _goc_power(raw_val, power_type):
+                """Get or create product.lens.power by (value, power_type).
+
+                Chỉ dùng cho SPH / CYL. ADD có hàm riêng `_goc_add` tạo trên
+                model tách biệt `product.lens.add`.
+                """
                 if raw_val is None or raw_val == '':
                     return False
                 try:
                     fval = float(raw_val)
                 except (TypeError, ValueError):
                     return False
-                formatted = f"{fval:+.2f}"
-                cached = cache.get('lens_powers_m2o', {}).get(fval)
+                if power_type not in ('sph', 'cyl'):
+                    return False
+                cache_key = (fval, power_type)
+                cached = cache.get('lens_powers_m2o', {}).get(cache_key)
                 if cached:
                     return cached
-                found = self.env['product.lens.power'].search([('value', '=', fval)], limit=1)
+                domain = [('value', '=', fval), ('power_type', '=', power_type)]
+                found = self.env['product.lens.power'].search(domain, limit=1)
                 if found:
-                    cache.setdefault('lens_powers_m2o', {})[fval] = found.id
+                    cache.setdefault('lens_powers_m2o', {})[cache_key] = found.id
                     return found.id
                 try:
                     with self.env.cr.savepoint():
-                        rec = self.env['product.lens.power'].create({'value': fval})
-                    cache.setdefault('lens_powers_m2o', {})[fval] = rec.id
+                        rec = self.env['product.lens.power'].create({
+                            'value': fval,
+                            'power_type': power_type,
+                        })
+                    cache.setdefault('lens_powers_m2o', {})[cache_key] = rec.id
+                    return rec.id
+                except Exception:
+                    return False
+
+            def _goc_add(raw_val):
+                """Get or create product.lens.add by value (master data riêng
+                cho ADD power, tách khỏi SPH/CYL)."""
+                if raw_val is None or raw_val == '':
+                    return False
+                try:
+                    fval = float(raw_val)
+                except (TypeError, ValueError):
+                    return False
+                cached = cache.get('lens_add_m2o', {}).get(fval)
+                if cached:
+                    return cached
+                found = self.env['product.lens.add'].search(
+                    [('value', '=', fval)], limit=1
+                )
+                if found:
+                    cache.setdefault('lens_add_m2o', {})[fval] = found.id
+                    return found.id
+                try:
+                    with self.env.cr.savepoint():
+                        rec = self.env['product.lens.add'].create({'value': fval})
+                    cache.setdefault('lens_add_m2o', {})[fval] = rec.id
                     return rec.id
                 except Exception:
                     return False
@@ -2721,7 +2808,7 @@ class ProductSync(models.Model):
                 # SPH / CYL / ADD → Many2one (get-or-create từ product.lens.power)
                 'lens_sph_id': _goc_power(extract_number(sph_raw), 'sph'),
                 'lens_cyl_id': _goc_power(extract_number(cyl_raw), 'cyl'),
-                'lens_add_id': _goc_power(extract_number(add_raw), 'add'),
+                'lens_add_id': _goc_add(extract_number(add_raw)),
                 # Giữ lại x_sph/x_cyl/x_add (float legacy) để migrate sau
                 'x_sph': safe_float(extract_number(sph_raw)),
                 'x_cyl': safe_float(extract_number(cyl_raw)),
@@ -3554,62 +3641,119 @@ class ProductSync(models.Model):
 
         return success, failed
 
+    # ------------------------------------------------------------------
+    # Queue Job integration (OCA queue_job): mỗi nút sync chỉ enqueue một
+    # `queue.job`, worker/cron jobrunner sẽ xử lý bất đồng bộ trong cron
+    # worker → không bị HTTP worker timeout / proxy cắt kết nối.
+    # ------------------------------------------------------------------
+    _SYNC_JOB_DESCRIPTIONS = {
+        'full': 'vnop_sync: Đồng bộ toàn bộ sản phẩm (thông tin + ảnh)',
+        'data': 'vnop_sync: Đồng bộ thông tin sản phẩm (bỏ qua ảnh)',
+        'images': 'vnop_sync: Đồng bộ ảnh sản phẩm',
+        'limited': 'vnop_sync: Đồng bộ giới hạn',
+    }
+
+    def _enqueue_sync_job(self, job, limit=0):
+        """Đẩy 1 `queue.job` để xử lý bất đồng bộ."""
+        self.ensure_one()
+        if self.sync_status in ('queued', 'in_progress'):
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Đã có job đang chạy',
+                    'message': 'Bản ghi này đang trong hàng đợi hoặc đang đồng bộ, vui lòng đợi hoàn tất.',
+                    'type': 'warning',
+                },
+            }
+        description = self._SYNC_JOB_DESCRIPTIONS.get(job, 'vnop_sync: Đồng bộ sản phẩm')
+        if job == 'limited' and limit:
+            description = f'{description} ({int(limit)} bản ghi)'
+        self.write({
+            'sync_status': 'queued',
+            'sync_log': f'Đã enqueue: {description}. Queue Job worker sẽ xử lý.',
+            'last_sync_date': fields.Datetime.now(),
+        })
+        self.with_delay(description=description)._run_sync_job(job, int(limit or 0))
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Đã xếp hàng đồng bộ',
+                'message': 'Kiểm tra tiến độ tại menu Queue / Jobs hoặc refresh form này.',
+                'type': 'success',
+            },
+        }
+
+    def _run_sync_job(self, job, limit=0):
+        """Được queue_job gọi bất đồng bộ để thực thi 1 job sync.
+
+        Chạy trong cron worker (nhờ `queue_job_cron_jobrunner`) hoặc trong
+        JobRunner process riêng — không bị `limit_time_cpu`/`limit_time_real`
+        của HTTP worker. Chỉ cần đảm bảo `limit_time_real_cron` đủ lớn.
+        """
+        self.ensure_one()
+        image_mode = None
+        job_limit = int(limit) or None
+        if job == 'data':
+            image_mode = 'off'
+        elif job == 'images':
+            image_mode = 'always'
+        elif job == 'limited':
+            job_limit = job_limit or 1000
+        # else 'full' → default (image_mode=None = auto)
+
+        try:
+            msg, full_log, stats = self._do_sync(limit=job_limit, image_mode=image_mode)
+        except Exception as e:
+            # queue_job sẽ tự rollback + đánh dấu job failed với traceback.
+            # Ghi thêm trạng thái lỗi trên product.sync bằng cursor riêng để
+            # user thấy trên UI (nếu không, record vẫn ở state 'queued').
+            _logger.exception("[vnop_sync] queue_job %s thất bại", job)
+            try:
+                with Registry(self.env.cr.dbname).cursor() as new_cr:
+                    new_env = self.env(cr=new_cr)
+                    new_env[self._name].browse(self.id).write({
+                        'sync_status': 'error',
+                        'sync_log': f'Lỗi khi chạy job {job}: {str(e)[:2000]}',
+                        'last_sync_date': fields.Datetime.now(),
+                    })
+            except Exception:
+                pass
+            raise
+
+        self.write({
+            'sync_status': 'success',
+            'sync_log': full_log,
+            'total_synced': stats['lens'] + stats['opt'] + stats['acc'],
+            'total_failed': stats['failed'],
+            'lens_count': stats['lens'],
+            'opts_count': stats['opt'],
+            'other_count': stats['acc'],
+            'last_sync_date': fields.Datetime.now(),
+        })
+        _logger.info("[vnop_sync] queue_job %s hoàn tất: %s", job, msg)
+        return msg
+
     def sync_products_from_springboot(self):
-        # If called from cron/server action, self might be empty
+        # Enqueue thay vì chạy trực tiếp (tránh HTTP worker timeout).
         rec = self
         if not rec:
             rec = self.search([], limit=1, order='last_sync_date desc')
             if not rec:
                 rec = self.create({'name': 'Đồng bộ tự động hàng ngày'})
-        return rec._run_sync()
+        return rec._enqueue_sync_job('full')
 
     def sync_products_limited(self, limit=1000):
-        return self._run_sync(limit)
+        return self._enqueue_sync_job('limited', limit=limit)
 
     def sync_data_only(self):
         """Đồng bộ thông tin sản phẩm, bỏ qua ảnh."""
-        return self._run_sync(image_mode='off')
+        return self._enqueue_sync_job('data')
 
     def sync_images_only(self):
         """Chỉ đồng bộ ảnh sản phẩm."""
-        return self._run_sync(image_mode='always')
-
-    def _run_sync(self, limit=None, image_mode=None):
-        self.ensure_one()
-        rec_id = self.id
-        db = self.env.cr.dbname
-
-        # Đánh dấu in_progress trên cursor gốc rồi commit ngay
-        self.write(
-            {'sync_status': 'in_progress', 'sync_log': 'Đang đồng bộ...', 'last_sync_date': fields.Datetime.now()})
-        self.env.cr.commit()
-
-        # Toàn bộ sync chạy trên cursor riêng biệt → tránh bị websocket/bus kill
-        try:
-            from odoo import registry as Registry
-            with Registry(db).cursor() as cr:
-                env = self.env(cr=cr)
-                rec = env[self._name].browse(rec_id)
-                msg, full_log, stats = rec._do_sync(limit, image_mode=image_mode)
-                rec.write({
-                    'sync_status': 'success', 'sync_log': full_log,
-                    'total_synced': stats['lens'] + stats['opt'] + stats['acc'],
-                    'total_failed': stats['failed'],
-                    'lens_count': stats['lens'], 'opts_count': stats['opt'], 'other_count': stats['acc'],
-                })
-                # cr.commit() tự động khi thoát with block thành công
-            return {'type': 'ir.actions.client', 'tag': 'display_notification',
-                    'params': {'title': 'Đồng bộ hoàn tất', 'message': msg, 'type': 'success'}}
-        except Exception as e:
-            try:
-                with Registry(db).cursor() as cr:
-                    self.env(cr=cr)[self._name].browse(rec_id).write(
-                        {'sync_status': 'error', 'sync_log': str(e)[:1000]}
-                    )
-            except Exception:
-                pass
-            return {'type': 'ir.actions.client', 'tag': 'display_notification',
-                    'params': {'title': 'Đồng bộ thất bại', 'message': str(e)[:500], 'type': 'danger'}}
+        return self._enqueue_sync_job('images')
 
     def _do_sync(self, limit=None, image_mode=None):
         """Logic sync thực sự — chạy trên cursor riêng được truyền vào qua self.env."""

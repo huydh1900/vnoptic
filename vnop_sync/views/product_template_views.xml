@@ -3,9 +3,20 @@
     <!-- Default group by categ_id khi mở menu Products trong Purchase -->
     <function model="ir.actions.act_window" name="write">
         <function model="ir.actions.act_window" name="search"
-            eval="[[('id', '=', ref('purchase.product_normal_action_puchased'))]]"/>
+                  eval="[[('id', '=', ref('purchase.product_normal_action_puchased'))]]"/>
         <value eval="{'context': {'search_default_filter_to_purchase': 1, 'purchase_product_template': 1, 'search_default_group_by_categ_id': 1}}"/>
     </function>
+
+    <!-- Ẩn filter "Product Type" (group_by=type) trong catalog search view
+         (dùng khi chọn sản phẩm trên Sale/Purchase Order). -->
+    <record id="product_view_search_catalog_inherit_vnop" model="ir.ui.view">
+        <field name="name">product.view.search.catalog.inherit.vnop</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_view_search_catalog"/>
+        <field name="arch" type="xml">
+            <filter name="type" position="replace"/>
+        </field>
+    </record>
 
     <!-- Extend product search view -->
     <record id="product_template_search_inherit_vnop" model="ir.ui.view">
@@ -15,6 +26,10 @@
         <field name="priority">102</field>
         <field name="arch" type="xml">
             <search>
+                <!-- Xóa hẳn filter "Product Type" (group_by=type) của base Odoo
+                     để tránh trùng với filter "Loại sản phẩm" (group_by categ_code)
+                     do vnop_sync thêm ở dưới. -->
+                <filter name="type" position="replace"/>
                 <field name="name" filter_domain="['|', ('name', 'ilike', self), ('default_code', 'ilike', self)]"/>
                 <field name="brand_id"/>
                 <field name="categ_id"/>
@@ -44,7 +59,7 @@
     </record>
 
 
-<record id="product_template_form_inherit_product" model="ir.ui.view">
+    <record id="product_template_form_inherit_product" model="ir.ui.view">
         <field name="name">product.template.form.inherit.product</field>
         <field name="model">product.template</field>
         <field name="inherit_id" ref="product.product_template_only_form_view"/>
@@ -290,7 +305,8 @@
                 </page>
 
                 <!-- Tabs Phụ kiện / Sản phẩm khác (không phải lens/opt) -->
-                <page string="Thông tin chi tiết" name="accessory_detail" invisible="type != 'consu' or categ_code in ('TK', 'GK', 'LK')">
+                <page string="Thông tin chi tiết" name="accessory_detail"
+                      invisible="type != 'consu' or categ_code in ('TK', 'GK', 'LK')">
                     <group string="Thiết kế">
                         <group>
                             <field name="design_id"/>
