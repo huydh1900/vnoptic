@@ -180,7 +180,7 @@
 
     <menuitem id="vnoptic_contract_menu"
               name="Hợp đồng mua hàng"
-              parent="purchase.menu_purchase_root"
+              parent="purchase.menu_procurement_management"
               action="vnoptic_contract_action"
               sequence="2"/>
 

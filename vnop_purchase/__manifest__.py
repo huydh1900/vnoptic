@@ -8,5 +8,6 @@
         'data/menu_hide.xml',
         'views/purchase_order_views.xml',
         'views/purchase_product_menus.xml',
+        'views/res_partner_views.xml',
     ],
 }

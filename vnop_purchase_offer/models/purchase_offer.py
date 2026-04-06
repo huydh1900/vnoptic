@@ -29,7 +29,7 @@ class PurchaseOffer(models.Model):
         domain="[('supplier_rank', '>', 0)]",
         tracking=True,
     )
-    partner_ref = fields.Char(string="Mã NCC", related="partner_id.ref", store=True, readonly=True)
+    partner_ref = fields.Char(string="Mã NCC", store=True)
     company_id = fields.Many2one(
         "res.company",
         string="Công ty",
@@ -131,8 +131,20 @@ class PurchaseOffer(models.Model):
                 vals["name"] = sequence.next_by_code("purchase.offer") or _("Mới")
         return super().create(vals_list)
 
+    @api.onchange("partner_ref")
+    def _onchange_partner_ref(self):
+        if self.partner_ref:
+            partner = self.env["res.partner"].search(
+                [("ref", "=", self.partner_ref), ("supplier_rank", ">", 0)], limit=1
+            )
+            if partner:
+                self.partner_id = partner
+        else:
+            self.partner_id = False
+
     @api.onchange("partner_id")
     def _onchange_partner_id_clear_lines(self):
+        self.partner_ref = self.partner_id.ref or ""
         self.line_ids = [(5, 0, 0)]
         self.exchange_rate = self._get_exchange_rate_for_currency(self.currency_id)
 

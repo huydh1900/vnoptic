@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- Search view: field + group by -->
+    <record id="vnop_stock_quant_search_contract" model="ir.ui.view">
+        <field name="name">vnop.stock.quant.search.contract</field>
+        <field name="model">stock.quant</field>
+        <field name="inherit_id" ref="stock.quant_search_view"/>
+        <field name="arch" type="xml">
+            <field name="product_id" position="after">
+                <field name="contract_id"/>
+            </field>
+            <filter name="locationgroup" position="after">
+                <filter string="Hợp đồng" name="contractgroup"
+                        context="{'group_by': 'contract_id'}"/>
+            </filter>
+        </field>
+    </record>
+
+    <!-- Tree view (simple – base cho các tree view khác) -->
+    <record id="vnop_stock_quant_tree_simple_contract" model="ir.ui.view">
+        <field name="name">vnop.stock.quant.tree.simple.contract</field>
+        <field name="model">stock.quant</field>
+        <field name="inherit_id" ref="stock.view_stock_quant_tree_simple"/>
+        <field name="arch" type="xml">
+            <field name="product_id" position="after">
+                <field name="contract_id" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- Tree view (editable – Location Report) -->
+    <record id="vnop_stock_quant_tree_editable_contract" model="ir.ui.view">
+        <field name="name">vnop.stock.quant.tree.editable.contract</field>
+        <field name="model">stock.quant</field>
+        <field name="inherit_id" ref="stock.view_stock_quant_tree_editable"/>
+        <field name="arch" type="xml">
+            <field name="product_id" position="after">
+                <field name="contract_id" readonly="1" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- Form view (editable) -->
+    <record id="vnop_stock_quant_form_editable_contract" model="ir.ui.view">
+        <field name="name">vnop.stock.quant.form.editable.contract</field>
+        <field name="model">stock.quant</field>
+        <field name="inherit_id" ref="stock.view_stock_quant_form_editable"/>
+        <field name="arch" type="xml">
+            <field name="product_id" position="after">
+                <field name="contract_id" readonly="1"/>
+            </field>
+        </field>
+    </record>
+
+</odoo>

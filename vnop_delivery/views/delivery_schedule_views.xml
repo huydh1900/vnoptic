@@ -185,7 +185,7 @@
               name="Lịch giao hàng"
               parent="purchase.menu_procurement_management"
               action="action_delivery_schedule"
-              sequence="50"/>
+              sequence="3"/>
 
 
 </odoo>

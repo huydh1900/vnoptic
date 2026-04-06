@@ -53,8 +53,8 @@
 
                     <group string="Thông tin chung" col="2">
                         <group>
+                            <field name="partner_ref" readonly="state != 'draft'"/>
                             <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'"/>
-                            <field name="partner_ref" readonly="1"/>
                             <field name="follow_up_date" readonly="state != 'draft'"/>
                             <field name="contract_id" readonly="1" invisible="not contract_id"/>
                         </group>

@@ -65,9 +65,9 @@
     </record>
 
     <menuitem id="purchase_offer_approval_rule_menu"
-              name="Phê duyệt đề nghị mua hàng"
+              name="Phê duyệt ĐNMH"
               parent="purchase.menu_purchase_config"
               action="purchase_offer_approval_rule_action"
-              sequence="50"/>
+              sequence="2"/>
 
 </odoo>

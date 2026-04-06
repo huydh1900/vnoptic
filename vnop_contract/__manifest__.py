@@ -10,6 +10,7 @@
         'views/contract_views.xml',
         'views/contract_line_views.xml',
         'views/stock_views.xml',
+        'views/stock_quant_views.xml',
     ],
 
 

@@ -7,7 +7,9 @@
   &.o_field_many2many_tags, &.o_field_email, &.o_field_phone,
   &.o_field_url, &.o_field_html, &.o_field_percentage,
   &.o_field_many2one_avatar, &.o_field_many2one_avatar_user,
-  &.o_field_many2one_avatar_employee, &.o_field_many2one_reference {
+  &.o_field_many2one_avatar_employee, &.o_field_many2one_reference,
+  &.o_field_partner_autocomplete,
+  &.o_field_field_partner_autocomplete {
     border: 1px solid rgba(223, 225, 223, 0.84);
     border-radius: 5px;
     padding: 5px 5px 5px 10px;

@@ -91,6 +91,17 @@ class PurchaseOrder(models.Model):
             'target': 'current',
         }
 
+    @api.onchange('partner_ref')
+    def _onchange_partner_ref_fill_partner(self):
+        if self.partner_ref:
+            partner = self.env['res.partner'].search(
+                [('ref', '=', self.partner_ref), ('supplier_rank', '>', 0)], limit=1
+            )
+            if partner:
+                self.partner_id = partner
+        else:
+            self.partner_id = False
+
     @api.onchange('partner_id')
     def _onchange_partner_id_fill_partner_ref(self):
         if self.partner_id:

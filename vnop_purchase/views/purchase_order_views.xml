@@ -111,8 +111,9 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <xpath expr="//field[@name='partner_ref']" position="attributes">
-                <attribute name="readonly">state not in ('draft', 'sent', 'need_revision')</attribute>
+            <xpath expr="//field[@name='partner_ref']" position="replace"/>
+            <xpath expr="//field[@name='partner_id']" position="before">
+                <field name="partner_ref" readonly="state not in ('draft', 'sent', 'need_revision')"/>
             </xpath>
 
             <xpath expr="//field[@name='state']" position="replace">
@@ -154,6 +155,19 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
         </field>
+    </record>
+
+    <record id="purchase.menu_purchase_rfq" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <record id="purchase.menu_purchase_form_action" model="ir.ui.menu">
+        <field name="sequence">4</field>
+    </record>
+
+    <record id="purchase.menu_procurement_management_supplier_name" model="ir.ui.menu">
+        <field name="parent_id" ref="purchase.menu_purchase_root"/>
+        <field name="sequence">2</field>
     </record>
 
 </odoo>
