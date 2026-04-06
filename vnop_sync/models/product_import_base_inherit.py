@@ -8,6 +8,8 @@ from odoo.exceptions import ValidationError
 class ProductTemplateImportBaseInherit(models.Model):
     _inherit = 'product.template'
 
+    _VNOP_LENS_M2O_FIELDS = ('lens_sph_id', 'lens_cyl_id', 'lens_add_id')
+
     _VNOP_EXPORT_TEMPLATE_PREFIX = 'VNOP - Product Template'
 
     _VNOP_COMMON_FIELDS = [
@@ -239,7 +241,7 @@ class ProductTemplateImportBaseInherit(models.Model):
         return text
 
     def _vnop_normalize_lens_power_token(self, token):
-        """Normalize SPH/CYL token to lens power name format: +0.25, -0.50, 0.00."""
+        """Normalize SPH/CYL/ADD token to lens power name format: +0.25, -0.50, 0.00."""
         text = self._vnop_normalize_import_value(token)
         if not text:
             return ''
@@ -248,6 +250,14 @@ class ProductTemplateImportBaseInherit(models.Model):
             return '0.00' if value == 0 else f"{value:+.2f}"
         except (TypeError, ValueError):
             return text
+
+    def _vnop_prepare_lens_dbid_fields(self, fields):
+        """Use '.id' import path for lens SPH/CYL/ADD to bypass ambiguous name_search."""
+        prepared = list(fields)
+        for index, field_name in enumerate(prepared):
+            if field_name in self._VNOP_LENS_M2O_FIELDS:
+                prepared[index] = f'{field_name}/.id'
+        return prepared
 
     def _vnop_get_search_keys(self, model_name):
         model = self.env[model_name]
@@ -274,8 +284,11 @@ class ProductTemplateImportBaseInherit(models.Model):
                 cell_value = row[index_by_field[field_name]]
                 if not self._vnop_normalize_import_value(cell_value):
                     continue
-                _recs, normalized = self._vnop_resolve_reference(field_name, cell_value, row_no)
-                row[index_by_field[field_name]] = normalized
+                recs, normalized = self._vnop_resolve_reference(field_name, cell_value, row_no)
+                if field_name in self._VNOP_LENS_M2O_FIELDS and recs:
+                    row[index_by_field[field_name]] = str(recs.id)
+                else:
+                    row[index_by_field[field_name]] = normalized
 
     def _vnop_resolve_reference(self, field_name, raw_value, row_no):
 
@@ -284,7 +297,6 @@ class ProductTemplateImportBaseInherit(models.Model):
         model = self.env[model_name].sudo()
         search_keys = self._vnop_get_search_keys(model_name)
 
-        # Patch: Thêm domain power_type cho lens_sph_id và lens_cyl_id
         def _find_one(token):
             extra_domain = []
             if model_name == 'product.lens.power':
@@ -292,6 +304,8 @@ class ProductTemplateImportBaseInherit(models.Model):
                     extra_domain.append(('power_type', '=', 'sph'))
                 elif field_name == 'lens_cyl_id':
                     extra_domain.append(('power_type', '=', 'cyl'))
+                elif field_name == 'lens_add_id':
+                    extra_domain.append(('power_type', '=', 'add'))
             for key in search_keys:
                 domain = [(key, '=', token)] + extra_domain
                 record = model.search(domain, limit=1)
@@ -300,7 +314,7 @@ class ProductTemplateImportBaseInherit(models.Model):
             return model.browse()
 
         normalized = self._vnop_normalize_import_value(raw_value)
-        if field_name in ('lens_sph_id', 'lens_cyl_id'):
+        if field_name in self._VNOP_LENS_M2O_FIELDS:
             normalized = self._vnop_normalize_lens_power_token(normalized)
         if not normalized:
             return model.browse(), ''
@@ -367,7 +381,8 @@ class ProductTemplateImportBaseInherit(models.Model):
         if 'default_code' not in fields:
             rows = [list(row) for row in data]
             self._vnop_pre_resolve_relational_cells(list(fields), rows)
-            return super().load(fields, rows)
+            prepared_fields = self._vnop_prepare_lens_dbid_fields(fields)
+            return super().load(prepared_fields, rows)
 
         import_type = self._vnop_guess_import_type(fields)
         if not import_type:
@@ -429,7 +444,10 @@ class ProductTemplateImportBaseInherit(models.Model):
                 if not self._vnop_normalize_import_value(cell_value):
                     continue
                 recs, normalized = self._vnop_resolve_reference(field_name, cell_value, row_no)
-                row[index_by_field[field_name]] = normalized
+                if field_name in self._VNOP_LENS_M2O_FIELDS and recs:
+                    row[index_by_field[field_name]] = str(recs.id)
+                else:
+                    row[index_by_field[field_name]] = normalized
                 if recs and not self._VNOP_RELATIONAL_FIELDS[field_name]['multi']:
                     locked_relational_values[row_no][field_name] = recs.id
 
@@ -467,4 +485,5 @@ class ProductTemplateImportBaseInherit(models.Model):
                 existing = existing_by_code.get(code)
                 row.insert(0, str(existing.id) if existing else '')
 
-        return super().load(fields, rows)
+        prepared_fields = self._vnop_prepare_lens_dbid_fields(fields)
+        return super().load(prepared_fields, rows)
