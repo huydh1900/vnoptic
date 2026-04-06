@@ -187,6 +187,7 @@ class ProductTemplateImportBaseInherit(models.Model):
         'res.country': ['code', 'name'],
         'uom.uom': ['name'],
         'res.partner': ['ref', 'name'],
+        'product.category': ['code', 'complete_name', 'name'],
     }
 
     @api.model
@@ -242,6 +243,29 @@ class ProductTemplateImportBaseInherit(models.Model):
         ordered_keys = self._VNOP_MODEL_SEARCH_KEYS.get(model_name, ['cid', 'code', 'default_code', 'name'])
         return [key for key in ordered_keys if key in model._fields]
 
+    def _vnop_display_import_label(self, record):
+        """Return stable label that Odoo import can resolve for many2one values."""
+        if not record:
+            return ''
+        if record._name == 'product.category' and 'complete_name' in record._fields:
+            return record.complete_name or record.display_name
+        if 'name' in record._fields:
+            return record.name
+        return record.display_name
+
+    def _vnop_pre_resolve_relational_cells(self, fields, rows):
+        """Resolve relational tokens (code/cid/name) before delegating to Odoo import."""
+        index_by_field = {field_name: index for index, field_name in enumerate(fields)}
+        for row_no, row in enumerate(rows, start=1):
+            for field_name in fields:
+                if field_name not in self._VNOP_RELATIONAL_FIELDS or field_name not in index_by_field:
+                    continue
+                cell_value = row[index_by_field[field_name]]
+                if not self._vnop_normalize_import_value(cell_value):
+                    continue
+                _recs, normalized = self._vnop_resolve_reference(field_name, cell_value, row_no)
+                row[index_by_field[field_name]] = normalized
+
     def _vnop_resolve_reference(self, field_name, raw_value, row_no):
         field = self._fields[field_name]
         model_name = field.comodel_name
@@ -272,7 +296,7 @@ class ProductTemplateImportBaseInherit(models.Model):
                         field=field.string,
                     ))
                 records |= rec
-                labels.append(rec.name if 'name' in rec._fields else rec.display_name)
+                labels.append(self._vnop_display_import_label(rec))
             return records, ','.join(labels)
 
         rec = _find_one(normalized)
@@ -283,7 +307,7 @@ class ProductTemplateImportBaseInherit(models.Model):
                 value=normalized,
                 field=field.string,
             ))
-        return rec, rec.name if 'name' in rec._fields else rec.display_name
+        return rec, self._vnop_display_import_label(rec)
 
     def _vnop_guess_import_type(self, fields):
         markers = {
@@ -313,8 +337,15 @@ class ProductTemplateImportBaseInherit(models.Model):
     def load(self, fields, data):
         if not self.env.context.get('import_file'):
             return super().load(fields, data)
-        if not fields or 'default_code' not in fields:
+        if not fields:
             return super().load(fields, data)
+
+        # Allow imports that only update relational fields (e.g. categ_id by code)
+        # even when default_code is not included in the file.
+        if 'default_code' not in fields:
+            rows = [list(row) for row in data]
+            self._vnop_pre_resolve_relational_cells(list(fields), rows)
+            return super().load(fields, rows)
 
         import_type = self._vnop_guess_import_type(fields)
         if not import_type:
