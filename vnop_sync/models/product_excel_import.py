@@ -563,10 +563,6 @@ class ProductExcelImport(models.TransientModel):
         if not token:
             return False
 
-        supplier = cache.get_supplier(token) if hasattr(cache, 'get_supplier') else False
-        if supplier:
-            return supplier
-
         Partner = self.env['res.partner'].with_context(active_test=False)
         # Only match supplier with exact ref and supplier_rank > 0
         domain = [('ref', '=', token), ('supplier_rank', '>', 0)]
