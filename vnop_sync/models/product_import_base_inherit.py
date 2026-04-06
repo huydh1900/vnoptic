@@ -238,6 +238,17 @@ class ProductTemplateImportBaseInherit(models.Model):
             return ''
         return text
 
+    def _vnop_normalize_lens_power_token(self, token):
+        """Normalize SPH/CYL token to lens power name format: +0.25, -0.50, 0.00."""
+        text = self._vnop_normalize_import_value(token)
+        if not text:
+            return ''
+        try:
+            value = float(text)
+            return '0.00' if value == 0 else f"{value:+.2f}"
+        except (TypeError, ValueError):
+            return text
+
     def _vnop_get_search_keys(self, model_name):
         model = self.env[model_name]
         ordered_keys = self._VNOP_MODEL_SEARCH_KEYS.get(model_name, ['cid', 'code', 'default_code', 'name'])
@@ -267,19 +278,30 @@ class ProductTemplateImportBaseInherit(models.Model):
                 row[index_by_field[field_name]] = normalized
 
     def _vnop_resolve_reference(self, field_name, raw_value, row_no):
+
         field = self._fields[field_name]
         model_name = field.comodel_name
         model = self.env[model_name].sudo()
         search_keys = self._vnop_get_search_keys(model_name)
 
+        # Patch: Thêm domain power_type cho lens_sph_id và lens_cyl_id
         def _find_one(token):
+            extra_domain = []
+            if model_name == 'product.lens.power':
+                if field_name == 'lens_sph_id':
+                    extra_domain.append(('power_type', '=', 'sph'))
+                elif field_name == 'lens_cyl_id':
+                    extra_domain.append(('power_type', '=', 'cyl'))
             for key in search_keys:
-                record = model.search([(key, '=', token)], limit=1)
+                domain = [(key, '=', token)] + extra_domain
+                record = model.search(domain, limit=1)
                 if record:
                     return record
             return model.browse()
 
         normalized = self._vnop_normalize_import_value(raw_value)
+        if field_name in ('lens_sph_id', 'lens_cyl_id'):
+            normalized = self._vnop_normalize_lens_power_token(normalized)
         if not normalized:
             return model.browse(), ''
 

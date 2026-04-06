@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 import base64
+import logging
 from io import BytesIO
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
+
+_logger = logging.getLogger(__name__)
 
 
 class ProductCategory(models.Model):
@@ -16,6 +19,7 @@ class ProductCategory(models.Model):
         'category_id',
         string='Nhóm sản phẩm'
     )
+
 
 
 class ProductTemplateExtension(models.Model):
@@ -290,7 +294,7 @@ class ProductTemplateExtension(models.Model):
         'product_tmpl_coating_rel', 'tmpl_id', 'coating_id',
         string='Coating'
     )
-    # Màu sắc HMC / Photochromic / Tinted (từ clhmcdto / clphodto / clTintdto)
+    # Màu sắc HMC / Photochromic / Tinted (từ clhmcdto / clphodto / clTIntdto)
     lens_cl_hmc_id = fields.Many2one('product.cl', string='HMC')
     lens_cl_pho_id = fields.Many2one('product.cl', string='Photochromic')
     lens_cl_tint_id = fields.Many2one('product.cl', string='Tinted')

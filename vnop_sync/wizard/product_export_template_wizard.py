@@ -123,9 +123,14 @@ class ProductExportTemplateWizard(models.TransientModel):
                 fields_list.append(field_name)
                 seen.add(field_name)
 
+        # New templates should not expose default_code for manual input.
+        if 'default_code' in seen:
+            fields_list = [field_name for field_name in fields_list if field_name != 'default_code']
+            seen.remove('default_code')
+
         if 'image_1920' in product_model._fields and 'image_1920' not in seen:
-            if 'default_code' in fields_list:
-                insert_at = fields_list.index('default_code') + 1
+            if 'name' in fields_list:
+                insert_at = fields_list.index('name') + 1
             else:
                 insert_at = 0
             fields_list.insert(insert_at, 'image_1920')
