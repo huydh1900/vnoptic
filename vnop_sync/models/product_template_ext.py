@@ -25,6 +25,10 @@ class ProductCategory(models.Model):
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
 
+    _BASE36_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    _DEFAULT_CODE_SUFFIX_LEN = 5
+    _DEFAULT_CODE_SUFFIX_MAX = (36 ** _DEFAULT_CODE_SUFFIX_LEN) - 1
+
     len_type = fields.Selection([
         ('DT', 'Đơn tròng'),
         ('HT', 'Hai tròng'),
@@ -461,45 +465,169 @@ class ProductTemplateExtension(models.Model):
     # ==================== PRODUCT CREATION LOGIC ====================
     @api.model_create_multi
     def create(self, vals_list):
+        sequence_cache = {}
         for vals in vals_list:
             # Auto-generate product code if enabled and not provided
             if vals.get('auto_generate_code', True) and not vals.get('default_code'):
                 categ_id = vals.get('categ_id')
                 brand_id = vals.get('brand_id')
-                index_id = vals.get('index_id')
                 group_id = vals.get('group_id')
-                if categ_id and brand_id:
+                lens_index_id = vals.get('lens_index_id') or vals.get('index_id')
+                if group_id and brand_id:
                     try:
                         vals['default_code'] = self._auto_generate_product_code(
-                            categ_id, brand_id, index_id, group_id=group_id
+                            categ_id,
+                            brand_id,
+                            lens_index_id,
+                            group_id=group_id,
+                            sequence_cache=sequence_cache,
                         )
                     except Exception as e:
                         _logger.warning(f"Failed to auto-generate product code: {e}")
 
         return super().create(vals_list)
 
-    def _auto_generate_product_code(self, categ_id, brand_id, lens_index_id=None, group_id=None):
-        """Generate product code: <categ_code><brand_code>[<index_code>]-SEQ"""
+    def _product_code_base36_to_int(self, value):
+        text = (value or '').strip().upper()
+        if not text:
+            raise ValidationError('Suffix mã sản phẩm rỗng.')
+        result = 0
+        for ch in text:
+            pos = self._BASE36_ALPHABET.find(ch)
+            if pos < 0:
+                raise ValidationError(f'Suffix mã sản phẩm không hợp lệ: {value}')
+            result = result * 36 + pos
+        return result
+
+    def _product_code_int_to_base36(self, value, width):
+        if value < 0:
+            raise ValidationError('Suffix mã sản phẩm không được âm.')
+        if value > self._DEFAULT_CODE_SUFFIX_MAX:
+            raise ValidationError('Đã vượt giới hạn suffix 5 ký tự base36 cho mã sản phẩm.')
+        if value == 0:
+            text = '0'
+        else:
+            chars = []
+            number = value
+            while number:
+                number, rem = divmod(number, 36)
+                chars.append(self._BASE36_ALPHABET[rem])
+            text = ''.join(reversed(chars))
+        return text.rjust(width, '0')
+
+    def _get_root_category_code_from_id(self, categ_id):
+        if not categ_id:
+            return ''
         categ = self.env['product.category'].browse(categ_id)
+        while categ:
+            code = (getattr(categ, 'code', '') or '').strip().upper()
+            if code:
+                return code
+            categ = categ.parent_id
+        return ''
+
+    def _normalize_lens_index_cid(self, index):
+        raw = (getattr(index, 'cid', '') or '').strip().upper()
+        cleaned = ''.join(ch for ch in raw if ch.isalnum())
+        if not cleaned:
+            raise ValidationError('Chiết suất chưa có CID để sinh mã sản phẩm.')
+        if len(cleaned) > 3:
+            raise ValidationError(
+                f'CID chiết suất "{raw}" không hợp lệ sau chuẩn hóa ({cleaned}), yêu cầu tối đa 3 ký tự.'
+            )
+        return cleaned.zfill(3)
+
+    def _build_default_code_prefix(self, group_id, brand_id, lens_index_id=False, product_type='lens'):
+        group = self.env['product.group'].browse(group_id)
         brand = self.env['product.brand'].browse(brand_id)
-        categ_code = (getattr(categ, 'code', '') or '').strip().upper()
-        brand_code = (getattr(brand, 'code', '') or brand.name or '').strip().upper()[:3]
-        prefix = f"{categ_code}{brand_code}"
-        if lens_index_id:
-            index = self.env['product.lens.index'].browse(lens_index_id)
-            index_code = (getattr(index, 'code', '') or '').strip().upper()
-            if index_code:
-                prefix += index_code
-        seq_code = f"product.code.{prefix.lower()}"
-        seq = self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
-        if not seq:
-            seq = self.env['ir.sequence'].sudo().create({
-                'name': f'Product Code {prefix}',
-                'code': seq_code,
-                'prefix': prefix,
-                'padding': 4,
-            })
-        return seq.next_by_code(seq_code)
+
+        if not group or not group.exists():
+            raise ValidationError('Thiếu group_id hợp lệ để sinh mã sản phẩm.')
+        if not brand or not brand.exists():
+            raise ValidationError('Thiếu brand_id hợp lệ để sinh mã sản phẩm.')
+
+        try:
+            group_seq = int(group.sequence)
+        except Exception as exc:
+            raise ValidationError('STT nhóm (group.sequence) không hợp lệ để sinh mã sản phẩm.') from exc
+
+        try:
+            brand_seq = int(brand.sequence)
+        except Exception as exc:
+            raise ValidationError('STT thương hiệu (brand.sequence) không hợp lệ để sinh mã sản phẩm.') from exc
+
+        if group_seq < 0 or group_seq > 99:
+            raise ValidationError('STT nhóm phải nằm trong khoảng 0-99 để tạo AA.')
+        if brand_seq < 0 or brand_seq > 999:
+            raise ValidationError('STT thương hiệu phải nằm trong khoảng 0-999 để tạo BBB.')
+
+        aa = f"{group_seq:02d}"
+        bbb = f"{brand_seq:03d}"
+
+        if product_type == 'lens':
+            if not lens_index_id:
+                raise ValidationError('Sản phẩm lens thiếu lens_index_id để tạo CCC.')
+            lens_index = self.env['product.lens.index'].browse(lens_index_id)
+            if not lens_index or not lens_index.exists():
+                raise ValidationError('lens_index_id không hợp lệ để tạo CCC.')
+            ccc = self._normalize_lens_index_cid(lens_index)
+        else:
+            ccc = '000'
+
+        return f"{aa}{bbb}{ccc}"
+
+    def _get_max_default_code_suffix(self, prefix):
+        max_suffix = -1
+        code_len = len(prefix) + self._DEFAULT_CODE_SUFFIX_LEN
+        records = self.with_context(active_test=False).search_read(
+            [('default_code', 'like', f'{prefix}%')],
+            ['default_code'],
+        )
+        for rec in records:
+            code = (rec.get('default_code') or '').strip().upper()
+            if len(code) != code_len:
+                continue
+            suffix = code[-self._DEFAULT_CODE_SUFFIX_LEN:]
+            if any(ch not in self._BASE36_ALPHABET for ch in suffix):
+                continue
+            suffix_value = self._product_code_base36_to_int(suffix)
+            if suffix_value > max_suffix:
+                max_suffix = suffix_value
+        return max_suffix
+
+    def generate_next_default_code(self, group_id, brand_id, lens_index_id=False, product_type='lens', sequence_cache=None):
+        cache = sequence_cache if sequence_cache is not None else {}
+        prefix = self._build_default_code_prefix(
+            group_id,
+            brand_id,
+            lens_index_id=lens_index_id,
+            product_type=product_type,
+        )
+
+        current_suffix = cache.get(prefix)
+        if current_suffix is None:
+            current_suffix = self._get_max_default_code_suffix(prefix)
+
+        next_suffix = current_suffix + 1
+        if next_suffix > self._DEFAULT_CODE_SUFFIX_MAX:
+            raise ValidationError(
+                f'Prefix {prefix} đã vượt giới hạn suffix 5 ký tự base36 (00000..ZZZZZ).'
+            )
+
+        cache[prefix] = next_suffix
+        suffix_text = self._product_code_int_to_base36(next_suffix, self._DEFAULT_CODE_SUFFIX_LEN)
+        return f"{prefix}{suffix_text}"
+
+    def _auto_generate_product_code(self, categ_id, brand_id, lens_index_id=None, group_id=None, sequence_cache=None):
+        """Generate product code in format AABBBCCCDDDDD."""
+        product_type = 'lens' if self._get_root_category_code_from_id(categ_id) == 'TK' else 'non_lens'
+        return self.generate_next_default_code(
+            group_id,
+            brand_id,
+            lens_index_id=lens_index_id,
+            product_type=product_type,
+            sequence_cache=sequence_cache,
+        )
 
     def write(self, vals):
         if 'categ_id' in vals:

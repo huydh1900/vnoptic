@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError
-from ..utils import excel_reader, data_cache, import_validator, excel_template_generator, product_code_utils
+from ..utils import excel_reader, data_cache, import_validator, excel_template_generator
 
 _logger = logging.getLogger(__name__)
 
@@ -187,9 +187,18 @@ class ProductExcelImport(models.TransientModel):
             
             # Set product type
             self.product_type = parsed_data['product_type']
+
+            cache = data_cache.MasterDataCache(self.env)
+
+            # Ensure rows can be imported without manual default_code column.
+            self._populate_missing_default_codes(
+                parsed_data['rows'],
+                parsed_data['product_type'],
+                cache=cache,
+                strict=False,
+            )
             
             # Validate data
-            cache = data_cache.MasterDataCache(self.env)
             validation_result = import_validator.validate_all_rows(
                 self.env,
                 cache,
@@ -299,8 +308,18 @@ class ProductExcelImport(models.TransientModel):
             file_content = base64.b64decode(self.excel_file)
             parsed_data = excel_reader.parse_excel_file(file_content, self.file_name or 'uploaded.xlsx')
         
-        # Validate again
         cache = data_cache.MasterDataCache(self.env)
+
+        # Ensure missing default_code values are auto-generated before validation/import.
+        # Strict mode provides explicit errors for missing Group/Brand/Index in import rows.
+        self._populate_missing_default_codes(
+            parsed_data['rows'],
+            parsed_data['product_type'],
+            cache=cache,
+            strict=True,
+        )
+
+        # Validate again
         validation_result = import_validator.validate_all_rows(
             self.env,
             cache,
@@ -391,6 +410,73 @@ class ProductExcelImport(models.TransientModel):
             'view_mode': 'form',
             'target': 'new',
         }
+
+    def _resolve_code_generation_inputs(self, row_data, product_type, cache, row_number=None, strict=False):
+        row_label = f"Dòng {row_number}" if row_number else "Dòng import"
+
+        group = cache.get_group(row_data.get('Group'))
+        if strict and not group:
+            raise ValidationError(f"{row_label}: Thiếu hoặc không tìm thấy Group để sinh mã sản phẩm.")
+
+        brand = cache.get_brand(row_data.get('TradeMark'))
+        if strict and not brand:
+            raise ValidationError(f"{row_label}: Thiếu hoặc không tìm thấy TradeMark để sinh mã sản phẩm.")
+
+        lens_index_id = False
+        if product_type == 'lens':
+            index_record = cache.get_lens_index(row_data.get('Index')) if row_data.get('Index') else False
+            if strict and not index_record:
+                raise ValidationError(f"{row_label}: Lens thiếu hoặc không tìm thấy Index để sinh mã sản phẩm.")
+            if index_record:
+                lens_index_id = index_record.id
+
+        return group.id if group else False, brand.id if brand else False, lens_index_id
+
+    def _generate_default_code_for_row(self, row_data, product_type, cache, sequence_cache, row_number=None, strict=False):
+        group_id, brand_id, lens_index_id = self._resolve_code_generation_inputs(
+            row_data,
+            product_type,
+            cache,
+            row_number=row_number,
+            strict=strict,
+        )
+
+        if not group_id or not brand_id:
+            return False
+        if product_type == 'lens' and not lens_index_id:
+            return False
+
+        code = self.env['product.template'].generate_next_default_code(
+            group_id=group_id,
+            brand_id=brand_id,
+            lens_index_id=lens_index_id,
+            product_type='lens' if product_type == 'lens' else 'non_lens',
+            sequence_cache=sequence_cache,
+        )
+        return code
+
+    def _populate_missing_default_codes(self, rows, product_type, cache, strict=False):
+        sequence_cache = {}
+        generated_codes = []
+        for idx, row_data in enumerate(rows, start=1):
+            existing_code = (row_data.get('default_code') or '').strip().upper()
+            if existing_code:
+                generated_codes.append(existing_code)
+                row_data['default_code'] = existing_code
+                continue
+
+            code = self._generate_default_code_for_row(
+                row_data,
+                product_type,
+                cache,
+                sequence_cache=sequence_cache,
+                row_number=idx,
+                strict=strict,
+            )
+            generated_codes.append(code)
+            if code and not row_data.get('default_code'):
+                row_data['default_code'] = code
+        return generated_codes
     
     def _generate_preview_lines(self, rows, product_type, cache, validation_result):
         """Generate preview lines from parsed Excel data"""
@@ -405,34 +491,25 @@ class ProductExcelImport(models.TransientModel):
                 if row not in error_dict:
                     error_dict[row] = []
                 error_dict[row].append(err['message'])
+
+        sequence_cache = {}
         
         for idx, row_data in enumerate(rows, start=1):
-            # Get group and brand for code generation
-            group = cache.get_group(row_data.get('Group'))
-            brand = cache.get_brand(row_data.get('TradeMark'))
-            
-            # Get lens index for lens products
-            lens_index_id = False
-            if product_type == 'lens' and row_data.get('Index'):
-                index_record = cache.get_lens_index(row_data['Index'])
-                if index_record:
-                    lens_index_id = index_record.id
-            
-            # Generate code
             generated_code = ''
-            if group and brand:
-                try:
-                    generated_code = product_code_utils.generate_product_code(
-                        self.env,
-                        group.id,
-                        brand.id,
-                        lens_index_id
-                    )
-                except Exception as e:
-                    _logger.warning(f"Could not generate code for row {idx}: {e}")
-                    generated_code = f"ERROR: {str(e)[:30]}"
-            else:
-                generated_code = 'Thiếu Nhóm/Thương hiệu'
+            try:
+                generated_code = (row_data.get('default_code') or '').strip().upper()
+                if not generated_code:
+                    generated_code = self._generate_default_code_for_row(
+                        row_data,
+                        product_type,
+                        cache,
+                        sequence_cache=sequence_cache,
+                        row_number=idx,
+                        strict=False,
+                    ) or 'Thiếu dữ liệu sinh mã'
+            except Exception as e:
+                _logger.warning(f"Could not generate code for row {idx}: {e}")
+                generated_code = f"ERROR: {str(e)[:50]}"
             
             # Build preview line
             line_vals = {
@@ -490,42 +567,30 @@ class ProductExcelImport(models.TransientModel):
         """
         if not rows:
             return 0
-        
-        # Phase 1: Prepare code generation requests
-        code_requests = []
-        for row_data in rows:
-            group = cache.get_group(row_data.get('Group'))
-            brand = cache.get_brand(row_data.get('TradeMark'))
-            
-            lens_index_id = False
-            if product_type == 'lens' and row_data.get('Index'):
-                index_record = cache.get_lens_index(row_data['Index'])
-                if index_record:
-                    lens_index_id = index_record.id
-            
-            code_requests.append((
-                group.id if group else None,
-                brand.id if brand else None,
-                lens_index_id
-            ))
-        
-        # Phase 2: Generate all codes at once
-        generated_codes = product_code_utils.generate_product_codes_batch(
-            self.env, code_requests
+
+        # Phase 1: Generate all codes at once (with per-prefix batch cache)
+        generated_codes = self._populate_missing_default_codes(
+            rows,
+            product_type,
+            cache,
+            strict=False,
         )
         
-        # Phase 3: Prepare all product vals
+        # Phase 2: Prepare all product vals
         all_product_vals = []
         for idx, row_data in enumerate(rows):
             product_vals = self._prepare_product_vals(row_data, product_type, cache)
             
             # Apply generated code
-            if generated_codes[idx]:
-                product_vals['default_code'] = generated_codes[idx]
+            code = generated_codes[idx]
+            if not code:
+                raise ValidationError(f"Dòng {idx + 1}: Không thể sinh default_code cho sản phẩm import.")
+            product_vals['default_code'] = code
+            product_vals['auto_generate_code'] = False
             
             all_product_vals.append(product_vals)
         
-        # Phase 4: Batch create products
+        # Phase 3: Batch create products
         products = self.env['product.template'].create(all_product_vals)
         
         _logger.debug(f"Batch created {len(products)} products")
@@ -687,27 +752,17 @@ class ProductExcelImport(models.TransientModel):
         if row_data.get('Image'):
             product_vals['image_1920'] = row_data['Image']
         
-        # Generate abbreviation code automatically
-        lens_index_id = False
-        if product_type == 'lens' and row_data.get('Index'):
-            index_record = cache.get_lens_index(row_data['Index'])
-            if index_record:
-                lens_index_id = index_record.id
-        
-        # Generate code if we have group and brand
-        if group and brand:
-            try:
-                from ..utils import product_code_utils
-                code = product_code_utils.generate_product_code(
-                    self.env,
-                    group.id,
-                    brand.id,
-                    lens_index_id
-                )
-                product_vals['default_code'] = code
-                _logger.info(f"Generated code {code} for product {row_data.get('FullName')}")
-            except Exception as e:
-                _logger.warning(f"Could not generate code: {e}")
+        # Generate default_code for single-row flow
+        code = self._generate_default_code_for_row(
+            row_data,
+            product_type,
+            cache,
+            sequence_cache={},
+            row_number=row_data.get('_excel_row'),
+            strict=True,
+        )
+        product_vals['default_code'] = code
+        product_vals['auto_generate_code'] = False
         
         # Create lens/opt specific data
         if product_type == 'lens':
