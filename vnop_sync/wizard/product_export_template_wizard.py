@@ -65,6 +65,16 @@ class ProductExportTemplateWizard(models.TransientModel):
         'product_status': 'Trạng thái',
     }
 
+    _VIRTUAL_IMPORT_COLUMNS = [
+        'supplier_ref',
+        'currency_id',
+    ]
+
+    _VIRTUAL_FIELD_LABELS = {
+        'supplier_ref': 'Nhà cung cấp (ref)',
+        'currency_id': 'Đơn vị nguyên tệ',
+    }
+
     product_type = fields.Selection([
         ('mat', 'Mắt kính'),
         ('gong', 'Gọng kính'),
@@ -140,15 +150,30 @@ class ProductExportTemplateWizard(models.TransientModel):
             fields_list = [name for name in fields_list if name != 'description']
             fields_list.append('description')
 
+        for virtual_field in self._VIRTUAL_IMPORT_COLUMNS:
+            if virtual_field not in seen:
+                fields_list.append(virtual_field)
+                seen.add(virtual_field)
+
         return fields_list
 
     def _label_for_field(self, product_model, field_name):
         if field_name in self._FIELD_LABEL_OVERRIDES:
             return self._FIELD_LABEL_OVERRIDES[field_name]
+        if field_name in self._VIRTUAL_FIELD_LABELS:
+            return self._VIRTUAL_FIELD_LABELS[field_name]
         field = product_model._fields[field_name]
         return field.string or field_name
 
     def _note_for_field(self, product_model, field_name, is_required):
+        if field_name == 'supplier_ref':
+            required_text = 'Bắt buộc nhập.' if is_required else 'Tùy chọn.'
+            return f"{required_text} Nhập ref nhà cung cấp (ví dụ: 5005, 5018)."
+
+        if field_name == 'currency_id':
+            required_text = 'Bắt buộc nhập.' if is_required else 'Tùy chọn.'
+            return f"{required_text} Nhập mã/tên tiền tệ (ví dụ: USD, CNY)."
+
         field = product_model._fields[field_name]
         required_text = 'Bắt buộc nhập.' if is_required else 'Tùy chọn.'
 

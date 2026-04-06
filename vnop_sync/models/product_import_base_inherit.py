@@ -108,7 +108,6 @@ class ProductTemplateImportBaseInherit(models.Model):
     }
 
     _VNOP_REQUIRED_COMMON = [
-        'default_code',
         'name',
         'categ_id',
         'group_id',
@@ -422,11 +421,10 @@ class ProductTemplateImportBaseInherit(models.Model):
 
         for row_no, row in enumerate(rows, start=1):
             code = self._vnop_normalize_import_value(row[code_index] if code_index < len(row) else '')
-            if not code:
-                raise ValidationError(_('Dòng %s: Thiếu Mã sản phẩm (default_code).') % row_no)
-            if code in file_codes:
-                raise ValidationError(_('Dòng %s: Trùng mã sản phẩm trong cùng file (%s).') % (row_no, code))
-            file_codes.add(code)
+            if code:
+                if code in file_codes:
+                    raise ValidationError(_('Dòng %s: Trùng mã sản phẩm trong cùng file (%s).') % (row_no, code))
+                file_codes.add(code)
 
             for field_name in required_fields:
                 value = self._vnop_normalize_import_value(row[index_by_field[field_name]])
@@ -451,32 +449,33 @@ class ProductTemplateImportBaseInherit(models.Model):
                 if recs and not self._VNOP_RELATIONAL_FIELDS[field_name]['multi']:
                     locked_relational_values[row_no][field_name] = recs.id
 
-            existing = self.search([('default_code', '=', code)], limit=1)
-            if existing:
-                existing_by_code[code] = existing
-                existing_type = self._vnop_product_type_from_record(existing)
-                if existing_type and existing_type != import_type:
-                    raise ValidationError(_(
-                        'Dòng %(row)s: Mã %(code)s đã tồn tại nhưng khác loại sản phẩm.',
-                        row=row_no,
-                        code=code,
-                    ))
-
-                if 'categ_id' in index_by_field and locked_relational_values[row_no].get('categ_id'):
-                    if existing.categ_id.id != locked_relational_values[row_no]['categ_id']:
+            if code:
+                existing = self.search([('default_code', '=', code)], limit=1)
+                if existing:
+                    existing_by_code[code] = existing
+                    existing_type = self._vnop_product_type_from_record(existing)
+                    if existing_type and existing_type != import_type:
                         raise ValidationError(_(
-                            'Dòng %(row)s: Mã %(code)s đã tồn tại nhưng đang thay đổi Danh mục.',
+                            'Dòng %(row)s: Mã %(code)s đã tồn tại nhưng khác loại sản phẩm.',
                             row=row_no,
                             code=code,
                         ))
 
-                if 'group_id' in index_by_field and locked_relational_values[row_no].get('group_id'):
-                    if existing.group_id.id != locked_relational_values[row_no]['group_id']:
-                        raise ValidationError(_(
-                            'Dòng %(row)s: Mã %(code)s đã tồn tại nhưng đang thay đổi Nhóm sản phẩm.',
-                            row=row_no,
-                            code=code,
-                        ))
+                    if 'categ_id' in index_by_field and locked_relational_values[row_no].get('categ_id'):
+                        if existing.categ_id.id != locked_relational_values[row_no]['categ_id']:
+                            raise ValidationError(_(
+                                'Dòng %(row)s: Mã %(code)s đã tồn tại nhưng đang thay đổi Danh mục.',
+                                row=row_no,
+                                code=code,
+                            ))
+
+                    if 'group_id' in index_by_field and locked_relational_values[row_no].get('group_id'):
+                        if existing.group_id.id != locked_relational_values[row_no]['group_id']:
+                            raise ValidationError(_(
+                                'Dòng %(row)s: Mã %(code)s đã tồn tại nhưng đang thay đổi Nhóm sản phẩm.',
+                                row=row_no,
+                                code=code,
+                            ))
 
         if '.id' not in fields and 'id' not in fields:
             fields.insert(0, '.id')
