@@ -3,10 +3,11 @@
 import base64
 import json
 import logging
+from io import BytesIO
 from datetime import datetime
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError
-from ..utils import excel_reader, data_cache, import_validator, excel_template_generator, product_code_utils
+from ..utils import excel_reader, data_cache, import_validator, excel_template_generator
 
 _logger = logging.getLogger(__name__)
 
@@ -80,13 +81,13 @@ class ProductExcelImport(models.TransientModel):
             
             try:
                 if template_type == 'lens':
-                    template_data = excel_template_generator.generate_lens_template()
+                    template_data = self._get_import_template_data('lens')
                     filename = f"BangNhap_Mat_{datetime.now().strftime('%Y%m%d')}.xlsx"
                 elif template_type == 'opt':
-                    template_data = excel_template_generator.generate_opt_template()
+                    template_data = self._get_import_template_data('opt')
                     filename = f"BangNhap_Gong_{datetime.now().strftime('%Y%m%d')}.xlsx"
                 elif template_type == 'accessory':
-                    template_data = excel_template_generator.generate_accessory_template()
+                    template_data = self._get_import_template_data('accessory')
                     filename = f"BangNhap_PhuKien_{datetime.now().strftime('%Y%m%d')}.xlsx"
                 else:
                     return
@@ -122,7 +123,7 @@ class ProductExcelImport(models.TransientModel):
         """Download Excel template for Lens products"""
         self.ensure_one()
         try:
-            template_data = excel_template_generator.generate_lens_template()
+            template_data = self._get_import_template_data('lens')
             filename = f"BangNhap_Mat_{datetime.now().strftime('%Y%m%d')}.xlsx"
             return self._create_download_action(template_data, filename)
         except Exception as e:
@@ -133,7 +134,7 @@ class ProductExcelImport(models.TransientModel):
         """Download Excel template for Optical products"""
         self.ensure_one()
         try:
-            template_data = excel_template_generator.generate_opt_template()
+            template_data = self._get_import_template_data('opt')
             filename = f"BangNhap_Gong_{datetime.now().strftime('%Y%m%d')}.xlsx"
             return self._create_download_action(template_data, filename)
         except Exception as e:
@@ -144,12 +145,72 @@ class ProductExcelImport(models.TransientModel):
         """Download Excel template for Accessory products"""
         self.ensure_one()
         try:
-            template_data = excel_template_generator.generate_accessory_template()
+            template_data = self._get_import_template_data('accessory')
             filename = f"BangNhap_PhuKien_{datetime.now().strftime('%Y%m%d')}.xlsx"
             return self._create_download_action(template_data, filename)
         except Exception as e:
             _logger.error(f"Error generating accessory template: {e}", exc_info=True)
             raise UserError(_('Error generating template: %s') % str(e))
+
+    def _get_import_template_data(self, product_type):
+        if product_type == 'lens':
+            raw_data = excel_template_generator.generate_lens_template()
+        elif product_type == 'opt':
+            raw_data = excel_template_generator.generate_opt_template()
+        elif product_type == 'accessory':
+            raw_data = excel_template_generator.generate_accessory_template()
+        else:
+            raise UserError(_('Unsupported template type: %s') % product_type)
+        return self._ensure_template_supplier_currency_columns(raw_data)
+
+    def _ensure_template_supplier_currency_columns(self, template_data):
+        """Ensure download template always contains supplier_ref and currency_id columns."""
+        try:
+            from openpyxl import load_workbook
+        except Exception:
+            return template_data
+
+        wb = load_workbook(filename=BytesIO(template_data))
+        ws = wb.active
+
+        tech_row = None
+        for row_idx in range(1, min(ws.max_row, 20) + 1):
+            values = [
+                str(cell.value).strip()
+                for cell in ws[row_idx]
+                if cell.value not in (None, '')
+            ]
+            if {'FullName', 'TradeMark', 'Group'}.intersection(values):
+                tech_row = row_idx
+                break
+
+        if not tech_row:
+            output = BytesIO()
+            wb.save(output)
+            return output.getvalue()
+
+        label_row = tech_row - 1 if tech_row > 1 else tech_row
+        existing_keys = {
+            str(cell.value).strip().lower()
+            for cell in ws[tech_row]
+            if cell.value not in (None, '')
+        }
+
+        columns_to_add = []
+        if not any(k in existing_keys for k in ('supplier', 'supplier_ref', 'partner_ref')):
+            columns_to_add.append(('Nhà cung cấp (ref)', 'supplier_ref'))
+        if not any(k in existing_keys for k in ('currency', 'currency_id')):
+            columns_to_add.append(('Đơn vị nguyên tệ', 'currency_id'))
+
+        next_col = ws.max_column + 1
+        for label, key in columns_to_add:
+            ws.cell(row=label_row, column=next_col, value=label)
+            ws.cell(row=tech_row, column=next_col, value=key)
+            next_col += 1
+
+        output = BytesIO()
+        wb.save(output)
+        return output.getvalue()
     
     def _create_download_action(self, file_data, filename):
         """Create download action for Excel file"""
@@ -184,12 +245,23 @@ class ProductExcelImport(models.TransientModel):
             
             # Parse Excel
             parsed_data = excel_reader.parse_excel_file(file_content, self.file_name or 'uploaded.xlsx')
+
+            self._normalize_import_rows(parsed_data.get('rows') or [])
             
             # Set product type
             self.product_type = parsed_data['product_type']
+
+            cache = data_cache.MasterDataCache(self.env)
+
+            # Ensure rows can be imported without manual default_code column.
+            self._populate_missing_default_codes(
+                parsed_data['rows'],
+                parsed_data['product_type'],
+                cache=cache,
+                strict=False,
+            )
             
             # Validate data
-            cache = data_cache.MasterDataCache(self.env)
             validation_result = import_validator.validate_all_rows(
                 self.env,
                 cache,
@@ -298,9 +370,21 @@ class ProductExcelImport(models.TransientModel):
             _logger.warning("Parsed data not found in context, re-parsing...")
             file_content = base64.b64decode(self.excel_file)
             parsed_data = excel_reader.parse_excel_file(file_content, self.file_name or 'uploaded.xlsx')
+
+        self._normalize_import_rows(parsed_data.get('rows') or [])
         
-        # Validate again
         cache = data_cache.MasterDataCache(self.env)
+
+        # Ensure missing default_code values are auto-generated before validation/import.
+        # Strict mode provides explicit errors for missing Group/Brand/Index in import rows.
+        self._populate_missing_default_codes(
+            parsed_data['rows'],
+            parsed_data['product_type'],
+            cache=cache,
+            strict=True,
+        )
+
+        # Validate again
         validation_result = import_validator.validate_all_rows(
             self.env,
             cache,
@@ -391,6 +475,182 @@ class ProductExcelImport(models.TransientModel):
             'view_mode': 'form',
             'target': 'new',
         }
+
+    def _get_row_value(self, row_data, keys):
+        if not isinstance(row_data, dict):
+            return False
+        lower_map = {str(k).strip().lower(): k for k in row_data.keys()}
+        for key in keys:
+            source_key = key if key in row_data else lower_map.get(str(key).strip().lower())
+            if source_key is None:
+                continue
+            value = row_data.get(source_key)
+            if value in (None, False):
+                continue
+            if isinstance(value, str):
+                value = value.strip()
+            if value == '':
+                continue
+            return value
+        return False
+
+    def _normalize_row_token(self, value):
+        if value in (None, False):
+            return ''
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value).strip()
+
+    def _normalize_import_rows(self, rows):
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            if not row.get('Supplier'):
+                supplier_alias = self._get_row_value(row, ['supplier_ref', 'SupplierRef', 'supplier', 'partner_ref'])
+                if supplier_alias:
+                    row['Supplier'] = self._normalize_row_token(supplier_alias)
+            if not row.get('Currency'):
+                currency_alias = self._get_row_value(row, ['currency_id', 'CurrencyId', 'currency', 'Loại tiền tệ', 'Đơn vị nguyên tệ'])
+                if currency_alias:
+                    row['Currency'] = self._normalize_row_token(currency_alias)
+            if not row.get('TradeMark'):
+                brand_alias = self._get_row_value(row, ['brand_id', 'Brand', 'brand'])
+                if brand_alias:
+                    row['TradeMark'] = self._normalize_row_token(brand_alias)
+            if not row.get('Group'):
+                group_alias = self._get_row_value(row, ['group_id', 'group'])
+                if group_alias:
+                    row['Group'] = self._normalize_row_token(group_alias)
+            if not row.get('Index'):
+                index_alias = self._get_row_value(row, ['lens_index_id', 'index_id', 'index'])
+                if index_alias:
+                    row['Index'] = self._normalize_row_token(index_alias)
+
+    def _resolve_currency_record(self, row_data, cache, row_number=None, strict=False):
+        token = self._get_row_value(row_data, ['Currency', 'currency_id', 'currency', 'Loại tiền tệ', 'Đơn vị nguyên tệ'])
+        token = self._normalize_row_token(token)
+        if not token:
+            return False
+
+        currency = cache.get_currency(token) if hasattr(cache, 'get_currency') else False
+        if currency:
+            return currency
+
+        Currency = self.env['res.currency'].with_context(active_test=False)
+        search_domain = ['|', ('name', '=', token), ('name', '=', token.upper())]
+        records = Currency.search(search_domain)
+        # Also try full_name and symbol if available
+        if not records and 'full_name' in Currency._fields:
+            records = Currency.search(['|', ('full_name', '=', token), ('full_name', '=', token.upper())])
+        if not records and 'symbol' in Currency._fields:
+            records = Currency.search([('symbol', '=', token)])
+
+        if not records or len(records) == 0:
+            if strict:
+                row_label = f"Dòng {row_number}" if row_number else "Dòng import"
+                raise ValidationError(f"{row_label}: Không tìm thấy tiền tệ với giá trị '{token}'.")
+            return False
+        if len(records) > 1:
+            if strict:
+                row_label = f"Dòng {row_number}" if row_number else "Dòng import"
+                raise ValidationError(f"{row_label}: Có nhiều loại tiền tệ cùng mã/code '{token}'. Vui lòng kiểm tra lại dữ liệu tiền tệ.")
+            return False
+        return records[0]
+
+    def _resolve_supplier_partner(self, row_data, cache, row_number=None, strict=False):
+        token = self._get_row_value(row_data, ['Supplier', 'supplier_ref', 'SupplierRef', 'supplier', 'partner_ref'])
+        token = self._normalize_row_token(token)
+        if not token:
+            return False
+
+        Partner = self.env['res.partner'].with_context(active_test=False)
+        # Only match supplier with exact ref and supplier_rank > 0
+        domain = [('ref', '=', token), ('supplier_rank', '>', 0)]
+        records = Partner.search(domain)
+        if not records or len(records) == 0:
+            if strict:
+                row_label = f"Dòng {row_number}" if row_number else "Dòng import"
+                raise ValidationError(f"{row_label}: Không tìm thấy nhà cung cấp theo ref '{token}'.")
+            return False
+        if len(records) > 1:
+            if strict:
+                row_label = f"Dòng {row_number}" if row_number else "Dòng import"
+                raise ValidationError(f"{row_label}: Có nhiều nhà cung cấp cùng ref '{token}'. Vui lòng kiểm tra lại danh sách nhà cung cấp.")
+            return False
+        return records[0]
+
+    def _resolve_code_generation_inputs(self, row_data, product_type, cache, row_number=None, strict=False):
+        row_label = f"Dòng {row_number}" if row_number else "Dòng import"
+
+        group_token = self._get_row_value(row_data, ['Group', 'group_id', 'group'])
+        group_token = self._normalize_row_token(group_token)
+        group = cache.get_group(group_token) if group_token else False
+        if strict and not group:
+            raise ValidationError(f"{row_label}: Thiếu hoặc không tìm thấy Group để sinh mã sản phẩm.")
+
+        brand_token = self._get_row_value(row_data, ['TradeMark', 'brand_id', 'Brand', 'brand'])
+        brand_token = self._normalize_row_token(brand_token)
+        brand = cache.get_brand(brand_token) if brand_token else False
+        if strict and not brand:
+            raise ValidationError(f"{row_label}: Thiếu hoặc không tìm thấy TradeMark để sinh mã sản phẩm.")
+
+        lens_index_id = False
+        if product_type == 'lens':
+            index_token = self._get_row_value(row_data, ['Index', 'lens_index_id', 'index_id', 'index'])
+            index_token = self._normalize_row_token(index_token)
+            index_record = cache.get_lens_index(index_token) if index_token else False
+            if strict and not index_record:
+                raise ValidationError(f"{row_label}: Lens thiếu hoặc không tìm thấy Index để sinh mã sản phẩm.")
+            if index_record:
+                lens_index_id = index_record.id
+
+        return group.id if group else False, brand.id if brand else False, lens_index_id
+
+    def _generate_default_code_for_row(self, row_data, product_type, cache, sequence_cache, row_number=None, strict=False):
+        group_id, brand_id, lens_index_id = self._resolve_code_generation_inputs(
+            row_data,
+            product_type,
+            cache,
+            row_number=row_number,
+            strict=strict,
+        )
+
+        if not group_id or not brand_id:
+            return False
+        if product_type == 'lens' and not lens_index_id:
+            return False
+
+        code = self.env['product.template'].generate_next_default_code(
+            group_id=group_id,
+            brand_id=brand_id,
+            lens_index_id=lens_index_id,
+            product_type='lens' if product_type == 'lens' else 'non_lens',
+            sequence_cache=sequence_cache,
+        )
+        return code
+
+    def _populate_missing_default_codes(self, rows, product_type, cache, strict=False):
+        sequence_cache = {}
+        generated_codes = []
+        for idx, row_data in enumerate(rows, start=1):
+            existing_code = (row_data.get('default_code') or '').strip().upper()
+            if existing_code:
+                generated_codes.append(existing_code)
+                row_data['default_code'] = existing_code
+                continue
+
+            code = self._generate_default_code_for_row(
+                row_data,
+                product_type,
+                cache,
+                sequence_cache=sequence_cache,
+                row_number=idx,
+                strict=strict,
+            )
+            generated_codes.append(code)
+            if code and not row_data.get('default_code'):
+                row_data['default_code'] = code
+        return generated_codes
     
     def _generate_preview_lines(self, rows, product_type, cache, validation_result):
         """Generate preview lines from parsed Excel data"""
@@ -405,34 +665,25 @@ class ProductExcelImport(models.TransientModel):
                 if row not in error_dict:
                     error_dict[row] = []
                 error_dict[row].append(err['message'])
+
+        sequence_cache = {}
         
         for idx, row_data in enumerate(rows, start=1):
-            # Get group and brand for code generation
-            group = cache.get_group(row_data.get('Group'))
-            brand = cache.get_brand(row_data.get('TradeMark'))
-            
-            # Get lens index for lens products
-            lens_index_id = False
-            if product_type == 'lens' and row_data.get('Index'):
-                index_record = cache.get_lens_index(row_data['Index'])
-                if index_record:
-                    lens_index_id = index_record.id
-            
-            # Generate code
             generated_code = ''
-            if group and brand:
-                try:
-                    generated_code = product_code_utils.generate_product_code(
-                        self.env,
-                        group.id,
-                        brand.id,
-                        lens_index_id
-                    )
-                except Exception as e:
-                    _logger.warning(f"Could not generate code for row {idx}: {e}")
-                    generated_code = f"ERROR: {str(e)[:30]}"
-            else:
-                generated_code = 'Thiếu Nhóm/Thương hiệu'
+            try:
+                generated_code = (row_data.get('default_code') or '').strip().upper()
+                if not generated_code:
+                    generated_code = self._generate_default_code_for_row(
+                        row_data,
+                        product_type,
+                        cache,
+                        sequence_cache=sequence_cache,
+                        row_number=idx,
+                        strict=False,
+                    ) or 'Thiếu dữ liệu sinh mã'
+            except Exception as e:
+                _logger.warning(f"Could not generate code for row {idx}: {e}")
+                generated_code = f"ERROR: {str(e)[:50]}"
             
             # Build preview line
             line_vals = {
@@ -490,42 +741,30 @@ class ProductExcelImport(models.TransientModel):
         """
         if not rows:
             return 0
-        
-        # Phase 1: Prepare code generation requests
-        code_requests = []
-        for row_data in rows:
-            group = cache.get_group(row_data.get('Group'))
-            brand = cache.get_brand(row_data.get('TradeMark'))
-            
-            lens_index_id = False
-            if product_type == 'lens' and row_data.get('Index'):
-                index_record = cache.get_lens_index(row_data['Index'])
-                if index_record:
-                    lens_index_id = index_record.id
-            
-            code_requests.append((
-                group.id if group else None,
-                brand.id if brand else None,
-                lens_index_id
-            ))
-        
-        # Phase 2: Generate all codes at once
-        generated_codes = product_code_utils.generate_product_codes_batch(
-            self.env, code_requests
+
+        # Phase 1: Generate all codes at once (with per-prefix batch cache)
+        generated_codes = self._populate_missing_default_codes(
+            rows,
+            product_type,
+            cache,
+            strict=False,
         )
         
-        # Phase 3: Prepare all product vals
+        # Phase 2: Prepare all product vals
         all_product_vals = []
         for idx, row_data in enumerate(rows):
             product_vals = self._prepare_product_vals(row_data, product_type, cache)
             
             # Apply generated code
-            if generated_codes[idx]:
-                product_vals['default_code'] = generated_codes[idx]
+            code = generated_codes[idx]
+            if not code:
+                raise ValidationError(f"Dòng {idx + 1}: Không thể sinh default_code cho sản phẩm import.")
+            product_vals['default_code'] = code
+            product_vals['auto_generate_code'] = False
             
             all_product_vals.append(product_vals)
         
-        # Phase 4: Batch create products
+        # Phase 3: Batch create products
         products = self.env['product.template'].create(all_product_vals)
         
         _logger.debug(f"Batch created {len(products)} products")
@@ -542,28 +781,42 @@ class ProductExcelImport(models.TransientModel):
             'eng_name': row_data.get('EngName'),
             'type': 'consu',
         }
-        
-        # Group (required)
-        group = cache.get_group(row_data.get('Group'))
-        if group:
-            product_vals['group_id'] = group.id
-        
-        # Brand (required)
-        brand = cache.get_brand(row_data.get('TradeMark'))
-        if brand:
-            product_vals['brand_id'] = brand.id
+
+        group_id, brand_id, _lens_index_id = self._resolve_code_generation_inputs(
+            row_data,
+            product_type,
+            cache,
+            row_number=row_data.get('_excel_row'),
+            strict=True,
+        )
+        product_vals['group_id'] = group_id
+        product_vals['brand_id'] = brand_id
         
         # Optional foreign keys
         # Supplier - use seller_ids (Odoo standard)
-        if row_data.get('Supplier'):
-            supplier = cache.get_supplier(row_data['Supplier'])
-            if supplier:
-                product_vals['seller_ids'] = [(0, 0, {
-                    'partner_id': supplier.id,
-                    'price': float(row_data.get('Origin_Price', 0) or 0),
-                    'min_qty': 1.0,
-                    'delay': 1,
-                })]
+        currency = self._resolve_currency_record(
+            row_data,
+            cache,
+            row_number=row_data.get('_excel_row'),
+            strict=True,
+        )
+
+        supplier = self._resolve_supplier_partner(
+            row_data,
+            cache,
+            row_number=row_data.get('_excel_row'),
+            strict=True,
+        )
+        if supplier:
+            seller_vals = {
+                'partner_id': supplier.id,
+                'price': float(row_data.get('Origin_Price', 0) or 0),
+                'min_qty': 1.0,
+                'delay': 1,
+            }
+            if currency:
+                seller_vals['currency_id'] = currency.id
+            product_vals['seller_ids'] = [(0, 0, seller_vals)]
         
         if row_data.get('Country'):
             country = cache.get_country(row_data['Country'])
@@ -575,10 +828,11 @@ class ProductExcelImport(models.TransientModel):
             if warranty:
                 product_vals['warranty_id'] = warranty.id
         
-        if row_data.get('Currency'):
-            currency = cache.get_currency(row_data['Currency'])
-            if currency:
+        if currency:
+            if 'currency_zone_id' in self.env['product.template']._fields:
                 product_vals['currency_zone_id'] = currency.id
+            elif 'currency_id' in self.env['product.template']._fields:
+                product_vals['currency_id'] = currency.id
         
         # Prices
         product_vals['or_price'] = float(row_data.get('Origin_Price', 0) or 0)
@@ -629,20 +883,42 @@ class ProductExcelImport(models.TransientModel):
         }
 
         # Group (required)
-        group = cache.get_group(row_data.get('Group'))
-        if group:
-            product_vals['group_id'] = group.id
+        group_id, brand_id, _lens_index_id = self._resolve_code_generation_inputs(
+            row_data,
+            product_type,
+            cache,
+            row_number=row_data.get('_excel_row'),
+            strict=True,
+        )
+        product_vals['group_id'] = group_id
 
         # Brand (required)
-        brand = cache.get_brand(row_data.get('TradeMark'))
-        if brand:
-            product_vals['brand_id'] = brand.id
+        product_vals['brand_id'] = brand_id
 
         # Optional foreign keys
-        if row_data.get('Supplier'):
-            supplier = cache.get_supplier(row_data['Supplier'])
-            if supplier:
-                product_vals['supplier_id'] = supplier.id
+        currency = self._resolve_currency_record(
+            row_data,
+            cache,
+            row_number=row_data.get('_excel_row'),
+            strict=True,
+        )
+
+        supplier = self._resolve_supplier_partner(
+            row_data,
+            cache,
+            row_number=row_data.get('_excel_row'),
+            strict=True,
+        )
+        if supplier:
+            seller_vals = {
+                'partner_id': supplier.id,
+                'price': float(row_data.get('Origin_Price', 0) or 0),
+                'min_qty': 1.0,
+                'delay': 1,
+            }
+            if currency:
+                seller_vals['currency_id'] = currency.id
+            product_vals['seller_ids'] = [(0, 0, seller_vals)]
 
         if row_data.get('Country'):
             country = cache.get_country(row_data['Country'])
@@ -654,10 +930,11 @@ class ProductExcelImport(models.TransientModel):
             if warranty:
                 product_vals['warranty_id'] = warranty.id
 
-        if row_data.get('Currency'):
-            currency = cache.get_currency(row_data['Currency'])
-            if currency:
+        if currency:
+            if 'currency_zone_id' in self.env['product.template']._fields:
                 product_vals['currency_zone_id'] = currency.id
+            elif 'currency_id' in self.env['product.template']._fields:
+                product_vals['currency_id'] = currency.id
 
         # Prices
         product_vals['or_price'] = float(row_data.get('Origin_Price', 0) or 0)
@@ -687,27 +964,17 @@ class ProductExcelImport(models.TransientModel):
         if row_data.get('Image'):
             product_vals['image_1920'] = row_data['Image']
         
-        # Generate abbreviation code automatically
-        lens_index_id = False
-        if product_type == 'lens' and row_data.get('Index'):
-            index_record = cache.get_lens_index(row_data['Index'])
-            if index_record:
-                lens_index_id = index_record.id
-        
-        # Generate code if we have group and brand
-        if group and brand:
-            try:
-                from ..utils import product_code_utils
-                code = product_code_utils.generate_product_code(
-                    self.env,
-                    group.id,
-                    brand.id,
-                    lens_index_id
-                )
-                product_vals['default_code'] = code
-                _logger.info(f"Generated code {code} for product {row_data.get('FullName')}")
-            except Exception as e:
-                _logger.warning(f"Could not generate code: {e}")
+        # Generate default_code for single-row flow
+        code = self._generate_default_code_for_row(
+            row_data,
+            product_type,
+            cache,
+            sequence_cache={},
+            row_number=row_data.get('_excel_row'),
+            strict=True,
+        )
+        product_vals['default_code'] = code
+        product_vals['auto_generate_code'] = False
         
         # Create lens/opt specific data
         if product_type == 'lens':
