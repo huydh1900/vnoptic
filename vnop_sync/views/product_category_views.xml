@@ -23,4 +23,26 @@
             </xpath>
         </field>
     </record>
+
+    <record id="product_category_list_inherit_show_code" model="ir.ui.view">
+        <field name="name">product.category.list.inherit.show.code</field>
+        <field name="model">product.category</field>
+        <field name="inherit_id" ref="product.product_category_list_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='display_name']" position="before">
+                <field name="code" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="product_category_search_inherit_show_code" model="ir.ui.view">
+        <field name="name">product.category.search.inherit.show.code</field>
+        <field name="model">product.category</field>
+        <field name="inherit_id" ref="product.product_category_search_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search/field[@name='name']" position="after">
+                <field name="code" string="Mã danh mục"/>
+            </xpath>
+        </field>
+    </record>
 </odoo>

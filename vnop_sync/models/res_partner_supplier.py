@@ -1,8 +1,10 @@
-# -*- coding: utf-8 -*-
-
 import re
 import unicodedata
 from odoo import api, fields, models
+
+# -*- coding: utf-8 -*-
+
+
 
 
 class ResPartner(models.Model):
@@ -16,6 +18,8 @@ class ResPartnerBank(models.Model):
     _inherit = 'res.partner.bank'
 
     x_bank_address = fields.Char(string='Địa chỉ ngân hàng', related='bank_id.street', readonly=False, store=True)
+
+    # Đã bỏ x_bank_country, dùng trực tiếp bank_id.country (Odoo base)
 
     def _normalize_bank_token(self, value):
         if value in (None, False):
