@@ -239,6 +239,12 @@ class ProductTemplateImportBaseInherit(models.Model):
             return ''
         return text
 
+    def _vnop_normalize_import_name(self, value):
+        text = self._vnop_normalize_import_value(value)
+        if not text:
+            return ''
+        return ' '.join(text.split()).lower()
+
     def _vnop_normalize_lens_power_token(self, token):
         """Normalize SPH/CYL/ADD token to lens power name format: +0.25, -0.50, 0.00."""
         text = self._vnop_normalize_import_value(token)
@@ -389,6 +395,46 @@ class ProductTemplateImportBaseInherit(models.Model):
 
         fields = list(fields)
         rows = [list(row) for row in data]
+
+        # Auto-map supplier_ref -> seller_ids/partner_id by partner.ref
+        if 'supplier_ref' in fields:
+            supplier_index = fields.index('supplier_ref')
+            target_field = 'seller_ids/partner_id/.id'
+            if target_field in fields:
+                target_index = fields.index(target_field)
+            else:
+                fields.append(target_field)
+                target_index = len(fields) - 1
+                for row in rows:
+                    row.append('')
+
+            Partner = self.env['res.partner'].with_context(active_test=False)
+            for row_no, row in enumerate(rows, start=1):
+                token = self._vnop_normalize_import_value(row[supplier_index] if supplier_index < len(row) else '')
+                if not token:
+                    continue
+                domain = [('ref', '=', token)]
+                if 'supplier_rank' in Partner._fields:
+                    domain.append(('supplier_rank', '>', 0))
+                partners = Partner.search(domain)
+                if not partners:
+                    raise ValidationError(_(
+                        'Dòng %(row)s: Không tìm thấy Nhà cung cấp có mã tham chiếu %(code)s.',
+                        row=row_no,
+                        code=token,
+                    ))
+                if len(partners) > 1:
+                    raise ValidationError(_(
+                        'Dòng %(row)s: Có nhiều Nhà cung cấp cùng mã tham chiếu %(code)s.',
+                        row=row_no,
+                        code=token,
+                    ))
+                row[target_index] = str(partners.id)
+
+            fields.pop(supplier_index)
+            for row in rows:
+                if supplier_index < len(row):
+                    row.pop(supplier_index)
         index_by_field = {field_name: index for index, field_name in enumerate(fields)}
         code_index = index_by_field['default_code']
 
@@ -486,3 +532,5 @@ class ProductTemplateImportBaseInherit(models.Model):
 
         prepared_fields = self._vnop_prepare_lens_dbid_fields(fields)
         return super().load(prepared_fields, rows)
+
+    # Đã chuyển validate trùng tên sang tầng create/write, xóa validate ở đây

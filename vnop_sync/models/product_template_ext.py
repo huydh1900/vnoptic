@@ -22,8 +22,41 @@ class ProductCategory(models.Model):
 
 
 
+
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
+
+    def _vnop_normalize_import_name(self, value):
+        import unicodedata, re
+        text = (value or '').strip().lower()
+        text = unicodedata.normalize('NFKD', text)
+        text = ''.join(ch for ch in text if not unicodedata.combining(ch))
+        text = re.sub(r'[^a-z0-9]+', '', text)
+        return text
+
+    def _check_duplicate_name(self, vals_list_or_vals, existing_ids=None):
+        # Support both create (list) and write (dict)
+        if isinstance(vals_list_or_vals, dict):
+            vals_list = [vals_list_or_vals]
+        else:
+            vals_list = vals_list_or_vals
+        existing_ids = existing_ids or []
+        names = set()
+        for vals in vals_list:
+            name = vals.get('name')
+            if not name:
+                continue
+            name_key = self._vnop_normalize_import_name(name)
+            if name_key in names:
+                raise ValidationError('Trùng tên sản phẩm trong cùng thao tác (%s).' % name)
+            names.add(name_key)
+            # Check DB (match spacing differences by interleaving %)
+            name_pattern = '%'.join(list(name_key))
+            domain = [('id', 'not in', existing_ids), ('active', 'in', [True, False])]
+            domain.append(('name', 'ilike', name_pattern))
+            for rec in self.env['product.template'].search(domain, limit=20):
+                if self._vnop_normalize_import_name(rec.name) == name_key:
+                    raise ValidationError('Tên sản phẩm đã tồn tại trong hệ thống (%s).' % name)
 
     _BASE36_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     _DEFAULT_CODE_SUFFIX_LEN = 5
@@ -465,6 +498,7 @@ class ProductTemplateExtension(models.Model):
     # ==================== PRODUCT CREATION LOGIC ====================
     @api.model_create_multi
     def create(self, vals_list):
+        self._check_duplicate_name(vals_list)
         sequence_cache = {}
         for vals in vals_list:
             # Auto-generate product code if enabled and not provided
@@ -630,6 +664,7 @@ class ProductTemplateExtension(models.Model):
         )
 
     def write(self, vals):
+        self._check_duplicate_name(vals, existing_ids=self.ids)
         if 'categ_id' in vals:
             # Clear groups when category changes, unless caller explicitly sets group fields.
             if not any(k in vals for k in ('lens_group_id', 'opt_group_id', 'acc_group_id', 'group_id')):
