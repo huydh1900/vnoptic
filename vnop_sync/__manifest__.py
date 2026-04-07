@@ -34,7 +34,8 @@
             'vnop_sync/static/src/js/preview_long_text.js',
             'vnop_sync/static/src/js/product_export_cog_menu.js',
             'vnop_sync/static/src/xml/product_export_cog_menu.xml',
-
+            'vnop_sync/static/src/js/product_kanban_buttons.js',
+            'vnop_sync/static/src/xml/product_kanban_buttons.xml',
         ],
     },
     'installable': True,

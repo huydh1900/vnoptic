@@ -123,7 +123,6 @@ class ProductTemplateExtension(models.Model):
 
     x_guide = fields.Text(
         'Hướng dẫn sử dụng',
-        help="Step-by-step usage guide"
     )
 
     x_warning = fields.Text(
@@ -318,7 +317,6 @@ class ProductTemplateExtension(models.Model):
     opt_season = fields.Char('Season', size=50)
     opt_model = fields.Char('Model', size=50)
     opt_serial = fields.Char('Serial', size=50)
-    opt_oem_ncc = fields.Char('Mã gốc NCC', size=50)
     opt_sku = fields.Char('SKU', size=50)
     opt_color = fields.Char('Mã màu', size=50)
     opt_gender = fields.Selection([

@@ -216,7 +216,6 @@
                         </group>
                         <group>
                             <field name="opt_color"/>
-                            <field name="opt_oem_ncc"/>
                         </group>
                     </group>
 

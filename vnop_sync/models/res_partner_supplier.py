@@ -11,7 +11,6 @@ class ResPartner(models.Model):
     _inherit = 'res.partner'
 
     x_supplier_fax = fields.Char(string='Fax')
-    x_supplier_contact_name = fields.Char(string='Người liên hệ')
 
 
 class ResPartnerBank(models.Model):
