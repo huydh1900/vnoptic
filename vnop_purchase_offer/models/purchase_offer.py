@@ -114,6 +114,10 @@ class PurchaseOffer(models.Model):
         store=True,
         currency_field="currency_id",
     )
+    amount_total_vnd = fields.Char(
+        string="Tương đương VND",
+        compute="_compute_amount_total_vnd",
+    )
     line_count = fields.Integer(string="Số dòng", compute="_compute_line_count")
     followup_alert_sent = fields.Boolean(string="Đã gửi cảnh báo theo dõi", copy=False, default=False)
     has_received = fields.Boolean(compute='_compute_has_received')
@@ -130,6 +134,15 @@ class PurchaseOffer(models.Model):
             if vals.get("name", _("Mới")) == _("Mới"):
                 vals["name"] = sequence.next_by_code("purchase.offer") or _("Mới")
         return super().create(vals_list)
+
+    @api.constrains("partner_ref", "partner_id")
+    def _check_partner_ref_match(self):
+        for rec in self:
+            if rec.partner_ref and rec.partner_id and rec.partner_ref != rec.partner_id.ref:
+                raise ValidationError(
+                    _("Mã NCC '%s' không khớp với nhà cung cấp '%s' (mã: %s).")
+                    % (rec.partner_ref, rec.partner_id.name, rec.partner_id.ref or "")
+                )
 
     @api.onchange("partner_ref")
     def _onchange_partner_ref(self):
@@ -159,6 +172,12 @@ class PurchaseOffer(models.Model):
             rec.total_qty = sum(rec.line_ids.mapped("quantity"))
             rec.total_qty_received = sum(rec.line_ids.mapped("qty_received"))
             rec.amount_total = sum(rec.line_ids.mapped("subtotal"))
+
+    @api.depends("amount_total", "exchange_rate")
+    def _compute_amount_total_vnd(self):
+        for rec in self:
+            total_vnd = rec.amount_total * rec.exchange_rate
+            rec.amount_total_vnd = "≈ {:,.0f} ₫".format(total_vnd) if total_vnd else ""
 
     @api.depends("amount_total", "company_id")
     def _compute_approved_by(self):

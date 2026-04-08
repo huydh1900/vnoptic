@@ -63,7 +63,14 @@
                             <field name="exchange_rate" readonly="state != 'draft'"/>
                             <field name="total_qty" readonly="1"/>
                             <field name="total_qty_received" readonly="1"/>
-                            <field name="amount_total" widget="monetary" readonly="1"/>
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="amount_total" string="Tổng giá trị dự kiến"/>
+                                <field name="amount_total" widget="monetary" readonly="1" class="oe_inline"/>
+                                <span class="text-muted"
+                                      invisible="not exchange_rate or exchange_rate == 1">
+                                    <field name="amount_total_vnd" readonly="1" class="oe_inline"/>
+                                </span>
+                            </div>
                         </group>
                     </group>
 
