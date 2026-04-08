@@ -32,7 +32,8 @@
                 <header>
                     <button name="action_submit" type="object" string="Gửi duyệt" class="btn-primary" invisible="state != 'draft'"/>
                     <button name="action_approve" type="object" string="Phê duyệt" class="oe_highlight" invisible="state != 'waiting_approval'"/>
-                    <button name="action_cancel" type="object" string="Hủy" class="btn-secondary" invisible="state in ('cancelled', 'converted')"/>
+                    <button name="action_request_revision" type="object" string="Yêu cầu chỉnh sửa" class="btn-warning" invisible="state != 'waiting_approval'"/>
+                    <button name="action_cancel" type="object" string="Hủy" class="btn-danger" invisible="state in ('cancelled', 'converted')" confirm="Bạn có chắc chắn muốn hủy đề nghị mua hàng này không?"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,waiting_approval,approved,converted,cancelled"/>
                 </header>
 
@@ -53,41 +54,33 @@
 
                     <group string="Thông tin chung" col="2">
                         <group>
-                            <field name="partner_ref" readonly="state != 'draft'"/>
-                            <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'"/>
-                            <field name="follow_up_date" readonly="state != 'draft'"/>
+                            <field name="partner_ref" readonly="state not in ('draft', 'waiting_approval')"/>
+                            <field name="partner_id" options="{'no_create': True}" readonly="state not in ('draft', 'waiting_approval')"/>
+                            <field name="follow_up_date" readonly="state not in ('draft', 'waiting_approval')"/>
                             <field name="contract_id" readonly="1" invisible="not contract_id"/>
                         </group>
                         <group>
-                            <field name="currency_id" readonly="state != 'draft'"/>
-                            <field name="exchange_rate" readonly="state != 'draft'"/>
+                            <field name="currency_id" readonly="state not in ('draft', 'waiting_approval')"/>
+                            <field name="exchange_rate" readonly="state not in ('draft', 'waiting_approval')"/>
                             <field name="total_qty" readonly="1"/>
                             <field name="total_qty_received" readonly="1"/>
-                            <div class="d-flex align-items-center gap-2">
-                                <label for="amount_total" string="Tổng giá trị dự kiến"/>
-                                <field name="amount_total" widget="monetary" readonly="1" class="oe_inline"/>
-                                <span class="text-muted"
-                                      invisible="not exchange_rate or exchange_rate == 1">
-                                    <field name="amount_total_vnd" readonly="1" class="oe_inline"/>
-                                </span>
-                            </div>
                         </group>
                     </group>
 
-                    <group string="Thông tin bổ sung" col="2">
+                    <group col="2">
                         <group string="Khởi tạo">
                             <field name="create_uid" string="Người tạo" widget="many2one_avatar_user" readonly="1"/>
                             <field name="create_date" string="Ngày tạo" readonly="1"/>
                         </group>
                         <group string="Phê duyệt">
-                            <field name="approved_by" widget="many2one_avatar_user"/>
+                            <field name="approved_by"/>
                             <field name="approved_date" readonly="1"/>
                         </group>
                     </group>
 
                     <notebook>
                         <page string="Sản phẩm">
-                            <div class="mb-2" invisible="state != 'draft'">
+                            <div class="mb-2" invisible="state not in ('draft', 'waiting_approval')">
                                 <button name="action_download_template" type="object"
                                         string="Tải template mẫu" icon="fa-download"
                                         class="btn-link"/>
@@ -95,24 +88,37 @@
                                         string="Import Excel" icon="fa-upload"
                                         class="btn-link"/>
                             </div>
-                            <field name="line_ids" readonly="state != 'draft'">
+                            <field name="line_ids" readonly="state not in ('draft', 'waiting_approval')">
                                 <list editable="bottom">
                                     <field name="product_id" domain="[('product_tmpl_id.primary_supplier_id', '=', parent.partner_id)]"/>
                                     <field name="description" optional="hide"/>
                                     <field name="uom_id" optional="hide"/>
-                                    <field name="quantity" sum="Tổng SL dự kiến"/>
-                                    <field name="qty_received" readonly="1" sum="Tổng SL đã nhận" column_invisible="not parent.has_received"/>
+                                    <field name="quantity"/>
+                                    <field name="qty_received" readonly="1" column_invisible="not parent.has_received"/>
                                     <field name="expected_price"/>
                                     <field name="taxes_id" widget="many2many_tags" optional="show"
                                            domain="[('type_tax_use', '=', 'purchase')]"/>
-                                    <field name="subtotal" sum="Tổng giá trị dự kiến"/>
+                                    <field name="subtotal"/>
                                     <field name="currency_id" column_invisible="1"/>
                                 </list>
                             </field>
+                            <group>
+                                <group/>
+                                <group class="oe_subtotal_footer">
+                                    <field name="amount_untaxed" widget="monetary"/>
+                                    <field name="amount_tax" widget="monetary"/>
+                                    <field name="amount_total" widget="monetary"/>
+                                    <field name="amount_total_vnd" nolabel="1" colspan="2"
+                                           invisible="not exchange_rate or exchange_rate == 1"/>
+                                    <field name="amount_text_vi" nolabel="1" colspan="2" readonly="1"
+                                           class="fst-italic text-muted"/>
+                                </group>
+                            </group>
                         </page>
                         <page string="Ghi chú">
                             <group>
-                                <field name="note" placeholder="Nhập ghi chú nội bộ..." readonly="state != 'draft'"/>
+                                <field name="note" placeholder="Nhập ghi chú nội bộ..." readonly="state not in ('draft', 'waiting_approval')"/>
+                                <field name="revision_reason" invisible="not revision_reason"/>
                             </group>
                         </page>
                     </notebook>

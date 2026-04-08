@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import base64
 import logging
-
+from odoo.addons.vnop_amount_to_text.models.amount_to_text_vi import amount_to_text_vi
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 
@@ -75,9 +75,9 @@ class PurchaseOffer(models.Model):
         string="Người phê duyệt đề xuất",
         compute="_compute_approved_by",
         store=True,
+        readonly=False,
         copy=False,
         tracking=True,
-        help="Tự động xác định theo Quy tắc phê duyệt DNMH dựa trên giá trị đơn.",
     )
     approved_date = fields.Datetime(string="Thời gian duyệt", readonly=True, copy=False, tracking=True)
     state = fields.Selection(
@@ -94,6 +94,7 @@ class PurchaseOffer(models.Model):
         copy=False,
     )
     note = fields.Text(string="Ghi chú nội bộ")
+    revision_reason = fields.Text(string="Lý do chỉnh sửa", readonly=True, copy=False)
     line_ids = fields.One2many("purchase.offer.line", "offer_id", string="Danh sách sản phẩm", copy=True)
     contract_id = fields.Many2one("contract", string="Hợp đồng", readonly=True, copy=False)
     total_qty = fields.Float(
@@ -108,8 +109,20 @@ class PurchaseOffer(models.Model):
         store=True,
         digits="Product Unit of Measure",
     )
+    amount_untaxed = fields.Monetary(
+        string="Số tiền trước thuế",
+        compute="_compute_totals",
+        store=True,
+        currency_field="currency_id",
+    )
+    amount_tax = fields.Monetary(
+        string="Thuế",
+        compute="_compute_totals",
+        store=True,
+        currency_field="currency_id",
+    )
     amount_total = fields.Monetary(
-        string="Tổng giá trị dự kiến",
+        string="Tổng",
         compute="_compute_totals",
         store=True,
         currency_field="currency_id",
@@ -117,6 +130,10 @@ class PurchaseOffer(models.Model):
     amount_total_vnd = fields.Char(
         string="Tương đương VND",
         compute="_compute_amount_total_vnd",
+    )
+    amount_text_vi = fields.Char(
+        string="Số tiền bằng chữ",
+        compute="_compute_amount_text_vi",
     )
     line_count = fields.Integer(string="Số dòng", compute="_compute_line_count")
     followup_alert_sent = fields.Boolean(string="Đã gửi cảnh báo theo dõi", copy=False, default=False)
@@ -166,18 +183,31 @@ class PurchaseOffer(models.Model):
             vals["followup_alert_sent"] = False
         return super().write(vals)
 
-    @api.depends("line_ids.quantity", "line_ids.subtotal", "line_ids.qty_received")
+    @api.depends("line_ids.quantity", "line_ids.subtotal", "line_ids.price_tax", "line_ids.price_total", "line_ids.qty_received")
     def _compute_totals(self):
         for rec in self:
             rec.total_qty = sum(rec.line_ids.mapped("quantity"))
             rec.total_qty_received = sum(rec.line_ids.mapped("qty_received"))
-            rec.amount_total = sum(rec.line_ids.mapped("subtotal"))
+            rec.amount_untaxed = sum(rec.line_ids.mapped("subtotal"))
+            rec.amount_tax = sum(rec.line_ids.mapped("price_tax"))
+            rec.amount_total = rec.amount_untaxed + rec.amount_tax
 
     @api.depends("amount_total", "exchange_rate")
     def _compute_amount_total_vnd(self):
         for rec in self:
             total_vnd = rec.amount_total * rec.exchange_rate
             rec.amount_total_vnd = "≈ {:,.0f} ₫".format(total_vnd) if total_vnd else ""
+
+    @api.depends("amount_total", "currency_id", "exchange_rate")
+    def _compute_amount_text_vi(self):
+        for rec in self:
+            if rec.currency_id and rec.currency_id.name == "VND":
+                rec.amount_text_vi = amount_to_text_vi(rec.amount_total, "đồng")
+            elif rec.exchange_rate and rec.exchange_rate != 1:
+                total_vnd = rec.amount_total * rec.exchange_rate
+                rec.amount_text_vi = amount_to_text_vi(total_vnd, "đồng")
+            else:
+                rec.amount_text_vi = amount_to_text_vi(rec.amount_total, rec.currency_id.name or "")
 
     @api.depends("amount_total", "company_id")
     def _compute_approved_by(self):
@@ -243,6 +273,16 @@ class PurchaseOffer(models.Model):
 
     def action_cancel(self):
         self.write({"state": "cancelled"})
+
+    def action_request_revision(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "purchase.offer.revision.wizard",
+            "view_mode": "form",
+            "target": "new",
+            "context": {"default_offer_id": self.id},
+        }
 
     def _validate_before_approval(self):
         for rec in self:
@@ -456,6 +496,18 @@ class PurchaseOfferLine(models.Model):
         store=True,
         currency_field="currency_id",
     )
+    price_tax = fields.Monetary(
+        string="Thuế",
+        compute="_compute_subtotal",
+        store=True,
+        currency_field="currency_id",
+    )
+    price_total = fields.Monetary(
+        string="Tổng (gồm thuế)",
+        compute="_compute_subtotal",
+        store=True,
+        currency_field="currency_id",
+    )
 
     @api.onchange("product_id")
     def _onchange_product_id(self):
@@ -466,10 +518,19 @@ class PurchaseOfferLine(models.Model):
                 line.taxes_id = line.product_id.supplier_taxes_id
                 line.expected_price = line.product_id.standard_price
 
-    @api.depends("quantity", "expected_price")
+    @api.depends("quantity", "expected_price", "taxes_id")
     def _compute_subtotal(self):
         for line in self:
             line.subtotal = line.quantity * line.expected_price
+            taxes = line.taxes_id.compute_all(
+                line.expected_price,
+                currency=line.currency_id,
+                quantity=line.quantity,
+                product=line.product_id,
+                partner=line.offer_id.partner_id,
+            )
+            line.price_tax = taxes["total_included"] - taxes["total_excluded"]
+            line.price_total = taxes["total_included"]
 
     @api.constrains("quantity", "expected_price")
     def _check_positive_values(self):
