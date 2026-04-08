@@ -65,7 +65,6 @@ class ProductTemplateImportBaseInherit(models.Model):
         'frame': [
             'opt_sku',
             'opt_model',
-            'opt_oem_ncc',
             'opt_serial',
             'opt_color',
             'opt_season',

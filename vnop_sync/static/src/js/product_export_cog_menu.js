@@ -27,7 +27,7 @@ class ExportMatTemplateMenu extends Component {
     static components = { DropdownItem };
 
     onSelected() {
-        downloadTemplate("mat");
+        downloadTemplate("lens");
     }
 }
 
@@ -36,7 +36,7 @@ class ExportGongTemplateMenu extends Component {
     static components = { DropdownItem };
 
     onSelected() {
-        downloadTemplate("gong");
+        downloadTemplate("frame");
     }
 }
 
@@ -45,7 +45,7 @@ class ExportPhuKienTemplateMenu extends Component {
     static components = { DropdownItem };
 
     onSelected() {
-        downloadTemplate("phukien");
+        downloadTemplate("accessory");
     }
 }
 
