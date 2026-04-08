@@ -461,6 +461,22 @@ class ProductTemplateImportBaseInherit(models.Model):
                 columns=', '.join(missing_columns),
             ))
 
+        name_index = index_by_field.get('name')
+        file_names = set()
+        existing_ids = set()
+        id_index = index_by_field.get('.id')
+        if id_index is None:
+            id_index = index_by_field.get('id')
+        if id_index is not None:
+            for row in rows:
+                token = self._vnop_normalize_import_value(row[id_index] if id_index < len(row) else '')
+                if not token:
+                    continue
+                try:
+                    existing_ids.add(int(token))
+                except Exception:
+                    continue
+
         file_codes = set()
         existing_by_code = {}
         locked_relational_values = defaultdict(dict)
@@ -499,6 +515,7 @@ class ProductTemplateImportBaseInherit(models.Model):
                 existing = self.search([('default_code', '=', code)], limit=1)
                 if existing:
                     existing_by_code[code] = existing
+                    existing_ids.add(existing.id)
                     existing_type = self._vnop_product_type_from_record(existing)
                     if existing_type and existing_type != import_type:
                         raise ValidationError(_(
@@ -522,6 +539,28 @@ class ProductTemplateImportBaseInherit(models.Model):
                                 row=row_no,
                                 code=code,
                             ))
+
+            if name_index is not None:
+                name_raw = row[name_index] if name_index < len(row) else ''
+                name_value = self._vnop_normalize_import_value(name_raw)
+                if name_value:
+                    name_key = self._vnop_normalize_import_name(name_value)
+                    if name_key in file_names:
+                        raise ValidationError(_(
+                            'Dòng %s: Trùng tên sản phẩm trong cùng file (%s).'
+                        ) % (row_no, name_raw))
+                    file_names.add(name_key)
+                    name_pattern = '%'.join(list(name_key))
+                    domain = [
+                        ('id', 'not in', list(existing_ids)),
+                        ('active', 'in', [True, False]),
+                        ('name', 'ilike', name_pattern),
+                    ]
+                    for rec in self.env['product.template'].search(domain, limit=20):
+                        if self._vnop_normalize_import_name(rec.name) == name_key:
+                            raise ValidationError(_(
+                                'Dòng %s: Tên sản phẩm đã tồn tại trong hệ thống (%s).'
+                            ) % (row_no, name_raw))
 
         if '.id' not in fields and 'id' not in fields:
             fields.insert(0, '.id')

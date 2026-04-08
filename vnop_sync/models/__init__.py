@@ -19,4 +19,5 @@ from . import product_template_debug_log
 from . import product_import_base_inherit
 from . import base_import_product_template_inherit
 from . import product_import_queue_session
+from . import queue_job_inherit
 

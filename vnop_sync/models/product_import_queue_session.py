@@ -29,6 +29,11 @@ class ProductImportQueueSession(models.Model):
         help='Raw import payload used by background batches.',
     )
 
+    job_type = fields.Selection([
+        ('import', 'Import'),
+        ('test', 'Test'),
+    ], string='Job Type', default='import', required=True, readonly=True)
+
     state = fields.Selection([
         ('draft', 'Draft'),
         ('queued', 'Queued'),
@@ -242,6 +247,7 @@ class ProductImportQueueSession(models.Model):
 
         payload = self._prepare_import_payload()
         self.write({
+            'job_type': 'import',
             'state': 'queued',
             'res_model': 'product.template',
             'requested_by': self.env.user.id,
@@ -271,6 +277,40 @@ class ProductImportQueueSession(models.Model):
             'res_id': self.id,
             'view_mode': 'form',
             'target': 'current',
+        }
+
+    def action_open_import_wizard(self):
+        self.ensure_one()
+        if self.requested_by and self.requested_by != self.env.user:
+            raise UserError(_('You are not allowed to reopen this import session.'))
+        if self.job_type != 'test' or self.state not in ('done', 'error'):
+            raise UserError(_('Only completed test sessions can be reopened for import.'))
+
+        try:
+            fields_map = json.loads(self.fields_json or '[]')
+            columns = json.loads(self.columns_json or '[]')
+            options = json.loads(self.options_json or '{}')
+        except Exception:
+            fields_map = []
+            columns = []
+            options = {}
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'import',
+            'params': {
+                'active_model': self.res_model,
+                'context': dict(
+                    self.env.context,
+                    vnop_queue_session_id=self.id,
+                    vnop_queue_session_file_name=self.file_name,
+                    vnop_queue_fields=fields_map,
+                    vnop_queue_columns=columns,
+                    vnop_queue_options=options,
+                    vnop_queue_error_log=self.error_log or False,
+                    vnop_queue_state=self.state,
+                ),
+            },
         }
 
     def _format_batch_messages(self, messages, batch_index, batch_skip):
@@ -311,7 +351,7 @@ class ProductImportQueueSession(models.Model):
         batch_options['skip'] = batch_skip
         batch_options['limit'] = batch_size
 
-        result = importer.with_context(vnop_skip_queue_import=True).execute_import(
+        result = importer.with_context(vnop_skip_queue_import=True, import_file=True).execute_import(
             fields_map,
             columns,
             batch_options,
@@ -328,6 +368,198 @@ class ProductImportQueueSession(models.Model):
             'warnings': len(warnings),
             'logs': logs,
         }
+
+    def _run_single_test_batch(self, fields_map, columns, options, batch_skip, batch_size, batch_index):
+        excel_bytes = self._get_excel_raw_bytes()
+        importer = self.env['base_import.import'].create({
+            'res_model': 'product.template',
+            'file': excel_bytes,
+            'file_name': self.file_name,
+        })
+        batch_options = dict(options)
+        batch_options.pop('skip', None)
+        batch_options.pop('limit', None)
+        batch_options['skip'] = batch_skip
+        batch_options['limit'] = batch_size
+
+        result = importer.with_context(vnop_skip_queue_import=True, import_file=True).execute_import(
+            fields_map,
+            columns,
+            batch_options,
+            dryrun=True,
+        )
+        messages = result.get('messages') or []
+        errors = [msg for msg in messages if (msg or {}).get('type') == 'error']
+        warnings = [msg for msg in messages if (msg or {}).get('type') == 'warning']
+        logs = self._format_batch_messages(messages, batch_index, batch_skip)
+        return {
+            'success': batch_size - len(errors),
+            'errors': len(errors),
+            'warnings': len(warnings),
+            'logs': logs,
+        }
+
+    def _run_test_queue_job(self, session_id):
+        session = self.browse(session_id)
+        if not session.exists():
+            return False
+
+        try:
+            with self.env.cr.savepoint():
+                self._safe_write_by_id(session_id, {
+                    'state': 'running',
+                    'started_at': fields.Datetime.now(),
+                    'finished_at': False,
+                })
+
+                session = self.browse(session_id)
+                fields_map = json.loads(session.fields_json or '[]')
+                columns = json.loads(session.columns_json or '[]')
+                options = json.loads(session.options_json or '{}')
+
+                try:
+                    base_skip = int(options.get('skip') or 0)
+                except Exception:
+                    base_skip = 0
+                base_skip = max(0, base_skip)
+
+                total_rows = session.total_rows
+                batch_size = session.batch_size if session.batch_size > 0 else self._get_default_batch_size()
+                total_batches = int(math.ceil(float(total_rows) / float(batch_size))) if total_rows else 0
+
+                _logger.info(
+                    '[vnop_sync] Queue test start session=%s file=%s rows=%s batch_size=%s total_batches=%s base_skip=%s',
+                    session_id,
+                    session.file_name,
+                    total_rows,
+                    batch_size,
+                    total_batches,
+                    base_skip,
+                )
+
+                success_total = 0
+                error_total = 0
+                warning_total = 0
+                log_lines = []
+
+                for batch_index in range(1, total_batches + 1):
+                    relative_skip = (batch_index - 1) * batch_size
+                    batch_skip = base_skip + relative_skip
+                    processed_rows = min(total_rows, relative_skip + batch_size)
+                    batch_limit = min(batch_size, total_rows - relative_skip)
+
+                    batch_success = 0
+                    batch_errors = 0
+                    batch_warnings = 0
+                    batch_logs = []
+
+                    batch_started = time.time()
+                    _logger.info(
+                        '[vnop_sync] Queue test batch start session=%s batch=%s/%s skip=%s limit=%s',
+                        session_id,
+                        batch_index,
+                        total_batches,
+                        batch_skip,
+                        batch_limit,
+                    )
+
+                    try:
+                        with self.env.cr.savepoint():
+                            result = session._run_single_test_batch(
+                                fields_map,
+                                columns,
+                                options,
+                                batch_skip,
+                                batch_limit,
+                                batch_index,
+                            )
+                            batch_success = result['success']
+                            batch_errors = result['errors']
+                            batch_warnings = result['warnings']
+                            batch_logs = result['logs']
+                    except Exception as batch_error:
+                        _logger.exception(
+                            '[vnop_sync] Queue test batch failed session=%s batch=%s/%s skip=%s limit=%s',
+                            session_id,
+                            batch_index,
+                            total_batches,
+                            batch_skip,
+                            batch_limit,
+                        )
+                        batch_errors = batch_limit
+                        batch_logs = [
+                            'Batch %s failed with exception: %s' % (batch_index, str(batch_error)),
+                        ]
+
+                    elapsed = time.time() - batch_started
+                    _logger.info(
+                        '[vnop_sync] Queue test batch end session=%s batch=%s/%s success=%s errors=%s warnings=%s elapsed=%.2fs',
+                        session_id,
+                        batch_index,
+                        total_batches,
+                        batch_success,
+                        batch_errors,
+                        batch_warnings,
+                        elapsed,
+                    )
+
+                    success_total += batch_success
+                    error_total += batch_errors
+                    warning_total += batch_warnings
+                    log_lines.extend(batch_logs)
+                    if len(log_lines) > 500:
+                        log_lines = log_lines[-500:]
+
+                    summary = (
+                        'Batches: %s/%s | Processed: %s/%s | Valid: %s | Errors: %s | Warnings: %s'
+                        % (batch_index, total_batches, processed_rows, total_rows, success_total, error_total, warning_total)
+                    )
+                    self._safe_write_by_id(session_id, {
+                        'current_batch': batch_index,
+                        'processed_rows': processed_rows,
+                        'success_count': success_total,
+                        'error_count': error_total,
+                        'warning_count': warning_total,
+                        'log_summary': summary,
+                        'error_log': '\n'.join(log_lines),
+                    })
+
+                final_summary = (
+                    'Completed test file %s | Rows: %s | Valid: %s | Errors: %s | Warnings: %s'
+                    % (session.file_name, total_rows, success_total, error_total, warning_total)
+                )
+                job_state = 'done'
+                if error_total > 0:
+                    job_state = 'error'
+                self._safe_write_by_id(session_id, {
+                    'state': job_state,
+                    'finished_at': fields.Datetime.now(),
+                    'current_batch': total_batches,
+                    'processed_rows': total_rows,
+                    'success_count': success_total,
+                    'error_count': error_total,
+                    'warning_count': warning_total,
+                    'log_summary': final_summary,
+                    'error_log': '\n'.join(log_lines),
+                })
+                _logger.info(
+                    '[vnop_sync] Queue test %s session=%s rows=%s valid=%s errors=%s warnings=%s',
+                    job_state,
+                    session_id,
+                    total_rows,
+                    success_total,
+                    error_total,
+                    warning_total,
+                )
+                return job_state == 'done'
+        except Exception as exc:
+            _logger.exception('[vnop_sync] Queue test session %s failed', session_id)
+            self._safe_write_by_id(session_id, {
+                'state': 'error',
+                'finished_at': fields.Datetime.now(),
+                'log_summary': 'Queue test failed: %s' % str(exc),
+            })
+            return False
 
     def _run_import_queue_job(self, session_id):
         session = self.browse(session_id)
@@ -458,8 +690,11 @@ class ProductImportQueueSession(models.Model):
                     'Completed import file %s | Rows: %s | Success: %s | Errors: %s | Warnings: %s'
                     % (session.file_name, total_rows, success_total, error_total, warning_total)
                 )
+                job_state = 'done'
+                if error_total > 0:
+                    job_state = 'error'
                 self._safe_write_by_id(session_id, {
-                    'state': 'done',
+                    'state': job_state,
                     'finished_at': fields.Datetime.now(),
                     'current_batch': total_batches,
                     'processed_rows': total_rows,
@@ -470,14 +705,15 @@ class ProductImportQueueSession(models.Model):
                     'error_log': '\n'.join(log_lines),
                 })
                 _logger.info(
-                    '[vnop_sync] Queue import done session=%s rows=%s success=%s errors=%s warnings=%s',
+                    '[vnop_sync] Queue import %s session=%s rows=%s success=%s errors=%s warnings=%s',
+                    job_state,
                     session_id,
                     total_rows,
                     success_total,
                     error_total,
                     warning_total,
                 )
-                return True
+                return job_state == 'done'
         except Exception as exc:
             _logger.exception('[vnop_sync] Queue import session %s failed', session_id)
             self._safe_write_by_id(session_id, {

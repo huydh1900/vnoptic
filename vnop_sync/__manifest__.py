@@ -23,7 +23,7 @@
         'views/product_opt_lens_views.xml',
         'views/server_connector_views.xml',
         'views/product_export_template_wizard.xml',
-        'views/product_import_queue_session_views.xml',
+        'views/queue_job_import_buttons.xml',
         'views/vnop_sync_purchase_config_menus.xml',
     ],
     'external_dependencies': {
