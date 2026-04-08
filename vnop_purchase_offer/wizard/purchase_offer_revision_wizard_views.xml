@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="purchase_offer_revision_wizard_form" model="ir.ui.view">
+        <field name="name">purchase.offer.revision.wizard.form</field>
+        <field name="model">purchase.offer.revision.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Yêu cầu chỉnh sửa">
+                <group>
+                    <field name="reason" placeholder="Nhập lý do yêu cầu chỉnh sửa..."/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="Đồng ý" class="btn-primary"/>
+                    <button string="Hủy" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

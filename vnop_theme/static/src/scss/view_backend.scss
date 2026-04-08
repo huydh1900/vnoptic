@@ -6,8 +6,7 @@
   &.o_field_many2many, &.o_field_tags,
   &.o_field_many2many_tags, &.o_field_email, &.o_field_phone,
   &.o_field_url, &.o_field_html, &.o_field_percentage,
-  &.o_field_many2one_avatar, &.o_field_many2one_avatar_user,
-  &.o_field_many2one_avatar_employee, &.o_field_many2one_reference,
+  &.o_field_many2one_reference,
   &.o_field_partner_autocomplete,
   &.o_field_field_partner_autocomplete {
     border: 1px solid rgba(223, 225, 223, 0.84);
@@ -17,8 +16,7 @@
 }
 
 // Dấu * cho field required
-.o_form_view .o_wrap_field.o_field_optional_empty > label.o_form_label::after,
-.o_form_view .o_wrap_field > label.o_form_label.o_field_required::after {
+.o_form_view .o_wrap_field:has(.o_required_modifier) .o_form_label::after {
   content: " *";
   color: #e74c3c;
 }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="vnop_sync.ProductKanbanButtons" t-inherit="web.KanbanView" t-inherit-mode="extension">
+        <xpath expr="//button[hasclass('o-kanban-button-new')]" position="after">
+            <t t-if="isProductTemplate">
+                <button type="button" class="btn btn-info" t-on-click="onExportTemplate">
+                    <i class="fa fa-download me-1"/>Template mẫu
+                </button>
+                <button type="button" class="btn btn-success" t-on-click="onImportProduct">
+                    <i class="fa fa-upload me-1"/>Import
+                </button>
+            </t>
+        </xpath>
+    </t>
+
+</templates>

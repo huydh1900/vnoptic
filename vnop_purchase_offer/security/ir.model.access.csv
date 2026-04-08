@@ -2,5 +2,6 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_purchase_offer,vnop_purchase_offer.purchase.offer,model_purchase_offer,base.group_user,1,1,1,1
 access_purchase_offer_line,vnop_purchase_offer.purchase.offer.line,model_purchase_offer_line,base.group_user,1,1,1,1
 access_purchase_offer_import_wizard,vnop_purchase_offer.purchase.offer.import.wizard,model_purchase_offer_import_wizard,base.group_user,1,1,1,1
+access_purchase_offer_revision_wizard,vnop_purchase_offer.purchase.offer.revision.wizard,model_purchase_offer_revision_wizard,base.group_user,1,1,1,0
 access_purchase_offer_approval_rule_user,purchase.offer.approval.rule.user,model_purchase_offer_approval_rule,base.group_user,1,0,0,0
 access_purchase_offer_approval_rule_manager,purchase.offer.approval.rule.manager,model_purchase_offer_approval_rule,purchase.group_purchase_manager,1,1,1,1

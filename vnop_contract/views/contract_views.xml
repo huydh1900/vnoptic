@@ -63,7 +63,7 @@
                     <button name="action_cancel"
                             type="object"
                             string="Hủy hợp đồng"
-                            class="btn-secondary"
+                            class="btn-danger"
                             invisible="state == 'cancel'"
                             confirm="Bạn có chắc chắn muốn hủy hợp đồng này không?"/>
 

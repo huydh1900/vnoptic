@@ -43,7 +43,7 @@
                                     </t>
                                     <t t-else="">
                                         <div class="vnop_thumb_placeholder">
-                                            <i class="fa fa-camera"/>
+                                            <i class="fa fa-camera" title="Chưa có ảnh"/>
                                         </div>
                                     </t>
                                 </div>

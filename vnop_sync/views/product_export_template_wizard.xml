@@ -6,7 +6,6 @@
             <form string="Tải file mẫu sản phẩm">
                 <group>
                     <field name="product_type"/>
-                    <field name="export_format"/>
                 </group>
                 <footer>
                     <button name="action_export_template" type="object" string="Tải file mẫu" class="btn-primary"/>

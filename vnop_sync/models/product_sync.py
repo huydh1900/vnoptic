@@ -2941,7 +2941,6 @@ class ProductSync(models.Model):
             'opt_season': item.get('season', ''),
             'opt_model': item.get('model', ''),
             'opt_serial': item.get('serial', ''),
-            'opt_oem_ncc': item.get('oemNcc', ''),
             'opt_sku': item.get('sku', ''),
             'opt_color': item.get('color', ''),
             # gender từ RS: 0=Nam, 1=Nữ, 2=Unisex → 0 là giá trị hợp lệ (không được coi là False)
