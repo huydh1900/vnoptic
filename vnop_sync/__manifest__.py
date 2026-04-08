@@ -23,6 +23,7 @@
         'views/product_opt_lens_views.xml',
         'views/server_connector_views.xml',
         'views/product_export_template_wizard.xml',
+        'views/product_import_queue_session_views.xml',
         'views/vnop_sync_purchase_config_menus.xml',
     ],
     'external_dependencies': {
@@ -33,7 +34,11 @@
             'vnop_sync/static/src/scss/product_kanban_modern.scss',
             'vnop_sync/static/src/js/preview_long_text.js',
             'vnop_sync/static/src/js/product_export_cog_menu.js',
+            'vnop_sync/static/src/js/import_queue_history_panel.js',
+            'vnop_sync/static/src/js/import_model_queue_patch.js',
+            'vnop_sync/static/src/js/import_action_queue_patch.js',
             'vnop_sync/static/src/xml/product_export_cog_menu.xml',
+            'vnop_sync/static/src/xml/import_queue_history.xml',
 
         ],
     },

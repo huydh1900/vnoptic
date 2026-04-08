@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_product_import_queue_session_tree" model="ir.ui.view">
+        <field name="name">product.import.queue.session.tree</field>
+        <field name="model">product.import.queue.session</field>
+        <field name="arch" type="xml">
+            <list string="Lich su import san pham" create="false" edit="false" delete="false">
+                <field name="name"/>
+                <field name="file_name"/>
+                <field name="state"/>
+                <field name="product_type"/>
+                <field name="batch_size"/>
+                <field name="total_rows"/>
+                <field name="processed_rows"/>
+                <field name="success_count"/>
+                <field name="error_count"/>
+                <field name="progress_percent" widget="progressbar"/>
+                <field name="requested_by"/>
+                <field name="started_at"/>
+                <field name="finished_at"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_import_queue_session_form" model="ir.ui.view">
+        <field name="name">product.import.queue.session.form</field>
+        <field name="model">product.import.queue.session</field>
+        <field name="arch" type="xml">
+            <form string="Lich su import san pham">
+                <header>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,queued,running,done,error"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="res_model" readonly="1"/>
+                            <field name="file_name"/>
+                            <field name="excel_file" filename="file_name" readonly="1"/>
+                            <field name="batch_size" readonly="1"/>
+                            <field name="product_type" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="requested_by" readonly="1"/>
+                            <field name="started_at" readonly="1"/>
+                            <field name="finished_at" readonly="1"/>
+                            <field name="progress_percent" widget="progressbar" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <group>
+                            <field name="total_rows" readonly="1"/>
+                            <field name="processed_rows" readonly="1"/>
+                            <field name="total_batches" readonly="1"/>
+                            <field name="current_batch" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="success_count" readonly="1"/>
+                            <field name="error_count" readonly="1"/>
+                            <field name="warning_count" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Tóm tắt">
+                            <field name="log_summary" readonly="1" nolabel="1" widget="text"/>
+                        </page>
+                        <page string="Log lỗi" invisible="error_log == False">
+                            <field name="error_log" readonly="1" nolabel="1" widget="text"/>
+                        </page>
+                        <page string="Debug" groups="base.group_no_one">
+                            <group>
+                                <field name="fields_json" readonly="1" widget="text"/>
+                                <field name="columns_json" readonly="1" widget="text"/>
+                                <field name="options_json" readonly="1" widget="text"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_import_queue_session" model="ir.actions.act_window">
+        <field name="name">Lich su import san pham</field>
+        <field name="res_model">product.import.queue.session</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_product_import_queue_session_tree"/>
+        <field name="target">current</field>
+        <field name="domain">[('res_model', '=', 'product.template'), ('requested_by', '=', uid)]</field>
+    </record>
+</odoo>
