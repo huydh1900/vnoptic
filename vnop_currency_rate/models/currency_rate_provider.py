@@ -7,7 +7,6 @@ import logging
 _logger = logging.getLogger(__name__)
 
 VCB_API_URL = "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10"
-SBV_API_URL = "https://www.sbv.gov.vn/webcenter/ShowProperty/BEA%20Repository/Publications/Exchange%20Rate/ExchangeRate"
 
 
 class CurrencyRateProvider(models.Model):
@@ -33,7 +32,7 @@ class CurrencyRateProvider(models.Model):
         try:
             resp = requests.get(VCB_API_URL, timeout=10)
             resp.raise_for_status()
-        except Exception as e:
+        except requests.RequestException as e:
             raise UserError(_("Không thể kết nối Vietcombank: %s") % e)
 
         import xml.etree.ElementTree as ET
@@ -56,7 +55,7 @@ class CurrencyRateProvider(models.Model):
             resp = requests.get(url, timeout=10)
             resp.raise_for_status()
             data = resp.json()
-        except Exception as e:
+        except (requests.RequestException, ValueError) as e:
             raise UserError(_("Không thể kết nối ExchangeRate-API: %s") % e)
         if data.get('result') != 'success':
             raise UserError(_("ExchangeRate-API lỗi: %s") % data.get('error-type', ''))

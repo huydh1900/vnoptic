@@ -2411,12 +2411,14 @@ class ProductSync(models.Model):
             product_status = cache['statuses'].get(status_name.upper(), False)
 
         product_kind = 'consu'
+        is_storable = True
 
         # Basic Vals
         vals = {
             'name': product_name,
             'default_code': default_code,
             'type': product_kind,
+            'is_storable': is_storable,
             'categ_id': categ_id,
             'uom_id': cache.setdefault('_uom_unit_id', self.env.ref('vnop_sync.uom_chiec', raise_if_not_found=False) and self.env.ref('vnop_sync.uom_chiec').id or self.env.ref('uom.product_uom_unit').id),
             'uom_po_id': cache['_uom_unit_id'],

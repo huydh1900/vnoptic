@@ -24,7 +24,7 @@
               sequence="10"/>
 
     <menuitem id="menu_product_group"
-              name="Nhóm sản phẩm"
+              name="Phân nhóm phụ"
               parent="purchase.menu_product_in_config_purchase"
               action="action_product_group"
               sequence="20"/>

@@ -33,5 +33,4 @@
     </record>
 
     <menuitem id="menu_product_export_template_wizard_purchase" name="Tải file mẫu sản phẩm" parent="purchase.menu_product_in_config_purchase" action="action_product_export_template_wizard" sequence="1000"/>
-    <menuitem id="menu_product_export_template_wizard_stock" name="Tải file mẫu sản phẩm" parent="stock.menu_product_in_config_stock" action="action_product_export_template_wizard" sequence="1000"/>
 </odoo>

@@ -488,7 +488,7 @@ class ProductTemplateImportBaseInherit(models.Model):
                     if 'group_id' in index_by_field and locked_relational_values[row_no].get('group_id'):
                         if existing.group_id.id != locked_relational_values[row_no]['group_id']:
                             raise ValidationError(_(
-                                'Dòng %(row)s: Mã %(code)s đã tồn tại nhưng đang thay đổi Nhóm sản phẩm.',
+                                'Dòng %(row)s: Mã %(code)s đã tồn tại nhưng đang thay đổi Phân nhóm phụ.',
                                 row=row_no,
                                 code=code,
                             ))
@@ -517,6 +517,11 @@ class ProductTemplateImportBaseInherit(models.Model):
             # Cập nhật code_index nếu bị dịch
             if sup_idx <= code_index:
                 code_index -= 1
+
+        if 'is_storable' not in fields:
+            fields.append('is_storable')
+            for row in rows:
+                row.append('True')
 
         prepared_fields = self._vnop_prepare_lens_dbid_fields(fields)
         result = super().load(prepared_fields, rows)

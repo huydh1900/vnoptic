@@ -8,10 +8,12 @@
             <list string="Hợp đồng mua hàng">
                 <field name="number"/>
                 <field name="name"/>
-                <field name="partner_id"/>
                 <field name="partner_ref"/>
-                <field name="company_id"/>
-                <field name="currency_id"/>
+                <field name="partner_id"/>
+                <field name="total_qty"/>
+                <field name="total_received_qty" decoration-success="total_received_qty &gt; 0"/>
+                <field name="total_missing_qty" decoration-danger="total_missing_qty &gt; 0"/>
+                <field name="amount_total"/>
                 <field name="sign_date"/>
 
                 <field name="type_contract"
@@ -95,15 +97,16 @@
                             <field name="type_contract" readonly="state != 'draft'"/>
                             <field name="currency_id" readonly="state != 'draft'"/>
                             <field name="total_qty" readonly="1"/>
-                            <field name="total_received_qty" readonly="1"/>
-                            <field name="total_missing_qty" readonly="1"/>
+                            <field name="total_received_qty" readonly="1" decoration-success="total_received_qty &gt; 0"/>
+                            <field name="total_missing_qty" readonly="1" decoration-danger="total_missing_qty &gt; 0"/>
                             <field name="amount_total" widget="monetary" readonly="1"/>
                         </group>
 
                         <group string="Nhà cung cấp">
                             <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'"
                                    class="vnop_required_hint"/>
-                            <field name="partner_ref" readonly="1"/>
+                            <field name="partner_ref" readonly="state != 'draft'"/>
+                            <field name="shipment_date" readonly="state != 'draft'" class="vnop_required_hint"/>
                             <field name="attachment_ids"
                                    widget="many2many_binary"
                                    class="vnop_contract_attachment_preview"
@@ -116,7 +119,6 @@
                             <group>
                                 <group string="Giao hàng">
                                     <field name="incoterm_id" readonly="state != 'draft'"/>
-                                    <field name="shipment_date" readonly="state != 'draft'" class="vnop_required_hint"/>
                                     <field name="port_of_loading" readonly="state != 'draft'"/>
                                     <field name="destination" readonly="state != 'draft'"/>
                                     <field name="partial_shipment" readonly="state != 'draft'"/>

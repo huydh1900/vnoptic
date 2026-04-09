@@ -21,7 +21,7 @@ class Contract(models.Model):
         domain="[('supplier_rank','>',0)]",
         tracking=True,
     )
-    partner_ref = fields.Char(string="Mã NCC", related="partner_id.ref", store=True, readonly=True)
+    partner_ref = fields.Char(string="Mã NCC", store=True)
     company_id = fields.Many2one(
         "res.company",
         string="Công ty",
@@ -189,19 +189,16 @@ class Contract(models.Model):
             for rec in self:
                 rec.receipt_count_open = 0
             return
-        StockPicking = self.env["stock.picking"]
-        all_pickings = StockPicking.search([
-            "|",
-            ("contract_id", "in", self.ids),
-            ("move_ids_without_package.contract_id", "in", self.ids),
-            ("picking_type_code", "=", "incoming"),
-            ("state", "=", "done"),
-        ])
-        count_by_contract = {}
-        for pick in all_pickings:
-            cid = pick.contract_id.id
-            if cid:
-                count_by_contract[cid] = count_by_contract.get(cid, 0) + 1
+        data = self.env["stock.picking"].read_group(
+            [
+                ("contract_id", "in", self.ids),
+                ("picking_type_code", "=", "incoming"),
+                ("state", "=", "done"),
+            ],
+            ["contract_id"],
+            ["contract_id"],
+        )
+        count_by_contract = {d['contract_id'][0]: d['contract_id_count'] for d in data if d['contract_id']}
         for rec in self:
             rec.receipt_count_open = count_by_contract.get(rec.id, 0)
 
@@ -263,9 +260,20 @@ class Contract(models.Model):
             rec._check_fifo_valuation()
             rec.write({'state': 'waiting'})
 
+    @api.onchange("partner_ref")
+    def _onchange_partner_ref(self):
+        if self.partner_ref:
+            partner = self.env['res.partner'].search(
+                [('ref', '=', self.partner_ref), ('supplier_rank', '>', 0)], limit=1
+            )
+            if partner:
+                self.partner_id = partner
+        else:
+            self.partner_id = False
+
     @api.onchange("partner_id")
     def _onchange_partner_id(self):
-        self.partner_ref = self.partner_id.ref
+        self.partner_ref = self.partner_id.ref or ''
         self.line_ids = [(5, 0, 0)]
         self.beneficiary_bank_id = False
 

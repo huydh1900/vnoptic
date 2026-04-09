@@ -24,7 +24,7 @@
                 </button>
             </xpath>
             <xpath expr="//button[@name='button_validate']" position="attributes">
-                <attribute name="invisible">is_temp_location</attribute>
+                <attribute name="invisible">is_temp_location or state in ('done', 'cancel')</attribute>
             </xpath>
             <xpath expr="//button[@name='%(stock.act_stock_return_picking)d']" position="attributes">
                 <attribute name="invisible">1</attribute>

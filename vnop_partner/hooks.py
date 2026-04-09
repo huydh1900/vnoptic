@@ -2,7 +2,11 @@
 """Post-init hook: thay thế 63 tỉnh/thành cũ của Việt Nam bằng 34 đơn vị
 hành chính sau sáp nhập (hiệu lực 01/07/2025)."""
 
+import logging
+
 from odoo import SUPERUSER_ID, api
+
+_logger = logging.getLogger(__name__)
 
 
 # 6 thành phố trực thuộc trung ương + 28 tỉnh = 34 đơn vị
@@ -82,15 +86,17 @@ def post_init_hook(env):
         try:
             old_states.unlink()
         except Exception:
-            # Nếu còn model khác tham chiếu, bỏ qua để không chặn install
-            pass
+            _logger.warning("Không thể xóa tỉnh cũ, có thể còn tham chiếu FK", exc_info=True)
 
     # 2) Tạo / cập nhật các tỉnh mới theo danh sách sau sáp nhập
+    all_names = [name for name, _code in VN_PROVINCES_AFTER_MERGER]
+    existing_states = State.search([
+        ("country_id", "=", vn_country.id),
+        ("name", "in", all_names),
+    ])
+    existing_map = {s.name: s for s in existing_states}
     for name, code in VN_PROVINCES_AFTER_MERGER:
-        existing = State.search([
-            ("country_id", "=", vn_country.id),
-            ("name", "=", name),
-        ], limit=1)
+        existing = existing_map.get(name)
         if existing:
             if existing.code != code:
                 existing.code = code

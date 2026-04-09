@@ -13,6 +13,7 @@ class PurchaseOrder(models.Model):
 
     otk_log_count = fields.Integer(string='Lần OTK', compute='_compute_otk_log_count')
 
+    @api.depends('picking_ids')
     def _compute_otk_log_count(self):
         data = self.env['stock.otk.log'].read_group(
             [('purchase_id', 'in', self.ids)], ['purchase_id'], ['purchase_id']
@@ -57,10 +58,6 @@ class PurchaseOrder(models.Model):
                 )
 
         return super().action_rfq_send()
-
-    def action_need_revision(self):
-        for rec in self:
-            rec.write({'state': 'need_revision'})
 
     def unlink(self):
         for order in self:

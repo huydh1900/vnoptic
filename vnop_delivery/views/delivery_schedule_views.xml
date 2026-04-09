@@ -29,7 +29,8 @@
                             type="object"
                             string="Xác nhận hàng về"
                             invisible="state != 'draft'"
-                            class="oe_highlight"/>
+                            class="oe_highlight"
+                            confirm="Bạn có chắc chắn muốn xác nhận hàng về không?"/>
                     <button name="action_create_final_landed_cost_adjustment"
                             type="object"
                             string="Chốt điều chỉnh giá vốn"

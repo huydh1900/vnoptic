@@ -6,6 +6,7 @@
 
     # always loaded
     'data': [
+        'security/ir.model.access.csv',
         'data/disable_server_actions.xml',
         'views/res_partner_views.xml',
     ],

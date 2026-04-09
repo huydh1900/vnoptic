@@ -1,14 +1,12 @@
-# -*- coding: utf-8 -*-
 import logging
-
-from . import models
 
 _logger = logging.getLogger(__name__)
 
 
 def pre_init_hook(env):
-    """Delete stale views from vnop_* modules that may reference
-    removed fields/actions, preventing update errors."""
+    """Delete all views belonging to vnop_* modules from database,
+    forcing Odoo to recreate them from XML files and clearing any
+    stale references to removed fields/actions."""
     env.cr.execute("""
         DELETE FROM ir_ui_view
         WHERE id IN (
@@ -18,10 +16,16 @@ def pre_init_hook(env):
         )
     """)
     view_count = env.cr.rowcount
+
     env.cr.execute("""
         DELETE FROM ir_model_data
         WHERE model = 'ir.ui.view'
           AND module LIKE 'vnop_%'
     """)
+    data_count = env.cr.rowcount
+
     if view_count:
-        _logger.info("vnop_purchase pre_init_hook: deleted %d stale view(s)", view_count)
+        _logger.info(
+            "vnop_fix_view: deleted %d view(s) and %d ir_model_data record(s) from vnop_* modules",
+            view_count, data_count,
+        )

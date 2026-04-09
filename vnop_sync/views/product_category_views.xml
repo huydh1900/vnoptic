@@ -9,11 +9,11 @@
             <!-- Parent view (product.product_category_form_view) không có notebook -->
             <xpath expr="//sheet/group[@name='first']" position="after">
                 <notebook>
-                    <page string="Nhóm sản phẩm" name="vnop_category_groups">
+                    <page string="Phân nhóm phụ" name="vnop_category_groups">
                         <field name="group_ids" context="{'default_category_id': id}">
                             <list editable="bottom">
-                                <field name="name"/>
                                 <field name="cid"/>
+                                <field name="name"/>
                                 <field name="product_type"/>
                                 <field name="description"/>
                             </list>

@@ -4,8 +4,7 @@ import logging
 import re
 import requests
 
-from odoo import api, fields, models, _
-from odoo.addons.base.models.res_partner import WARNING_MESSAGE, WARNING_HELP
+from odoo import api, models, _
 
 _logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ class ResPartner(models.Model):
             )
             response.raise_for_status()
             result = response.json()
-        except Exception:
+        except (requests.RequestException, ValueError, KeyError):
             _logger.warning("VietQR API lookup failed for VAT: %s", vat)
             return {'warning': {
                 'title': _("Không tìm thấy MST"),

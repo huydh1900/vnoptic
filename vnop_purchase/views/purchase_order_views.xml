@@ -89,7 +89,7 @@
                        placeholder="Name, TIN, Email, or Reference"
                        domain="[('supplier_rank','>',0), ('parent_id','=',False)]"
                        options="{'no_create': True}"
-                       readonly="state not in ('draft', 'sent', 'need_revision')"/>
+                       readonly="state not in ('draft', 'sent')"/>
             </xpath>
             <xpath expr="//button[@id='draft_confirm']" position="attributes">
                 <attribute name="invisible">1</attribute>
@@ -99,6 +99,9 @@
                 <attribute name="confirm">Bạn có chăc muốn Hủy yêu cầu báo giá này?</attribute>
             </xpath>
             <xpath expr="//form/sheet/group/group[2]/div[@name='reminder']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//button[@name='confirm_reminder_mail']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//button[@name='action_bill_matching']" position="attributes">
@@ -113,21 +116,15 @@
 
             <xpath expr="//field[@name='partner_ref']" position="replace"/>
             <xpath expr="//field[@name='partner_id']" position="before">
-                <field name="partner_ref" readonly="state not in ('draft', 'sent', 'need_revision')"/>
+                <field name="partner_ref" readonly="state not in ('draft', 'sent')"/>
             </xpath>
 
             <xpath expr="//field[@name='state']" position="replace">
                 <field name="state" widget="statusbar"
-                       statusbar_visible="draft,sent,need_revision,to approve, purchase,cancel" readonly="1"/>
+                       statusbar_visible="draft,sent,to approve,purchase,cancel" readonly="1"/>
             </xpath>
 
             <xpath expr="//button[@id='bid_confirm']" position="before">
-
-                <button name="action_need_revision"
-                        type="object"
-                        string="Yêu cầu chỉnh sửa"
-                        invisible="state not in ('to approve', 'purchase')"
-                        class="btn-warning"/>
             </xpath>
         </field>
     </record>
@@ -141,7 +138,7 @@
                 <field name="contract_id"
                        domain="[('partner_id', '=', partner_id), ('state', '=', 'approved')]"
                        options="{'no_create': True}"
-                       readonly="state not in ('draft', 'sent', 'need_revision')"
+                       readonly="state not in ('draft', 'sent')"
                        optional="show"/>
             </xpath>
         </field>

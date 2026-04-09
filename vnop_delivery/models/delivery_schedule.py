@@ -266,7 +266,6 @@ class DeliverySchedule(models.Model):
         buckets_by_key = {bucket['key']: dict(bucket) for bucket in self._prepare_standard_cost_buckets()}
         for line in self.extra_cost_line_ids:
             amount = line.amount or 0.0
-            amount = amount or 0.0
             if self.currency_id.is_zero(amount):
                 continue
             key = self._standard_cost_key_from_default_code(line.product_id.default_code) or f'extra:{line.id}'

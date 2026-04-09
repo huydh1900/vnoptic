@@ -62,7 +62,10 @@ class StockQuant(models.Model):
             ('product_tmpl_id', 'in', templates.ids),
         ])
         prod_to_axes = {
-            p.id: (p.product_tmpl_id.lens_sph_id.id, p.product_tmpl_id.lens_cyl_id.id)
+            p.id: (
+                p.product_tmpl_id.lens_sph_id.id if p.product_tmpl_id.lens_sph_id else False,
+                p.product_tmpl_id.lens_cyl_id.id if p.product_tmpl_id.lens_cyl_id else False,
+            )
             for p in products
         }
         if not prod_to_axes:

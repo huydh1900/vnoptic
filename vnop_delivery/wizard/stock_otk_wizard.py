@@ -272,9 +272,16 @@ class StockOtkWizard(models.TransientModel):
             'move_ids': move_lines,
         })
         transfer.action_confirm()
+        transfer.action_assign()
         for move in transfer.move_ids:
             move.quantity = move.product_uom_qty
-        transfer.with_context(skip_immediate=True).button_validate()
+        res = transfer.with_context(
+            skip_immediate=True, skip_backorder=True,
+        ).button_validate()
+        if isinstance(res, dict) and res.get('res_model') == 'stock.backorder.confirmation':
+            self.env['stock.backorder.confirmation'].with_context(
+                **res.get('context', {})
+            ).create({'pick_ids': [(4, transfer.id)]}).process()
         return transfer
 
     def _create_vendor_return(self, return_lines, picking):

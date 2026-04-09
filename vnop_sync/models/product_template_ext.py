@@ -17,7 +17,7 @@ class ProductCategory(models.Model):
     group_ids = fields.One2many(
         'product.group',
         'category_id',
-        string='Nhóm sản phẩm'
+        string='Phân nhóm phụ'
     )
 
 
@@ -250,17 +250,17 @@ class ProductTemplateExtension(models.Model):
     group_id = fields.Many2one(
         'product.group',
         string='Phân nhóm phụ',
-        help='Nhóm sản phẩm (lọc theo cây danh mục).'
+        help='Phân nhóm phụ (lọc theo cây danh mục).'
     )
     lens_group_id = fields.Many2one('product.group', string='Nhóm Tròng kính',
                                     domain=[('category_id.code', '=', 'TK')],
-                                    help='Nhóm sản phẩm cho Tròng kính')
+                                    help='Phân nhóm phụ cho Tròng kính')
     opt_group_id = fields.Many2one('product.group', string='Nhóm Gọng kính',
                                    domain=[('category_id.code', '=', 'GK')],
-                                   help='Nhóm sản phẩm cho Gọng kính')
+                                   help='Phân nhóm phụ cho Gọng kính')
     acc_group_id = fields.Many2one('product.group', string='Nhóm Phụ kiện',
                                    domain=[('category_id.code', 'in', ('PK', 'TB', 'LK'))],
-                                   help='Nhóm sản phẩm cho Phụ kiện')
+                                   help='Phân nhóm phụ cho Phụ kiện')
 
     # NOTE: lens_group_id/opt_group_id/acc_group_id giữ lại để tương thích dữ liệu cũ,
     # UI hiện tại dùng group_id duy nhất và lọc theo danh mục.

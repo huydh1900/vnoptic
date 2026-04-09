@@ -222,15 +222,29 @@ class ProductExportTemplateWizard(models.TransientModel):
             'valign': 'vcenter',
         })
 
-        # Row 0: company title, Row 1: address, Row 2: spacer
+        product_type_style = workbook.add_format({
+            'bold': True,
+            'font_name': font_name,
+            'font_size': 16,
+            'align': 'left',
+            'valign': 'vcenter',
+        })
+
+        config = self._TYPE_CONFIG.get(product_type) or {}
+        type_label = config.get('display_name', '')
+
+        # Row 0: company title, Row 1: address,
+        # Row 2: loại hàng (cao để chứa ảnh), Row 3: spacer
         sheet.merge_range(0, 0, 0, last_col, self._COMPANY_TITLE, title_style)
         sheet.merge_range(1, 0, 1, last_col, self._COMPANY_ADDRESS, subtitle_style)
+        sheet.merge_range(2, 0, 2, last_col, f'Loại hàng: {type_label}', product_type_style)
         sheet.set_row(0, 28)
         sheet.set_row(1, 20)
-        sheet.set_row(2, 8)
-        # Row 3: header labels, Row 4: field codes
-        sheet.set_row(3, 30)
-        sheet.set_row(4, 24)
+        sheet.set_row(2, 150)
+        sheet.set_row(3, 8)
+        # Row 4: header labels, Row 5: field codes
+        sheet.set_row(4, 30)
+        sheet.set_row(5, 24)
 
         # Excel column width unit ~ 1 character at default font (Calibri 11).
         # Times New Roman 14 is ~1.4x wider, so scale accordingly.
@@ -240,8 +254,8 @@ class ProductExportTemplateWizard(models.TransientModel):
             label = self._label_for_field(product_model, field_name)
             display_code = self._FIELD_CODE_OVERRIDES.get(field_name, field_name)
 
-            sheet.write(3, col, label, header_style)
-            sheet.write(4, col, display_code, code_style)
+            sheet.write(4, col, label, header_style)
+            sheet.write(5, col, display_code, code_style)
 
             char_width = max(len(label), len(display_code))
             col_width = char_width * width_scale + 2
@@ -252,7 +266,7 @@ class ProductExportTemplateWizard(models.TransientModel):
         if 'categ_id' in fields_list and product_type in categ_map:
             categ_col = fields_list.index('categ_id')
             allowed_categ = categ_map[product_type]
-            sheet.data_validation(5, categ_col, 1048575, categ_col, {
+            sheet.data_validation(6, categ_col, 1048575, categ_col, {
                 'validate': 'list',
                 'source': [allowed_categ],
                 'error_title': 'Giá trị không hợp lệ',
@@ -262,7 +276,7 @@ class ProductExportTemplateWizard(models.TransientModel):
         # Data validation: cột uom_id chỉ cho chọn Chiếc
         if 'uom_id' in fields_list:
             uom_col = fields_list.index('uom_id')
-            sheet.data_validation(5, uom_col, 1048575, uom_col, {
+            sheet.data_validation(6, uom_col, 1048575, uom_col, {
                 'validate': 'list',
                 'source': ['Chiếc'],
                 'error_title': 'Giá trị không hợp lệ',
@@ -281,7 +295,7 @@ class ProductExportTemplateWizard(models.TransientModel):
                 group_cids = groups.mapped('cid')
                 if group_cids:
                     group_col = fields_list.index('group_id')
-                    sheet.data_validation(5, group_col, 1048575, group_col, {
+                    sheet.data_validation(6, group_col, 1048575, group_col, {
                         'validate': 'list',
                         'source': group_cids,
                         'error_title': 'Giá trị không hợp lệ',
@@ -294,7 +308,7 @@ class ProductExportTemplateWizard(models.TransientModel):
             brand_codes = [c for c in brands.mapped('code') if c]
             if brand_codes:
                 brand_col = fields_list.index('brand_id')
-                sheet.data_validation(5, brand_col, 1048575, brand_col, {
+                sheet.data_validation(6, brand_col, 1048575, brand_col, {
                     'validate': 'list',
                     'source': brand_codes,
                     'error_title': 'Giá trị không hợp lệ',
@@ -314,7 +328,7 @@ class ProductExportTemplateWizard(models.TransientModel):
                 for row_idx, label in enumerate(supplier_labels):
                     ref_sheet.write(row_idx, 0, label)
                 supplier_col = fields_list.index('supplier_ref')
-                sheet.data_validation(5, supplier_col, 1048575, supplier_col, {
+                sheet.data_validation(6, supplier_col, 1048575, supplier_col, {
                     'validate': 'list',
                     'source': f'=_ref_suppliers!$A$1:$A${len(supplier_labels)}',
                     'error_title': 'Giá trị không hợp lệ',
@@ -331,7 +345,7 @@ class ProductExportTemplateWizard(models.TransientModel):
                 for row_idx, code in enumerate(country_codes):
                     ref_sheet_countries.write(row_idx, 0, code)
                 country_col = fields_list.index('country_id')
-                sheet.data_validation(5, country_col, 1048575, country_col, {
+                sheet.data_validation(6, country_col, 1048575, country_col, {
                     'validate': 'list',
                     'source': f'=_ref_countries!$A$1:$A${len(country_codes)}',
                     'error_title': 'Giá trị không hợp lệ',
@@ -347,7 +361,7 @@ class ProductExportTemplateWizard(models.TransientModel):
             if warranty_codes:
                 for field_name in warranty_in_template:
                     col = fields_list.index(field_name)
-                    sheet.data_validation(5, col, 1048575, col, {
+                    sheet.data_validation(6, col, 1048575, col, {
                         'validate': 'list',
                         'source': warranty_codes,
                         'error_title': 'Giá trị không hợp lệ',
@@ -366,7 +380,7 @@ class ProductExportTemplateWizard(models.TransientModel):
         for field_name, values in selection_validations.items():
             if field_name in fields_list:
                 col = fields_list.index(field_name)
-                sheet.data_validation(5, col, 1048575, col, {
+                sheet.data_validation(6, col, 1048575, col, {
                     'validate': 'list',
                     'source': values,
                     'error_title': 'Giá trị không hợp lệ',
@@ -592,7 +606,7 @@ class ProductExportTemplateWizard(models.TransientModel):
                 _ref_sheet_cache[cache_key] = ref_source
 
             col = fields_list.index(field_name)
-            sheet.data_validation(5, col, 1048575, col, {
+            sheet.data_validation(6, col, 1048575, col, {
                 'validate': 'list',
                 'source': ref_source,
                 'error_title': 'Giá trị không hợp lệ',
@@ -657,14 +671,14 @@ class ProductExportTemplateWizard(models.TransientModel):
                 ref_source = f"={cfg['sheet']}!$A$1:$A${len(values)}"
                 _m2m_sheet_cache[cache_key] = ref_source
             col = fields_list.index(field_name)
-            sheet.data_validation(5, col, 1048575, col, {
+            sheet.data_validation(6, col, 1048575, col, {
                 'validate': 'list',
                 'source': ref_source,
                 'error_title': 'Giá trị không hợp lệ',
                 'error_message': cfg['error'],
             })
 
-        sheet.freeze_panes(5, 0)
+        sheet.freeze_panes(6, 0)
 
         workbook.close()
         return stream.getvalue()

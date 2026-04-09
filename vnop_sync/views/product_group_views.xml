@@ -30,10 +30,10 @@
         <field name="name">product.group.tree</field>
         <field name="model">product.group</field>
         <field name="arch" type="xml">
-            <list string="Nhóm sản phẩm" editable="top" open_form_view="False">
+            <list string="Phân nhóm phụ" editable="top" open_form_view="False">
                 <field name="sequence"/>
-                <field name="name"/>
                 <field name="cid"/>
+                <field name="name"/>
                 <field name="description"/>
                 <field name="product_type"/>
             </list>
@@ -42,7 +42,7 @@
 
     <!-- Product Group Action -->
     <record id="action_product_group" model="ir.actions.act_window">
-        <field name="name">Nhóm sản phẩm</field>
+        <field name="name">Phân nhóm phụ</field>
         <field name="res_model">product.group</field>
         <field name="view_mode">list</field>
         <field name="search_view_id" ref="view_product_group_search"/>

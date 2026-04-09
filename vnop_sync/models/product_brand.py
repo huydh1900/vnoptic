@@ -9,7 +9,7 @@ class ProductBrand(models.Model):
     _rec_name = 'name'
 
     name = fields.Char('Tên thương hiệu', required=True, index=True)
-    code = fields.Char('Mã kí hiệu')
+    code = fields.Char('CID')
     sequence = fields.Integer('STT', default=lambda self: (self.search([], order='sequence desc', limit=1).sequence or 0) + 1)
 
     _sql_constraints = [

@@ -7,10 +7,10 @@
         <field name="model">product.design</field>
         <field name="arch" type="xml">
             <list editable="top" string="Thiết kế">
+                <field name="cid"/>
                 <field name="name"/>
                 <field name="code"/>
-                <field name="cid"/>
-                <field name="description" optional="hide"/>
+                <field name="description"/>
             </list>
         </field>
     </record>
@@ -43,9 +43,9 @@
         <field name="model">product.material</field>
         <field name="arch" type="xml">
             <list editable="top" string="Chất liệu">
+                <field name="cid"/>
                 <field name="name"/>
                 <field name="code"/>
-                <field name="cid"/>
                 <field name="description" optional="hide"/>
             </list>
         </field>
@@ -79,9 +79,9 @@
         <field name="model">product.shape</field>
         <field name="arch" type="xml">
             <list editable="top" string="Hình dáng">
+                <field name="cid"/>
                 <field name="name"/>
                 <field name="code"/>
-                <field name="cid"/>
                 <field name="description" optional="hide"/>
             </list>
         </field>
@@ -115,9 +115,9 @@
         <field name="model">product.color</field>
         <field name="arch" type="xml">
             <list editable="top" string="Màu sắc">
+                <field name="cid"/>
                 <field name="name"/>
                 <field name="code"/>
-                <field name="cid"/>
             </list>
         </field>
     </record>
@@ -152,8 +152,8 @@
         <field name="model">product.coating</field>
         <field name="arch" type="xml">
             <list editable="top" string="Lớp phủ">
-                <field name="name"/>
                 <field name="cid"/>
+                <field name="name"/>
                 <field name="description" optional="hide"/>
             </list>
         </field>
@@ -186,9 +186,9 @@
         <field name="model">product.cl</field>
         <field name="arch" type="xml">
             <list editable="top" string="Màu (CL)">
+                <field name="cid"/>
                 <field name="name"/>
                 <field name="code"/>
-                <field name="cid"/>
             </list>
         </field>
     </record>
@@ -220,8 +220,8 @@
         <field name="model">product.uv</field>
         <field name="arch" type="xml">
             <list editable="top" string="UV">
-                <field name="name"/>
                 <field name="cid"/>
+                <field name="name"/>
             </list>
         </field>
     </record>
@@ -252,8 +252,8 @@
         <field name="model">product.frame</field>
         <field name="arch" type="xml">
             <list editable="top" string="Kiểu gọng">
-                <field name="name"/>
                 <field name="cid"/>
+                <field name="name"/>
             </list>
         </field>
     </record>
@@ -284,8 +284,8 @@
         <field name="model">product.frame.type</field>
         <field name="arch" type="xml">
             <list editable="top" string="Loại gọng">
-                <field name="name"/>
                 <field name="cid"/>
+                <field name="name"/>
             </list>
         </field>
     </record>
@@ -316,8 +316,8 @@
         <field name="model">product.ve</field>
         <field name="arch" type="xml">
             <list editable="top" string="Ve">
-                <field name="name"/>
                 <field name="cid"/>
+                <field name="name"/>
             </list>
         </field>
     </record>
@@ -348,8 +348,8 @@
         <field name="model">product.temple</field>
         <field name="arch" type="xml">
             <list editable="top" string="Càng kính">
-                <field name="name"/>
                 <field name="cid"/>
+                <field name="name"/>
             </list>
         </field>
     </record>
