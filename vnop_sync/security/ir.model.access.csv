@@ -28,3 +28,4 @@ access_product_color_user,product.color user,model_product_color,base.group_user
 access_product_color_manager,product.color manager,model_product_color,base.group_system,1,1,1,1
 access_server_connector_manager,server.connector manager,model_server_connector,base.group_system,1,1,1,1
 access_product_export_template_wizard_user,product.export.template.wizard user,model_product_export_template_wizard,base.group_user,1,1,1,1
+access_product_import_wizard_user,product.import.wizard user,model_product_import_wizard,base.group_user,1,1,1,1

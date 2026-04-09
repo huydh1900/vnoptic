@@ -471,17 +471,16 @@ class ProductTemplateExtension(models.Model):
                 brand_id = vals.get('brand_id')
                 group_id = vals.get('group_id')
                 lens_index_id = vals.get('lens_index_id') or vals.get('index_id')
-                if group_id and brand_id:
-                    try:
-                        vals['default_code'] = self._auto_generate_product_code(
-                            categ_id,
-                            brand_id,
-                            lens_index_id,
-                            group_id=group_id,
-                            sequence_cache=sequence_cache,
-                        )
-                    except Exception as e:
-                        _logger.warning(f"Failed to auto-generate product code: {e}")
+                try:
+                    vals['default_code'] = self._auto_generate_product_code(
+                        categ_id,
+                        brand_id,
+                        lens_index_id,
+                        group_id=group_id,
+                        sequence_cache=sequence_cache,
+                    )
+                except Exception as e:
+                    _logger.warning(f"Failed to auto-generate product code: {e}")
 
         return super().create(vals_list)
 
@@ -536,41 +535,39 @@ class ProductTemplateExtension(models.Model):
         return cleaned.zfill(3)
 
     def _build_default_code_prefix(self, group_id, brand_id, lens_index_id=False, product_type='lens'):
-        group = self.env['product.group'].browse(group_id)
-        brand = self.env['product.brand'].browse(brand_id)
+        # AA: group.sequence (2 chữ số), fallback '00'
+        aa = '00'
+        if group_id:
+            group = self.env['product.group'].browse(group_id)
+            if group.exists():
+                try:
+                    group_seq = int(group.sequence)
+                    if 0 <= group_seq <= 99:
+                        aa = f"{group_seq:02d}"
+                except (ValueError, TypeError):
+                    pass
 
-        if not group or not group.exists():
-            raise ValidationError('Thiếu group_id hợp lệ để sinh mã sản phẩm.')
-        if not brand or not brand.exists():
-            raise ValidationError('Thiếu brand_id hợp lệ để sinh mã sản phẩm.')
+        # BBB: brand.sequence (3 chữ số), fallback '000'
+        bbb = '000'
+        if brand_id:
+            brand = self.env['product.brand'].browse(brand_id)
+            if brand.exists():
+                try:
+                    brand_seq = int(brand.sequence)
+                    if 0 <= brand_seq <= 999:
+                        bbb = f"{brand_seq:03d}"
+                except (ValueError, TypeError):
+                    pass
 
-        try:
-            group_seq = int(group.sequence)
-        except Exception as exc:
-            raise ValidationError('STT nhóm (group.sequence) không hợp lệ để sinh mã sản phẩm.') from exc
-
-        try:
-            brand_seq = int(brand.sequence)
-        except Exception as exc:
-            raise ValidationError('STT thương hiệu (brand.sequence) không hợp lệ để sinh mã sản phẩm.') from exc
-
-        if group_seq < 0 or group_seq > 99:
-            raise ValidationError('STT nhóm phải nằm trong khoảng 0-99 để tạo AA.')
-        if brand_seq < 0 or brand_seq > 999:
-            raise ValidationError('STT thương hiệu phải nằm trong khoảng 0-999 để tạo BBB.')
-
-        aa = f"{group_seq:02d}"
-        bbb = f"{brand_seq:03d}"
-
-        if product_type == 'lens':
-            if not lens_index_id:
-                raise ValidationError('Sản phẩm lens thiếu lens_index_id để tạo CCC.')
+        # CCC: lens_index.cid (3 ký tự), fallback '000'
+        ccc = '000'
+        if product_type == 'lens' and lens_index_id:
             lens_index = self.env['product.lens.index'].browse(lens_index_id)
-            if not lens_index or not lens_index.exists():
-                raise ValidationError('lens_index_id không hợp lệ để tạo CCC.')
-            ccc = self._normalize_lens_index_cid(lens_index)
-        else:
-            ccc = '000'
+            if lens_index.exists():
+                try:
+                    ccc = self._normalize_lens_index_cid(lens_index)
+                except ValidationError:
+                    pass
 
         return f"{aa}{bbb}{ccc}"
 

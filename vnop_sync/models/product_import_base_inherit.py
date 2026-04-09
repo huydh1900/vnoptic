@@ -13,14 +13,16 @@ class ProductTemplateImportBaseInherit(models.Model):
     _VNOP_EXPORT_TEMPLATE_PREFIX = 'VNOP - Product Template'
 
     _VNOP_COMMON_FIELDS = [
-        'default_code',
-        'name',
-        'x_eng_name',
         'categ_id',
         'group_id',
+        'image_1920',
+        'name',
+        'x_eng_name',
         'uom_id',
         'brand_id',
+        'supplier_ref',
         'country_id',
+        'default_code',
         'warranty_id',
         'warranty_supplier_id',
         'warranty_retail_id',
@@ -33,7 +35,6 @@ class ProductTemplateImportBaseInherit(models.Model):
         'x_guide',
         'x_warning',
         'x_preserve',
-        'description_sale',
         'taxes_id',
         'supplier_taxes_id',
         'product_status',
@@ -188,6 +189,14 @@ class ProductTemplateImportBaseInherit(models.Model):
         'uom.uom': ['name'],
         'res.partner': ['ref', 'name'],
         'product.category': ['code', 'complete_name', 'name'],
+        'product.lens.material': ['code', 'name'],
+        'product.lens.index': ['cid', 'name'],
+        'product.uv': ['cid', 'name'],
+        'product.coating': ['cid', 'name'],
+        'product.frame': ['cid', 'name'],
+        'product.frame.type': ['cid', 'name'],
+        'product.ve': ['cid', 'name'],
+        'product.temple': ['cid', 'name'],
     }
 
     @api.model
@@ -377,7 +386,15 @@ class ProductTemplateImportBaseInherit(models.Model):
         # Allow imports that only update relational fields (e.g. categ_id by code)
         # even when default_code is not included in the file.
         if 'default_code' not in fields:
+            fields = list(fields)
             rows = [list(row) for row in data]
+            # Bỏ supplier_ref (virtual column) trước khi load
+            if 'supplier_ref' in fields:
+                sup_idx = fields.index('supplier_ref')
+                fields.pop(sup_idx)
+                for row in rows:
+                    row.pop(sup_idx)
+            self._vnop_validate_unique_names(fields, rows)
             self._vnop_pre_resolve_relational_cells(list(fields), rows)
             prepared_fields = self._vnop_prepare_lens_dbid_fields(fields)
             return super().load(prepared_fields, rows)
@@ -483,5 +500,88 @@ class ProductTemplateImportBaseInherit(models.Model):
                 existing = existing_by_code.get(code)
                 row.insert(0, str(existing.id) if existing else '')
 
+        # Extract supplier_ref (virtual column) trước khi gọi super
+        supplier_data = {}
+        if 'supplier_ref' in fields:
+            sup_idx = fields.index('supplier_ref')
+            for row_no, row in enumerate(rows):
+                raw = self._vnop_normalize_import_value(row[sup_idx])
+                if raw:
+                    # Giá trị dạng "tên NCC - ref" → chỉ lấy ref
+                    ref = raw.rsplit(' - ', 1)[-1].strip() if ' - ' in raw else raw.strip()
+                    supplier_data[row_no] = ref
+            # Bỏ cột supplier_ref ra khỏi fields/data
+            fields.pop(sup_idx)
+            for row in rows:
+                row.pop(sup_idx)
+            # Cập nhật code_index nếu bị dịch
+            if sup_idx <= code_index:
+                code_index -= 1
+
         prepared_fields = self._vnop_prepare_lens_dbid_fields(fields)
-        return super().load(prepared_fields, rows)
+        result = super().load(prepared_fields, rows)
+
+        # Sau import, tạo product.supplierinfo cho supplier_ref
+        imported_ids = result.get('ids') or []
+        if supplier_data and imported_ids:
+            SupplierInfo = self.env['product.supplierinfo'].sudo()
+            Partner = self.env['res.partner'].sudo()
+            ref_cache = {}
+            for row_no, ref in supplier_data.items():
+                if row_no >= len(imported_ids):
+                    continue
+                product_id = imported_ids[row_no]
+                if not product_id:
+                    continue
+                if ref not in ref_cache:
+                    partner = Partner.search([('ref', '=', ref), ('supplier_rank', '>', 0)], limit=1)
+                    ref_cache[ref] = partner.id if partner else False
+                partner_id = ref_cache[ref]
+                if not partner_id:
+                    continue
+                product = self.browse(product_id)
+                if not product.seller_ids.filtered(lambda s: s.partner_id.id == partner_id):
+                    SupplierInfo.create({
+                        'product_tmpl_id': product_id,
+                        'partner_id': partner_id,
+                    })
+
+        return result
+
+    def _vnop_validate_unique_names(self, fields, rows):
+        """Kiểm tra trùng tên sản phẩm trong file và trong DB."""
+        if 'name' not in fields:
+            return
+        name_idx = list(fields).index('name')
+
+        # Check trùng name trong file
+        seen = {}
+        for row_no, row in enumerate(rows, start=1):
+            name = self._vnop_normalize_import_value(
+                row[name_idx] if name_idx < len(row) else '')
+            if not name:
+                continue
+            if name in seen:
+                raise ValidationError(_(
+                    'Dòng %(row)s: Trùng tên sản phẩm "%(name)s" với dòng %(first)s trong cùng file.',
+                    row=row_no, name=name, first=seen[name],
+                ))
+            seen[name] = row_no
+
+        # Check name đã tồn tại trong DB
+        unique_names = list(seen.keys())
+        if not unique_names:
+            return
+        existing = self.with_context(active_test=False).search_read(
+            [('name', 'in', unique_names)],
+            ['name'],
+        )
+        existing_map = {r['name']: r['name'] for r in existing if r['name']}
+        for row_no, row in enumerate(rows, start=1):
+            name = self._vnop_normalize_import_value(
+                row[name_idx] if name_idx < len(row) else '')
+            if name and name in existing_map:
+                raise ValidationError(_(
+                    'Dòng %(row)s: Tên sản phẩm "%(name)s" đã tồn tại trong hệ thống.',
+                    row=row_no, name=name,
+                ))

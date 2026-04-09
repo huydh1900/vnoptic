@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="view_product_import_wizard_form" model="ir.ui.view">
+        <field name="name">product.import.wizard.form</field>
+        <field name="model">product.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import sản phẩm từ Excel">
+                <field name="state" invisible="1"/>
+
+                <!-- Bước 1: Upload -->
+                <group invisible="state != 'upload'">
+                    <field name="product_type"/>
+                    <field name="file_data" filename="file_name"/>
+                    <field name="file_name" invisible="1"/>
+                </group>
+
+                <!-- Bước 2: Kiểm thử -->
+                <div invisible="state != 'preview'" class="p-3">
+                    <field name="preview_text" widget="html" nolabel="1" readonly="1"/>
+                </div>
+
+                <!-- Bước 3: Kết quả import -->
+                <group invisible="state != 'done'">
+                    <field name="imported_count"/>
+                    <field name="error_text" invisible="not error_text" widget="text"/>
+                </group>
+
+                <footer invisible="state != 'upload'">
+                    <button name="action_test" type="object" string="Kiểm thử" class="btn-secondary" icon="fa-check-circle"/>
+                    <button name="action_import" type="object" string="Import" class="btn-primary" icon="fa-upload"/>
+                    <button string="Đóng" class="btn-secondary" special="cancel"/>
+                </footer>
+                <footer invisible="state != 'preview'">
+                    <button name="action_back_upload" type="object" string="Quay lại" class="btn-secondary" icon="fa-arrow-left"/>
+                    <button name="action_import" type="object" string="Import" class="btn-primary" icon="fa-upload"/>
+                    <button string="Đóng" class="btn-secondary" special="cancel"/>
+                </footer>
+                <footer invisible="state != 'done'">
+                    <button name="action_back_upload" type="object" string="Quay lại" class="btn-secondary" icon="fa-arrow-left"/>
+                    <button string="Đóng" class="btn-primary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_import_wizard" model="ir.actions.act_window">
+        <field name="name">Import sản phẩm từ Excel</field>
+        <field name="res_model">product.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="view_id" ref="view_product_import_wizard_form"/>
+    </record>
+
+</odoo>

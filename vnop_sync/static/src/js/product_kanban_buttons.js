@@ -11,7 +11,7 @@ patch(KanbanController.prototype, {
     },
 
     async onImportProduct() {
-        // TODO: implement import product wizard
+        await this.actionService.doAction("vnop_sync.action_product_import_wizard");
     },
 
     async onExportTemplate() {

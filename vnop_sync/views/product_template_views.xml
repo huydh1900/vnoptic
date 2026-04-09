@@ -66,6 +66,9 @@
         <field name="priority">100</field>
         <field name="arch" type="xml">
 
+            <!-- Ẩn button "Print Labels" trong form view -->
+            <xpath expr="//button[@name='action_open_label_layout']" position="replace"/>
+
             <xpath expr="//field[@name='image_1920']" position="replace">
                 <field name="image_1920" widget="image" class="oe_avatar"
                        options="{'convert_to_webp': True, 'preview_image': 'image_128'}"/>
