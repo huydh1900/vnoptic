@@ -2,7 +2,11 @@
 
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { Component, onWillStart, useState } from "@odoo/owl";
+import { Component, onWillStart, useRef, useState } from "@odoo/owl";
+
+// Mặc định ma trận chỉ hiển thị độ trong khoảng [-3, +3].
+const DEFAULT_AXIS_MIN = -3;
+const DEFAULT_AXIS_MAX = 3;
 
 export class LensStockMatrix extends Component {
     static template = "vnop_stock.LensStockMatrix";
@@ -15,13 +19,21 @@ export class LensStockMatrix extends Component {
             sphAxis: [],
             cylAxis: [],
             matrix: {},
-            // Giá trị đang gõ trong ô input (chưa áp dụng)
-            sphSearchDraft: "",
-            cylSearchDraft: "",
-            // Giá trị đã apply — chỉ thay đổi khi bấm nút Tìm kiếm / Enter
+            // Chỉ giá trị đã apply mới cần reactive — thay đổi sẽ re-render bảng.
             sphSearchApplied: "",
             cylSearchApplied: "",
         });
+
+        // Draft giữ ngoài reactive state để không re-render mỗi keystroke.
+        this._sphDraft = "";
+        this._cylDraft = "";
+        this.sphInputRef = useRef("sphInput");
+        this.cylInputRef = useRef("cylInput");
+
+        // Memo cho stats (totals + maxCell) — invalidate theo filter + identity matrix.
+        this._statsCache = null;
+        this._statsKey = null;
+        this._statsMatrixRef = null;
 
         onWillStart(async () => {
             await this.loadData();
@@ -35,10 +47,19 @@ export class LensStockMatrix extends Component {
             "get_lens_stock_matrix",
             []
         );
-        this.state.sphAxis = data.sph_axis || [];
-        this.state.cylAxis = data.cyl_axis || [];
+        this.state.sphAxis = this._limitAxis(data.sph_axis || []);
+        this.state.cylAxis = this._limitAxis(data.cyl_axis || []);
         this.state.matrix = data.matrix || {};
         this.state.loading = false;
+    }
+
+    /** Giới hạn trục hiển thị mặc định theo khoảng giá trị [MIN, MAX]. */
+    _limitAxis(axis) {
+        return axis.filter(
+            (item) =>
+                item.value >= DEFAULT_AXIS_MIN &&
+                item.value <= DEFAULT_AXIS_MAX
+        );
     }
 
     /** Axis được lọc theo từ khóa tìm kiếm (so khớp chuỗi trên `name`). */
@@ -60,18 +81,70 @@ export class LensStockMatrix extends Component {
         return this._filterAxis(this.state.cylAxis, this.state.cylSearchApplied);
     }
 
+    /**
+     * Tính toàn bộ aggregate (row totals, col totals, grand total, max cell)
+     * trong một lần duyệt ma trận. Kết quả cache lại theo filter + identity
+     * của `state.matrix` để các getter chỉ đọc dict O(1) trong cùng render cycle.
+     */
+    get stats() {
+        const sphAxis = this.filteredSphAxis;
+        const cylAxis = this.filteredCylAxis;
+        const key = `${this.state.sphSearchApplied}|${this.state.cylSearchApplied}|${sphAxis.length}|${cylAxis.length}`;
+        if (
+            this._statsKey === key &&
+            this._statsMatrixRef === this.state.matrix &&
+            this._statsCache
+        ) {
+            return this._statsCache;
+        }
+
+        const matrix = this.state.matrix;
+        const rowTotals = {};
+        const colTotals = {};
+        let grandTotal = 0;
+        let maxCell = 0;
+
+        for (const cyl of cylAxis) {
+            const row = matrix[cyl.id];
+            if (!row) {
+                continue;
+            }
+            let rt = 0;
+            for (const sph of sphAxis) {
+                const v = row[sph.id] || 0;
+                if (!v) {
+                    continue;
+                }
+                rt += v;
+                colTotals[sph.id] = (colTotals[sph.id] || 0) + v;
+                if (v > maxCell) {
+                    maxCell = v;
+                }
+            }
+            if (rt) {
+                rowTotals[cyl.id] = rt;
+                grandTotal += rt;
+            }
+        }
+
+        this._statsKey = key;
+        this._statsMatrixRef = matrix;
+        this._statsCache = { rowTotals, colTotals, grandTotal, maxCell };
+        return this._statsCache;
+    }
+
     onSphSearchInput(ev) {
-        this.state.sphSearchDraft = ev.target.value;
+        this._sphDraft = ev.target.value;
     }
 
     onCylSearchInput(ev) {
-        this.state.cylSearchDraft = ev.target.value;
+        this._cylDraft = ev.target.value;
     }
 
     /** Apply giá trị draft → view mới render theo giá trị đã apply. */
     onApplySearch() {
-        this.state.sphSearchApplied = this.state.sphSearchDraft;
-        this.state.cylSearchApplied = this.state.cylSearchDraft;
+        this.state.sphSearchApplied = this._sphDraft;
+        this.state.cylSearchApplied = this._cylDraft;
     }
 
     /** Enter trong ô input = bấm nút Tìm kiếm. */
@@ -83,8 +156,14 @@ export class LensStockMatrix extends Component {
     }
 
     onClearSearch() {
-        this.state.sphSearchDraft = "";
-        this.state.cylSearchDraft = "";
+        this._sphDraft = "";
+        this._cylDraft = "";
+        if (this.sphInputRef.el) {
+            this.sphInputRef.el.value = "";
+        }
+        if (this.cylInputRef.el) {
+            this.cylInputRef.el.value = "";
+        }
         this.state.sphSearchApplied = "";
         this.state.cylSearchApplied = "";
     }
@@ -99,60 +178,28 @@ export class LensStockMatrix extends Component {
 
     /** Tổng theo dòng (CYL) chỉ tính các cột SPH đang hiển thị. */
     getRowTotal(cylId) {
-        let total = 0;
-        for (const sph of this.filteredSphAxis) {
-            total += this.getCell(cylId, sph.id);
-        }
-        return total;
+        return this.stats.rowTotals[cylId] || 0;
     }
 
     /** Tổng theo cột (SPH) chỉ tính các dòng CYL đang hiển thị. */
     getColTotal(sphId) {
-        let total = 0;
-        for (const cyl of this.filteredCylAxis) {
-            total += this.getCell(cyl.id, sphId);
-        }
-        return total;
+        return this.stats.colTotals[sphId] || 0;
     }
 
     get grandTotal() {
-        let total = 0;
-        for (const cyl of this.filteredCylAxis) {
-            for (const sph of this.filteredSphAxis) {
-                total += this.getCell(cyl.id, sph.id);
-            }
-        }
-        return total;
-    }
-
-    /**
-     * Cell intensity 0..1 relative to the largest VISIBLE cell value.
-     * Tính lại theo tập hợp ô đang hiển thị để heat-map phản ánh
-     * đúng phạm vi user đang xem.
-     */
-    getHeat(qty) {
-        if (!qty) {
-            return 0;
-        }
-        let max = 0;
-        for (const cyl of this.filteredCylAxis) {
-            for (const sph of this.filteredSphAxis) {
-                const v = this.getCell(cyl.id, sph.id);
-                if (v > max) {
-                    max = v;
-                }
-            }
-        }
-        return max ? qty / max : 0;
+        return this.stats.grandTotal;
     }
 
     cellStyle(qty) {
-        const h = this.getHeat(qty);
-        if (!h) {
+        if (!qty) {
             return "";
         }
-        // Brand-friendly blue gradient.
-        const alpha = 0.08 + h * 0.62;
+        const max = this.stats.maxCell;
+        if (!max) {
+            return "";
+        }
+        // Brand-friendly blue gradient — heat 0..1 so với cell lớn nhất đang hiển thị.
+        const alpha = 0.08 + (qty / max) * 0.62;
         return `background-color: rgba(45, 115, 222, ${alpha.toFixed(3)});`;
     }
 

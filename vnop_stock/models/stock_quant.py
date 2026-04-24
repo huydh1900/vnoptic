@@ -49,24 +49,27 @@ class StockQuant(models.Model):
             'grand_total': 0.0,
         }
 
-        Template = self.env['product.template']
-        templates = Template.search([
-            ('lens_sph_id', '!=', False),
-            ('lens_cyl_id', '!=', False),
-        ])
-        if not templates:
+        # Lấy (sph_id, cyl_id) cho từng template có đủ 2 trục — 1 query, không browse.
+        tmpl_rows = self.env['product.template'].search_read(
+            [('lens_sph_id', '!=', False), ('lens_cyl_id', '!=', False)],
+            ['id', 'lens_sph_id', 'lens_cyl_id'],
+        )
+        if not tmpl_rows:
             return empty_result
+        tmpl_to_axes = {
+            r['id']: (r['lens_sph_id'][0], r['lens_cyl_id'][0])
+            for r in tmpl_rows
+        }
 
-        # Map product.product -> (sph_id, cyl_id)
-        products = self.env['product.product'].search([
-            ('product_tmpl_id', 'in', templates.ids),
-        ])
+        # Map product.product -> (sph_id, cyl_id) qua template — 1 query, không browse.
+        prod_rows = self.env['product.product'].search_read(
+            [('product_tmpl_id', 'in', list(tmpl_to_axes.keys()))],
+            ['id', 'product_tmpl_id'],
+        )
         prod_to_axes = {
-            p.id: (
-                p.product_tmpl_id.lens_sph_id.id if p.product_tmpl_id.lens_sph_id else False,
-                p.product_tmpl_id.lens_cyl_id.id if p.product_tmpl_id.lens_cyl_id else False,
-            )
-            for p in products
+            r['id']: tmpl_to_axes[r['product_tmpl_id'][0]]
+            for r in prod_rows
+            if r['product_tmpl_id'] and r['product_tmpl_id'][0] in tmpl_to_axes
         }
         if not prod_to_axes:
             return empty_result

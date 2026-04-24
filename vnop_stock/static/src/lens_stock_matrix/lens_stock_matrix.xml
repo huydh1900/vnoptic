@@ -17,7 +17,7 @@
                             <input type="text"
                                    class="form-control form-control-sm"
                                    placeholder="VD: -1.25"
-                                   t-att-value="state.sphSearchDraft"
+                                   t-ref="sphInput"
                                    t-on-input="onSphSearchInput"
                                    t-on-keydown="onSearchKeydown"/>
                         </div>
@@ -26,7 +26,7 @@
                             <input type="text"
                                    class="form-control form-control-sm"
                                    placeholder="VD: -0.75"
-                                   t-att-value="state.cylSearchDraft"
+                                   t-ref="cylInput"
                                    t-on-input="onCylSearchInput"
                                    t-on-keydown="onSearchKeydown"/>
                         </div>
@@ -36,7 +36,7 @@
                             <i class="fa fa-search me-1"/> Tìm kiếm
                         </button>
                         <button class="btn btn-light btn-sm o_lsm_clear"
-                                t-if="state.sphSearchDraft or state.cylSearchDraft or state.sphSearchApplied or state.cylSearchApplied"
+                                t-if="state.sphSearchApplied or state.cylSearchApplied"
                                 t-on-click="onClearSearch"
                                 title="Xoá tìm kiếm">
                             <i class="fa fa-times"/>
