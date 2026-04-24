@@ -147,20 +147,37 @@
             position: sticky;
             left: 0;
             z-index: 3;
-            background: #eaf0f9;
-            min-width: 96px;
-            text-align: left;
-            font-size: 11px;
-            color: #6b7280;
-            line-height: 1.3;
+            min-width: 110px;
+            min-height: 52px;
+            padding: 0;
+            background-color: #eaf0f9;
+            // Gạch chéo từ góc dưới-trái lên góc trên-phải.
+            background-image: linear-gradient(
+                to top right,
+                transparent calc(50% - 0.5px),
+                #b8c5d9 calc(50% - 0.5px),
+                #b8c5d9 calc(50% + 0.5px),
+                transparent calc(50% + 0.5px)
+            );
 
-            .o_lsm_corner_cyl,
-            .o_lsm_corner_sph {
-                display: block;
-                font-weight: 600;
+            .o_lsm_corner_sph,
+            .o_lsm_corner_cyl {
+                position: absolute;
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.3px;
+                line-height: 1;
             }
-            .o_lsm_corner_cyl { color: #2d73de; }
-            .o_lsm_corner_sph { color: #0ea573; }
+            .o_lsm_corner_sph {
+                top: 8px;
+                right: 12px;
+                color: #0ea573;
+            }
+            .o_lsm_corner_cyl {
+                bottom: 8px;
+                left: 12px;
+                color: #2d73de;
+            }
         }
 
         .o_lsm_col_head {

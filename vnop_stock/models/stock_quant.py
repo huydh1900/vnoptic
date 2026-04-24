@@ -49,56 +49,39 @@ class StockQuant(models.Model):
             'grand_total': 0.0,
         }
 
-        # Lấy (sph_id, cyl_id) cho từng template có đủ 2 trục — 1 query, không browse.
-        tmpl_rows = self.env['product.template'].search_read(
-            [('lens_sph_id', '!=', False), ('lens_cyl_id', '!=', False)],
-            ['id', 'lens_sph_id', 'lens_cyl_id'],
-        )
-        if not tmpl_rows:
+        # Gộp aggregate vào 1 SQL: JOIN quant → product → template → location,
+        # GROUP theo (lens_cyl_id, lens_sph_id). Không load template/product
+        # vào Python, không phải map thủ công.
+        self.env.cr.execute("""
+            SELECT t.lens_cyl_id AS cyl_id,
+                   t.lens_sph_id AS sph_id,
+                   SUM(q.quantity) AS qty
+              FROM stock_quant q
+              JOIN stock_location l ON l.id = q.location_id
+              JOIN product_product p ON p.id = q.product_id
+              JOIN product_template t ON t.id = p.product_tmpl_id
+             WHERE l.usage = 'internal'
+               AND t.lens_sph_id IS NOT NULL
+               AND t.lens_cyl_id IS NOT NULL
+               AND t.active = TRUE
+               AND p.active = TRUE
+             GROUP BY t.lens_cyl_id, t.lens_sph_id
+            HAVING SUM(q.quantity) <> 0
+        """)
+        rows = self.env.cr.fetchall()
+        if not rows:
             return empty_result
-        tmpl_to_axes = {
-            r['id']: (r['lens_sph_id'][0], r['lens_cyl_id'][0])
-            for r in tmpl_rows
-        }
-
-        # Map product.product -> (sph_id, cyl_id) qua template — 1 query, không browse.
-        prod_rows = self.env['product.product'].search_read(
-            [('product_tmpl_id', 'in', list(tmpl_to_axes.keys()))],
-            ['id', 'product_tmpl_id'],
-        )
-        prod_to_axes = {
-            r['id']: tmpl_to_axes[r['product_tmpl_id'][0]]
-            for r in prod_rows
-            if r['product_tmpl_id'] and r['product_tmpl_id'][0] in tmpl_to_axes
-        }
-        if not prod_to_axes:
-            return empty_result
-
-        # Aggregate on-hand quantity per product across internal locations
-        groups = self.env['stock.quant'].read_group(
-            domain=[
-                ('product_id', 'in', list(prod_to_axes.keys())),
-                ('location_id.usage', '=', 'internal'),
-            ],
-            fields=['product_id', 'quantity:sum'],
-            groupby=['product_id'],
-        )
 
         matrix = {}
         row_totals = {}
         col_totals = {}
         grand_total = 0.0
 
-        for g in groups:
-            qty = g.get('quantity') or 0.0
+        for cyl_id, sph_id, qty in rows:
+            qty = float(qty or 0.0)
             if not qty:
                 continue
-            prod_id = g['product_id'][0]
-            sph_id, cyl_id = prod_to_axes.get(prod_id, (False, False))
-            if not sph_id or not cyl_id:
-                continue
-            matrix.setdefault(cyl_id, {})
-            matrix[cyl_id][sph_id] = matrix[cyl_id].get(sph_id, 0.0) + qty
+            matrix.setdefault(cyl_id, {})[sph_id] = qty
             row_totals[cyl_id] = row_totals.get(cyl_id, 0.0) + qty
             col_totals[sph_id] = col_totals.get(sph_id, 0.0) + qty
             grand_total += qty

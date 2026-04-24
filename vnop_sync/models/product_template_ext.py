@@ -276,8 +276,10 @@ class ProductTemplateExtension(models.Model):
     # ==================== LENS SPECS (Hướng B: field trực tiếp trên template) ====================
     # Thiết kế
     lens_sph_id = fields.Many2one('product.lens.power', string='SPH',
+                                  index=True,
                                   help='Công suất cầu (Sphere)')
     lens_cyl_id = fields.Many2one('product.lens.power', string='CYL',
+                                  index=True,
                                   help='Công suất trụ (Cylinder)')
     lens_add_id = fields.Many2one('product.lens.add', string='ADD',
                                   help='Addition (thấu kính đa tròng)')

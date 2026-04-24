@@ -2,7 +2,7 @@
 
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { Component, onWillStart, useRef, useState } from "@odoo/owl";
+import { Component, onMounted, useRef, useState } from "@odoo/owl";
 
 // Mặc định ma trận chỉ hiển thị độ trong khoảng [-3, +3].
 const DEFAULT_AXIS_MIN = -3;
@@ -35,8 +35,10 @@ export class LensStockMatrix extends Component {
         this._statsKey = null;
         this._statsMatrixRef = null;
 
-        onWillStart(async () => {
-            await this.loadData();
+        // Dùng onMounted (không await) để shell + skeleton loading hiển thị ngay
+        // khi mở action, data matrix đổ vào sau khi server trả về.
+        onMounted(() => {
+            this.loadData();
         });
     }
 
@@ -47,26 +49,25 @@ export class LensStockMatrix extends Component {
             "get_lens_stock_matrix",
             []
         );
-        this.state.sphAxis = this._limitAxis(data.sph_axis || []);
-        this.state.cylAxis = this._limitAxis(data.cyl_axis || []);
+        this.state.sphAxis = data.sph_axis || [];
+        this.state.cylAxis = data.cyl_axis || [];
         this.state.matrix = data.matrix || {};
         this.state.loading = false;
     }
 
-    /** Giới hạn trục hiển thị mặc định theo khoảng giá trị [MIN, MAX]. */
-    _limitAxis(axis) {
-        return axis.filter(
-            (item) =>
-                item.value >= DEFAULT_AXIS_MIN &&
-                item.value <= DEFAULT_AXIS_MAX
-        );
-    }
-
-    /** Axis được lọc theo từ khóa tìm kiếm (so khớp chuỗi trên `name`). */
+    /**
+     * Lọc trục hiển thị:
+     * - Không có search → giới hạn mặc định [DEFAULT_AXIS_MIN, DEFAULT_AXIS_MAX].
+     * - Có search → tìm trong toàn bộ axis, không áp giới hạn mặc định.
+     */
     _filterAxis(axis, term) {
         const q = (term || "").trim().toLowerCase();
         if (!q) {
-            return axis;
+            return axis.filter(
+                (item) =>
+                    item.value >= DEFAULT_AXIS_MIN &&
+                    item.value <= DEFAULT_AXIS_MAX
+            );
         }
         return axis.filter((item) =>
             (item.name || "").toLowerCase().includes(q)

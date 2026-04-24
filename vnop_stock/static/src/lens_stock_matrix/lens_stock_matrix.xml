@@ -77,8 +77,8 @@
                         <thead>
                             <tr>
                                 <th class="o_lsm_corner">
-                                    <span class="o_lsm_corner_cyl">CYL ↓</span>
-                                    <span class="o_lsm_corner_sph">SPH →</span>
+                                    <span class="o_lsm_corner_sph">SPH</span>
+                                    <span class="o_lsm_corner_cyl">CYL</span>
                                 </th>
                                 <th t-foreach="filteredSphAxis" t-as="sph" t-key="sph.id"
                                     class="o_lsm_col_head">
