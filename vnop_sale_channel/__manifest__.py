@@ -11,7 +11,6 @@
         'account',
         'sale',
         'sale_management',
-        'sale_pdf_quote_builder',
     ],
     'data': [
         'data/pricelist_data.xml',
