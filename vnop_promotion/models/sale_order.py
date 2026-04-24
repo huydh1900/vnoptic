@@ -17,3 +17,18 @@ class SaleOrder(models.Model):
         return domain + [
             ('program_id.channel_type', 'in', ('all', order_channel)),
         ]
+
+    def _get_reward_values_discount(self, reward, coupon, **kwargs):
+        """Thay prefix 'Discount' và 'On products with the following taxes' mặc định
+        của sale_loyalty thành tiếng Việt để sale order line hiển thị đồng nhất."""
+        values = super()._get_reward_values_discount(reward, coupon, **kwargs)
+        for vals in values:
+            name = vals.get('name') or ''
+            if name.startswith('Discount '):
+                name = 'Chiết khấu ' + name[len('Discount '):]
+            name = name.replace(
+                ' - On products with the following taxes: ',
+                ' - Áp dụng trên sản phẩm có thuế: ',
+            )
+            vals['name'] = name
+        return values

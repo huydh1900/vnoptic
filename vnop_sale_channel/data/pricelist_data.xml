@@ -13,4 +13,56 @@
         <field name="sequence">20</field>
     </record>
 
+    <!-- Mẫu quy tắc bảng giá bán buôn -->
+    <record id="pricelist_wholesale_item_default" model="product.pricelist.item">
+        <field name="pricelist_id" ref="pricelist_wholesale"/>
+        <field name="applied_on">3_global</field>
+        <field name="base">list_price</field>
+        <field name="compute_price">percentage</field>
+        <field name="percent_price">10</field>
+        <field name="min_quantity">1</field>
+        <field name="name">Bán buôn - giảm 10% giá niêm yết</field>
+    </record>
+
+    <record id="pricelist_wholesale_item_qty_10" model="product.pricelist.item">
+        <field name="pricelist_id" ref="pricelist_wholesale"/>
+        <field name="applied_on">3_global</field>
+        <field name="base">list_price</field>
+        <field name="compute_price">percentage</field>
+        <field name="percent_price">15</field>
+        <field name="min_quantity">10</field>
+        <field name="name">Bán buôn - giảm 15% khi mua từ 10 sản phẩm</field>
+    </record>
+
+    <record id="pricelist_wholesale_item_qty_50" model="product.pricelist.item">
+        <field name="pricelist_id" ref="pricelist_wholesale"/>
+        <field name="applied_on">3_global</field>
+        <field name="base">list_price</field>
+        <field name="compute_price">percentage</field>
+        <field name="percent_price">20</field>
+        <field name="min_quantity">50</field>
+        <field name="name">Bán buôn - giảm 20% khi mua từ 50 sản phẩm</field>
+    </record>
+
+    <!-- Mẫu quy tắc bảng giá bán lẻ -->
+    <record id="pricelist_retail_item_default" model="product.pricelist.item">
+        <field name="pricelist_id" ref="pricelist_retail"/>
+        <field name="applied_on">3_global</field>
+        <field name="base">list_price</field>
+        <field name="compute_price">percentage</field>
+        <field name="percent_price">0</field>
+        <field name="min_quantity">1</field>
+        <field name="name">Bán lẻ - theo giá niêm yết</field>
+    </record>
+
+    <record id="pricelist_retail_item_qty_5" model="product.pricelist.item">
+        <field name="pricelist_id" ref="pricelist_retail"/>
+        <field name="applied_on">3_global</field>
+        <field name="base">list_price</field>
+        <field name="compute_price">percentage</field>
+        <field name="percent_price">5</field>
+        <field name="min_quantity">5</field>
+        <field name="name">Bán lẻ - giảm 5% khi mua từ 5 sản phẩm</field>
+    </record>
+
 </odoo>

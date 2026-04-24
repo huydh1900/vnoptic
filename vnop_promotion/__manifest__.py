@@ -6,6 +6,7 @@
     'category': 'Sales',
     'depends': ['sale_loyalty', 'vnop_sale_channel'],
     'data': [
+        'data/loyalty_program_data.xml',
         'views/loyalty_program_views.xml',
     ],
     'license': 'LGPL-3',

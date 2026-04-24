@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- 1. Khuyến mãi khai trương - giảm 20% toàn bộ đơn (tự động, mọi kênh) -->
+    <record id="promo_khai_truong" model="loyalty.program">
+        <field name="name">KM Khai trương - Giảm 20% toàn bộ đơn</field>
+        <field name="program_type">promotion</field>
+        <field name="applies_on">current</field>
+        <field name="trigger">auto</field>
+        <field name="channel_type">all</field>
+    </record>
+    <record id="promo_khai_truong_rule" model="loyalty.rule">
+        <field name="program_id" ref="promo_khai_truong"/>
+        <field name="minimum_qty">1</field>
+        <field name="minimum_amount">0</field>
+        <field name="reward_point_amount">1</field>
+        <field name="reward_point_mode">order</field>
+    </record>
+    <record id="promo_khai_truong_reward" model="loyalty.reward">
+        <field name="program_id" ref="promo_khai_truong"/>
+        <field name="reward_type">discount</field>
+        <field name="discount">20</field>
+        <field name="discount_mode">percent</field>
+        <field name="discount_applicability">order</field>
+        <field name="required_points">1</field>
+    </record>
+
+    <!-- 2. Ưu đãi khách buôn - giảm 25% khi đơn từ 5 triệu (kênh bán buôn) -->
+    <record id="promo_khach_buon_5tr" model="loyalty.program">
+        <field name="name">Ưu đãi Khách buôn - Giảm 25% đơn từ 5 triệu</field>
+        <field name="program_type">promotion</field>
+        <field name="applies_on">current</field>
+        <field name="trigger">auto</field>
+        <field name="channel_type">wholesale</field>
+    </record>
+    <record id="promo_khach_buon_5tr_rule" model="loyalty.rule">
+        <field name="program_id" ref="promo_khach_buon_5tr"/>
+        <field name="minimum_qty">1</field>
+        <field name="minimum_amount">5000000</field>
+        <field name="reward_point_amount">1</field>
+        <field name="reward_point_mode">order</field>
+    </record>
+    <record id="promo_khach_buon_5tr_reward" model="loyalty.reward">
+        <field name="program_id" ref="promo_khach_buon_5tr"/>
+        <field name="reward_type">discount</field>
+        <field name="discount">25</field>
+        <field name="discount_mode">percent</field>
+        <field name="discount_applicability">order</field>
+        <field name="required_points">1</field>
+    </record>
+
+    <!-- 3. Mua từ 3 sản phẩm giảm 15% (kênh bán lẻ) -->
+    <record id="promo_mua_3_sp" model="loyalty.program">
+        <field name="name">Mua từ 3 sản phẩm - Giảm 15%</field>
+        <field name="program_type">promotion</field>
+        <field name="applies_on">current</field>
+        <field name="trigger">auto</field>
+        <field name="channel_type">retail</field>
+    </record>
+    <record id="promo_mua_3_sp_rule" model="loyalty.rule">
+        <field name="program_id" ref="promo_mua_3_sp"/>
+        <field name="minimum_qty">3</field>
+        <field name="minimum_amount">0</field>
+        <field name="reward_point_amount">1</field>
+        <field name="reward_point_mode">order</field>
+    </record>
+    <record id="promo_mua_3_sp_reward" model="loyalty.reward">
+        <field name="program_id" ref="promo_mua_3_sp"/>
+        <field name="reward_type">discount</field>
+        <field name="discount">15</field>
+        <field name="discount_mode">percent</field>
+        <field name="discount_applicability">order</field>
+        <field name="required_points">1</field>
+    </record>
+
+    <!-- 4. Mã giảm giá MATKINH2026 - giảm 100.000đ -->
+    <record id="promo_code_matkinh2026" model="loyalty.program">
+        <field name="name">Mã giảm giá MATKINH2026 - Giảm 100.000đ</field>
+        <field name="program_type">promo_code</field>
+        <field name="applies_on">current</field>
+        <field name="trigger">with_code</field>
+        <field name="channel_type">all</field>
+    </record>
+    <record id="promo_code_matkinh2026_rule" model="loyalty.rule">
+        <field name="program_id" ref="promo_code_matkinh2026"/>
+        <field name="mode">with_code</field>
+        <field name="code">MATKINH2026</field>
+        <field name="minimum_qty">1</field>
+        <field name="minimum_amount">500000</field>
+        <field name="reward_point_amount">1</field>
+        <field name="reward_point_mode">order</field>
+    </record>
+    <record id="promo_code_matkinh2026_reward" model="loyalty.reward">
+        <field name="program_id" ref="promo_code_matkinh2026"/>
+        <field name="reward_type">discount</field>
+        <field name="discount">100000</field>
+        <field name="discount_mode">per_order</field>
+        <field name="discount_applicability">order</field>
+        <field name="required_points">1</field>
+    </record>
+
+    <!-- 5. Black Friday - giảm 30% sản phẩm rẻ nhất -->
+    <record id="promo_black_friday" model="loyalty.program">
+        <field name="name">Black Friday - Giảm 30% sản phẩm rẻ nhất</field>
+        <field name="program_type">promotion</field>
+        <field name="applies_on">current</field>
+        <field name="trigger">auto</field>
+        <field name="channel_type">all</field>
+    </record>
+    <record id="promo_black_friday_rule" model="loyalty.rule">
+        <field name="program_id" ref="promo_black_friday"/>
+        <field name="minimum_qty">2</field>
+        <field name="minimum_amount">0</field>
+        <field name="reward_point_amount">1</field>
+        <field name="reward_point_mode">order</field>
+    </record>
+    <record id="promo_black_friday_reward" model="loyalty.reward">
+        <field name="program_id" ref="promo_black_friday"/>
+        <field name="reward_type">discount</field>
+        <field name="discount">30</field>
+        <field name="discount_mode">percent</field>
+        <field name="discount_applicability">cheapest</field>
+        <field name="required_points">1</field>
+    </record>
+
+    <!-- 6. Ưu đãi sinh viên - giảm 10% toàn đơn (mã code STUDENT10) -->
+    <record id="promo_student" model="loyalty.program">
+        <field name="name">Ưu đãi Sinh viên - Giảm 10% với mã STUDENT10</field>
+        <field name="program_type">promo_code</field>
+        <field name="applies_on">current</field>
+        <field name="trigger">with_code</field>
+        <field name="channel_type">retail</field>
+    </record>
+    <record id="promo_student_rule" model="loyalty.rule">
+        <field name="program_id" ref="promo_student"/>
+        <field name="mode">with_code</field>
+        <field name="code">STUDENT10</field>
+        <field name="minimum_qty">1</field>
+        <field name="minimum_amount">0</field>
+        <field name="reward_point_amount">1</field>
+        <field name="reward_point_mode">order</field>
+    </record>
+    <record id="promo_student_reward" model="loyalty.reward">
+        <field name="program_id" ref="promo_student"/>
+        <field name="reward_type">discount</field>
+        <field name="discount">10</field>
+        <field name="discount_mode">percent</field>
+        <field name="discount_applicability">order</field>
+        <field name="required_points">1</field>
+    </record>
+
+</odoo>

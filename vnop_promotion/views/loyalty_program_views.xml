@@ -9,6 +9,9 @@
             <xpath expr="//field[@name='program_type']" position="after">
                 <field name="channel_type"/>
             </xpath>
+            <xpath expr="//div[@class='oe_title']/h1/field[@name='name']" position="attributes">
+                <attribute name="placeholder">Black Friday - Giảm 30% sản phẩm rẻ nhất</attribute>
+            </xpath>
         </field>
     </record>
 

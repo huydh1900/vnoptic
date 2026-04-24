@@ -7,13 +7,19 @@
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='vat']" position="after">
-                <field name="channel_type"
-                       invisible="context.get('res_partner_search_mode') == 'supplier'"/>
+                <field name="supplier_rank" invisible="1"/>
+                <field name="channel_type" invisible="supplier_rank > 0"/>
             </xpath>
             <xpath expr="(//field[@name='street2'])[1]" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="(//field[@name='street2'])[2]" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//page[@name='sales_purchases']//group[@name='misc']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//page[@name='sales_purchases']//group[@name='fiscal_information']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
         </field>

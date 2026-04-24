@@ -4,7 +4,15 @@
     'summary': 'Phân kênh bán buôn / bán lẻ cho khách hàng, bảng giá và đơn hàng',
     'version': '18.0.1.0.0',
     'category': 'Sales',
-    'depends': ['base', 'product', 'sale_management'],
+    'depends': [
+        'base',
+        'mail',
+        'product',
+        'account',
+        'sale',
+        'sale_management',
+        'sale_pdf_quote_builder',
+    ],
     'data': [
         'data/pricelist_data.xml',
         'data/menu_data.xml',
