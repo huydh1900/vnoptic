@@ -26,3 +26,23 @@ class SaleOrder(models.Model):
                 order.channel_type = order.partner_id.channel_type
             elif not order.channel_type:
                 order.channel_type = 'retail'
+
+    @api.depends('channel_type')
+    def _compute_pricelist_id(self):
+        """Khi chọn kênh bán, tự động gán bảng giá khớp channel_type tương ứng.
+
+        - Giữ bảng giá hiện tại nếu đã khớp kênh (hoặc bảng giá 'chung' - channel_type=False).
+        - Ưu tiên bảng giá cùng kênh; nếu không có thì fallback logic gốc (theo partner).
+        """
+        super()._compute_pricelist_id()
+        for order in self:
+            if order.state != 'draft' or not order.channel_type:
+                continue
+            if order.pricelist_id and order.pricelist_id.channel_type in (order.channel_type, False):
+                continue
+            matching = self.env['product.pricelist'].search([
+                ('channel_type', '=', order.channel_type),
+                ('company_id', 'in', (False, order.company_id.id)),
+            ], limit=1)
+            if matching:
+                order.pricelist_id = matching
