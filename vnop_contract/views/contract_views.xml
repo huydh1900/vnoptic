@@ -15,7 +15,6 @@
                 <field name="total_missing_qty" decoration-danger="total_missing_qty &gt; 0"/>
                 <field name="amount_total"/>
                 <field name="sign_date"/>
-
                 <field name="type_contract"
                        widget="badge"
                        decoration-info="type_contract == 'domestic'"

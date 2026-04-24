@@ -516,7 +516,13 @@ class PurchaseOfferLine(models.Model):
                 line.description = line.product_id.display_name
                 line.uom_id = line.product_id.uom_po_id.id or line.product_id.uom_id.id
                 line.taxes_id = line.product_id.supplier_taxes_id
-                line.expected_price = line.product_id.standard_price
+                price = line.product_id.standard_price
+                offer = line.offer_id
+                # standard_price lưu theo tiền tệ công ty (VND).
+                # Nếu NCC dùng tiền tệ khác, quy đổi theo tỷ giá của ĐNMH.
+                if offer.currency_id and offer.currency_id.name != "VND" and offer.exchange_rate:
+                    price = price / offer.exchange_rate
+                line.expected_price = price
 
     @api.depends("quantity", "expected_price", "taxes_id")
     def _compute_subtotal(self):
