@@ -23,7 +23,6 @@
             <list string="Bảo hành">
                 <field name="code"/>
                 <field name="name"/>
-                <field name="value"/>
             </list>
         </field>
     </record>
@@ -40,9 +39,6 @@
                         <group>
                             <field name="name" placeholder="VD: Bảo hành 3 tháng"/>
                             <field name="code" placeholder="VD: BH3"/>
-                        </group>
-                        <group>
-                            <field name="value"/>
                         </group>
                     </group>
                     <notebook>

@@ -1,0 +1,28 @@
+{
+    'name': 'VNOptic - POS Bán Lẻ Mắt Kính',
+    'version': '18.0.1.0.0',
+    'summary': 'Cấu hình POS chuyên cho bán lẻ mắt kính (gọng, tròng, phụ kiện, dịch vụ đo khám)',
+    'category': 'Point of Sale',
+    'author': 'VNOptic',
+    'license': 'LGPL-3',
+    'depends': [
+        'point_of_sale',
+        'vnop_sale_channel',
+        'vnop_sync',
+    ],
+    'data': [
+        'security/pos_optical_security.xml',
+        'security/ir.model.access.csv',
+        'data/account_journal_data.xml',
+        'data/pos_payment_method_data.xml',
+        'data/pos_category_data.xml',
+        'data/pos_config_data.xml',
+        'data/pos_bill_data.xml',
+        'data/ir_sequence_data.xml',
+        'views/pos_config_views.xml',
+    ],
+    'installable': True,
+    'application': False,
+    'auto_install': False,
+    'post_init_hook': 'post_init_hook',
+}

@@ -24,13 +24,13 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//sheet/group/group/div[hasclass('o_address_format')]/field[@name='city']" position="attributes">
-                <attribute name="invisible">0</attribute>
+                <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//sheet/group/group/div[hasclass('o_address_format')]/field[@name='state_id']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//sheet/group/group/div[hasclass('o_address_format')]/field[@name='zip']" position="attributes">
-                <attribute name="invisible">0</attribute>
+                <attribute name="invisible">1</attribute>
             </xpath>
 
             <xpath expr="//sheet/group/group/field[@name='mobile']" position="attributes">

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="pos_cat_frame" model="pos.category">
+            <field name="name">Gọng kính</field>
+            <field name="sequence">10</field>
+        </record>
+
+        <record id="pos_cat_frame_men" model="pos.category">
+            <field name="name">Gọng nam</field>
+            <field name="parent_id" ref="pos_cat_frame"/>
+            <field name="sequence">11</field>
+        </record>
+
+        <record id="pos_cat_frame_women" model="pos.category">
+            <field name="name">Gọng nữ</field>
+            <field name="parent_id" ref="pos_cat_frame"/>
+            <field name="sequence">12</field>
+        </record>
+
+        <record id="pos_cat_frame_kids" model="pos.category">
+            <field name="name">Gọng trẻ em</field>
+            <field name="parent_id" ref="pos_cat_frame"/>
+            <field name="sequence">13</field>
+        </record>
+
+        <record id="pos_cat_lens" model="pos.category">
+            <field name="name">Tròng kính</field>
+            <field name="sequence">20</field>
+        </record>
+
+        <record id="pos_cat_lens_single" model="pos.category">
+            <field name="name">Tròng đơn tròng</field>
+            <field name="parent_id" ref="pos_cat_lens"/>
+            <field name="sequence">21</field>
+        </record>
+
+        <record id="pos_cat_lens_progressive" model="pos.category">
+            <field name="name">Tròng đa tròng</field>
+            <field name="parent_id" ref="pos_cat_lens"/>
+            <field name="sequence">22</field>
+        </record>
+
+        <record id="pos_cat_lens_blueblock" model="pos.category">
+            <field name="name">Tròng chống ánh sáng xanh</field>
+            <field name="parent_id" ref="pos_cat_lens"/>
+            <field name="sequence">23</field>
+        </record>
+
+        <record id="pos_cat_sunglasses" model="pos.category">
+            <field name="name">Kính mát</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <record id="pos_cat_contact_lens" model="pos.category">
+            <field name="name">Kính áp tròng</field>
+            <field name="sequence">40</field>
+        </record>
+
+        <record id="pos_cat_contact_lens_solution" model="pos.category">
+            <field name="name">Dung dịch &amp; phụ kiện áp tròng</field>
+            <field name="parent_id" ref="pos_cat_contact_lens"/>
+            <field name="sequence">41</field>
+        </record>
+
+        <record id="pos_cat_accessories" model="pos.category">
+            <field name="name">Phụ kiện</field>
+            <field name="sequence">50</field>
+        </record>
+
+        <record id="pos_cat_accessories_case" model="pos.category">
+            <field name="name">Hộp / Bao kính</field>
+            <field name="parent_id" ref="pos_cat_accessories"/>
+            <field name="sequence">51</field>
+        </record>
+
+        <record id="pos_cat_accessories_cleaner" model="pos.category">
+            <field name="name">Khăn lau / Nước lau kính</field>
+            <field name="parent_id" ref="pos_cat_accessories"/>
+            <field name="sequence">52</field>
+        </record>
+
+        <record id="pos_cat_service" model="pos.category">
+            <field name="name">Dịch vụ</field>
+            <field name="sequence">90</field>
+        </record>
+
+    </data>
+</odoo>

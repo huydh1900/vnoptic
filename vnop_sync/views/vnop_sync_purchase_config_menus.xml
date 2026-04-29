@@ -29,6 +29,12 @@
               action="action_product_group"
               sequence="20"/>
 
+    <menuitem id="menu_product_classification"
+              name="Nhóm sản phẩm"
+              parent="purchase.menu_product_in_config_purchase"
+              action="action_product_classification"
+              sequence="25"/>
+
     <menuitem id="menu_product_warranty"
               name="Bảo hành"
               parent="purchase.menu_product_in_config_purchase"
@@ -120,6 +126,12 @@
               parent="menu_vnop_sync_master_opt"
               action="action_product_temple"
               sequence="50"/>
+
+    <menuitem id="menu_product_target"
+              name="Đối tượng"
+              parent="menu_vnop_sync_master_opt"
+              action="action_product_target"
+              sequence="60"/>
 
     <!-- ==================== ACCESSORY ==================== -->
     <menuitem id="menu_accessory_design"

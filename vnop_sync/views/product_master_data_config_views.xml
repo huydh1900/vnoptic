@@ -79,35 +79,16 @@
         <field name="model">product.shape</field>
         <field name="arch" type="xml">
             <list editable="top" string="Hình dáng">
-                <field name="cid"/>
                 <field name="name"/>
-                <field name="code"/>
-                <field name="description" optional="hide"/>
+                <field name="cid"/>
             </list>
-        </field>
-    </record>
-
-    <record id="view_product_shape_form" model="ir.ui.view">
-        <field name="name">product.shape.form</field>
-        <field name="model">product.shape</field>
-        <field name="arch" type="xml">
-            <form string="Hình dáng">
-                <sheet>
-                    <group>
-                        <field name="name"/>
-                        <field name="code"/>
-                        <field name="cid"/>
-                        <field name="description"/>
-                    </group>
-                </sheet>
-            </form>
         </field>
     </record>
 
     <record id="action_product_shape" model="ir.actions.act_window">
         <field name="name">Hình dáng</field>
         <field name="res_model">product.shape</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">list</field>
     </record>
 
     <record id="view_product_color_tree" model="ir.ui.view">
@@ -152,33 +133,17 @@
         <field name="model">product.coating</field>
         <field name="arch" type="xml">
             <list editable="top" string="Lớp phủ">
-                <field name="cid"/>
                 <field name="name"/>
-                <field name="description" optional="hide"/>
+                <field name="name_en"/>
+                <field name="cid"/>
             </list>
-        </field>
-    </record>
-
-    <record id="view_product_coating_form" model="ir.ui.view">
-        <field name="name">product.coating.form</field>
-        <field name="model">product.coating</field>
-        <field name="arch" type="xml">
-            <form string="Lớp phủ">
-                <sheet>
-                    <group>
-                        <field name="name"/>
-                        <field name="cid"/>
-                        <field name="description"/>
-                    </group>
-                </sheet>
-            </form>
         </field>
     </record>
 
     <record id="action_product_coating" model="ir.actions.act_window">
         <field name="name">Lớp phủ</field>
         <field name="res_model">product.coating</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">list</field>
     </record>
 
     <record id="view_product_cl_tree" model="ir.ui.view">
@@ -373,6 +338,41 @@
         <field name="name">Càng kính</field>
         <field name="res_model">product.temple</field>
         <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_target_tree" model="ir.ui.view">
+        <field name="name">product.target.tree</field>
+        <field name="model">product.target</field>
+        <field name="arch" type="xml">
+            <list editable="top" string="Đối tượng">
+                <field name="name"/>
+                <field name="cid"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_product_target" model="ir.actions.act_window">
+        <field name="name">Đối tượng</field>
+        <field name="res_model">product.target</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <record id="view_product_classification_tree" model="ir.ui.view">
+        <field name="name">product.classification.tree</field>
+        <field name="model">product.classification</field>
+        <field name="arch" type="xml">
+            <list editable="top" string="Nhóm sản phẩm">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="category_type"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_product_classification" model="ir.actions.act_window">
+        <field name="name">Nhóm sản phẩm</field>
+        <field name="res_model">product.classification</field>
+        <field name="view_mode">list</field>
     </record>
 
 </odoo>

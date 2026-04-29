@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_pos_config_optical_cashier,pos.config optical cashier,point_of_sale.model_pos_config,group_pos_optical_cashier,1,0,0,0
+access_pos_config_optical_manager,pos.config optical manager,point_of_sale.model_pos_config,group_pos_optical_manager,1,1,1,0
+access_pos_session_optical_cashier,pos.session optical cashier,point_of_sale.model_pos_session,group_pos_optical_cashier,1,1,1,0
+access_pos_session_optical_manager,pos.session optical manager,point_of_sale.model_pos_session,group_pos_optical_manager,1,1,1,1
+access_pos_order_optical_cashier,pos.order optical cashier,point_of_sale.model_pos_order,group_pos_optical_cashier,1,1,1,0
+access_pos_order_optical_manager,pos.order optical manager,point_of_sale.model_pos_order,group_pos_optical_manager,1,1,1,1

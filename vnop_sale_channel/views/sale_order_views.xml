@@ -7,16 +7,50 @@
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='payment_term_id']" position="before">
-                <field name="channel_type"/>
+                <field name="channel_type" readonly="1"/>
             </xpath>
+
+            <!-- Bán lẻ: ẩn trạng thái 'Quotation Sent' khỏi statusbar.
+                 Bán buôn: vẫn hiển thị 'sent' (mặc định Odoo).
+                 Trick: render 2 statusbar mutually-exclusive theo channel_type vì
+                 attribute statusbar_visible là static, không dynamic được. -->
+            <xpath expr="//header/field[@name='state']" position="attributes">
+                <attribute name="invisible">channel_type == 'retail'</attribute>
+            </xpath>
+            <xpath expr="//header/field[@name='state']" position="after">
+                <field name="state" widget="statusbar" statusbar_visible="draft,sale"
+                       invisible="channel_type != 'retail'"/>
+            </xpath>
+            <!-- Ẩn partner_id mặc định của Odoo (widget res_partner_many2one cho phép quick-create),
+                 thay bằng 2 partner_id mutually-exclusive theo channel_type:
+                 - Retail: chỉ list khách lẻ; default tạo mới = retail.
+                 - Wholesale: chỉ list khách buôn; default tạo mới = wholesale.
+                 Hiện theo channel_type của đơn (action menu_retail_* / menu_wholesale_root đã set default). -->
             <xpath expr="//field[@name='partner_id']" position="attributes">
-                <attribute name="domain">[('customer_rank', '>', 0)]</attribute>
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="partner_id"
+                       domain="[('customer_rank', '>', 0), ('channel_type', '=', 'retail')]"
+                       context="{'show_address': 0, 'show_vat': True, 'default_customer_rank': 1, 'default_channel_type': 'retail'}"
+                       options="{'no_quick_create': True}"
+                       readonly="state in ['cancel', 'sale']"
+                       invisible="channel_type != 'retail'"
+                       placeholder="Chọn khách lẻ..."/>
+                <field name="partner_id"
+                       domain="[('customer_rank', '>', 0), ('channel_type', '=', 'wholesale')]"
+                       context="{'show_address': 0, 'show_vat': True, 'default_customer_rank': 1, 'default_channel_type': 'wholesale'}"
+                       options="{'no_quick_create': True}"
+                       readonly="state in ['cancel', 'sale']"
+                       invisible="channel_type != 'wholesale'"
+                       placeholder="Chọn khách buôn..."/>
             </xpath>
             <xpath expr="//page[@name='customer_signature']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="(//field[@name='pricelist_id'])[1]" position="attributes">
                 <attribute name="domain">[('channel_type', 'in', [channel_type, False])]</attribute>
+                <attribute name="readonly">1</attribute>
             </xpath>
             <xpath expr="//button[@name='action_preview_sale_order']" position="attributes">
                 <attribute name="invisible">1</attribute>
@@ -24,6 +58,105 @@
             <xpath expr="//page[@name='other_information']//group[@name='sale_reporting']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
+
+            <!-- Hiển thị amount_total bằng chữ ngay dưới khối tổng (cùng cột bên phải) -->
+            <xpath expr="//group[@name='sale_total']/field[@name='tax_totals']" position="after">
+                <div class="d-flex flex-column align-items-end fst-italic text-muted mt-1">
+                    <field name="amount_total_text" nolabel="1" readonly="1" class="text-end"/>
+                </div>
+            </xpath>
+
+            <!-- Tô màu các button trong header -->
+            <!-- Confirm (state=draft) — mặc định gray, đổi thành xanh primary -->
+            <xpath expr="//button[@name='action_confirm'][not(@id)]" position="attributes">
+                <attribute name="class">btn-primary</attribute>
+            </xpath>
+            <!-- Confirm (state=sent) — đổi sang success xanh lá để phân biệt với Send -->
+            <xpath expr="//button[@id='action_confirm']" position="attributes">
+                <attribute name="class">btn-success</attribute>
+            </xpath>
+            <!-- Cancel — đỏ -->
+            <xpath expr="//button[@name='action_cancel']" position="attributes">
+                <attribute name="class">btn-danger</attribute>
+            </xpath>
+            <!-- Set to Quotation — vàng cảnh báo -->
+            <xpath expr="//button[@name='action_draft']" position="attributes">
+                <attribute name="class">btn-warning</attribute>
+            </xpath>
+            <!-- Lock / Unlock — info -->
+            <xpath expr="//button[@name='action_lock']" position="attributes">
+                <attribute name="class">btn-info</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_unlock']" position="attributes">
+                <attribute name="class">btn-info</attribute>
+            </xpath>
+
+            <!-- Bán lẻ: ẩn các nút action_quotation_send (Send by Email / Send PRO-FORMA Invoice) -->
+            <xpath expr="//button[@id='send_by_email_primary']" position="attributes">
+                <attribute name="invisible">state != 'draft' or channel_type == 'retail'</attribute>
+            </xpath>
+            <xpath expr="//button[@id='send_proforma_primary']" position="attributes">
+                <attribute name="invisible">state != 'draft' or invoice_count &gt;= 1 or channel_type == 'retail'</attribute>
+            </xpath>
+            <xpath expr="//button[@id='send_proforma']" position="attributes">
+                <attribute name="invisible">state == 'draft' or invoice_count &gt;= 1 or channel_type == 'retail'</attribute>
+            </xpath>
+            <xpath expr="//button[@id='send_by_email']" position="attributes">
+                <attribute name="invisible">state not in ('sent', 'sale') or channel_type == 'retail'</attribute>
+            </xpath>
+
+            <!-- Buttons import Excel + tải template trước order_line -->
+            <xpath expr="//field[@name='order_line']" position="before">
+                <div class="mb-2" invisible="state not in ('draft', 'sent')">
+                    <button name="action_download_template" type="object"
+                            string="Tải template mẫu" icon="fa-download"
+                            class="btn-link"/>
+                    <button name="action_import_lines_excel" type="object"
+                            string="Import Excel" icon="fa-upload"
+                            class="btn-link"/>
+                </div>
+            </xpath>
+
+            <!-- order_line list: bỏ handle sequence, bỏ Add section/note/Catalog, chỉ còn Add a product -->
+            <xpath expr="//field[@name='order_line']/list/field[@name='sequence'][@widget='handle']" position="attributes">
+                <attribute name="widget"/>
+                <attribute name="column_invisible">True</attribute>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/list/control/create[@name='add_section_control']" position="replace"/>
+            <xpath expr="//field[@name='order_line']/list/control/create[@name='add_note_control']" position="replace"/>
+            <xpath expr="//field[@name='order_line']/list/control/button[@name='action_add_from_catalog']" position="replace"/>
+        </field>
+    </record>
+
+    <record id="sale_order_tree_channel" model="ir.ui.view">
+        <field name="name">sale.order.list.channel</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.sale_order_tree"/>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='activity_ids']" position="replace"/>
+        </field>
+    </record>
+
+    <record id="sale_order_list_upload_hide_channel" model="ir.ui.view">
+        <field name="name">sale.order.list.upload.hide</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.sale_order_list_upload"/>
+        <field name="arch" type="xml">
+            <list position="attributes">
+                <attribute name="js_class"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="sale_order_kanban_upload_hide_channel" model="ir.ui.view">
+        <field name="name">sale.order.kanban.upload.hide</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.sale_order_kanban_upload"/>
+        <field name="arch" type="xml">
+            <kanban position="attributes">
+                <attribute name="js_class"/>
+            </kanban>
         </field>
     </record>
 
@@ -32,6 +165,17 @@
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.view_sales_order_filter"/>
         <field name="arch" type="xml">
+            <!-- Tắt tìm kiếm tự do (autocomplete cross-field) trong search bar:
+                 name search dùng filter_domain ilike trên name/client_order_ref/partner_id,
+                 đó là tìm kiếm "toàn cầu" trên sale.order. Giới hạn lại chỉ search theo name. -->
+            <xpath expr="//search/field[@name='name']" position="attributes">
+                <attribute name="filter_domain">[('name', 'ilike', self)]</attribute>
+            </xpath>
+            <xpath expr="//search/field[@name='partner_id']" position="replace"/>
+            <xpath expr="//search/field[@name='user_id']" position="replace"/>
+            <xpath expr="//search/field[@name='team_id']" position="replace"/>
+            <xpath expr="//search/field[@name='order_line']" position="replace"/>
+
             <xpath expr="//search" position="inside">
                 <separator/>
                 <filter string="Bán buôn" name="filter_channel_wholesale"

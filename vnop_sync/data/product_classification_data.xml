@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="classification_00" model="product.classification">
+        <field name="code">00</field>
+        <field name="name">Chưa phân nhóm</field>
+        <field name="category_type">other</field>
+    </record>
+    <record id="classification_010101" model="product.classification">
+        <field name="code">010101</field>
+        <field name="name">Gọng kính</field>
+        <field name="category_type">frame</field>
+    </record>
+    <record id="classification_020101" model="product.classification">
+        <field name="code">020101</field>
+        <field name="name">Đơn tròng không số</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_020102" model="product.classification">
+        <field name="code">020102</field>
+        <field name="name">Đơn tròng cận</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_020103" model="product.classification">
+        <field name="code">020103</field>
+        <field name="name">Đơn tròng cận loạn</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_020104" model="product.classification">
+        <field name="code">020104</field>
+        <field name="name">Đơn tròng viễn</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_020105" model="product.classification">
+        <field name="code">020105</field>
+        <field name="name">Đơn tròng viễn loạn</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_020106" model="product.classification">
+        <field name="code">020106</field>
+        <field name="name">Đơn tròng ĐM không số</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_020107" model="product.classification">
+        <field name="code">020107</field>
+        <field name="name">Đơn tròng ĐM cận</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_020108" model="product.classification">
+        <field name="code">020108</field>
+        <field name="name">Đơn tròng ĐM cận loạn</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_020109" model="product.classification">
+        <field name="code">020109</field>
+        <field name="name">Đơn tròng ĐM viễn</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_020110" model="product.classification">
+        <field name="code">020110</field>
+        <field name="name">Đơn tròng ĐM viễn loạn</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_020204" model="product.classification">
+        <field name="code">020204</field>
+        <field name="name">Hai tròng Flap top viễn</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_0301" model="product.classification">
+        <field name="code">0301</field>
+        <field name="name">Kính râm</field>
+        <field name="category_type">frame</field>
+    </record>
+    <record id="classification_050101" model="product.classification">
+        <field name="code">050101</field>
+        <field name="name">Bao kính</field>
+        <field name="category_type">accessory</field>
+    </record>
+    <record id="classification_050201" model="product.classification">
+        <field name="code">050201</field>
+        <field name="name">Khăn lau kính</field>
+        <field name="category_type">accessory</field>
+    </record>
+    <record id="classification_050301" model="product.classification">
+        <field name="code">050301</field>
+        <field name="name">Phụ kiện gọng kính</field>
+        <field name="category_type">accessory</field>
+    </record>
+    <record id="classification_20301" model="product.classification">
+        <field name="code">20301</field>
+        <field name="name">Đa tròng cận</field>
+        <field name="category_type">lens</field>
+    </record>
+    <record id="classification_20302" model="product.classification">
+        <field name="code">20302</field>
+        <field name="name">Đa tròng viễn</field>
+        <field name="category_type">lens</field>
+    </record>
+</odoo>

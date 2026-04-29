@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_pos_config_optical" model="ir.actions.act_window">
+        <field name="name">POS Mắt kính</field>
+        <field name="res_model">pos.config</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[('name', 'ilike', 'Mắt kính')]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Cấu hình điểm bán lẻ mắt kính
+            </p>
+            <p>
+                Module này cung cấp sẵn cấu hình POS, danh mục sản phẩm,
+                phương thức thanh toán và dịch vụ chuyên ngành mắt kính.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_pos_optical_root"
+              name="POS Mắt kính"
+              parent="point_of_sale.menu_point_root"
+              sequence="5"/>
+
+    <menuitem id="menu_pos_optical_config"
+              name="Cấu hình điểm bán"
+              parent="menu_pos_optical_root"
+              action="action_pos_config_optical"
+              sequence="10"/>
+
+</odoo>

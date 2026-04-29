@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="pos_optical_category" model="ir.module.category">
+            <field name="name">POS Bán Lẻ Mắt Kính</field>
+            <field name="description">Phân quyền cho POS chuyên ngành mắt kính</field>
+            <field name="sequence">20</field>
+        </record>
+
+        <record id="group_pos_optical_cashier" model="res.groups">
+            <field name="name">Nhân viên thu ngân (POS Mắt Kính)</field>
+            <field name="category_id" ref="pos_optical_category"/>
+            <field name="implied_ids" eval="[(4, ref('point_of_sale.group_pos_user'))]"/>
+        </record>
+
+        <record id="group_pos_optical_manager" model="res.groups">
+            <field name="name">Quản lý cửa hàng (POS Mắt Kính)</field>
+            <field name="category_id" ref="pos_optical_category"/>
+            <field name="implied_ids" eval="[(4, ref('group_pos_optical_cashier')), (4, ref('point_of_sale.group_pos_manager'))]"/>
+        </record>
+
+    </data>
+</odoo>

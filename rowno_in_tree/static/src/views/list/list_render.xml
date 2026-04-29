@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="rowno_in_tree.ListRenderer"
+       t-inherit="web.ListRenderer"
+       t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[1]" position="after">
+            <th class="o_list_row_number_header align-middle text-center"
+                tabindex="-1">#</th>
+        </xpath>
+        <xpath expr="//tfoot/tr/td[1]" position="after">
+            <td class="o_list_row_number_footer"/>
+        </xpath>
+    </t>
+
+    <t t-name="rowno_in_tree.ListRenderer.Rows"
+       t-inherit="web.ListRenderer.Rows"
+       t-inherit-mode="extension">
+        <xpath expr="//t[@t-foreach='list.records']" position="before">
+            <t t-set="RowNumber" t-value="1"/>
+        </xpath>
+        <xpath expr="//t[@t-call='{{ constructor.recordRowTemplate }}']"
+               position="after">
+            <t t-set="RowNumber" t-value="RowNumber + 1"/>
+        </xpath>
+    </t>
+
+    <t t-name="rowno_in_tree.ListRenderer.RecordRow"
+       t-inherit="web.ListRenderer.RecordRow"
+       t-inherit-mode="extension">
+        <xpath expr="//tr/td[1]" position="after">
+            <td class="o_list_row_number text-center text-muted"
+                tabindex="-1">
+                <span t-esc="RowNumber"/>
+            </td>
+        </xpath>
+    </t>
+
+    <!--
+        account/sale dùng primary inheritance (account.sectionAndNoteListRenderer
+        kế thừa web.ListRenderer; sale.ListRenderer.RecordRow kế thừa
+        web.ListRenderer.RecordRow). Primary tạo bản sao độc lập nên các xpath
+        trên template gốc không áp dụng → phải patch lại y hệt cho từng bản primary.
+    -->
+    <t t-name="rowno_in_tree.account.sectionAndNoteListRenderer"
+       t-inherit="account.sectionAndNoteListRenderer"
+       t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[1]" position="after">
+            <th class="o_list_row_number_header align-middle text-center"
+                tabindex="-1">#</th>
+        </xpath>
+        <xpath expr="//tfoot/tr/td[1]" position="after">
+            <td class="o_list_row_number_footer"/>
+        </xpath>
+    </t>
+
+    <t t-name="rowno_in_tree.sale.ListRenderer.RecordRow"
+       t-inherit="sale.ListRenderer.RecordRow"
+       t-inherit-mode="extension">
+        <xpath expr="//tr/td[1]" position="after">
+            <td class="o_list_row_number text-center text-muted"
+                tabindex="-1">
+                <span t-esc="RowNumber"/>
+            </td>
+        </xpath>
+    </t>
+
+</templates>

@@ -74,12 +74,12 @@ class ProductLensIndex(models.Model):
 
 class ProductCoating(models.Model):
     _name = 'product.coating'
-    _description = 'Product Coating'
+    _description = 'Lớp phủ'
     _order = 'name'
 
-    name = fields.Char('Tên lớp phủ', required=True)
-    cid = fields.Char('Mã CID')
-    description = fields.Text('Mô tả')
+    name = fields.Char('Tên đầy đủ', required=True)
+    name_en = fields.Char('Tên tiếng Anh')
+    cid = fields.Char('Viết tắt')
 
 
 class ProductCl(models.Model):
@@ -135,3 +135,44 @@ class ProductTemple(models.Model):
 
     name = fields.Char('Tên càng kính', required=True)
     cid = fields.Char('Mã CID')
+
+
+class ProductTarget(models.Model):
+    _name = 'product.target'
+    _description = 'Đối tượng'
+    _order = 'name'
+
+    name = fields.Char('Đối tượng', required=True)
+    cid = fields.Char('Viết tắt')
+
+
+class ProductClassification(models.Model):
+    _name = 'product.classification'
+    _description = 'Nhóm sản phẩm'
+    _order = 'category_type_sequence, code'
+
+    _CATEGORY_TYPE_ORDER = {
+        'frame': 1,
+        'lens': 2,
+        'accessory': 3,
+        'other': 4,
+    }
+
+    name = fields.Char('Tên nhóm', required=True)
+    code = fields.Char('Mã nhóm', required=True, index=True)
+    category_type = fields.Selection([
+        ('frame', 'Gọng kính'),
+        ('lens', 'Tròng kính'),
+        ('accessory', 'Phụ kiện'),
+        ('other', 'Khác'),
+    ], string='Phân loại')
+    category_type_sequence = fields.Integer(
+        compute='_compute_category_type_sequence',
+        store=True,
+        index=True,
+    )
+
+    @api.depends('category_type')
+    def _compute_category_type_sequence(self):
+        for record in self:
+            record.category_type_sequence = self._CATEGORY_TYPE_ORDER.get(record.category_type, 99)

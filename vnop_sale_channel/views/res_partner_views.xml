@@ -7,8 +7,16 @@
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='vat']" position="after">
-                <field name="supplier_rank" invisible="1"/>
-                <field name="channel_type" invisible="supplier_rank > 0"/>
+                <field name="supplier_rank" invisible="1" force_save="1"/>
+                <!-- force_save="1" để giá trị channel_type vẫn được lưu khi field
+                     bị ẩn (vd: NCC), tránh save reset value đã set qua context. -->
+                <field name="channel_type" invisible="supplier_rank > 0" force_save="1"/>
+            </xpath>
+            <xpath expr="//field[@id='company']" position="attributes">
+                <attribute name="placeholder">VD: Công ty TNHH ABC</attribute>
+            </xpath>
+            <xpath expr="//field[@id='individual']" position="attributes">
+                <attribute name="placeholder">VD: Nguyễn Văn A</attribute>
             </xpath>
             <xpath expr="(//field[@name='street2'])[1]" position="attributes">
                 <attribute name="invisible">1</attribute>

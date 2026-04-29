@@ -116,6 +116,7 @@
                 <group string="Thông tin chung" invisible="type != 'consu'">
                     <group>
                         <field name="default_code"/>
+                        <field name="classification_id" options="{'no_create': True}"/>
                         <field name="categ_id" options="{'no_create': True}"/>
                         <field name="len_type" invisible="categ_code != 'TK'"/>
                         <field name="group_id"

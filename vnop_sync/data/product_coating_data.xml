@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="coating_hc" model="product.coating">
+        <field name="name">Lớp tráng cứng</field>
+        <field name="name_en">Hard Coat</field>
+        <field name="cid">HC</field>
+    </record>
+    <record id="coating_ir" model="product.coating">
+        <field name="name">Lớp chống va đập</field>
+        <field name="name_en">Impact Resistant coating</field>
+        <field name="cid">IR</field>
+    </record>
+    <record id="coating_ar" model="product.coating">
+        <field name="name">Chống phản xạ cơ bản</field>
+        <field name="name_en">Anti-Reflection</field>
+        <field name="cid">AR</field>
+    </record>
+    <record id="coating_hyd" model="product.coating">
+        <field name="name">Chống bám nước</field>
+        <field name="name_en">Super Hydrophobic</field>
+        <field name="cid">HYD</field>
+    </record>
+    <record id="coating_hmc" model="product.coating">
+        <field name="name">Chống phản quang</field>
+        <field name="name_en">Hard Multi Coat</field>
+        <field name="cid">HMC</field>
+    </record>
+    <record id="coating_bc" model="product.coating">
+        <field name="name">Chống ánh sáng xanh</field>
+        <field name="name_en">Blue Cut</field>
+        <field name="cid">BC</field>
+    </record>
+    <record id="coating_bc_ar" model="product.coating">
+        <field name="name">Blue Cut phủ AR</field>
+        <field name="name_en">Blue Cut AR</field>
+        <field name="cid">BC-AR</field>
+    </record>
+    <record id="coating_blc" model="product.coating">
+        <field name="name">Blue Control</field>
+        <field name="name_en">Blue Control</field>
+        <field name="cid">BLC</field>
+    </record>
+    <record id="coating_bp" model="product.coating">
+        <field name="name">Blue Protect</field>
+        <field name="name_en">Blue Protection</field>
+        <field name="cid">BP</field>
+    </record>
+    <record id="coating_uvf" model="product.coating">
+        <field name="name">Chống UV mặt trước</field>
+        <field name="name_en">Front UV Protection</field>
+        <field name="cid">UVF</field>
+    </record>
+    <record id="coating_uvb" model="product.coating">
+        <field name="name">Chống UV mặt sau</field>
+        <field name="name_en">Backside UV</field>
+        <field name="cid">UVB</field>
+    </record>
+    <record id="coating_sm" model="product.coating">
+        <field name="name">Phủ gương đơn sắc</field>
+        <field name="name_en">Solid Mirror</field>
+        <field name="cid">SM</field>
+    </record>
+    <record id="coating_mm" model="product.coating">
+        <field name="name">Phủ gương đa sắc</field>
+        <field name="name_en">Multi Mirror</field>
+        <field name="cid">MM</field>
+    </record>
+    <record id="coating_mono" model="product.coating">
+        <field name="name">Màu đơn sắc</field>
+        <field name="name_en">Mono Tint</field>
+        <field name="cid">MONO</field>
+    </record>
+    <record id="coating_grad" model="product.coating">
+        <field name="name">Màu chuyển sắc</field>
+        <field name="name_en">Gradient Tint</field>
+        <field name="cid">GRAD</field>
+    </record>
+    <record id="coating_sil_m" model="product.coating">
+        <field name="name">Gương bạc</field>
+        <field name="name_en">Silver Mirror</field>
+        <field name="cid">SIL-M</field>
+    </record>
+    <record id="coating_bl_m" model="product.coating">
+        <field name="name">Gương xanh</field>
+        <field name="name_en">Blue Mirror</field>
+        <field name="cid">BL-M</field>
+    </record>
+    <record id="coating_gd_m" model="product.coating">
+        <field name="name">Gương vàng</field>
+        <field name="name_en">Gold Mirror</field>
+        <field name="cid">GD-M</field>
+    </record>
+    <record id="coating_pho" model="product.coating">
+        <field name="name">Đổi màu</field>
+        <field name="name_en">Photochromic</field>
+        <field name="cid">PHO</field>
+    </record>
+    <record id="coating_spho" model="product.coating">
+        <field name="name">Đổi màu PP quay ly tâm</field>
+        <field name="name_en">Spin Photochromic</field>
+        <field name="cid">SPHO</field>
+    </record>
+    <record id="coating_af" model="product.coating">
+        <field name="name">Chống Sương mù</field>
+        <field name="name_en">Anti-Fog</field>
+        <field name="cid">AF</field>
+    </record>
+    <record id="coating_as" model="product.coating">
+        <field name="name">Chống bám vân tay / Dầu mỡ</field>
+        <field name="name_en">Anti-Smudge</field>
+        <field name="cid">AS</field>
+    </record>
+    <record id="coating_emi" model="product.coating">
+        <field name="name">Chống tĩnh điện (Hạn chế bám bụi)</field>
+        <field name="name_en">Anti-Static / EMI</field>
+        <field name="cid">EMI</field>
+    </record>
+    <record id="coating_irp" model="product.coating">
+        <field name="name">Chống tia hồng ngoại</field>
+        <field name="name_en">Infrared Protection</field>
+        <field name="cid">IRP</field>
+    </record>
+    <record id="coating_drv" model="product.coating">
+        <field name="name">Lớp phủ hỗ trợ lái xe ban đêm</field>
+        <field name="name_en">Night Driving Coat</field>
+        <field name="cid">DRV</field>
+    </record>
+    <record id="coating_ag" model="product.coating">
+        <field name="name">Lớp phủ chống chói đèn pha</field>
+        <field name="name_en">Anti-Glare</field>
+        <field name="cid">AG</field>
+    </record>
+</odoo>

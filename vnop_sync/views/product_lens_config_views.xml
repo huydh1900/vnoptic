@@ -85,15 +85,15 @@
         <field name="model">product.lens.material</field>
         <field name="arch" type="xml">
             <list editable="bottom">
+                <field name="code"/>
                 <field name="name"/>
                 <field name="refractive_index"/>
-                <field name="description"/>
             </list>
         </field>
     </record>
 
     <record id="action_product_lens_material" model="ir.actions.act_window">
-        <field name="name">Lens Materials</field>
+        <field name="name">Vật liệu tròng kính</field>
         <field name="res_model">product.lens.material</field>
         <field name="view_mode">list,form</field>
     </record>

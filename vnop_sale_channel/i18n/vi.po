@@ -1,0 +1,22 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* vnop_sale_channel
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-04-26 00:00+0000\n"
+"PO-Revision-Date: 2026-04-26 00:00+0000\n"
+"Language-Team: Vietnamese\n"
+"Language: vi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#. module: sale
+#: model:ir.model.fields,field_description:sale.field_sale_order__user_id
+#: model:ir.model.fields,field_description:sale.field_sale_report__user_id
+msgid "Salesperson"
+msgstr "Người phụ trách"

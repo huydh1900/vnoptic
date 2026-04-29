@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="shape_round" model="product.shape">
+        <field name="name">Tròn</field>
+        <field name="cid">RND</field>
+    </record>
+    <record id="shape_square" model="product.shape">
+        <field name="name">Vuông</field>
+        <field name="cid">SQR</field>
+    </record>
+    <record id="shape_rectangle" model="product.shape">
+        <field name="name">Chữ nhật</field>
+        <field name="cid">REC</field>
+    </record>
+    <record id="shape_oval" model="product.shape">
+        <field name="name">Oval</field>
+        <field name="cid">OVL</field>
+    </record>
+    <record id="shape_cat_eye" model="product.shape">
+        <field name="name">Mắt mèo</field>
+        <field name="cid">CAT</field>
+    </record>
+    <record id="shape_aviator" model="product.shape">
+        <field name="name">Phi công (Aviator)</field>
+        <field name="cid">AVI</field>
+    </record>
+    <record id="shape_polygon" model="product.shape">
+        <field name="name">Đa giác</field>
+        <field name="cid">POLY</field>
+    </record>
+</odoo>

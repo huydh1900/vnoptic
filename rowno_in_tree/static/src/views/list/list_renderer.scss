@@ -1,0 +1,9 @@
+.o_list_renderer .o_list_table {
+    .o_list_row_number_header,
+    .o_list_row_number {
+        min-width: 40px;
+        width: 40px;
+        text-align: center;
+        color: var(--bs-secondary-color, #6c757d);
+    }
+}

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="pos_config_optical_main" model="pos.config">
+            <field name="name">Cửa hàng Mắt kính - Quầy chính</field>
+            <field name="iface_print_auto" eval="True"/>
+            <field name="iface_print_skip_screen" eval="True"/>
+            <field name="iface_tax_included">total</field>
+            <field name="receipt_header">VNOPTIC - Cửa hàng mắt kính
+Hotline: 1900-XXXX | Website: vnoptic.vn</field>
+            <field name="receipt_footer">Cảm ơn quý khách!
+Bảo hành gọng 12 tháng - Hậu mãi trọn đời
+Giữ hóa đơn để được hỗ trợ kiểm tra mắt định kỳ.</field>
+            <field name="is_order_printer" eval="False"/>
+            <field name="invoice_journal_id" ref="journal_pos_optical_sale"/>
+            <field name="journal_id" ref="journal_pos_optical_sale"/>
+        </record>
+
+    </data>
+</odoo>

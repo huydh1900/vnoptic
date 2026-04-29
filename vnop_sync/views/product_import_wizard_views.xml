@@ -21,10 +21,20 @@
                 </div>
 
                 <!-- Bước 3: Kết quả import -->
-                <group invisible="state != 'done'">
-                    <field name="imported_count"/>
-                    <field name="error_text" invisible="not error_text" widget="text"/>
-                </group>
+                <div invisible="state != 'done'" class="p-3">
+                    <group invisible="not error_text">
+                        <field name="error_text" widget="text"/>
+                    </group>
+                    <field name="imported_product_ids"
+                           invisible="not imported_product_ids"
+                           nolabel="1"
+                           readonly="1">
+                        <list create="0" edit="0" delete="0">
+                            <field name="default_code" string="Mã sản phẩm"/>
+                            <field name="name"/>
+                        </list>
+                    </field>
+                </div>
 
                 <footer invisible="state != 'upload'">
                     <button name="action_test" type="object" string="Kiểm thử" class="btn-secondary" icon="fa-check-circle"/>

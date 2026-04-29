@@ -53,12 +53,16 @@ class ResPartner(models.Model):
             self._fill_address_from_vietqr(data['address'])
 
     def _fill_address_from_vietqr(self, address):
-        """Parse VietQR address and fill street, city, state_id."""
+        """Parse VietQR address and fill street + state_id.
+
+        City/zip bị ẩn trên form nên không tách city riêng — gộp toàn bộ
+        phần địa chỉ (trừ tỉnh đã match) vào street.
+        """
         vietnam = self.country_id if self.country_id.code == 'VN' else self.env.ref('base.vn', raise_if_not_found=False)
         if not vietnam:
             self.street = address
             return
-        parts = [p.strip() for p in address.split(',')]
+        parts = [p.strip() for p in address.split(',') if p.strip()]
         if len(parts) < 2:
             self.street = address
             return
@@ -70,12 +74,8 @@ class ResPartner(models.Model):
             remaining = parts[:-1]
         else:
             remaining = parts[:]
-        # Phần gần cuối có thể là quận/huyện/thành phố (city)
-        if len(remaining) >= 2:
-            self.city = remaining[-1]
-            self.street = ', '.join(remaining[:-1])
-        elif remaining:
-            self.street = remaining[0]
+        if remaining:
+            self.street = ', '.join(remaining)
 
     def _match_vn_state(self, text, country):
         """Match text against VN state names with normalization."""

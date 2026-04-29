@@ -39,6 +39,11 @@ class ProductImportWizard(models.TransientModel):
         ('done', 'Hoàn tất'),
     ], default='upload')
     imported_count = fields.Integer(string='Số sản phẩm đã import', readonly=True)
+    imported_product_ids = fields.Many2many(
+        'product.template',
+        string='Sản phẩm đã tạo',
+        readonly=True,
+    )
     error_text = fields.Text(string='Chi tiết lỗi', readonly=True)
     preview_text = fields.Html(string='Kết quả kiểm thử', readonly=True, sanitize=False)
 
@@ -115,11 +120,15 @@ class ProductImportWizard(models.TransientModel):
             return self._reopen()
 
         product_fields = self.env['product.template']._fields
+        virtual_columns = set(ProductExportTemplateWizard._VIRTUAL_IMPORT_COLUMNS)
         col_map = {h: i for i, h in enumerate(header) if h}
         issues = []
 
         # Cột không nhận dạng
-        unknown = [h for h in header if h and h not in product_fields and '/' not in h]
+        unknown = [
+            h for h in header
+            if h and h not in product_fields and h not in virtual_columns and '/' not in h
+        ]
         if unknown:
             issues.append({
                 'level': 'warn',
@@ -363,6 +372,7 @@ class ProductImportWizard(models.TransientModel):
             'state': 'upload',
             'preview_text': False,
             'imported_count': 0,
+            'imported_product_ids': [(5, 0, 0)],
             'error_text': False,
         })
         return self._reopen()
@@ -422,6 +432,7 @@ class ProductImportWizard(models.TransientModel):
         self.write({
             'state': 'done',
             'imported_count': len(ids),
+            'imported_product_ids': [(6, 0, ids)],
             'error_text': False,
         })
         return self._reopen()

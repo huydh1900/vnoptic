@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="target_male" model="product.target">
+        <field name="name">Nam</field>
+        <field name="cid">M</field>
+    </record>
+    <record id="target_female" model="product.target">
+        <field name="name">Nữ</field>
+        <field name="cid">F</field>
+    </record>
+    <record id="target_unisex" model="product.target">
+        <field name="name">Unisex</field>
+        <field name="cid">U</field>
+    </record>
+    <record id="target_kid_male" model="product.target">
+        <field name="name">Trẻ em - Nam</field>
+        <field name="cid">K-M</field>
+    </record>
+    <record id="target_kid_female" model="product.target">
+        <field name="name">Trẻ em - Nữ</field>
+        <field name="cid">K-F</field>
+    </record>
+    <record id="target_kid_unisex" model="product.target">
+        <field name="name">Trẻ em - Unisex</field>
+        <field name="cid">K-U</field>
+    </record>
+</odoo>

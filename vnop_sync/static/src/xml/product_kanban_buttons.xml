@@ -10,6 +10,14 @@
                 <button type="button" class="btn btn-success" t-on-click="onImportProduct">
                     <i class="fa fa-upload me-1"/>Import
                 </button>
+                <select class="form-select form-select-sm ms-2 vnop-product-categ-filter"
+                        style="width: auto; display: inline-block;"
+                        t-on-change="onCategFilterChange">
+                    <option value="">Tất cả</option>
+                    <option value="GK">Gọng kính</option>
+                    <option value="TK">Tròng kính</option>
+                    <option value="PK">Phụ kiện</option>
+                </select>
             </t>
         </xpath>
     </t>

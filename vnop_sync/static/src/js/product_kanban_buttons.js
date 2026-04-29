@@ -17,4 +17,8 @@ patch(KanbanController.prototype, {
     async onExportTemplate() {
         await this.actionService.doAction("vnop_sync.action_product_export_template_wizard");
     },
+
+    onCategFilterChange(ev) {
+        // TODO: áp domain theo categ_code (ev.target.value): '' | 'GK' | 'TK' | 'PK'
+    },
 });

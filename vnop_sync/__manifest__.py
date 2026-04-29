@@ -1,6 +1,6 @@
 {
     'name': 'Product Sync from Server',
-    'version': '18.0.1.0.9',
+    'version': '18.0.1.1.0',
     'category': 'Inventory',
     'depends': ['base', 'stock', 'product', 'purchase', 'account', 'base_import', 'l10n_vn', 'queue_job', 'queue_job_cron_jobrunner'],
     'data': [
@@ -9,6 +9,10 @@
         'data/uom_data.xml',
         'data/product_category_data.xml',
         'data/product_brand_data.xml',
+        'data/product_coating_data.xml',
+        'data/product_target_data.xml',
+        'data/product_shape_data.xml',
+        'data/product_classification_data.xml',
         'views/product_sync_views.xml',
         'views/product_brand_views.xml',
         'views/product_warranty_views.xml',

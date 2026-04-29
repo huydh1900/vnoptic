@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="journal_pos_optical_sale" model="account.journal">
+            <field name="name">POS Mắt kính - Bán hàng</field>
+            <field name="code">POSMK</field>
+            <field name="type">sale</field>
+            <field name="show_on_dashboard" eval="True"/>
+        </record>
+
+        <record id="journal_pos_optical_cash" model="account.journal">
+            <field name="name">POS Mắt kính - Tiền mặt</field>
+            <field name="code">POSCM</field>
+            <field name="type">cash</field>
+            <field name="show_on_dashboard" eval="True"/>
+        </record>
+
+        <record id="journal_pos_optical_bank" model="account.journal">
+            <field name="name">POS Mắt kính - Ngân hàng</field>
+            <field name="code">POSBK</field>
+            <field name="type">bank</field>
+            <field name="show_on_dashboard" eval="True"/>
+        </record>
+
+    </data>
+</odoo>

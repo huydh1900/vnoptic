@@ -69,13 +69,12 @@ class LensDesign(models.Model):
 
 class LensMaterial(models.Model):
     _name = 'product.lens.material'
-    _description = 'Lens Material'
+    _description = 'Vật liệu tròng kính'
     _order = 'refractive_index, name'
 
-    name = fields.Char('Material Name', required=True, translate=True)
+    name = fields.Char('Tên vật liệu', required=True, translate=True)
     code = fields.Char('Mã vật liệu', index=True)
-    refractive_index = fields.Float('Refractive Index', digits=(3, 3))
-    description = fields.Text('Description')
+    refractive_index = fields.Float('Chiết suất', digits=(3, 3))
 
 class LensFeature(models.Model):
     _name = 'product.lens.feature'

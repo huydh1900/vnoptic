@@ -216,6 +216,14 @@ class ProductTemplateExtension(models.Model):
                 categ = categ.parent_id
             rec.categ_code = code
 
+    # ==================== CLASSIFICATION (Nhóm sản phẩm mới) ====================
+    classification_id = fields.Many2one(
+        'product.classification',
+        string='Nhóm sản phẩm',
+        index=True,
+        help='Phân loại nhóm sản phẩm (Gọng kính / Tròng kính / Phụ kiện / Khác) qua product.classification.category_type'
+    )
+
     # ==================== RELATIONAL FIELDS (for sync) ====================
     brand_id = fields.Many2one(
         'product.brand', 'Thương hiệu',

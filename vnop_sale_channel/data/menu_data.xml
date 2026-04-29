@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="0">
 
+
     <record id="sale.report_sales_team" model="ir.ui.menu">
         <field name="active" eval="False"/>
     </record>
@@ -12,4 +13,197 @@
     <record id="mail.menu_root_discuss" model="ir.ui.menu">
         <field name="active" eval="False"/>
     </record>
+
+    <!-- ============================================================ -->
+    <!-- Bán lẻ                                                        -->
+    <!-- ============================================================ -->
+
+    <!-- Action: Báo giá lọc theo channel_type = retail -->
+    <record id="action_retail_quotations" model="ir.actions.act_window">
+        <field name="name">Báo giá</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,kanban,form,calendar,pivot,graph,activity</field>
+        <field name="search_view_id" ref="sale.sale_order_view_search_inherit_quotation"/>
+        <field name="domain">[('channel_type', '=', 'retail'), ('state', 'in', ('draft', 'sent'))]</field>
+        <field name="context">{'default_channel_type': 'retail'}</field>
+    </record>
+
+    <!-- Action: Đơn hàng (state = sale) lọc theo channel_type = retail -->
+    <record id="action_retail_orders" model="ir.actions.act_window">
+        <field name="name">Đơn hàng</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,kanban,form,calendar,pivot,graph,activity</field>
+        <field name="search_view_id" ref="sale.sale_order_view_search_inherit_sale"/>
+        <field name="domain">[('channel_type', '=', 'retail'), ('state', 'not in', ('draft', 'sent', 'cancel'))]</field>
+        <field name="context">{'default_channel_type': 'retail'}</field>
+    </record>
+
+    <!-- Action: Khách hàng lọc theo channel_type = retail -->
+    <record id="action_retail_customers" model="ir.actions.act_window">
+        <field name="name">Khách hàng</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="base.view_res_partner_filter"/>
+        <field name="domain">[('customer_rank', '>', 0), ('channel_type', '=', 'retail')]</field>
+        <field name="context">{'search_default_customer': 1, 'res_partner_search_mode': 'customer', 'default_customer_rank': 1, 'default_channel_type': 'retail'}</field>
+    </record>
+
+    <!-- Menu root Bán lẻ -->
+    <menuitem id="menu_retail_root"
+        name="Bán lẻ"
+        web_icon="vnop_sale_channel,static/description/ban_le_menu.png"
+        sequence="31"/>
+
+    <!-- Menu cha "Đơn hàng" gom 3 menu con -->
+    <menuitem id="menu_retail_orders_parent"
+        name="Đơn hàng"
+        parent="menu_retail_root"
+        sequence="10"/>
+
+    <menuitem id="menu_retail_quotations"
+        name="Báo giá"
+        parent="menu_retail_orders_parent"
+        action="action_retail_quotations"
+        groups="sales_team.group_sale_salesman"
+        sequence="10"/>
+
+    <menuitem id="menu_retail_orders"
+        name="Đơn hàng"
+        parent="menu_retail_orders_parent"
+        action="action_retail_orders"
+        groups="sales_team.group_sale_salesman"
+        sequence="20"/>
+
+    <menuitem id="menu_retail_customers"
+        name="Khách hàng"
+        parent="menu_retail_root"
+        action="action_retail_customers"
+        groups="sales_team.group_sale_salesman"
+        sequence="15"/>
+
+    <!-- Action: Bảng giá lọc theo channel_type = retail -->
+    <record id="action_retail_pricelist" model="ir.actions.act_window">
+        <field name="name">Bảng giá</field>
+        <field name="res_model">product.pricelist</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('channel_type', 'in', ('retail', False))]</field>
+        <field name="context">{'default_base': 'list_price', 'default_channel_type': 'retail'}</field>
+    </record>
+
+    <!-- Menu cha "Sản phẩm" gom Sản phẩm + Bảng giá -->
+    <menuitem id="menu_retail_products_parent"
+        name="Sản phẩm"
+        parent="menu_retail_root"
+        groups="sales_team.group_sale_salesman"
+        sequence="20"/>
+
+    <menuitem id="menu_retail_products"
+        name="Sản phẩm"
+        parent="menu_retail_products_parent"
+        action="sale.product_template_action"
+        sequence="10"/>
+
+    <menuitem id="menu_retail_pricelist"
+        name="Bảng giá"
+        parent="menu_retail_products_parent"
+        action="action_retail_pricelist"
+        groups="product.group_product_pricelist"
+        sequence="20"/>
+
+    <!-- ============================================================ -->
+    <!-- Bán buôn                                                      -->
+    <!-- ============================================================ -->
+
+    <!-- Action: Báo giá lọc theo channel_type = wholesale -->
+    <record id="action_wholesale_quotations" model="ir.actions.act_window">
+        <field name="name">Báo giá</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,kanban,form,calendar,pivot,graph,activity</field>
+        <field name="search_view_id" ref="sale.sale_order_view_search_inherit_quotation"/>
+        <field name="domain">[('channel_type', '=', 'wholesale'), ('state', 'in', ('draft', 'sent'))]</field>
+        <field name="context">{'default_channel_type': 'wholesale'}</field>
+    </record>
+
+    <!-- Action: Đơn hàng (state = sale) lọc theo channel_type = wholesale -->
+    <record id="action_wholesale_orders" model="ir.actions.act_window">
+        <field name="name">Đơn hàng</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,kanban,form,calendar,pivot,graph,activity</field>
+        <field name="search_view_id" ref="sale.sale_order_view_search_inherit_sale"/>
+        <field name="domain">[('channel_type', '=', 'wholesale'), ('state', 'not in', ('draft', 'sent', 'cancel'))]</field>
+        <field name="context">{'default_channel_type': 'wholesale'}</field>
+    </record>
+
+    <!-- Action: Khách hàng lọc theo channel_type = wholesale -->
+    <record id="action_wholesale_customers" model="ir.actions.act_window">
+        <field name="name">Khách hàng</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="base.view_res_partner_filter"/>
+        <field name="domain">[('customer_rank', '>', 0), ('channel_type', '=', 'wholesale')]</field>
+        <field name="context">{'search_default_customer': 1, 'res_partner_search_mode': 'customer', 'default_customer_rank': 1, 'default_channel_type': 'wholesale'}</field>
+    </record>
+
+    <!-- Menu root Bán buôn -->
+    <menuitem id="menu_wholesale_root"
+        name="Bán buôn"
+        web_icon="vnop_sale_channel,static/description/ban_buon_menu.png"
+        sequence="30"/>
+
+    <!-- Menu cha "Đơn hàng" gom 3 menu con -->
+    <menuitem id="menu_wholesale_orders_parent"
+        name="Đơn hàng"
+        parent="menu_wholesale_root"
+        sequence="10"/>
+
+    <menuitem id="menu_wholesale_quotations"
+        name="Báo giá"
+        parent="menu_wholesale_orders_parent"
+        action="action_wholesale_quotations"
+        groups="sales_team.group_sale_salesman"
+        sequence="10"/>
+
+    <menuitem id="menu_wholesale_orders"
+        name="Đơn hàng"
+        parent="menu_wholesale_orders_parent"
+        action="action_wholesale_orders"
+        groups="sales_team.group_sale_salesman"
+        sequence="20"/>
+
+    <menuitem id="menu_wholesale_customers"
+        name="Khách hàng"
+        parent="menu_wholesale_root"
+        action="action_wholesale_customers"
+        groups="sales_team.group_sale_salesman"
+        sequence="15"/>
+
+    <!-- Action: Bảng giá lọc theo channel_type = wholesale -->
+    <record id="action_wholesale_pricelist" model="ir.actions.act_window">
+        <field name="name">Bảng giá</field>
+        <field name="res_model">product.pricelist</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('channel_type', 'in', ('wholesale', False))]</field>
+        <field name="context">{'default_base': 'list_price', 'default_channel_type': 'wholesale'}</field>
+    </record>
+
+    <!-- Menu cha "Sản phẩm" gom Sản phẩm + Bảng giá -->
+    <menuitem id="menu_wholesale_products_parent"
+        name="Sản phẩm"
+        parent="menu_wholesale_root"
+        groups="sales_team.group_sale_salesman"
+        sequence="20"/>
+
+    <menuitem id="menu_wholesale_products"
+        name="Sản phẩm"
+        parent="menu_wholesale_products_parent"
+        action="sale.product_template_action"
+        sequence="10"/>
+
+    <menuitem id="menu_wholesale_pricelist"
+        name="Bảng giá"
+        parent="menu_wholesale_products_parent"
+        action="action_wholesale_pricelist"
+        groups="product.group_product_pricelist"
+        sequence="20"/>
+
 </odoo>

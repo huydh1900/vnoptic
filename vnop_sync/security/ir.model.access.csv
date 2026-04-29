@@ -19,6 +19,8 @@ access_product_frame_type_user,product.frame.type user,model_product_frame_type,
 access_product_shape_user,product.shape user,model_product_shape,base.group_user,1,1,1,1
 access_product_ve_user,product.ve user,model_product_ve,base.group_user,1,1,1,1
 access_product_temple_user,product.temple user,model_product_temple,base.group_user,1,1,1,1
+access_product_target_user,product.target user,model_product_target,base.group_user,1,1,1,1
+access_product_classification_user,product.classification user,model_product_classification,base.group_user,1,1,1,1
 access_product_lens_power_user,product.lens.power user,model_product_lens_power,base.group_user,1,1,1,1
 access_product_lens_add_user,product.lens.add user,model_product_lens_add,base.group_user,1,1,1,1
 access_product_lens_design_new_user,product.lens.design user,model_product_lens_design,base.group_user,1,1,1,1
