@@ -316,8 +316,17 @@ class ProductImportWizard(models.TransientModel):
     state = fields.Selection([
         ('upload', 'Upload'),
         ('preview', 'Kiểm thử'),
+        ('running', 'Đang import'),
         ('done', 'Hoàn tất'),
     ], default='upload')
+    # Progress tracking (cập nhật theo batch trong background job)
+    progress_total = fields.Integer(string='Tổng số dòng', readonly=True)
+    progress_done = fields.Integer(string='Đã xử lý', readonly=True)
+    progress_percent = fields.Float(
+        string='Tiến độ (%)', compute='_compute_progress_percent',
+        readonly=True, store=False,
+    )
+    progress_message = fields.Char(string='Trạng thái xử lý', readonly=True)
     imported_count = fields.Integer(string='Số sản phẩm đã import', readonly=True)
     imported_lens_count = fields.Integer(string='Tròng', readonly=True)
     imported_frame_count = fields.Integer(string='Gọng', readonly=True)
@@ -344,6 +353,21 @@ class ProductImportWizard(models.TransientModel):
             r.missing_ref_count = sum(
                 1 for m in r.missing_ref_ids if m.state == 'pending'
             )
+
+    @api.depends('progress_total', 'progress_done')
+    def _compute_progress_percent(self):
+        for r in self:
+            r.progress_percent = (r.progress_done / r.progress_total * 100.0) if r.progress_total else 0.0
+
+    # Ngưỡng dòng tối đa import đồng bộ (request HTTP). Vượt ngưỡng → đẩy queue_job.
+    _IMPORT_SYNC_THRESHOLD = 200
+    # Kích thước batch khi tạo product.template hàng loạt.
+    _IMPORT_BATCH_SIZE = 200
+
+    def action_refresh_progress(self):
+        """Reload wizard form (dùng cho nút Cập nhật ở state 'running')."""
+        self.ensure_one()
+        return self._reopen()
 
     _MAX_SAMPLE = 5
 
@@ -422,6 +446,9 @@ class ProductImportWizard(models.TransientModel):
             'imported_other_count': 0,
             'imported_product_ids': [(5, 0, 0)],
             'error_text': False,
+            'progress_total': 0,
+            'progress_done': 0,
+            'progress_message': False,
         })
         return self._reopen()
 
@@ -780,45 +807,134 @@ class ProductImportWizard(models.TransientModel):
     # ────────────────────────────────────────────────────────────
 
     def _action_import_vn_label(self, raw):
+        # Parse + validate nhanh ở foreground để cho user feedback ngay nếu file lỗi.
         header, rows, errors = self._parse_vn_label_excel(raw)
         if errors:
             self.write({
-                'state': 'done',
-                'imported_count': 0,
+                'state': 'done', 'imported_count': 0,
                 'error_text': '\n'.join(errors),
             })
             return self._reopen()
         if not rows:
             self.write({
-                'state': 'done',
-                'imported_count': 0,
+                'state': 'done', 'imported_count': 0,
                 'error_text': _('File không có dữ liệu hợp lệ.'),
             })
             return self._reopen()
-
         col_index = {f: i for i, f in enumerate(header) if f}
         if 'name' not in col_index:
             self.write({
-                'state': 'done',
-                'imported_count': 0,
+                'state': 'done', 'imported_count': 0,
                 'error_text': _('Thiếu cột "Tên đầy đủ" trong file.'),
             })
             return self._reopen()
 
-        # Pre-fetch lookup caches
+        # Chặn import nếu file có trùng tên/barcode hoặc đã tồn tại trong DB.
+        dup_errors = self._assert_no_duplicates(rows, col_index)
+        if dup_errors:
+            self.write({
+                'state': 'done', 'imported_count': 0,
+                'error_text': _('Không thể import do trùng tên/mã vạch:') + '\n\n' + '\n\n'.join(dup_errors),
+            })
+            return self._reopen()
+
+        total = len(rows)
+        # File nhỏ → chạy đồng bộ (vẫn batched để giảm overhead) để user nhận kết quả ngay.
+        if total <= self._IMPORT_SYNC_THRESHOLD:
+            self.write({
+                'state': 'running', 'progress_total': total, 'progress_done': 0,
+                'progress_message': _('Đang import...'),
+                'imported_count': 0, 'error_text': False,
+            })
+            self._run_vn_label_import(header, rows, col_index)
+            return self._reopen()
+
+        # File lớn → enqueue queue_job, UI chuyển sang state 'running' với progressbar.
+        self.write({
+            'state': 'running', 'progress_total': total, 'progress_done': 0,
+            'progress_message': _('Đã đưa vào hàng đợi, đang chờ xử lý...'),
+            'imported_count': 0,
+            'imported_lens_count': 0, 'imported_frame_count': 0,
+            'imported_accessory_count': 0, 'imported_other_count': 0,
+            'imported_product_ids': [(5, 0, 0)],
+            'error_text': False,
+        })
+        # Commit để background worker đọc được state mới + để vượt qua giới hạn HTTP.
+        self.env.cr.commit()
+        raw_b64 = base64.b64encode(raw).decode('ascii')
+        self.with_delay(
+            description=_('Import VN-label: %s (%s dòng)') % (self.file_name or '?', total),
+        )._import_vn_label_job(raw_b64)
+        return self._reopen()
+
+    def _run_vn_label_import(self, header, rows, col_index):
+        """Logic import thực tế. Cập nhật progress sau mỗi batch và commit để
+        UI (state, progress_done) phản ánh tiến độ ngay khi user reload form.
+        Dùng chung cho cả flow đồng bộ và queue_job worker.
+        """
+        self.ensure_one()
         caches = self._build_lookup_caches()
 
-        # Skip names đã tồn tại
         all_names = list({(r[col_index['name']] or '').strip() for r in rows
                           if (r[col_index['name']] or '').strip()})
-        existing = set(self.env['product.template'].with_context(active_test=False).search_read(
-            [('name', 'in', all_names)], ['name'])) if all_names else []
-        existing_names = {e['name'] for e in existing}
+        existing_names = set()
+        if all_names:
+            existing_names = set(
+                self.env['product.template'].with_context(active_test=False).search([
+                    ('name', 'in', all_names)
+                ]).mapped('name')
+            )
 
-        Product = self.env['product.template']
+        # Barcode duy nhất: pre-fetch các barcode đã tồn tại trong DB.
+        bc_idx = col_index.get('barcode')
+        dc_idx = col_index.get('default_code')  # VN label dùng default_code → barcode
+        all_barcodes = set()
+        for r in rows:
+            for ix in (bc_idx, dc_idx):
+                if ix is None:
+                    continue
+                v = (r[ix] or '').strip() if ix < len(r) else ''
+                if v:
+                    all_barcodes.add(v)
+        existing_barcodes = set()
+        if all_barcodes:
+            existing_barcodes = set(
+                self.env['product.template'].with_context(active_test=False).search([
+                    ('barcode', 'in', list(all_barcodes))
+                ]).mapped('barcode')
+            )
+
+        # Tắt mail tracking + chatter để giảm chi phí khi tạo hàng loạt.
+        Product = self.env['product.template'].with_context(
+            tracking_disable=True,
+            mail_create_nolog=True,
+            mail_notrack=True,
+        )
+
         created_ids = []
         skipped_existing = 0
+        skipped_barcode = 0
         errors_per_row = []
+        batch_vals = []
+        batch_meta = []  # [(row_idx, name)]
+        batch_size = self._IMPORT_BATCH_SIZE
+        total = len(rows)
+
+        def _flush(batch_vals, batch_meta):
+            if not batch_vals:
+                return
+            try:
+                recs = Product.create(batch_vals)
+                created_ids.extend(recs.ids)
+            except Exception:
+                # Fallback row-by-row để xác định dòng lỗi cụ thể, không phá hỏng cả batch.
+                for v, (ri, nm) in zip(batch_vals, batch_meta):
+                    try:
+                        with self.env.cr.savepoint():
+                            rec = Product.create(v)
+                        created_ids.append(rec.id)
+                    except Exception as ee:
+                        errors_per_row.append('Dòng %s ("%s"): %s' % (ri + 1, nm, ee))
 
         for r_idx, row in enumerate(rows):
             try:
@@ -831,14 +947,40 @@ class ProductImportWizard(models.TransientModel):
             if vals['name'] in existing_names:
                 skipped_existing += 1
                 continue
-            try:
-                rec = Product.create(vals)
-                created_ids.append(rec.id)
-            except Exception as e:
-                errors_per_row.append('Dòng %s ("%s"): %s' % (r_idx + 1, vals.get('name'), str(e)))
+            bc = (vals.get('barcode') or '').strip()
+            if bc and bc in existing_barcodes:
+                skipped_barcode += 1
+                errors_per_row.append(
+                    'Dòng %s ("%s"): mã vạch "%s" đã tồn tại, bỏ qua.' % (
+                        r_idx + 1, vals.get('name'), bc,
+                    )
+                )
+                continue
+            existing_names.add(vals['name'])  # tránh trùng trong cùng file
+            if bc:
+                existing_barcodes.add(bc)  # tránh trùng barcode trong cùng file
+            batch_vals.append(vals)
+            batch_meta.append((r_idx, vals['name']))
 
-        # Phân loại products đã tạo
-        created = Product.browse(created_ids) if created_ids else Product.browse([])
+            if len(batch_vals) >= batch_size:
+                _flush(batch_vals, batch_meta)
+                batch_vals, batch_meta = [], []
+                done = r_idx + 1
+                self.write({
+                    'progress_done': done,
+                    'progress_message': _('Đã xử lý %s/%s dòng (%s sản phẩm)') % (
+                        done, total, len(created_ids),
+                    ),
+                })
+                # Commit theo batch: persist progress + giải phóng locks.
+                self.env.cr.commit()
+
+        # Flush phần còn lại.
+        _flush(batch_vals, batch_meta)
+
+        # Counters phân loại
+        created = self.env['product.template'].browse(created_ids) if created_ids \
+            else self.env['product.template']
         lens_n = sum(1 for p in created if p.classification_type == 'lens')
         frame_n = sum(1 for p in created if p.classification_type == 'frame')
         acc_n = sum(1 for p in created if p.classification_type == 'accessory')
@@ -847,6 +989,8 @@ class ProductImportWizard(models.TransientModel):
         error_text_parts = []
         if skipped_existing:
             error_text_parts.append(_('Đã bỏ qua %s sản phẩm trùng tên.') % skipped_existing)
+        if skipped_barcode:
+            error_text_parts.append(_('Đã bỏ qua %s sản phẩm trùng mã vạch.') % skipped_barcode)
         if errors_per_row:
             error_text_parts.append(_('Lỗi từng dòng:') + '\n' + '\n'.join(errors_per_row[:50]))
             if len(errors_per_row) > 50:
@@ -854,6 +998,8 @@ class ProductImportWizard(models.TransientModel):
 
         self.write({
             'state': 'done',
+            'progress_done': total,
+            'progress_message': _('Hoàn tất.'),
             'imported_count': len(created_ids),
             'imported_lens_count': lens_n,
             'imported_frame_count': frame_n,
@@ -862,7 +1008,43 @@ class ProductImportWizard(models.TransientModel):
             'imported_product_ids': [(6, 0, created_ids)],
             'error_text': '\n\n'.join(error_text_parts) if error_text_parts else False,
         })
-        return self._reopen()
+
+    def _import_vn_label_job(self, raw_b64):
+        """Worker queue_job: chạy import VN-label trong background."""
+        self.ensure_one()
+        try:
+            raw = base64.b64decode(raw_b64)
+            header, rows, errors = self._parse_vn_label_excel(raw)
+            if errors or not rows:
+                self.write({
+                    'state': 'done',
+                    'imported_count': 0,
+                    'error_text': '\n'.join(errors) if errors else _('File không có dữ liệu hợp lệ.'),
+                })
+                return
+            col_index = {f: i for i, f in enumerate(header) if f}
+            if 'name' not in col_index:
+                self.write({
+                    'state': 'done', 'imported_count': 0,
+                    'error_text': _('Thiếu cột "Tên đầy đủ" trong file.'),
+                })
+                return
+            # Re-validate trùng vì DB có thể đã đổi giữa lúc enqueue và lúc chạy.
+            dup_errors = self._assert_no_duplicates(rows, col_index)
+            if dup_errors:
+                self.write({
+                    'state': 'done', 'imported_count': 0,
+                    'error_text': _('Không thể import do trùng tên/mã vạch:') + '\n\n' + '\n\n'.join(dup_errors),
+                })
+                return
+            self._run_vn_label_import(header, rows, col_index)
+        except Exception as e:
+            _logger.exception('Import VN-label job lỗi')
+            self.write({
+                'state': 'done',
+                'progress_message': _('Lỗi.'),
+                'error_text': str(e),
+            })
 
     # ────────────────────────────────────────────────────────────
     #   VN-LABEL: ROW → VALS
@@ -1185,37 +1367,12 @@ class ProductImportWizard(models.TransientModel):
     def _build_vn_preview_html(self, header, rows, issues, buckets):
         parts = []
 
-        # Tổng quan + 3 card phân loại
         total = sum(len(v) for v in buckets.values())
-        cards = []
-        for ctype in ('lens', 'frame', 'accessory', 'other'):
-            label, badge, color = self._CLASSIF_META[ctype]
-            count = len(buckets[ctype])
-            if ctype == 'other' and count == 0:
-                continue
-            sample = ''
-            if buckets[ctype]:
-                sample_rows = buckets[ctype][:5]
-                sample = '<div class="text-muted small mt-1">Dòng: %s%s</div>' % (
-                    ', '.join(str(r) for r in sample_rows),
-                    ' …' if len(buckets[ctype]) > 5 else '',
-                )
-            cards.append(
-                '<div class="col-md-3 mb-2">'
-                '<div class="card border-%s h-100">'
-                '<div class="card-body">'
-                '<div class="text-muted small">%s</div>'
-                '<div class="fs-3 fw-bold" style="color:%s;">%s</div>'
-                '%s'
-                '</div></div></div>' % (badge, label, color, count, sample)
-            )
-
         parts.append(
             '<div class="card mb-3"><div class="card-header fw-bold">📊 Tổng quan</div>'
             '<div class="card-body">'
-            '<div class="mb-2">Tổng số dòng dữ liệu: <strong>%s</strong></div>'
-            '<div class="row">%s</div>'
-            '</div></div>' % (total, ''.join(cards))
+            '<div>Tổng số dòng dữ liệu: <strong>%s</strong></div>'
+            '</div></div>' % total
         )
 
         # Issues
@@ -1298,6 +1455,8 @@ class ProductImportWizard(models.TransientModel):
         self._test_required_fields(issues, rows, col_map)
         self._test_duplicate_names(issues, rows, col_map)
         self._test_existing_names(issues, rows, col_map)
+        self._test_duplicate_barcodes(issues, rows, col_map)
+        self._test_existing_barcodes(issues, rows, col_map)
         self._test_relational_fields(issues, rows, col_map, product_fields)
 
         html = self._build_preview_html(header, rows, col_map, issues)
@@ -1318,6 +1477,16 @@ class ProductImportWizard(models.TransientModel):
                 'state': 'done',
                 'imported_count': 0,
                 'error_text': _('File không có dữ liệu.'),
+            })
+            return self._reopen()
+
+        # Chặn import nếu trùng tên/barcode (trong file hoặc DB).
+        col_map = {h: i for i, h in enumerate(header) if h}
+        dup_errors = self._assert_no_duplicates(rows, col_map)
+        if dup_errors:
+            self.write({
+                'state': 'done', 'imported_count': 0,
+                'error_text': _('Không thể import do trùng tên/mã vạch:') + '\n\n' + '\n\n'.join(dup_errors),
             })
             return self._reopen()
 
@@ -1363,6 +1532,90 @@ class ProductImportWizard(models.TransientModel):
             'error_text': False,
         })
         return self._reopen()
+
+    _DUP_SAMPLE_LIMIT = 10
+
+    def _assert_no_duplicates(self, rows, col_map):
+        """Phát hiện trùng tên/barcode trong file và đã tồn tại trong DB.
+        Trả về list message lỗi (rỗng = OK). Caller phải dừng import nếu non-empty.
+        """
+        name_idx = col_map.get('name')
+        bc_idx = col_map.get('barcode')
+        if name_idx is None and bc_idx is None:
+            return []
+
+        def _cell(row, idx):
+            return (row[idx] or '').strip() if idx is not None and idx < len(row) else ''
+
+        # Trùng trong file
+        seen_names, dup_names_in_file = {}, {}
+        seen_bcs, dup_bcs_in_file = {}, {}
+        all_names, all_bcs = [], []
+        for i, row in enumerate(rows):
+            nm = _cell(row, name_idx)
+            bc = _cell(row, bc_idx)
+            if nm:
+                all_names.append(nm)
+                if nm in seen_names:
+                    dup_names_in_file.setdefault(nm, [seen_names[nm]]).append(i + 1)
+                else:
+                    seen_names[nm] = i + 1
+            if bc:
+                all_bcs.append(bc)
+                if bc in seen_bcs:
+                    dup_bcs_in_file.setdefault(bc, [seen_bcs[bc]]).append(i + 1)
+                else:
+                    seen_bcs[bc] = i + 1
+
+        # Trùng trong DB
+        Tmpl = self.env['product.template'].with_context(active_test=False)
+        existing_names = set()
+        if all_names:
+            existing_names = set(Tmpl.search(
+                [('name', 'in', list(set(all_names)))]
+            ).mapped('name'))
+        existing_bcs = set()
+        if all_bcs:
+            existing_bcs = set(Tmpl.search(
+                [('barcode', 'in', list(set(all_bcs)))]
+            ).mapped('barcode'))
+
+        errors = []
+        if dup_names_in_file:
+            sample = list(dup_names_in_file.items())[:self._DUP_SAMPLE_LIMIT]
+            details = ['  - "%s" (dòng: %s)' % (nm, ', '.join(str(r) for r in rs))
+                       for nm, rs in sample]
+            extra = len(dup_names_in_file) - len(sample)
+            if extra > 0:
+                details.append(_('  ... và %s tên khác') % extra)
+            errors.append(_('Tên trùng trong file (%s tên):\n%s') % (
+                len(dup_names_in_file), '\n'.join(details),
+            ))
+        if dup_bcs_in_file:
+            sample = list(dup_bcs_in_file.items())[:self._DUP_SAMPLE_LIMIT]
+            details = ['  - "%s" (dòng: %s)' % (bc, ', '.join(str(r) for r in rs))
+                       for bc, rs in sample]
+            extra = len(dup_bcs_in_file) - len(sample)
+            if extra > 0:
+                details.append(_('  ... và %s mã khác') % extra)
+            errors.append(_('Mã vạch trùng trong file (%s mã):\n%s') % (
+                len(dup_bcs_in_file), '\n'.join(details),
+            ))
+        if existing_names:
+            sample = list(existing_names)[:self._DUP_SAMPLE_LIMIT]
+            extra = len(existing_names) - len(sample)
+            tail = (_('\n  ... và %s tên khác') % extra) if extra > 0 else ''
+            errors.append(_('Tên đã tồn tại trong hệ thống (%s tên):\n  - %s%s') % (
+                len(existing_names), '\n  - '.join(sample), tail,
+            ))
+        if existing_bcs:
+            sample = list(existing_bcs)[:self._DUP_SAMPLE_LIMIT]
+            extra = len(existing_bcs) - len(sample)
+            tail = (_('\n  ... và %s mã khác') % extra) if extra > 0 else ''
+            errors.append(_('Mã vạch đã tồn tại trong hệ thống (%s mã):\n  - %s%s') % (
+                len(existing_bcs), '\n  - '.join(sample), tail,
+            ))
+        return errors
 
     # ────────────────────────────────────────────────────────────
     #   BUILDERS / VALIDATION (existing technical-format helpers)
@@ -1490,6 +1743,58 @@ class ProductImportWizard(models.TransientModel):
         issues.append({
             'level': 'error',
             'title': _('Tên trùng trong file: %s tên') % len(duplicates),
+            'details': details,
+        })
+
+    def _test_duplicate_barcodes(self, issues, rows, col_map):
+        if 'barcode' not in col_map:
+            return
+        idx = col_map['barcode']
+        seen = {}
+        duplicates = {}
+        for i, row in enumerate(rows):
+            bc = (row[idx] or '').strip() if idx < len(row) else ''
+            if not bc:
+                continue
+            if bc in seen:
+                duplicates.setdefault(bc, [seen[bc]]).append(i + 1)
+            else:
+                seen[bc] = i + 1
+        if not duplicates:
+            return
+        details = []
+        sample = list(duplicates.keys())[:self._MAX_SAMPLE]
+        for bc in sample:
+            row_nums = ', '.join(str(r) for r in duplicates[bc][:self._MAX_SAMPLE])
+            details.append('"%s" (dòng: %s)' % (bc, row_nums))
+        if len(duplicates) > self._MAX_SAMPLE:
+            details.append(_('... và %s mã khác') % (len(duplicates) - self._MAX_SAMPLE))
+        issues.append({
+            'level': 'error',
+            'title': _('Mã vạch trùng trong file: %s mã') % len(duplicates),
+            'details': details,
+        })
+
+    def _test_existing_barcodes(self, issues, rows, col_map):
+        if 'barcode' not in col_map:
+            return
+        idx = col_map['barcode']
+        unique_bcs = list({(row[idx] or '').strip() for row in rows
+                           if idx < len(row) and (row[idx] or '').strip()})
+        if not unique_bcs:
+            return
+        existing = self.env['product.template'].with_context(active_test=False).search_read(
+            [('barcode', 'in', unique_bcs)], ['barcode'],
+        )
+        existing_bcs = [r['barcode'] for r in existing if r['barcode']]
+        if not existing_bcs:
+            return
+        details = [', '.join(existing_bcs[:10])]
+        if len(existing_bcs) > 10:
+            details.append(_('... và %s mã khác') % (len(existing_bcs) - 10))
+        issues.append({
+            'level': 'error',
+            'title': _('Mã vạch đã tồn tại trong hệ thống: %s mã') % len(existing_bcs),
             'details': details,
         })
 

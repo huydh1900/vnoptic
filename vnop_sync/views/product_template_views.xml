@@ -39,9 +39,10 @@
                 <filter name="filter_opt" string="Gọng kính" domain="[('classification_type','=','frame')]"/>
                 <filter name="filter_acc" string="Phụ kiện" domain="[('classification_type','=','accessory')]"/>
                 <separator/>
-                <filter name="filter_len_dt" string="Đơn tròng" domain="[('len_type','=','DT')]"/>
-                <filter name="filter_len_ht" string="Hai tròng" domain="[('len_type','=','HT')]"/>
-                <filter name="filter_len_dat" string="Đa tròng" domain="[('len_type','=','DAT')]"/>
+                <filter name="filter_len_sv" string="Đơn tròng" domain="[('len_type','in',['SV','DT'])]"/>
+                <filter name="filter_len_bf" string="Hai tròng" domain="[('len_type','in',['BF','HT'])]"/>
+                <filter name="filter_len_tf" string="Ba tròng" domain="[('len_type','=','TF')]"/>
+                <filter name="filter_len_pro" string="Đa tròng" domain="[('len_type','in',['PRO','DAT'])]"/>
                 <filter name="filter_len_pt" string="Phôi tròng" domain="[('len_type','=','PT')]"/>
                 <separator/>
                 <filter name="filter_active" string="Đang hoạt động" domain="[('active','=',True)]"/>

@@ -73,6 +73,27 @@
                     </div>
                 </div>
 
+                <!-- Bước 2.5: Đang import (sync hoặc async qua queue_job) -->
+                <div invisible="state != 'running'" class="p-4 text-center">
+                    <div class="d-flex flex-column align-items-center" style="gap: 1rem;">
+                        <i class="fa fa-spinner fa-spin fa-3x text-primary"/>
+                        <h4 class="mb-0">Đang import sản phẩm...</h4>
+                        <field name="progress_message" nolabel="1" readonly="1" class="text-muted"/>
+                        <div class="w-75">
+                            <field name="progress_percent" widget="progressbar" nolabel="1"
+                                   options="{'human_readable': false}"/>
+                        </div>
+                        <div class="text-muted small">
+                            <field name="progress_done" nolabel="1" readonly="1" class="oe_inline"/>
+                            / <field name="progress_total" nolabel="1" readonly="1" class="oe_inline"/> dòng
+                        </div>
+                        <div class="text-muted fst-italic small">
+                            <i class="fa fa-info-circle"/>
+                            Bấm <strong>Cập nhật</strong> để xem tiến độ mới nhất, hoặc đóng cửa sổ và mở lại.
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Bước 3: Kết quả import -->
                 <div invisible="state != 'done'" class="p-3">
                     <group invisible="not error_text">
@@ -114,6 +135,11 @@
                 <footer invisible="state != 'preview'">
                     <button name="action_back_upload" type="object" string="Quay lại" class="btn-secondary" icon="fa-arrow-left"/>
                     <button name="action_import" type="object" string="Import" class="btn-primary" icon="fa-upload"/>
+                    <button string="Đóng" class="btn-secondary" special="cancel"/>
+                </footer>
+                <footer invisible="state != 'running'">
+                    <button name="action_refresh_progress" type="object"
+                            string="Cập nhật" class="btn-primary" icon="fa-sync"/>
                     <button string="Đóng" class="btn-secondary" special="cancel"/>
                 </footer>
                 <footer invisible="state != 'done'">

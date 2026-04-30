@@ -2168,11 +2168,14 @@ class ProductSync(models.Model):
         cls_cache[code] = rec.id if rec else False
         return cls_cache[code]
 
-    def _resolve_classification_id_by_name(self, cache, product_type, product_name, default_code='', grp_type_name=''):
-        """Suy ra classification_id từ tên sản phẩm + product_type + grp_type_name.
+    def _resolve_classification_id_by_name(self, cache, product_type, product_name,
+                                            default_code='', grp_type_name='', item=None):
+        """Suy ra classification_id.
 
-        Trả về id của product.classification (theo `code`), hoặc id của '00' (Chưa phân nhóm)
-        nếu không khớp. Quy tắc dựa trên product_classification_data.xml.
+        - LENS: phân nhóm "Đơn tròng" theo SPH/CYL (đọc từ `item`); "Hai tròng" / "Đa tròng"
+          theo keyword (vì không có SPH/CYL hoặc không cần).
+        - FRAME / ACCESSORY: theo keyword.
+        - Không khớp → '00' (Chưa phân nhóm).
         """
         import unicodedata
 
@@ -2184,55 +2187,64 @@ class ProductSync(models.Model):
             s = s.replace('đ', 'd').replace('Đ', 'D')
             return s.lower().strip()
 
-        # Ưu tiên dùng grp_type_name (legacy "loại nhóm") vì sạch hơn product_name.
         haystacks = [_norm(grp_type_name), _norm(product_name)]
         text = ' '.join(h for h in haystacks if h)
-
-        code = None
         dc2 = (default_code or '')[:2]
+        code = None
+
+        def _to_float(raw):
+            if isinstance(raw, dict):
+                raw = raw.get('value') or raw.get('val') or raw.get('name') or raw.get('cid')
+            if raw in (None, '', False):
+                return None
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                return None
+
+        def _pick(src, keys):
+            if not isinstance(src, dict):
+                return None
+            for k in keys:
+                if k in src:
+                    v = src.get(k)
+                    if v is not None and v != '':
+                        return v
+            return None
 
         # ── LENS ───────────────────────────────────────────────────────────
         if product_type == 'lens' or dc2 in ('01', '15'):
-            has_dm = ' dm ' in f' {text} ' or 'doi mau' in text  # đổi màu
-            has_can = 'can' in text
-            has_vien = 'vien' in text
-            has_loan = 'loan' in text
-            has_khong_so = 'khong so' in text
-
-            if 'da trong' in text:
-                code = '20302' if has_vien else '20301'
-            elif 'hai trong' in text or 'bifocal' in text or 'flap top' in text:
+            # Hai tròng / Đa tròng: dùng keyword.
+            if 'hai trong' in text or 'bifocal' in text or 'flap top' in text:
                 code = '020204'
-            elif 'don trong' in text or dc2 in ('01', '15'):
-                if has_dm:
-                    if has_khong_so:
-                        code = '020106'
-                    elif has_can and has_loan:
-                        code = '020108'
-                    elif has_can:
-                        code = '020107'
-                    elif has_vien and has_loan:
-                        code = '020110'
-                    elif has_vien:
-                        code = '020109'
+            elif 'da trong' in text:
+                # Đa tròng: phân biệt cận/viễn theo keyword (nếu có), default cận.
+                code = '20302' if 'vien' in text else '20301'
+            else:
+                # Đơn tròng: phân nhóm theo SPH/CYL.
+                src = item if isinstance(item, dict) else {}
+                sph = _to_float(_pick(src, ['sph', 'SPH', 'sphValue', 'sphVal', 'sphDTO', 'sphDto', 'sphdto']))
+                cyl = _to_float(_pick(src, ['cyl', 'CYL', 'cylValue', 'cylVal', 'cylDTO', 'cylDto', 'cyldto']))
+                # "Đổi màu" (ĐM) → dải mã 0201xx (06–10), thường → 0201xx (01–05).
+                is_dm = 'doi mau' in text or ' dm ' in f' {text} '
+                if sph is None:
+                    code = None
+                elif sph == 0:
+                    code = '020106' if is_dm else '020101'
+                elif sph < 0:
+                    if cyl is not None and cyl != 0:
+                        code = '020108' if is_dm else '020103'
                     else:
-                        code = '020106'
-                else:
-                    if has_khong_so:
-                        code = '020101'
-                    elif has_can and has_loan:
-                        code = '020103'
-                    elif has_can:
-                        code = '020102'
-                    elif has_vien and has_loan:
-                        code = '020105'
-                    elif has_vien:
-                        code = '020104'
+                        code = '020107' if is_dm else '020102'
+                else:  # sph > 0
+                    if cyl is not None and cyl != 0:
+                        code = '020110' if is_dm else '020105'
                     else:
-                        code = '020101'
+                        code = '020109' if is_dm else '020104'
 
-        # ── FRAME ──────────────────────────────────────────────────────────
-        elif product_type == 'frame' or dc2 == '04':
+        # ── FRAME (Gọng kính / Kính râm) ───────────────────────────────────
+        # Trong sync, gọng kính dùng product_type='opt' (không phải 'frame').
+        elif product_type in ('frame', 'opt') or dc2 == '04':
             if 'kinh ram' in text or 'sunglass' in text or 'sun glass' in text:
                 code = '0301'
             else:
@@ -2240,10 +2252,12 @@ class ProductSync(models.Model):
 
         # ── ACCESSORY ──────────────────────────────────────────────────────
         elif product_type == 'accessory':
-            if 'bao kinh' in text or 'case' in text:
+            if 'bao kinh' in text:
                 code = '050101'
-            elif 'khan lau' in text or 'khan' in text:
+            elif 'khan lau' in text:
                 code = '050201'
+            elif 'phu kien' in text:
+                code = '050301'
             else:
                 code = '050301'
 
@@ -2508,9 +2522,11 @@ class ProductSync(models.Model):
             'x_group_type_name': grp_type_name,
         }
 
-        # Map nhóm sản phẩm cũ → classification_id mới dựa trên tên (+ default_code, grp_type_name).
+        # Map nhóm sản phẩm cũ → classification_id mới.
+        # Lens: SPH/CYL từ item → 0201xx; Hai/Đa tròng theo keyword. Frame/Accessory theo keyword.
         classification_id = self._resolve_classification_id_by_name(
-            cache, product_type, product_name, default_code=default_code, grp_type_name=grp_type_name,
+            cache, product_type, product_name,
+            default_code=default_code, grp_type_name=grp_type_name, item=item,
         )
         if classification_id:
             vals['classification_id'] = classification_id
