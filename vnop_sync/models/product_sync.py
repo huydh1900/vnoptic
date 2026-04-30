@@ -2819,7 +2819,8 @@ class ProductSync(models.Model):
                 'x_cyl': _to_selection(extract_number(cyl_raw), cyl_keys),
                 'x_add': safe_float(extract_number(add_raw)),
                 'x_axis': safe_int(axis_raw),
-                'x_prism': extract_label(item.get('prism')) or False,
+                # x_prism là Float — phải qua safe_float để né placeholder string ("none","null")
+                'x_prism': safe_float(extract_number(item.get('prism'))),
                 'x_prism_base': extract_label(item.get('prismBase') or item.get('prism_base')) or False,
                 'x_mir_coating': extract_label(item.get('mirCoating')) or None,
                 'x_diameter': safe_int(item.get('diameter')),
