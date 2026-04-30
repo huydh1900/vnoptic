@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="lens_design_sph" model="product.lens.design">
+        <field name="name">Spheric</field>
+        <field name="name_en">Spheric</field>
+        <field name="code">SPH</field>
+        <field name="design_type">single</field>
+    </record>
+    <record id="lens_design_asph" model="product.lens.design">
+        <field name="name">Aspheric</field>
+        <field name="name_en">Aspheric</field>
+        <field name="code">ASPH</field>
+        <field name="design_type">single</field>
+    </record>
+    <record id="lens_design_d_asp" model="product.lens.design">
+        <field name="name">Double Aspheric</field>
+        <field name="name_en">Double Aspheric</field>
+        <field name="code">D-ASP</field>
+        <field name="design_type">single</field>
+    </record>
+    <record id="lens_design_ff_b" model="product.lens.design">
+        <field name="name">Freeform mặt sau</field>
+        <field name="name_en">Back Freeform</field>
+        <field name="code">FF-B</field>
+        <field name="design_type">other</field>
+    </record>
+    <record id="lens_design_ff_d" model="product.lens.design">
+        <field name="name">Freeform hai mặt</field>
+        <field name="name_en">Dual Freeform</field>
+        <field name="code">FF-D</field>
+        <field name="design_type">other</field>
+    </record>
+    <record id="lens_design_rx_ut" model="product.lens.design">
+        <field name="name">RX được tối ưu độ mỏng tối đa</field>
+        <field name="name_en">RX ultrathin</field>
+        <field name="code">RX-UT</field>
+        <field name="design_type">other</field>
+    </record>
+    <record id="lens_design_myo" model="product.lens.design">
+        <field name="name">Thiết kế kiểm soát cận thị</field>
+        <field name="name_en">Myopia</field>
+        <field name="code">MYO</field>
+        <field name="design_type">other</field>
+    </record>
+</odoo>

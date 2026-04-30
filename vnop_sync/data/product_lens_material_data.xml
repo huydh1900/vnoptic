@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="lens_material_cr" model="product.lens.material">
+        <field name="name">Nhựa CR-39</field>
+        <field name="name_en">CR-39 Resin</field>
+        <field name="refractive_index">1.50</field>
+        <field name="code">CR</field>
+    </record>
+    <record id="lens_material_nk55" model="product.lens.material">
+        <field name="name">Nhựa NK55</field>
+        <field name="name_en">NK55</field>
+        <field name="refractive_index">1.56</field>
+        <field name="code">NK55</field>
+    </record>
+    <record id="lens_material_sp" model="product.lens.material">
+        <field name="name">Nhựa thường</field>
+        <field name="name_en">Standard Plastic</field>
+        <field name="refractive_index">1.50</field>
+        <field name="code">SP</field>
+    </record>
+    <record id="lens_material_pc" model="product.lens.material">
+        <field name="name">Polycarbonate</field>
+        <field name="name_en">Polycarbonate</field>
+        <field name="refractive_index">1.59</field>
+        <field name="code">PC</field>
+    </record>
+    <record id="lens_material_tvx" model="product.lens.material">
+        <field name="name">Trivex</field>
+        <field name="name_en">Trivex</field>
+        <field name="refractive_index">1.53</field>
+        <field name="code">TVX</field>
+    </record>
+    <record id="lens_material_156" model="product.lens.material">
+        <field name="name">Nhựa 1.56</field>
+        <field name="name_en">High Index 1.56</field>
+        <field name="refractive_index">1.56</field>
+        <field name="code">156</field>
+    </record>
+    <record id="lens_material_160" model="product.lens.material">
+        <field name="name">Nhựa 1.60</field>
+        <field name="name_en">High Index 1.60</field>
+        <field name="refractive_index">1.60</field>
+        <field name="code">160</field>
+    </record>
+    <record id="lens_material_167" model="product.lens.material">
+        <field name="name">Nhựa 1.67</field>
+        <field name="name_en">High Index 1.67</field>
+        <field name="refractive_index">1.67</field>
+        <field name="code">167</field>
+    </record>
+    <record id="lens_material_174" model="product.lens.material">
+        <field name="name">Nhựa 1.74</field>
+        <field name="name_en">High Index 1.74</field>
+        <field name="refractive_index">1.74</field>
+        <field name="code">174</field>
+    </record>
+    <record id="lens_material_176" model="product.lens.material">
+        <field name="name">Nhựa 1.76</field>
+        <field name="name_en">High Index 1.76</field>
+        <field name="refractive_index">1.76</field>
+        <field name="code">176</field>
+    </record>
+    <record id="lens_material_pc_impact" model="product.lens.material">
+        <field name="name">Polycarbonate chống va đập</field>
+        <field name="name_en">Polycarbonate</field>
+        <field name="refractive_index">1.59</field>
+        <field name="code">PC</field>
+    </record>
+    <record id="lens_material_bc_m" model="product.lens.material">
+        <field name="name">Vật liệu có Blue Cut</field>
+        <field name="name_en">Blue Cut Material</field>
+        <field name="code">BC-M</field>
+    </record>
+    <record id="lens_material_uv_m" model="product.lens.material">
+        <field name="name">Vật liệu chống UV</field>
+        <field name="name_en">UV Block Material</field>
+        <field name="code">UV-M</field>
+    </record>
+    <record id="lens_material_pho" model="product.lens.material">
+        <field name="name">Photo trong vật liệu</field>
+        <field name="name_en">Photochromic</field>
+        <field name="code">PHO</field>
+    </record>
+    <record id="lens_material_pol_m" model="product.lens.material">
+        <field name="name">Polarized trong vật liệu</field>
+        <field name="name_en">In-Mass Polarized</field>
+        <field name="code">POL-M</field>
+    </record>
+    <record id="lens_material_mr6" model="product.lens.material">
+        <field name="name">MR-6</field>
+        <field name="name_en">MR-6 Resin</field>
+        <field name="refractive_index">1.60</field>
+        <field name="code">MR6</field>
+    </record>
+    <record id="lens_material_mr7" model="product.lens.material">
+        <field name="name">MR-7</field>
+        <field name="name_en">MR-7 Resin</field>
+        <field name="refractive_index">1.67</field>
+        <field name="code">MR7</field>
+    </record>
+    <record id="lens_material_mr8" model="product.lens.material">
+        <field name="name">MR-8</field>
+        <field name="name_en">MR-8 Resin</field>
+        <field name="refractive_index">1.60</field>
+        <field name="code">MR8</field>
+    </record>
+    <record id="lens_material_mr10" model="product.lens.material">
+        <field name="name">MR-10</field>
+        <field name="name_en">MR-10 Resin</field>
+        <field name="refractive_index">1.67</field>
+        <field name="code">MR10</field>
+    </record>
+    <record id="lens_material_mr174" model="product.lens.material">
+        <field name="name">MR-174</field>
+        <field name="name_en">MR-174 Resin</field>
+        <field name="refractive_index">1.74</field>
+        <field name="code">MR174</field>
+    </record>
+    <record id="lens_material_cb" model="product.lens.material">
+        <field name="name">Clear Base</field>
+        <field name="name_en">Clear Base</field>
+        <field name="code">CB</field>
+    </record>
+    <record id="lens_material_nyl" model="product.lens.material">
+        <field name="name">Nhựa Nylon (Polyamide)</field>
+        <field name="name_en">Polyamide / Nylon</field>
+        <field name="refractive_index">1.54</field>
+        <field name="code">NYL</field>
+    </record>
+</odoo>

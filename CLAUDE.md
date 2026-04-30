@@ -115,3 +115,5 @@ PostgreSQL on localhost:5432, HTTP port 8029, addons path includes `odoo18/addon
 - `.env` contains API credentials — never commit secrets.
 - New external Python deps must be declared in the module's `__manifest__.py` `external_dependencies`.
 - `attachment_preview` controller validates binary field access against a whitelist (`ALLOWED_BINARY_FIELDS`).
+
+Có thể làm nhanh bằng cách sử dụng thêm agent làm song song

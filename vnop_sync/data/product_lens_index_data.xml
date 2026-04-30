@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="lens_index_149" model="product.lens.index">
+        <field name="name">1.49</field>
+        <field name="code">149</field>
+    </record>
+    <record id="lens_index_150" model="product.lens.index">
+        <field name="name">1.50</field>
+        <field name="code">150</field>
+    </record>
+    <record id="lens_index_153" model="product.lens.index">
+        <field name="name">1.53</field>
+        <field name="code">153</field>
+    </record>
+    <record id="lens_index_156" model="product.lens.index">
+        <field name="name">1.56</field>
+        <field name="code">156</field>
+    </record>
+    <record id="lens_index_159" model="product.lens.index">
+        <field name="name">1.59</field>
+        <field name="code">159</field>
+    </record>
+    <record id="lens_index_160" model="product.lens.index">
+        <field name="name">1.60</field>
+        <field name="code">160</field>
+    </record>
+    <record id="lens_index_161" model="product.lens.index">
+        <field name="name">1.61</field>
+        <field name="code">161</field>
+    </record>
+    <record id="lens_index_167" model="product.lens.index">
+        <field name="name">1.67</field>
+        <field name="code">167</field>
+    </record>
+    <record id="lens_index_174" model="product.lens.index">
+        <field name="name">1.74</field>
+        <field name="code">174</field>
+    </record>
+    <record id="lens_index_176" model="product.lens.index">
+        <field name="name">1.76</field>
+        <field name="code">176</field>
+    </record>
+</odoo>

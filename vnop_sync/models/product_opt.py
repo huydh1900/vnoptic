@@ -23,11 +23,11 @@ class ProductOpt(models.Model):
     ], 'Gender')
 
     # Dimensions
-    temple_width = fields.Float('Temple Width (mm)', digits=(6, 1))
-    lens_width = fields.Float('Lens Width (mm)', digits=(6, 1))
-    lens_span = fields.Float('Lens Span (mm)', digits=(6, 1))
-    lens_height = fields.Float('Lens Height (mm)', digits=(6, 1))
-    bridge_width = fields.Float('Bridge Width (mm)', digits=(6, 1))
+    temple_width = fields.Float('Temple Width (mm)', digits=(6, 2))
+    lens_width = fields.Float('Lens Width (mm)', digits=(6, 2))
+    lens_span = fields.Float('Lens Span (mm)', digits=(6, 2))
+    lens_height = fields.Float('Lens Height (mm)', digits=(6, 2))
+    bridge_width = fields.Float('Bridge Width (mm)', digits=(6, 2))
 
     # Colors
     color = fields.Char('Color', size=50)
@@ -36,11 +36,11 @@ class ProductOpt(models.Model):
     color_lens_id = fields.Many2one('product.cl', 'Màu mắt kính')
 
     # Design fields
-    frame_id = fields.Many2one('product.frame', 'Kiểu gọng')
+    frame_style = fields.Char('Kiểu gọng', size=100)
     frame_type_id = fields.Many2one('product.frame.type', 'Loại gọng')
     shape_id = fields.Many2one('product.shape', 'Dáng')
     ve_id = fields.Many2one('product.ve', 'Ve')
-    temple_id = fields.Many2one('product.temple', 'Càng kính')
+    temple_style = fields.Char('Càng kính', size=100)
     
     # Material fields
     material_ve_id = fields.Many2one('product.material', 'Chất liệu ve')

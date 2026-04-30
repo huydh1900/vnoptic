@@ -6,9 +6,12 @@
         <field name="inherit_id" ref="product.product_template_tree_view"/>
         <field name="priority">100</field>
         <field name="arch" type="xml">
-            <!-- Move default_code before name -->
+            <!-- Hide default_code, show barcode before name -->
+            <field name="default_code" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
             <xpath expr="//field[@name='name']" position="before">
-                <field name="default_code" position="move"/>
+                <field name="barcode"/>
             </xpath>
             <!-- Hide product_tag_ids column -->
             <field name="product_tag_ids" position="attributes">
@@ -22,7 +25,6 @@
             <xpath expr="//field[@name='name']" position="after">
                 <!-- Common fields -->
                 <field name="brand_id" optional="show"/>
-                <field name="group_id" optional="show"/>
                 <field name="primary_supplier_id" optional="hide"/>
                 <field name="country_id" optional="hide"/>
                 
@@ -42,9 +44,9 @@
             <!-- Add filter for product_type after filter_to_sell -->
             <xpath expr="//filter[@name='filter_to_sell']" position="after">
                 <separator/>
-                <filter string="Tròng kính" name="filter_lens" domain="[('categ_code', '=', 'TK')]"/>
-                <filter string="Gọng kính" name="filter_opt" domain="[('categ_code', '=', 'GK')]"/>
-                <filter string="Phụ kiện" name="filter_accessory" domain="[('categ_code', 'in', ['PK', 'TB', 'LK'])]"/>
+                <filter string="Tròng kính" name="filter_lens" domain="[('classification_type', '=', 'lens')]"/>
+                <filter string="Gọng kính" name="filter_opt" domain="[('classification_type', '=', 'frame')]"/>
+                <filter string="Phụ kiện" name="filter_accessory" domain="[('classification_type', '=', 'accessory')]"/>
             </xpath>
         </field>
     </record>
@@ -57,9 +59,9 @@
             <!-- Add filter for product_type after filter_to_purchase -->
             <xpath expr="//filter[@name='filter_to_purchase']" position="after">
                 <separator/>
-                <filter string="Tròng kính" name="filter_lens" domain="[('categ_code', '=', 'TK')]"/>
-                <filter string="Gọng kính" name="filter_opt" domain="[('categ_code', '=', 'GK')]"/>
-                <filter string="Phụ kiện" name="filter_accessory" domain="[('categ_code', 'in', ['PK', 'TB', 'LK'])]"/>
+                <filter string="Tròng kính" name="filter_lens" domain="[('classification_type', '=', 'lens')]"/>
+                <filter string="Gọng kính" name="filter_opt" domain="[('classification_type', '=', 'frame')]"/>
+                <filter string="Phụ kiện" name="filter_accessory" domain="[('classification_type', '=', 'accessory')]"/>
             </xpath>
         </field>
     </record>
@@ -72,9 +74,9 @@
             <!-- Add filter for product_type after goods -->
             <xpath expr="//filter[@name='goods']" position="after">
                 <separator/>
-                <filter string="Tròng kính" name="filter_lens" domain="[('categ_code', '=', 'TK')]"/>
-                <filter string="Gọng kính" name="filter_opt" domain="[('categ_code', '=', 'GK')]"/>
-                <filter string="Phụ kiện" name="filter_accessory" domain="[('categ_code', 'in', ['PK', 'TB', 'LK'])]"/>
+                <filter string="Tròng kính" name="filter_lens" domain="[('classification_type', '=', 'lens')]"/>
+                <filter string="Gọng kính" name="filter_opt" domain="[('classification_type', '=', 'frame')]"/>
+                <filter string="Phụ kiện" name="filter_accessory" domain="[('classification_type', '=', 'accessory')]"/>
             </xpath>
         </field>
     </record>

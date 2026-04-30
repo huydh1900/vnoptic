@@ -17,10 +17,9 @@
 
             <xpath expr="//kanban" position="inside">
                 <field name="image_128"/>
-                <field name="default_code"/>
-                <field name="categ_code"/>
+                <field name="barcode"/>
+                <field name="classification_type"/>
                 <field name="brand_id"/>
-                <field name="group_id"/>
                 <field name="country_id"/>
                 <field name="product_status"/>
                 <field name="qty_available"/>
@@ -52,11 +51,11 @@
                                 <div class="vnop_card_info">
                                     <!-- Badges -->
                                     <div class="vnop_badges">
-                                        <span class="vnop_badge vnop_b_frame" t-if="record.categ_code.raw_value == 'GK'">Gọng</span>
-                                        <span class="vnop_badge vnop_b_lens" t-if="record.categ_code.raw_value == 'TK'">Tròng</span>
+                                        <span class="vnop_badge vnop_b_frame" t-if="record.classification_type.raw_value == 'frame'">Gọng</span>
+                                        <span class="vnop_badge vnop_b_lens" t-if="record.classification_type.raw_value == 'lens'">Tròng</span>
                                         <span class="vnop_badge vnop_b_other"
-                                              t-if="record.categ_code.raw_value &amp;&amp; !['GK', 'TK'].includes(record.categ_code.raw_value)">
-                                            <t t-esc="record.categ_code.value"/>
+                                              t-if="record.classification_type.raw_value &amp;&amp; !['frame', 'lens'].includes(record.classification_type.raw_value)">
+                                            <t t-esc="record.classification_type.value"/>
                                         </span>
                                         <span class="vnop_badge vnop_b_status" t-if="record.product_status.raw_value">
                                             <t t-esc="record.product_status.value"/>
@@ -70,7 +69,7 @@
 
                                     <!-- SKU -->
                                     <div class="vnop_sku">
-                                        <t t-if="record.default_code.raw_value"><field name="default_code"/></t>
+                                        <t t-if="record.barcode.raw_value"><field name="barcode"/></t>
                                     </div>
                                 </div>
                             </div>
@@ -79,7 +78,6 @@
                             <div class="vnop_tags">
                                 <span t-if="record.brand_id.raw_value"><field name="brand_id"/></span>
                                 <span t-if="record.country_id.raw_value"><field name="country_id"/></span>
-                                <span t-if="record.group_id.raw_value"><field name="group_id"/></span>
                             </div>
 
                             <!-- Footer: stock + price -->

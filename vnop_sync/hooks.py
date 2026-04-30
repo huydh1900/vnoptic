@@ -1,14 +1,9 @@
 # -*- coding: utf-8 -*-
-from odoo import api, SUPERUSER_ID
 
 def post_init_hook(env):
-    """
-    Generate initial SPH and CYL data for product.lens.power
-    This runs only once after module installation.
-    """
+    """Initialize seed data after module installation."""
     env['res.partner.bank'].migrate_invalid_bank_fields()
-    # SPH/CYL master data KHÔNG seed sẵn — sẽ được tạo on-demand khi sync
-    # sản phẩm từ API (xem `_goc_power` trong product_sync.py).
+    # SPH/CYL hiện là Selection trên product.template — không cần master data.
 
     # 3. Generate Basic Designs
     Design = env['product.lens.design']

@@ -6,15 +6,12 @@ class StockOtkLog(models.Model):
     """Snapshot kết quả mỗi lần OTK — chỉ đọc, phục vụ audit/truy vết.
 
     Mỗi record = 1 lần bấm "Xác nhận OTK" trên wizard.
-    Sequence đếm theo PO để biết PO đã OTK bao nhiêu lần
-    (bất kể trên picking gốc hay backorder).
     """
     _name = 'stock.otk.log'
     _description = 'Lần OTK'
     _order = 'date desc'
 
     name = fields.Char(string='Mã OTK', readonly=True)
-    sequence = fields.Integer(string='Lần', readonly=True)
     date = fields.Datetime(string='Ngày kiểm', default=fields.Datetime.now, readonly=True)
     picking_id = fields.Many2one('stock.picking', string='Phiếu nhập', readonly=True)
     purchase_id = fields.Many2one('purchase.order', string='Đơn mua hàng', readonly=True, index=True)

@@ -943,7 +943,7 @@ class ProductSync(models.Model):
             or item.get('productDTO')
             or {}
         )
-        product_ref = (dto.get('cid') or dto.get('id') or dto.get('externalId') or vals.get('default_code') or '').strip() or 'N/A'
+        product_ref = (dto.get('cid') or dto.get('id') or dto.get('externalId') or vals.get('barcode') or '').strip() or 'N/A'
         image_b64 = self._fetch_rs_image_base64(
             image_full_url,
             image_sync_ctx=image_sync_ctx,
@@ -1204,7 +1204,7 @@ class ProductSync(models.Model):
         return total_success, total_failed
 
     def _preload_all_data(self):
-        cache = {'products': {}, 'categories': {}, 'suppliers': {}, 'taxes': {}, 'groups': {}, 'groups_by_id': {},
+        cache = {'products': {}, 'categories': {}, 'suppliers': {}, 'taxes': {},
                  'statuses': {}}
 
         # Currencies (ALL – kể cả inactive, vì Odoo 18 có VND mặc định nhưng inactive)
@@ -1215,8 +1215,8 @@ class ProductSync(models.Model):
             cache['acc_currency'][cur['name'].upper()] = cur['id']
 
         # Products
-        for p in self.env['product.template'].search_read([('default_code', '!=', False)], ['id', 'default_code']):
-            cache['products'][p['default_code']] = p['id']
+        for p in self.env['product.template'].search_read([('barcode', '!=', False)], ['id', 'barcode']):
+            cache['products'][p['barcode']] = p['id']
 
         cache['lens_templates'] = {}
         for p in self.env['product.template'].search_read(
@@ -1265,26 +1265,18 @@ class ProductSync(models.Model):
             ('brands', 'product.brand', 'name'),  # Fallback to name
             ('countries', 'res.country', 'code'),
             ('warranties', 'product.warranty', 'code'),
-            ('groups', 'product.group', 'cid'),
-            ('groups', 'product.group', 'name'),
             ('designs', 'product.design', 'name'),
             ('materials', 'product.material', 'cid'),  # Index CID trước (API dùng cid)
             ('materials', 'product.material', 'name'),  # Fallback theo name
             ('uvs', 'product.uv', 'cid'),
             ('coatings', 'product.coating', 'cid'),
             ('colors', 'product.cl', 'cid'),
-            ('lens_indexes', 'product.lens.index', 'cid'),
-            ('frames', 'product.frame', 'cid'),
+            ('lens_indexes', 'product.lens.index', 'name'),
             ('frame_types', 'product.frame.type', 'cid'),
             ('shapes', 'product.shape', 'cid'),
             ('ves', 'product.ve', 'cid'),
-            ('temples', 'product.temple', 'cid'),
         ]
-        # Chuẩn bị cache cho power, design, material
-        cache['lens_powers'] = {}
-        if 'product.lens.power' in self.env:
-            for r in self.env['product.lens.power'].search_read([], ['id', 'value']):
-                cache['lens_powers'][float(r['value'])] = r['id']
+        # Chuẩn bị cache cho design, material
         cache['lens_designs'] = {}
         if 'product.lens.design' in self.env:
             for r in self.env['product.lens.design'].search_read([], ['id', 'name']):
@@ -1305,19 +1297,6 @@ class ProductSync(models.Model):
                         raw = str(val).strip()
                         if raw:
                             cache[key][raw.upper()] = r['id']
-                            # Extra normalization for product.group to make name matching robust
-                            if model == 'product.group' and key == 'groups':
-                                def _norm_group_key(s):
-                                    s = str(s or '').strip()
-                                    s = s.replace('–', '-').replace('—', '-')
-                                    s = re.sub(r'\s+', ' ', s)
-                                    s = re.sub(r'\s*-\s*', ' - ', s)
-                                    s = re.sub(r'\s+', ' ', s).strip()
-                                    return s.upper()
-
-                                cache[key][_norm_group_key(raw)] = r['id']
-                    if model == 'product.group' and key == 'groups':
-                        cache['groups_by_id'][r['id']] = r['id']
 
         # Also index uvs by name (fallback khi RS chỉ trả name, không có cid)
         if 'product.uv' in self.env:
@@ -1408,13 +1387,21 @@ class ProductSync(models.Model):
 
     # Mapping: cache key → (model name) cho các master data opt
     _MASTER_MODEL_MAP = {
-        'frames': 'product.frame',
         'frame_types': 'product.frame.type',
         'shapes': 'product.shape',
         'ves': 'product.ve',
-        'temples': 'product.temple',
         'materials': 'product.material',
     }
+
+    def _extract_dto_name(self, dto):
+        """Lấy plain text từ DTO (ưu tiên name, fallback cid). Dùng cho field Char."""
+        if not dto:
+            return False
+        if isinstance(dto, str):
+            return dto.strip() or False
+        if not isinstance(dto, dict):
+            return False
+        return (dto.get('name') or dto.get('cid') or '').strip() or False
 
     def _get_or_create_master(self, cache, cache_key, dto):
         """Tra cứu id master data từ cache theo cid, sau đó fallback sang name.
@@ -1982,8 +1969,8 @@ class ProductSync(models.Model):
         tmpl = self.env['product.template'].with_context(tracking_disable=True).create(vals)
         self._cleanup_lens_template_variants(tmpl)
         cache.setdefault('lens_templates', {})[template_key] = tmpl.id
-        if tmpl.default_code:
-            cache['products'][tmpl.default_code] = tmpl.id
+        if tmpl.barcode:
+            cache['products'][tmpl.barcode] = tmpl.id
         # _logger.info(
         # "🔍 Lens [CREATE] %s | material=%s | index=%s | coatings=%s | design1=%s",
         # tmpl.name,
@@ -2170,6 +2157,101 @@ class ProductSync(models.Model):
         # updated, skipped, missing_variant, missing_template
         # )
 
+    def _get_classification_id_by_code(self, cache, code):
+        """Lookup product.classification.id theo `code`. Cache trong `cache['classifications']`."""
+        if not code:
+            return False
+        cls_cache = cache.setdefault('classifications', {})
+        if code in cls_cache:
+            return cls_cache[code]
+        rec = self.env['product.classification'].search([('code', '=', code)], limit=1)
+        cls_cache[code] = rec.id if rec else False
+        return cls_cache[code]
+
+    def _resolve_classification_id_by_name(self, cache, product_type, product_name, default_code='', grp_type_name=''):
+        """Suy ra classification_id từ tên sản phẩm + product_type + grp_type_name.
+
+        Trả về id của product.classification (theo `code`), hoặc id của '00' (Chưa phân nhóm)
+        nếu không khớp. Quy tắc dựa trên product_classification_data.xml.
+        """
+        import unicodedata
+
+        def _norm(s):
+            if not s:
+                return ''
+            s = unicodedata.normalize('NFD', str(s))
+            s = ''.join(ch for ch in s if unicodedata.category(ch) != 'Mn')
+            s = s.replace('đ', 'd').replace('Đ', 'D')
+            return s.lower().strip()
+
+        # Ưu tiên dùng grp_type_name (legacy "loại nhóm") vì sạch hơn product_name.
+        haystacks = [_norm(grp_type_name), _norm(product_name)]
+        text = ' '.join(h for h in haystacks if h)
+
+        code = None
+        dc2 = (default_code or '')[:2]
+
+        # ── LENS ───────────────────────────────────────────────────────────
+        if product_type == 'lens' or dc2 in ('01', '15'):
+            has_dm = ' dm ' in f' {text} ' or 'doi mau' in text  # đổi màu
+            has_can = 'can' in text
+            has_vien = 'vien' in text
+            has_loan = 'loan' in text
+            has_khong_so = 'khong so' in text
+
+            if 'da trong' in text:
+                code = '20302' if has_vien else '20301'
+            elif 'hai trong' in text or 'bifocal' in text or 'flap top' in text:
+                code = '020204'
+            elif 'don trong' in text or dc2 in ('01', '15'):
+                if has_dm:
+                    if has_khong_so:
+                        code = '020106'
+                    elif has_can and has_loan:
+                        code = '020108'
+                    elif has_can:
+                        code = '020107'
+                    elif has_vien and has_loan:
+                        code = '020110'
+                    elif has_vien:
+                        code = '020109'
+                    else:
+                        code = '020106'
+                else:
+                    if has_khong_so:
+                        code = '020101'
+                    elif has_can and has_loan:
+                        code = '020103'
+                    elif has_can:
+                        code = '020102'
+                    elif has_vien and has_loan:
+                        code = '020105'
+                    elif has_vien:
+                        code = '020104'
+                    else:
+                        code = '020101'
+
+        # ── FRAME ──────────────────────────────────────────────────────────
+        elif product_type == 'frame' or dc2 == '04':
+            if 'kinh ram' in text or 'sunglass' in text or 'sun glass' in text:
+                code = '0301'
+            else:
+                code = '010101'
+
+        # ── ACCESSORY ──────────────────────────────────────────────────────
+        elif product_type == 'accessory':
+            if 'bao kinh' in text or 'case' in text:
+                code = '050101'
+            elif 'khan lau' in text or 'khan' in text:
+                code = '050201'
+            else:
+                code = '050301'
+
+        classif_id = self._get_classification_id_by_code(cache, code) if code else False
+        if not classif_id:
+            classif_id = self._get_classification_id_by_code(cache, '00')
+        return classif_id
+
     def _prepare_base_vals(self, item, cache, product_type, coating_ids=None, lens_template_key=None, image_sync_ctx=None):
         # Một số endpoint có thể trả key khác nhau (productdto/productDto/...) hoặc flatten trực tiếp.
         dto = (
@@ -2224,51 +2306,29 @@ class ProductSync(models.Model):
         forced_len_type = False
         grp_type_name = ((dto.get('groupdto') or {}).get('groupTypedto') or {}).get('name', 'Khác')
 
-        # ── Resolve group/brand/categ từ default_code: [GG][BBB][III][XXXXX] ──
-        grp_id = False
-        grp_rec = None
+        # ── Resolve categ từ default_code prefix ──
         categ_id = False
         _parsed_brand_id = False
 
-        if default_code and len(default_code) >= 5:
-            try:
-                _grp_seq = int(default_code[:2])
-                _brd_seq = int(default_code[2:5])
-
-                # Rule: mã bắt đầu bằng "01" → danh mục TK, nhóm sequence=19, len_type=DT
-                if default_code[:2] == '01':
-                    _tk_cat = self.env['product.category'].search([('code', '=', 'TK')], limit=1) if 'code' in self.env['product.category']._fields else False
-                    if _tk_cat:
-                        categ_id = _tk_cat.id
-                    _grp_match = self.env['product.group'].search([('sequence', '=', 19)], limit=1)
-                    forced_len_type = 'DT'
-                # Rule: mã bắt đầu bằng "04" → danh mục GK, nhóm sequence=27
-                elif default_code[:2] == '04':
-                    _gk_cat = self.env['product.category'].search([('code', '=', 'GK')], limit=1) if 'code' in self.env['product.category']._fields else False
-                    if _gk_cat:
-                        categ_id = _gk_cat.id
-                    _grp_match = self.env['product.group'].search([('sequence', '=', 27)], limit=1)
-                # Rule: mã bắt đầu bằng "15" → danh mục TK, nhóm sequence=19, Bifocal → HT
-                elif default_code[:2] == '15':
-                    _tk_cat = self.env['product.category'].search([('code', '=', 'TK')], limit=1) if 'code' in self.env['product.category']._fields else False
-                    if _tk_cat:
-                        categ_id = _tk_cat.id
-                    _grp_match = self.env['product.group'].search([('sequence', '=', 19)], limit=1)
-                    if 'bifocal' in (product_name or '').lower():
-                        forced_len_type = 'HT'
-                else:
-                    _grp_match = self.env['product.group'].search([('sequence', '=', _grp_seq)], limit=1)
-                if _grp_match:
-                    grp_rec = _grp_match
-                    grp_id = _grp_match.id
-                    if not categ_id and getattr(_grp_match, 'category_id', False):
-                        categ_id = _grp_match.category_id.id
-
-                _brd_match = self.env['product.brand'].search([('sequence', '=', _brd_seq)], limit=1)
-                if _brd_match:
-                    _parsed_brand_id = _brd_match.id
-            except Exception:
-                pass
+        if default_code and len(default_code) >= 2:
+            # Rule: mã bắt đầu bằng "01" → danh mục TK, len_type=DT
+            if default_code[:2] == '01':
+                _tk_cat = self.env['product.category'].search([('code', '=', 'TK')], limit=1) if 'code' in self.env['product.category']._fields else False
+                if _tk_cat:
+                    categ_id = _tk_cat.id
+                forced_len_type = 'DT'
+            # Rule: mã bắt đầu bằng "04" → danh mục GK
+            elif default_code[:2] == '04':
+                _gk_cat = self.env['product.category'].search([('code', '=', 'GK')], limit=1) if 'code' in self.env['product.category']._fields else False
+                if _gk_cat:
+                    categ_id = _gk_cat.id
+            # Rule: mã bắt đầu bằng "15" → danh mục TK, Bifocal → HT
+            elif default_code[:2] == '15':
+                _tk_cat = self.env['product.category'].search([('code', '=', 'TK')], limit=1) if 'code' in self.env['product.category']._fields else False
+                if _tk_cat:
+                    categ_id = _tk_cat.id
+                if 'bifocal' in (product_name or '').lower():
+                    forced_len_type = 'HT'
 
         if product_type == 'accessory':
             accessory_categ_id = self._get_accessory_category_id(cache)
@@ -2277,11 +2337,6 @@ class ProductSync(models.Model):
 
         if not categ_id:
             categ_id = self.env.ref('product.product_category_all').id
-
-        # Fill loại tròng từ product_type của nhóm
-        _lens_types = {'DT', 'HT', 'DAT', 'PT'}
-        if grp_rec and getattr(grp_rec, 'product_type', False) and grp_rec.product_type in _lens_types:
-            forced_len_type = grp_rec.product_type
 
         # Currency lookup (cần trước seller_ids để truyền currency_id đúng)
         currency_zone_cid = (dto.get('currencyZoneDTO') or {}).get('cid', '')
@@ -2416,7 +2471,7 @@ class ProductSync(models.Model):
         # Basic Vals
         vals = {
             'name': product_name,
-            'default_code': default_code,
+            'barcode': default_code,
             'type': product_kind,
             'is_storable': is_storable,
             'categ_id': categ_id,
@@ -2433,8 +2488,6 @@ class ProductSync(models.Model):
             'warranty_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantydto')),
             'warranty_supplier_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantySupplierdto')),
             'warranty_retail_id': self._get_or_create(cache, 'warranties', 'product.warranty', dto.get('warrantyRetailDTO')),
-            # Nhóm sản phẩm dùng chung (computed inverse sẽ map về lens/opt/acc_* nếu cần)
-            'group_id': grp_id or False,
             # Custom Fields (prefixed with x_)
             'x_eng_name': dto.get('engName', ''),
             'description': dto.get('note', ''),
@@ -2454,6 +2507,13 @@ class ProductSync(models.Model):
             'bao_hanh_ban_le': int((dto.get('warrantyRetailDTO') or {}).get('value') or 0),
             'x_group_type_name': grp_type_name,
         }
+
+        # Map nhóm sản phẩm cũ → classification_id mới dựa trên tên (+ default_code, grp_type_name).
+        classification_id = self._resolve_classification_id_by_name(
+            cache, product_type, product_name, default_code=default_code, grp_type_name=grp_type_name,
+        )
+        if classification_id:
+            vals['classification_id'] = classification_id
 
         # Sync QR URL từ Java (https://erp.vnoptictech.com.vn/product/{id})
         java_id = dto.get('id')
@@ -2657,111 +2717,41 @@ class ProductSync(models.Model):
                     return False
 
             def _goc_index(dto):
-                """Get or create product.lens.index from indexdto."""
+                """Get or create product.lens.index theo name (đã bỏ field cid)."""
                 if not dto:
-                    # _logger.debug("🔎 _goc_index called with empty dto")
                     return False
-                cid = (dto.get('cid') or '').strip().upper()
-                name = (dto.get('name') or dto.get('value') or cid or '').strip()
-                # _logger.debug("🔎 _goc_index called cid=%s name=%s", cid or None, name or None)
-                if cid:
-                    cached = cache.get('lens_indexes', {}).get(cid)
-                    if cached:
-                        # _logger.debug("✅ _goc_index cache hit by cid=%s id=%s", cid, cached)
-                        return cached
-                if name:
-                    cached = cache.get('lens_indexes', {}).get(name.upper())
-                    if cached:
-                        # _logger.debug("✅ _goc_index cache hit by name=%s id=%s", name, cached)
-                        return cached
-                found = False
-                if cid:
-                    found = self.env['product.lens.index'].search([('cid', '=', cid)], limit=1)
-                if not found and name:
-                    found = self.env['product.lens.index'].search([('name', '=', name)], limit=1)
-                if found:
-                    if cid:
-                        cache.setdefault('lens_indexes', {})[cid] = found.id
-                    if name:
-                        cache.setdefault('lens_indexes', {})[name.upper()] = found.id
-                    # _logger.debug("✅ _goc_index search hit cid=%s name=%s id=%s", cid or None, name or None, found.id)
-                    return found.id
+                name = (dto.get('name') or dto.get('value') or dto.get('cid') or '').strip()
                 if not name:
                     return False
+                cached = cache.get('lens_indexes', {}).get(name.upper())
+                if cached:
+                    return cached
+                found = self.env['product.lens.index'].search([('name', '=', name)], limit=1)
+                if found:
+                    cache.setdefault('lens_indexes', {})[name.upper()] = found.id
+                    return found.id
                 try:
-                    create_vals = {'name': name}
-                    if cid and 'cid' in self.env['product.lens.index']._fields:
-                        create_vals['cid'] = cid
                     with self.env.cr.savepoint():
-                        rec = self.env['product.lens.index'].create(create_vals)
-                    if cid:
-                        cache.setdefault('lens_indexes', {})[cid] = rec.id
+                        rec = self.env['product.lens.index'].create({'name': name})
                     cache.setdefault('lens_indexes', {})[name.upper()] = rec.id
-                    # _logger.debug("✅ _goc_index created cid=%s name=%s id=%s", cid or None, name, rec.id)
                     return rec.id
-                except Exception as e:
-                    # _logger.warning(f"⚠️ Không tạo được product.lens.index cid={cid!r} name={name!r}: {e}")
+                except Exception:
                     return False
 
-            def _goc_power(raw_val, power_type):
-                """Get or create product.lens.power by (value, power_type).
-
-                Chỉ dùng cho SPH / CYL. ADD có hàm riêng `_goc_add` tạo trên
-                model tách biệt `product.lens.add`.
-                """
+            def _to_selection(raw_val, allowed_keys):
+                """Convert numeric SPH/CYL value to selection key string '-X.XX'.
+                Trả về False nếu giá trị không nằm trong allowed_keys."""
                 if raw_val is None or raw_val == '':
                     return False
                 try:
                     fval = float(raw_val)
                 except (TypeError, ValueError):
                     return False
-                if power_type not in ('sph', 'cyl'):
-                    return False
-                cache_key = (fval, power_type)
-                cached = cache.get('lens_powers_m2o', {}).get(cache_key)
-                if cached:
-                    return cached
-                domain = [('value', '=', fval), ('power_type', '=', power_type)]
-                found = self.env['product.lens.power'].search(domain, limit=1)
-                if found:
-                    cache.setdefault('lens_powers_m2o', {})[cache_key] = found.id
-                    return found.id
-                try:
-                    with self.env.cr.savepoint():
-                        rec = self.env['product.lens.power'].create({
-                            'value': fval,
-                            'power_type': power_type,
-                        })
-                    cache.setdefault('lens_powers_m2o', {})[cache_key] = rec.id
-                    return rec.id
-                except Exception:
-                    return False
+                key = f"-{abs(fval):.2f}" if fval < 0 else f"{fval:.2f}"
+                return key if key in allowed_keys else False
 
-            def _goc_add(raw_val):
-                """Get or create product.lens.add by value (master data riêng
-                cho ADD power, tách khỏi SPH/CYL)."""
-                if raw_val is None or raw_val == '':
-                    return False
-                try:
-                    fval = float(raw_val)
-                except (TypeError, ValueError):
-                    return False
-                cached = cache.get('lens_add_m2o', {}).get(fval)
-                if cached:
-                    return cached
-                found = self.env['product.lens.add'].search(
-                    [('value', '=', fval)], limit=1
-                )
-                if found:
-                    cache.setdefault('lens_add_m2o', {})[fval] = found.id
-                    return found.id
-                try:
-                    with self.env.cr.savepoint():
-                        rec = self.env['product.lens.add'].create({'value': fval})
-                    cache.setdefault('lens_add_m2o', {})[fval] = rec.id
-                    return rec.id
-                except Exception:
-                    return False
+            sph_keys = set(self.env['product.template']._SPH_VALUES)
+            cyl_keys = set(self.env['product.template']._CYL_VALUES)
 
             # Resolve Many2one IDs (get-or-create)
             d1_id = _goc_design(design_1)
@@ -2780,12 +2770,13 @@ class ProductSync(models.Model):
             # coating_ids,
             # )
 
+            design_ids = [d for d in (d1_id, d2_id) if d]
+            material_ids = [mat_id] if mat_id else []
             lens_display_vals = {
                 'lens_base_curve': safe_float(item.get('base')),
-                # Many2one chuẩn (get-or-create)
-                'lens_design1_id': d1_id,
-                'lens_design2_id': d2_id,
-                'lens_material_id': mat_id,
+                # Many2many: design / material (set toàn bộ — replace existing)
+                'lens_design_ids': [(6, 0, design_ids)] if design_ids else None,
+                'lens_material_ids': [(6, 0, material_ids)] if material_ids else None,
                 'lens_index_id': idx_id,
                 'lens_uv_id': self._resolve_uv_id(uv_dto, cache) or None,
                 'lens_color_int': (item.get('colorInt') or '') or None,
@@ -2807,13 +2798,9 @@ class ProductSync(models.Model):
                 #   coating_ids rỗng        → None → cleanup loop loại bỏ → giữ dữ liệu cũ
                 'lens_coating_ids': [(6, 0, coating_ids)] if coating_ids else None,
                 'lens_template_key': lens_template_key,
-                # SPH / CYL / ADD → Many2one (get-or-create từ product.lens.power)
-                'lens_sph_id': _goc_power(extract_number(sph_raw), 'sph'),
-                'lens_cyl_id': _goc_power(extract_number(cyl_raw), 'cyl'),
-                'lens_add_id': _goc_add(extract_number(add_raw)),
-                # Giữ lại x_sph/x_cyl/x_add (float legacy) để migrate sau
-                'x_sph': safe_float(extract_number(sph_raw)),
-                'x_cyl': safe_float(extract_number(cyl_raw)),
+                # SPH / CYL Selection: chỉ ghi nếu khớp với danh mục cho phép
+                'x_sph': _to_selection(extract_number(sph_raw), sph_keys),
+                'x_cyl': _to_selection(extract_number(cyl_raw), cyl_keys),
                 'x_add': safe_float(extract_number(add_raw)),
                 'x_axis': safe_int(axis_raw),
                 'x_prism': extract_label(item.get('prism')) or False,
@@ -2858,15 +2845,15 @@ class ProductSync(models.Model):
                 )
             except Exception as e:
                 _logger.warning(
-                    "⚠️ Skip product image mapping due to unexpected error: product_type=%s default_code=%s error=%s",
+                    "⚠️ Skip product image mapping due to unexpected error: product_type=%s barcode=%s error=%s",
                     product_type,
-                    vals.get('default_code'),
+                    vals.get('barcode'),
                     e,
                 )
 
         pid = cache['products'].get(default_code)
         if not pid and default_code:
-            existing_tmpl = self.env['product.template'].search([('default_code', '=', default_code)], limit=1)
+            existing_tmpl = self.env['product.template'].search([('barcode', '=', default_code)], limit=1)
             if existing_tmpl:
                 pid = existing_tmpl.id
                 cache['products'][default_code] = pid
@@ -2936,33 +2923,39 @@ class ProductSync(models.Model):
 
         return [(6, 0, ids)] if ids else [(5, 0, 0)]
 
+    _RS_GENDER_MAP = {'0': 'M', '1': 'F', '2': 'U'}
+
     def _prepare_opt_vals(self, item, cache):
         """Map opt specs từ API trực tiếp vào opt_* fields trên product.template."""
-        gender_val = item.get('gender')
+        # RS gender: 0=Nam, 1=Nữ, 2=Unisex → map sang giá trị Selection M/F/U
+        gender_raw = item.get('gender')
+        gender_key = str(gender_raw) if gender_raw is not None else ''
+        opt_gender = self._RS_GENDER_MAP.get(gender_key, False)
         vals = {
             'opt_season': item.get('season', ''),
             'opt_model': item.get('model', ''),
             'opt_serial': item.get('serial', ''),
             'opt_sku': item.get('sku', ''),
             'opt_color': item.get('color', ''),
-            # gender từ RS: 0=Nam, 1=Nữ, 2=Unisex → 0 là giá trị hợp lệ (không được coi là False)
-            'opt_gender': str(gender_val) if gender_val is not None else False,
+            'opt_gender': opt_gender,
             'opt_temple_width': int(item.get('templeWidth') or 0),
             'opt_lens_width': int(item.get('lensWidth') or 0),
             'opt_lens_span': int(item.get('lensSpan') or 0),
             'opt_lens_height': int(item.get('lensHeight') or 0),
             'opt_bridge_width': int(item.get('bridgeWidth') or 0),
-            'opt_color_lens_id': self._get_id_with_fallback(cache, 'colors', item.get('colorLensdto')),
+            # ─── Màu mắt kính: API trả tên màu plain text → Char ─────────────────────
+            'opt_color_lens': self._extract_dto_name(item.get('colorLensdto')),
             # ─── Thiết kế gọng – auto-create nếu chưa có bản ghi master ──────────────
-            'opt_frame_id': self._get_or_create_master(cache, 'frames', item.get('framedto')),
+            'opt_frame_style': self._extract_dto_name(item.get('framedto')),
             'opt_frame_type_id': self._get_or_create_master(cache, 'frame_types', item.get('frameTypedto')),
             'opt_shape_id': self._get_or_create_master(cache, 'shapes', item.get('shapedto')),
             'opt_ve_id': self._get_or_create_master(cache, 'ves', item.get('vedto')),
-            'opt_temple_id': self._get_or_create_master(cache, 'temples', item.get('templedto')),
+            'opt_temple_style': self._extract_dto_name(item.get('templedto')),
             # ─── Chất liệu gọng – auto-create nếu chưa có bản ghi master ─────────────
             'opt_material_ve_id': self._get_or_create_master(cache, 'materials', item.get('materialVedto')),
-            'opt_material_temple_tip_id': self._get_or_create_master(cache, 'materials',
-                                                                     item.get('materialTempleTipdto')),
+            'opt_material_temple_tip_ids': [(6, 0, [_id])] if (
+                _id := self._get_or_create_master(cache, 'materials', item.get('materialTempleTipdto'))
+            ) else [(5, 0, 0)],
             'opt_material_lens_id': self._get_or_create_master(cache, 'materials', item.get('materialLensdto')),
             # ─── Chất liệu Many2many – key thực tế từ API: materialsFrontdto / materialsTempledto
             'opt_materials_front_ids': self._resolve_opt_material_dtos(
@@ -2986,13 +2979,9 @@ class ProductSync(models.Model):
                 'coatings', cache,
                 model_name=None, log_label='coatingsdto'
             ),
-            # ─── Màu sắc Many2many – API trả plain string, không phải DTO ──────────────
-            'opt_color_front_ids': self._resolve_color_string_to_m2m(
-                item.get('colorFront'), cache, log_label='colorFront'
-            ),
-            'opt_color_temple_ids': self._resolve_color_string_to_m2m(
-                item.get('colorTemple'), cache, log_label='colorTemple'
-            ),
+            # ─── Màu sắc: API trả plain string, lưu vào Char ───────────────────────────
+            'opt_color_front': (item.get('colorFront') or '').strip() or False,
+            'opt_color_temple': (item.get('colorTemple') or '').strip() or False,
         }
 
         # ─── RS adapter: chỉ set khi payload có key tương ứng (tránh override về 0) ───
@@ -3122,18 +3111,18 @@ class ProductSync(models.Model):
                     ).create([v for _, v in batch])
                     for (template_key, _), rec in zip(batch, recs):
                         cache.setdefault('lens_templates', {})[template_key] = rec.id
-                        if rec.default_code:
-                            cache['products'][rec.default_code] = rec.id
+                        if rec.barcode:
+                            cache['products'][rec.barcode] = rec.id
                         self._cleanup_lens_template_variants(rec)
                     success += len(recs)
             except Exception:
                 # Fallback: create từng record
                 for template_key, vals in batch:
-                    dc = vals.get('default_code')
+                    dc = vals.get('barcode')
                     existing_id = cache['products'].get(dc)
                     if not existing_id and dc:
                         existing = self.env['product.template'].search(
-                            [('default_code', '=', dc)], limit=1
+                            [('barcode', '=', dc)], limit=1
                         )
                         if existing:
                             existing_id = existing.id
@@ -3148,14 +3137,14 @@ class ProductSync(models.Model):
                                     tracking_disable=True
                                 ).create(vals)
                                 cache.setdefault('lens_templates', {})[template_key] = tmpl.id
-                                if tmpl.default_code:
-                                    cache['products'][tmpl.default_code] = tmpl.id
+                                if tmpl.barcode:
+                                    cache['products'][tmpl.barcode] = tmpl.id
                             self._cleanup_lens_template_variants(tmpl)
                             success += 1
                     except Exception as e2:
                         failed += 1
                         self._record_sync_error(error_ctx, 'lens', 'SINGLE_CREATE', ref=dc or 'N/A', exc=e2)
-                        # _logger.error(f"Lens single create error default_code={dc}: {e2}")
+                        # _logger.error(f"Lens single create error barcode={dc}: {e2}")
 
         # Update từng record (vals thường khác nhau)
         for tmpl_id, vals in to_update:
@@ -3429,7 +3418,7 @@ class ProductSync(models.Model):
                         saved_rec = self.env['product.template'].with_context(
                             tracking_disable=True
                         ).create(vals)
-                        cache['products'][saved_rec.default_code] = saved_rec.id
+                        cache['products'][saved_rec.barcode] = saved_rec.id
                         if log_debug:
                             # _logger.info(
                             # "[ACC_SYNC][CREATE_OK] sku=%s new_tmpl_id=%s",
@@ -3556,17 +3545,17 @@ class ProductSync(models.Model):
                         ).create(b_vals)
 
                         for j, rec in enumerate(recs):
-                            cache['products'][rec.default_code] = rec.id
+                            cache['products'][rec.barcode] = rec.id
                         success += len(recs)
                 except Exception:
                     # Batch failed — fallback: create từng record để chỉ skip cái bị trùng
                     for single_vals in b_vals:
-                        dc = single_vals.get('default_code')
-                        # Nếu default_code đã tồn tại trong DB → update thay vì create
+                        dc = single_vals.get('barcode')
+                        # Nếu barcode đã tồn tại trong DB → update thay vì create
                         existing_id = cache['products'].get(dc)
                         if not existing_id and dc:
                             existing = self.env['product.template'].search(
-                                [('default_code', '=', dc)], limit=1
+                                [('barcode', '=', dc)], limit=1
                             )
                             if existing:
                                 existing_id = existing.id
@@ -3582,8 +3571,8 @@ class ProductSync(models.Model):
                                     rec = self.env['product.template'].with_context(
                                         tracking_disable=True
                                     ).create(single_vals)
-                                    if rec.default_code:
-                                        cache['products'][rec.default_code] = rec.id
+                                    if rec.barcode:
+                                        cache['products'][rec.barcode] = rec.id
                                     success += 1
                         except Exception as e2:
                             failed += 1
@@ -3591,7 +3580,7 @@ class ProductSync(models.Model):
                                 error_ctx, product_type, 'SINGLE_CREATE',
                                 ref=dc or 'N/A', exc=e2
                             )
-                            # _logger.error(f"Single Create Error [{product_type}] default_code={dc}: {e2}")
+                            # _logger.error(f"Single Create Error [{product_type}] barcode={dc}: {e2}")
 
                 # Tạo child records riêng lẻ (savepoint độc lập)
                 if has_child and b_child_refs:

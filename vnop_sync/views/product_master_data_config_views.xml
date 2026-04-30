@@ -115,9 +115,8 @@
         <field name="model">product.lens.index</field>
         <field name="arch" type="xml">
             <list editable="top" string="Chiết suất">
-                <field name="cid"/>
                 <field name="name"/>
-                <field name="description"/>
+                <field name="code"/>
             </list>
         </field>
     </record>
@@ -185,8 +184,9 @@
         <field name="model">product.uv</field>
         <field name="arch" type="xml">
             <list editable="top" string="UV">
-                <field name="cid"/>
                 <field name="name"/>
+                <field name="name_en"/>
+                <field name="cid"/>
             </list>
         </field>
     </record>
@@ -199,6 +199,7 @@
                 <sheet>
                     <group>
                         <field name="name"/>
+                        <field name="name_en"/>
                         <field name="cid"/>
                     </group>
                 </sheet>
@@ -212,25 +213,27 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <record id="view_product_frame_tree" model="ir.ui.view">
-        <field name="name">product.frame.tree</field>
-        <field name="model">product.frame</field>
+    <record id="view_product_lens_film_tree" model="ir.ui.view">
+        <field name="name">product.lens.film.tree</field>
+        <field name="model">product.lens.film</field>
         <field name="arch" type="xml">
-            <list editable="top" string="Kiểu gọng">
-                <field name="cid"/>
+            <list editable="top" string="Lớp film chức năng">
                 <field name="name"/>
+                <field name="description"/>
+                <field name="cid"/>
             </list>
         </field>
     </record>
 
-    <record id="view_product_frame_form" model="ir.ui.view">
-        <field name="name">product.frame.form</field>
-        <field name="model">product.frame</field>
+    <record id="view_product_lens_film_form" model="ir.ui.view">
+        <field name="name">product.lens.film.form</field>
+        <field name="model">product.lens.film</field>
         <field name="arch" type="xml">
-            <form string="Kiểu gọng">
+            <form string="Lớp film chức năng">
                 <sheet>
                     <group>
                         <field name="name"/>
+                        <field name="description"/>
                         <field name="cid"/>
                     </group>
                 </sheet>
@@ -238,9 +241,43 @@
         </field>
     </record>
 
-    <record id="action_product_frame" model="ir.actions.act_window">
-        <field name="name">Kiểu gọng</field>
-        <field name="res_model">product.frame</field>
+    <record id="action_product_lens_film" model="ir.actions.act_window">
+        <field name="name">Lớp film chức năng</field>
+        <field name="res_model">product.lens.film</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_product_lens_photochromic_tree" model="ir.ui.view">
+        <field name="name">product.lens.photochromic.tree</field>
+        <field name="model">product.lens.photochromic</field>
+        <field name="arch" type="xml">
+            <list editable="top" string="Đổi màu">
+                <field name="name"/>
+                <field name="name_en"/>
+                <field name="cid"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_lens_photochromic_form" model="ir.ui.view">
+        <field name="name">product.lens.photochromic.form</field>
+        <field name="model">product.lens.photochromic</field>
+        <field name="arch" type="xml">
+            <form string="Đổi màu">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="name_en"/>
+                        <field name="cid"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_lens_photochromic" model="ir.actions.act_window">
+        <field name="name">Đổi màu</field>
+        <field name="res_model">product.lens.photochromic</field>
         <field name="view_mode">list,form</field>
     </record>
 
@@ -276,6 +313,38 @@
         <field name="view_mode">list,form</field>
     </record>
 
+    <record id="view_product_frame_structure_tree" model="ir.ui.view">
+        <field name="name">product.frame.structure.tree</field>
+        <field name="model">product.frame.structure</field>
+        <field name="arch" type="xml">
+            <list editable="top" string="Cấu trúc vành">
+                <field name="cid"/>
+                <field name="name"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_frame_structure_form" model="ir.ui.view">
+        <field name="name">product.frame.structure.form</field>
+        <field name="model">product.frame.structure</field>
+        <field name="arch" type="xml">
+            <form string="Cấu trúc vành">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="cid"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_frame_structure" model="ir.actions.act_window">
+        <field name="name">Cấu trúc vành</field>
+        <field name="res_model">product.frame.structure</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
     <record id="view_product_ve_tree" model="ir.ui.view">
         <field name="name">product.ve.tree</field>
         <field name="model">product.ve</field>
@@ -308,22 +377,23 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <record id="view_product_temple_tree" model="ir.ui.view">
-        <field name="name">product.temple.tree</field>
-        <field name="model">product.temple</field>
+
+    <record id="view_product_temple_tip_tree" model="ir.ui.view">
+        <field name="name">product.temple.tip.tree</field>
+        <field name="model">product.temple.tip</field>
         <field name="arch" type="xml">
-            <list editable="top" string="Càng kính">
+            <list editable="top" string="Loại chuôi càng">
                 <field name="cid"/>
                 <field name="name"/>
             </list>
         </field>
     </record>
 
-    <record id="view_product_temple_form" model="ir.ui.view">
-        <field name="name">product.temple.form</field>
-        <field name="model">product.temple</field>
+    <record id="view_product_temple_tip_form" model="ir.ui.view">
+        <field name="name">product.temple.tip.form</field>
+        <field name="model">product.temple.tip</field>
         <field name="arch" type="xml">
-            <form string="Càng kính">
+            <form string="Loại chuôi càng">
                 <sheet>
                     <group>
                         <field name="name"/>
@@ -334,9 +404,9 @@
         </field>
     </record>
 
-    <record id="action_product_temple" model="ir.actions.act_window">
-        <field name="name">Càng kính</field>
-        <field name="res_model">product.temple</field>
+    <record id="action_product_temple_tip" model="ir.actions.act_window">
+        <field name="name">Loại chuôi càng</field>
+        <field name="res_model">product.temple.tip</field>
         <field name="view_mode">list,form</field>
     </record>
 

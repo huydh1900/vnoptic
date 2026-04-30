@@ -3,14 +3,12 @@
 
     <record id="approval_rule_under_50m" model="purchase.offer.approval.rule">
         <field name="name">Đề nghị mua hàng dưới 50 triệu</field>
-        <field name="sequence">10</field>
         <field name="min_amount">0</field>
         <field name="max_amount">50000000</field>
     </record>
 
     <record id="approval_rule_over_50m" model="purchase.offer.approval.rule">
         <field name="name">Đề nghị mua hàng trên 50 triệu</field>
-        <field name="sequence">20</field>
         <field name="min_amount">50000000</field>
         <field name="max_amount">0</field>
     </record>

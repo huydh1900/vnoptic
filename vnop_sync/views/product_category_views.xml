@@ -1,29 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="product_category_form_inherit_groups" model="ir.ui.view">
-        <field name="name">product.category.form.inherit.groups</field>
-        <field name="model">product.category</field>
-        <field name="inherit_id" ref="product.product_category_form_view"/>
-        <field name="priority">120</field>
-        <field name="arch" type="xml">
-            <!-- Parent view (product.product_category_form_view) không có notebook -->
-            <xpath expr="//sheet/group[@name='first']" position="after">
-                <notebook>
-                    <page string="Phân nhóm phụ" name="vnop_category_groups">
-                        <field name="group_ids" context="{'default_category_id': id}">
-                            <list editable="bottom">
-                                <field name="cid"/>
-                                <field name="name"/>
-                                <field name="product_type"/>
-                                <field name="description"/>
-                            </list>
-                        </field>
-                    </page>
-                </notebook>
-            </xpath>
-        </field>
-    </record>
-
     <record id="product_category_list_inherit_show_code" model="ir.ui.view">
         <field name="name">product.category.list.inherit.show.code</field>
         <field name="model">product.category</field>

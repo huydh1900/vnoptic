@@ -7,10 +7,9 @@ from odoo.exceptions import ValidationError
 class PurchaseOfferApprovalRule(models.Model):
     _name = "purchase.offer.approval.rule"
     _description = "Quy tắc phê duyệt đề nghị mua hàng"
-    _order = "sequence, min_amount"
+    _order = "min_amount"
 
     name = fields.Char(string="Tên quy tắc", required=True)
-    sequence = fields.Integer(string="Thứ tự", default=10)
     active = fields.Boolean(default=True)
 
     min_amount = fields.Monetary(
@@ -61,7 +60,7 @@ class PurchaseOfferApprovalRule(models.Model):
         """Trả về rule khớp với amount trong phạm vi công ty.
 
         Rule khớp khi: min_amount <= amount < max_amount (max_amount=0 nghĩa là
-        không giới hạn trên). Nếu nhiều rule khớp, dùng sequence nhỏ nhất.
+        không giới hạn trên). Nếu nhiều rule khớp, dùng min_amount nhỏ nhất.
         """
         rules = self.search([("company_id", "=", company.id)])
         for rule in rules:

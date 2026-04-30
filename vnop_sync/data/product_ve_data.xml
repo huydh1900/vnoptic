@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="ve_fixed" model="product.ve">
+        <field name="name">Ve liền (đúc liền)</field>
+        <field name="cid">FIX</field>
+    </record>
+    <record id="ve_adjustable" model="product.ve">
+        <field name="name">Ve rời</field>
+        <field name="cid">ADJ</field>
+    </record>
+</odoo>

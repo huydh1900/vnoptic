@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="frame_structure_fr" model="product.frame.structure">
+        <field name="name">Gọng cả vành</field>
+        <field name="cid">FR</field>
+    </record>
+    <record id="frame_structure_sr" model="product.frame.structure">
+        <field name="name">Gọng nửa vành/ Xẻ cước</field>
+        <field name="cid">SR</field>
+    </record>
+    <record id="frame_structure_rl" model="product.frame.structure">
+        <field name="name">Gọng khoan</field>
+        <field name="cid">RL</field>
+    </record>
+</odoo>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="frame_type_opt" model="product.frame.type">
+        <field name="name">Gọng kính thuốc</field>
+        <field name="cid">OPT</field>
+    </record>
+    <record id="frame_type_sun" model="product.frame.type">
+        <field name="name">Gọng kính mát</field>
+        <field name="cid">SUN</field>
+    </record>
+    <record id="frame_type_clip" model="product.frame.type">
+        <field name="name">Gọng đa năng (optical + sun clip)</field>
+        <field name="cid">CLIP</field>
+    </record>
+    <record id="frame_type_spt" model="product.frame.type">
+        <field name="name">Gọng thể thao</field>
+        <field name="cid">SPT</field>
+    </record>
+    <record id="frame_type_kid" model="product.frame.type">
+        <field name="name">Gọng trẻ em</field>
+        <field name="cid">KID</field>
+    </record>
+    <record id="frame_type_fol" model="product.frame.type">
+        <field name="name">Gọng gấp</field>
+        <field name="cid">FOL</field>
+    </record>
+</odoo>

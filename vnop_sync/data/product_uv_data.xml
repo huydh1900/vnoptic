@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="uv_uv420" model="product.uv">
+        <field name="name">UV420</field>
+        <field name="name_en">UV420</field>
+        <field name="cid">UV420</field>
+    </record>
+    <record id="uv_uv400" model="product.uv">
+        <field name="name">UV400</field>
+        <field name="name_en">UV400</field>
+        <field name="cid">UV400</field>
+    </record>
+    <record id="uv_uv380" model="product.uv">
+        <field name="name">UV380</field>
+        <field name="name_en">UV380</field>
+        <field name="cid">UV380</field>
+    </record>
+    <record id="uv_lutina" model="product.uv">
+        <field name="name">Lutina</field>
+        <field name="name_en">Lutina</field>
+        <field name="cid">Lutina</field>
+    </record>
+</odoo>

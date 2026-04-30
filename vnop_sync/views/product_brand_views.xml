@@ -12,7 +12,6 @@
         <field name="model">product.brand</field>
         <field name="arch" type="xml">
             <list editable="top" open_form_view="False">
-                <field name="sequence"/>
                 <field name="name"/>
                 <field name="code"/>
             </list>

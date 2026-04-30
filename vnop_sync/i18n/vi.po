@@ -6,7 +6,13 @@ msgstr "Mã viết tắt"
 #. module: product
 #: model:ir.model.fields,field_description:product.field_product_template__categ_id
 msgid "Product Category"
-msgstr "Danh mục"
+msgstr "Loại hàng"
+
+#. module: product
+#: model:ir.actions.act_window,name:product.product_category_action_form
+#: model:ir.ui.menu,name:product.menu_product_category_action_form
+msgid "Product Categories"
+msgstr "Loại hàng"
 
 #. module: product
 #: model:ir.model.fields,field_description:product.field_product_template__list_price
@@ -52,3 +58,53 @@ msgstr "Lần"
 #: model:ir.model.fields,field_description:product.field_product_template__split_method_landed_cost
 msgid "Default Split Method"
 msgstr "Phương pháp phân bổ"
+
+#. module: vnop_sync
+#: model:ir.model.fields,field_description:vnop_sync.field_product_template__x_short_name
+msgid "Short Name"
+msgstr "Tên rút gọn"
+
+#. module: vnop_sync
+#: model:ir.model.fields,field_description:vnop_sync.field_product_template__x_base_price
+msgid "Base Price"
+msgstr "Giá bán cơ sở có thuế"
+
+#. module: vnop_sync
+#: model:ir.model.fields,field_description:vnop_sync.field_product_template__cao_mat
+msgid "Eye Height (mm)"
+msgstr "Cao mắt (mm)"
+
+#. module: vnop_sync
+#: model:ir.model.fields,field_description:vnop_sync.field_product_template__opt_polarized
+msgid "Polarized"
+msgstr "Mạ mắt polarized"
+
+#. module: vnop_sync
+#: model:ir.model.fields,field_description:vnop_sync.field_product_template__opt_frame_structure_id
+msgid "Frame Structure"
+msgstr "Cấu trúc vành"
+
+#. module: vnop_sync
+#: model:ir.model.fields,field_description:vnop_sync.field_product_template__opt_temple_tip_id
+msgid "Temple Tip Type"
+msgstr "Loại chuôi càng"
+
+#. module: vnop_sync
+#: model:ir.model.fields,field_description:vnop_sync.field_product_import_wizard__imported_lens_count
+msgid "Lens"
+msgstr "Tròng"
+
+#. module: vnop_sync
+#: model:ir.model.fields,field_description:vnop_sync.field_product_import_wizard__imported_frame_count
+msgid "Frame"
+msgstr "Gọng"
+
+#. module: vnop_sync
+#: model:ir.model.fields,field_description:vnop_sync.field_product_import_wizard__imported_accessory_count
+msgid "Accessory"
+msgstr "Phụ kiện"
+
+#. module: vnop_sync
+#: model:ir.model.fields,field_description:vnop_sync.field_product_import_wizard__imported_other_count
+msgid "Other"
+msgstr "Khác"

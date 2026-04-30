@@ -322,16 +322,10 @@ class StockOtkWizard(models.TransientModel):
     def _create_otk_log(self, picking, transfer_ok=None, transfer_ng=None):
         """Lưu snapshot kết quả OTK — dữ liệu chỉ đọc, phục vụ audit.
 
-        Sequence đếm theo PO (nếu có) để biết PO này đã OTK bao nhiêu lần,
-        bất kể trên picking nào (picking gốc hay backorder).
         transfer_ok/transfer_ng: phiếu chuyển kho tạo bởi OTK lần này, dùng để truy vết.
         """
         purchase = picking.purchase_id
         seq = self.env['ir.sequence'].next_by_code('stock.otk.log') or '/'
-        domain = ([('purchase_id', '=', purchase.id)]
-                  if purchase
-                  else [('picking_id', '=', picking.id)])
-        sequence = self.env['stock.otk.log'].search_count(domain) + 1
 
         log_lines = []
         # Chỉ ghi dòng is_checked=True: đã kiểm lần này (kể cả qty_otk=0 = NCC không giao)
@@ -364,7 +358,6 @@ class StockOtkWizard(models.TransientModel):
 
         log = self.env['stock.otk.log'].create({
             'name': seq,
-            'sequence': sequence,
             'picking_id': picking.id,
             'purchase_id': purchase.id if purchase else False,
             'transfer_ok_id': transfer_ok.id if transfer_ok else False,

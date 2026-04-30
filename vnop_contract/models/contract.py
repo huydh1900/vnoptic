@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError, UserError
+from odoo.exceptions import ValidationError
 
 
 class Contract(models.Model):
@@ -276,12 +276,6 @@ class Contract(models.Model):
         self.partner_ref = self.partner_id.ref or ''
         self.line_ids = [(5, 0, 0)]
         self.beneficiary_bank_id = False
-
-    def action_view_receipts(self):
-        raise UserError(_("Vui lòng thao tác tại Lịch giao hàng."))
-
-    def action_view_otk(self):
-        raise UserError(_("Vui lòng thao tác tại Lịch giao hàng."))
 
     def _check_fifo_valuation(self):
         """Bắt buộc sản phẩm trong hợp đồng dùng FIFO + định giá tự động."""

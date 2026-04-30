@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <odoo>
-    <record id="uom_chiec" model="uom.uom">
-        <field name="name">Chiếc</field>
+    <record id="uom_cai" model="uom.uom">
+        <field name="name">Cái</field>
         <field name="category_id" ref="uom.product_uom_categ_unit"/>
         <field name="factor">1.0</field>
         <field name="uom_type">bigger</field>

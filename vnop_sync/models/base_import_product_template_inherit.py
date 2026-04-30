@@ -8,7 +8,6 @@ class BaseImportProductTemplateInherit(models.TransientModel):
 
     _VNOP_IMPORT_HEADER_MARKERS = {
         'categ_id',
-        'group_id',
         'uom_id',
         'brand_id',
         'len_type',
@@ -67,8 +66,8 @@ class BaseImportProductTemplateInherit(models.TransientModel):
         key_fields = {
             'name',
             'default_code',
+            'barcode',
             'categ_id',
-            'group_id',
             'uom_id',
             'brand_id',
             'standard_price',

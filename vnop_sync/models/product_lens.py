@@ -32,21 +32,20 @@ class ProductLens(models.Model):
     product_tmpl_id = fields.Many2one('product.template', string='Product Template')
     product_id = fields.Many2one('product.product', string='Product')
 
-    # 1. Power Configuration (Config-Driven)
-    sph_id = fields.Many2one('product.lens.power', string='SPH')
-    cyl_id = fields.Many2one('product.lens.power', string='CYL')
+    # 1. Power Configuration: SPH/CYL legacy field — đã chuyển sang Selection
+    # trên product.template (x_sph / x_cyl). Bỏ field tham chiếu model cũ.
 
     # 2. Axis (Manual Input, Validated)
     axis = fields.Integer('Axis (0-180)')
     
     # 3. Addition (Manual Input, Validated)
-    lens_add = fields.Float('Add', digits=(4, 2))
+    lens_add = fields.Float('Add', digits=(6, 2))
 
     # 4. Base Curve (Manual Input, Validated)
-    base_curve = fields.Float('Base Curve', digits=(4, 2))
+    base_curve = fields.Float('Base Curve', digits=(6, 2))
 
     # 5. Diameter (Manual Input, Validated)
-    diameter = fields.Float('Đường kính', digits=(6, 1))
+    diameter = fields.Float('Đường kính', digits=(6, 2))
 
     # 6. Lens Design (Legacy fields from old system)
     design1_id = fields.Many2one('product.design', string='Thiết kế 1')
@@ -89,17 +88,10 @@ class ProductLens(models.Model):
 
     # --- Validation Logic ---
 
-    @api.constrains('cyl_id', 'axis')
+    @api.constrains('axis')
     def _check_axis(self):
         for rec in self:
             axis_val = rec.axis
-
-            # If CYL is selected and not 0.00 => Axis is required
-            if rec.cyl_id and float(rec.cyl_id.value or 0.0) != 0.0:
-                if axis_val is False:
-                    raise ValidationError(_("Axis is required when CYL is set."))
-
-            # Only validate range if axis is set
             if axis_val is not False and (axis_val < 0 or axis_val > 180):
                 raise ValidationError(_("Axis must be between 0 and 180 (received %s).") % axis_val)
 

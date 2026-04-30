@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="temple_tip_integrated" model="product.temple.tip">
+        <field name="name">Chuôi liền (đúc liền càng)</field>
+        <field name="cid">INT</field>
+    </record>
+    <record id="temple_tip_detachable" model="product.temple.tip">
+        <field name="name">Chuôi rời (gắn/bọc bên ngoài)</field>
+        <field name="cid">DET</field>
+    </record>
+</odoo>

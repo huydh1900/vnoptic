@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="lens_photochromic_m_pho" model="product.lens.photochromic">
+        <field name="name">Đổi màu đơn sắc</field>
+        <field name="name_en">Monochrome Photochromic</field>
+        <field name="cid">M-PHO</field>
+    </record>
+    <record id="lens_photochromic_g_pho" model="product.lens.photochromic">
+        <field name="name">Đổi màu đa sắc (hai màu)</field>
+        <field name="name_en">Gradient Photochromic</field>
+        <field name="cid">G-PHO</field>
+    </record>
+</odoo>

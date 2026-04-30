@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <!-- Chất liệu mặt trước / càng / chuôi càng -->
+    <record id="material_acetate" model="product.material">
+        <field name="name">Nhựa acetate</field>
+        <field name="code">Acetate</field>
+        <field name="cid">ACE</field>
+    </record>
+    <record id="material_tr90" model="product.material">
+        <field name="name">TR90</field>
+        <field name="code">TR90</field>
+        <field name="cid">TR90</field>
+    </record>
+    <record id="material_memory_metal" model="product.material">
+        <field name="name">Kim loại</field>
+        <field name="code">Memory Metal</field>
+        <field name="cid">MET</field>
+    </record>
+    <record id="material_titanium" model="product.material">
+        <field name="name">Titanium</field>
+        <field name="code">Titanium</field>
+        <field name="cid">TI</field>
+    </record>
+    <record id="material_beta_titanium" model="product.material">
+        <field name="name">Beta Titanium</field>
+        <field name="code">Beta Titanium</field>
+        <field name="cid">BTI</field>
+    </record>
+    <record id="material_stainless_steel" model="product.material">
+        <field name="name">Thép không gỉ</field>
+        <field name="code">Stainless Steel</field>
+        <field name="cid">SS</field>
+    </record>
+    <record id="material_gold" model="product.material">
+        <field name="name">Vàng</field>
+        <field name="code">Solid gold</field>
+        <field name="cid">AU</field>
+    </record>
+    <record id="material_carbon" model="product.material">
+        <field name="name">Carbon</field>
+        <field name="code">Carbon</field>
+        <field name="cid">CARB</field>
+    </record>
+    <record id="material_ppsu" model="product.material">
+        <field name="name">PPSU</field>
+        <field name="code">PPSU</field>
+        <field name="cid">PPSU</field>
+    </record>
+    <record id="material_ultem" model="product.material">
+        <field name="name">Ultem</field>
+        <field name="code">Ultem</field>
+        <field name="cid">ULT</field>
+    </record>
+    <record id="material_monel" model="product.material">
+        <field name="name">Hợp kim Đồng - Niken</field>
+        <field name="code">Monel</field>
+        <field name="cid">MON</field>
+    </record>
+    <record id="material_aluminium" model="product.material">
+        <field name="name">Aluminium</field>
+        <field name="code">Aluminium</field>
+        <field name="cid">ALU</field>
+    </record>
+    <record id="material_silver_925" model="product.material">
+        <field name="name">Bạc 925</field>
+        <field name="code">Sterling Silver</field>
+        <field name="cid">AG</field>
+    </record>
+    <record id="material_wood" model="product.material">
+        <field name="name">Gỗ</field>
+        <field name="code">Wood</field>
+        <field name="cid">WD</field>
+    </record>
+    <record id="material_horn" model="product.material">
+        <field name="name">Sừng</field>
+        <field name="code">Horn</field>
+        <field name="cid">HN</field>
+    </record>
+    <record id="material_nylon" model="product.material">
+        <field name="name">Nylon</field>
+        <field name="code">Nylon</field>
+        <field name="cid">NYL</field>
+    </record>
+    <record id="material_polycarbonate" model="product.material">
+        <field name="name">Nhựa Polycarbonate</field>
+        <field name="code">Polycarbonate</field>
+        <field name="cid">PC</field>
+    </record>
+    <record id="material_rubber" model="product.material">
+        <field name="name">Cao su</field>
+        <field name="code">Rubber</field>
+        <field name="cid">RB</field>
+    </record>
+    <record id="material_silicone" model="product.material">
+        <field name="name">Silicone</field>
+        <field name="code">Silicone</field>
+        <field name="cid">SL</field>
+    </record>
+    <record id="material_fiberglass" model="product.material">
+        <field name="name">Sợi thủy tinh</field>
+        <field name="code">Fiberglass</field>
+        <field name="cid">FG</field>
+    </record>
+
+    <!-- Chất liệu ve (chỉ thêm những loại chưa có ở danh sách trên) -->
+    <record id="material_silicon" model="product.material">
+        <field name="name">Silicon</field>
+        <field name="code">Silicon</field>
+        <field name="cid">SIL</field>
+    </record>
+    <record id="material_plastic" model="product.material">
+        <field name="name">Nhựa</field>
+        <field name="code">Plastic</field>
+        <field name="cid">PL</field>
+    </record>
+    <record id="material_ceramic" model="product.material">
+        <field name="name">Gốm</field>
+        <field name="code">Ceramic</field>
+        <field name="cid">CER</field>
+    </record>
+    <record id="material_pvc" model="product.material">
+        <field name="name">PVC - nhựa cứng</field>
+        <field name="code">PVC</field>
+        <field name="cid">PVC</field>
+    </record>
+</odoo>

@@ -4,7 +4,7 @@
     "version": "18.0.1.0.0",
     "category": "Theme",
     "summary": "Custom login interface for VNOPTIC",
-    "depends": ["web", "auth_signup"],
+    "depends": ["web", "auth_signup", "spreadsheet_dashboard", "utm"],
     "data": [
         "views/login_templates.xml",
     ],

@@ -5,16 +5,64 @@ from odoo import _, api, models
 from odoo.exceptions import ValidationError
 
 
+# ─────────────────────────────────────────────────────────────────────────
+#   IMPORT TEMPLATE CONSTANTS
+#   Đặt ở module-level để wizard import (product_import_wizard.py) tham
+#   chiếu được tại thời điểm class load (không cần model wizard riêng).
+# ─────────────────────────────────────────────────────────────────────────
+VNOP_TEMPLATE_FIELD_CODE_OVERRIDES = {
+    # Common
+    'categ_id': 'categ_code',
+    'uom_id': 'uom_name',
+    'brand_id': 'brand_code',
+    'country_id': 'country_code',
+    'warranty_id': 'warranty_code',
+    'warranty_supplier_id': 'warranty_supplier_code',
+    'warranty_retail_id': 'warranty_retail_code',
+    'taxes_id': 'taxes',
+    'supplier_taxes_id': 'supplier_taxes',
+    # Lens
+    'lens_design_ids': 'lens_design_cid',
+    'lens_material_ids': 'lens_material_code',
+    'lens_film_ids': 'lens_film_cid',
+    'lens_index_id': 'lens_index_name',
+    'lens_uv_id': 'lens_uv_cid',
+    'lens_coating_ids': 'lens_coating_cid',
+    'lens_cl_hmc_id': 'lens_cl_hmc_cid',
+    'lens_cl_pho_id': 'lens_cl_pho_cid',
+    'lens_cl_tint_id': 'lens_cl_tint_cid',
+    # Frame
+    'opt_frame_type_id': 'opt_frame_type_cid',
+    'opt_shape_id': 'opt_shape_cid',
+    'opt_ve_id': 'opt_ve_cid',
+    'opt_material_ve_id': 'opt_material_ve_cid',
+    'opt_material_temple_tip_ids': 'opt_material_temple_tip_cid',
+    'opt_material_lens_id': 'opt_material_lens_cid',
+    'opt_materials_front_ids': 'opt_materials_front_cid',
+    'opt_materials_temple_ids': 'opt_materials_temple_cid',
+    'opt_coating_ids': 'opt_coating_cid',
+    # Accessory
+    'design_id': 'design_cid',
+    'shape_id': 'shape_cid',
+    'material_id': 'material_cid',
+    'color_id': 'color_cid',
+}
+
+VNOP_TEMPLATE_VIRTUAL_IMPORT_COLUMNS = [
+    'supplier_ref',
+    'currency_id',
+]
+
+
 class ProductTemplateImportBaseInherit(models.Model):
     _inherit = 'product.template'
 
-    _VNOP_LENS_M2O_FIELDS = ('lens_sph_id', 'lens_cyl_id', 'lens_add_id')
+    _VNOP_LENS_M2O_FIELDS = ()
 
     _VNOP_EXPORT_TEMPLATE_PREFIX = 'VNOP - Product Template'
 
     _VNOP_COMMON_FIELDS = [
         'categ_id',
-        'group_id',
         'image_1920',
         'name',
         'x_eng_name',
@@ -22,7 +70,7 @@ class ProductTemplateImportBaseInherit(models.Model):
         'brand_id',
         'supplier_ref',
         'country_id',
-        'default_code',
+        'barcode',
         'warranty_id',
         'warranty_supplier_id',
         'warranty_retail_id',
@@ -42,21 +90,30 @@ class ProductTemplateImportBaseInherit(models.Model):
 
     _VNOP_TYPE_FIELDS = {
         'lens': [
+            'lens_category',
             'len_type',
-            'lens_sph_id',
-            'lens_cyl_id',
-            'lens_add_id',
+            'lens_hard_soft',
+            'lens_features',
+            'lens_eye_side',
+            'x_sph',
+            'x_cyl',
+            'x_add',
             'x_axis',
             'x_prism',
             'x_prism_base',
             'lens_base_curve',
             'x_diameter',
-            'lens_design1_id',
-            'lens_design2_id',
-            'lens_material_id',
+            'lens_corridor',
+            'lens_abbe',
+            'lens_design_ids',
+            'lens_material_ids',
+            'lens_film_ids',
             'lens_index_id',
             'lens_uv_id',
+            'lens_light_transmission',
             'lens_coating_ids',
+            'lens_mirror_coating',
+            'lens_color_coating',
             'lens_cl_hmc_id',
             'lens_cl_pho_id',
             'lens_cl_tint_id',
@@ -70,20 +127,20 @@ class ProductTemplateImportBaseInherit(models.Model):
             'opt_color',
             'opt_season',
             'opt_gender',
-            'opt_frame_id',
+            'opt_frame_style',
             'opt_frame_type_id',
             'opt_shape_id',
             'opt_ve_id',
-            'opt_temple_id',
+            'opt_temple_style',
             'opt_material_ve_id',
-            'opt_material_temple_tip_id',
+            'opt_material_temple_tip_ids',
             'opt_material_lens_id',
             'opt_materials_front_ids',
             'opt_materials_temple_ids',
             'opt_coating_ids',
-            'opt_color_lens_id',
-            'opt_color_front_ids',
-            'opt_color_temple_ids',
+            'opt_color_lens',
+            'opt_color_front',
+            'opt_color_temple',
             'opt_lens_width',
             'opt_bridge_width',
             'opt_temple_width',
@@ -110,7 +167,6 @@ class ProductTemplateImportBaseInherit(models.Model):
     _VNOP_REQUIRED_COMMON = [
         'name',
         'categ_id',
-        'group_id',
         'uom_id',
         'brand_id',
         'country_id',
@@ -122,9 +178,9 @@ class ProductTemplateImportBaseInherit(models.Model):
     _VNOP_REQUIRED_BY_TYPE = {
         'lens': [
             'len_type',
-            'lens_sph_id',
-            'lens_cyl_id',
-            'lens_material_id',
+            'x_sph',
+            'x_cyl',
+            'lens_material_ids',
             'lens_index_id',
         ],
         'frame': [
@@ -143,7 +199,6 @@ class ProductTemplateImportBaseInherit(models.Model):
 
     _VNOP_RELATIONAL_FIELDS = {
         'categ_id': {'multi': False},
-        'group_id': {'multi': False},
         'uom_id': {'multi': False},
         'brand_id': {'multi': False},
         'country_id': {'multi': False},
@@ -152,32 +207,24 @@ class ProductTemplateImportBaseInherit(models.Model):
         'warranty_retail_id': {'multi': False},
         'taxes_id': {'multi': True},
         'supplier_taxes_id': {'multi': True},
-        'lens_sph_id': {'multi': False},
-        'lens_cyl_id': {'multi': False},
-        'lens_add_id': {'multi': False},
-        'lens_design1_id': {'multi': False},
-        'lens_design2_id': {'multi': False},
-        'lens_material_id': {'multi': False},
+        'lens_design_ids': {'multi': True},
+        'lens_material_ids': {'multi': True},
+        'lens_film_ids': {'multi': True},
         'lens_index_id': {'multi': False},
         'lens_uv_id': {'multi': False},
         'lens_coating_ids': {'multi': True},
         'lens_cl_hmc_id': {'multi': False},
         'lens_cl_pho_id': {'multi': False},
         'lens_cl_tint_id': {'multi': False},
-        'opt_frame_id': {'multi': False},
         'opt_frame_type_id': {'multi': False},
         'opt_shape_id': {'multi': False},
         'opt_ve_id': {'multi': False},
-        'opt_temple_id': {'multi': False},
         'opt_material_ve_id': {'multi': False},
-        'opt_material_temple_tip_id': {'multi': False},
+        'opt_material_temple_tip_ids': {'multi': True},
         'opt_material_lens_id': {'multi': False},
         'opt_materials_front_ids': {'multi': True},
         'opt_materials_temple_ids': {'multi': True},
         'opt_coating_ids': {'multi': True},
-        'opt_color_lens_id': {'multi': False},
-        'opt_color_front_ids': {'multi': True},
-        'opt_color_temple_ids': {'multi': True},
         'design_id': {'multi': False},
         'shape_id': {'multi': False},
         'material_id': {'multi': False},
@@ -190,13 +237,11 @@ class ProductTemplateImportBaseInherit(models.Model):
         'res.partner': ['ref', 'name'],
         'product.category': ['code', 'complete_name', 'name'],
         'product.lens.material': ['code', 'name'],
-        'product.lens.index': ['cid', 'name'],
+        'product.lens.index': ['name'],
         'product.uv': ['cid', 'name'],
         'product.coating': ['cid', 'name'],
-        'product.frame': ['cid', 'name'],
         'product.frame.type': ['cid', 'name'],
         'product.ve': ['cid', 'name'],
-        'product.temple': ['cid', 'name'],
     }
 
     @api.model
@@ -306,13 +351,6 @@ class ProductTemplateImportBaseInherit(models.Model):
 
         def _find_one(token):
             extra_domain = []
-            if model_name == 'product.lens.power':
-                if field_name == 'lens_sph_id':
-                    extra_domain.append(('power_type', '=', 'sph'))
-                elif field_name == 'lens_cyl_id':
-                    extra_domain.append(('power_type', '=', 'cyl'))
-                elif field_name == 'lens_add_id':
-                    extra_domain.append(('power_type', '=', 'add'))
             for key in search_keys:
                 domain = [(key, '=', token)] + extra_domain
                 record = model.search(domain, limit=1)
@@ -354,7 +392,7 @@ class ProductTemplateImportBaseInherit(models.Model):
 
     def _vnop_guess_import_type(self, fields):
         markers = {
-            'lens': {'len_type', 'lens_sph_id', 'lens_cyl_id', 'lens_index_id'},
+            'lens': {'len_type', 'x_sph', 'x_cyl', 'lens_index_id'},
             'frame': {'opt_sku', 'opt_model', 'opt_frame_type_id', 'opt_shape_id'},
             'accessory': {'design_id', 'shape_id', 'material_id', 'color_id'},
         }
@@ -367,12 +405,12 @@ class ProductTemplateImportBaseInherit(models.Model):
         return best_type if scored[best_type] > 0 else False
 
     def _vnop_product_type_from_record(self, record):
-        code = (record.categ_code or '').strip().upper()
-        if code == 'TK':
+        ctype = record.classification_type or False
+        if ctype == 'lens':
             return 'lens'
-        if code == 'GK':
+        if ctype == 'frame':
             return 'frame'
-        if code in ('PK', 'TB', 'LK'):
+        if ctype == 'accessory':
             return 'accessory'
         return False
 
@@ -383,9 +421,23 @@ class ProductTemplateImportBaseInherit(models.Model):
         if not fields:
             return super().load(fields, data)
 
+        # Cột Excel "default_code" → field barcode (CID là khóa nội bộ)
+        if 'default_code' in fields:
+            fields = list(fields)
+            data = [list(row) for row in data]
+            dc_idx = fields.index('default_code')
+            if 'barcode' in fields:
+                # Nếu Excel có cả 2 cột: ưu tiên barcode, bỏ default_code
+                fields.pop(dc_idx)
+                for row in data:
+                    if dc_idx < len(row):
+                        row.pop(dc_idx)
+            else:
+                fields[dc_idx] = 'barcode'
+
         # Allow imports that only update relational fields (e.g. categ_id by code)
-        # even when default_code is not included in the file.
-        if 'default_code' not in fields:
+        # even when barcode is not included in the file.
+        if 'barcode' not in fields:
             fields = list(fields)
             rows = [list(row) for row in data]
             # Bỏ supplier_ref (virtual column) trước khi load
@@ -406,7 +458,7 @@ class ProductTemplateImportBaseInherit(models.Model):
         fields = list(fields)
         rows = [list(row) for row in data]
         index_by_field = {field_name: index for index, field_name in enumerate(fields)}
-        code_index = index_by_field['default_code']
+        code_index = index_by_field['barcode']
 
         required_fields = [
             field_name
@@ -466,7 +518,7 @@ class ProductTemplateImportBaseInherit(models.Model):
                     locked_relational_values[row_no][field_name] = recs.id
 
             if code:
-                existing = self.search([('default_code', '=', code)], limit=1)
+                existing = self.search([('barcode', '=', code)], limit=1)
                 if existing:
                     existing_by_code[code] = existing
                     existing_type = self._vnop_product_type_from_record(existing)
@@ -481,14 +533,6 @@ class ProductTemplateImportBaseInherit(models.Model):
                         if existing.categ_id.id != locked_relational_values[row_no]['categ_id']:
                             raise ValidationError(_(
                                 'Dòng %(row)s: Mã %(code)s đã tồn tại nhưng đang thay đổi Danh mục.',
-                                row=row_no,
-                                code=code,
-                            ))
-
-                    if 'group_id' in index_by_field and locked_relational_values[row_no].get('group_id'):
-                        if existing.group_id.id != locked_relational_values[row_no]['group_id']:
-                            raise ValidationError(_(
-                                'Dòng %(row)s: Mã %(code)s đã tồn tại nhưng đang thay đổi Phân nhóm phụ.',
                                 row=row_no,
                                 code=code,
                             ))

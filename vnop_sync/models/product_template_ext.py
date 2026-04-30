@@ -14,26 +14,22 @@ class ProductCategory(models.Model):
 
     code = fields.Char('Mã danh mục', size=2, index=True,
                        help='Mã danh mục dùng cho phân loại & tạo mã sản phẩm (VD: TK=Tròng kính, GK=Gọng kính, PK=Phụ kiện)')
-    group_ids = fields.One2many(
-        'product.group',
-        'category_id',
-        string='Phân nhóm phụ'
-    )
 
 
 
 class ProductTemplateExtension(models.Model):
     _inherit = 'product.template'
 
-    _BASE36_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-    _DEFAULT_CODE_SUFFIX_LEN = 5
-    _DEFAULT_CODE_SUFFIX_MAX = (36 ** _DEFAULT_CODE_SUFFIX_LEN) - 1
-
     len_type = fields.Selection([
-        ('DT', 'Đơn tròng'),
-        ('HT', 'Hai tròng'),
-        ('DAT', 'Đa tròng'),
-        ('PT', 'Phôi tròng'),
+        ('SV', 'SV - Đơn tròng (Single Vision)'),
+        ('BF', 'BF - Hai tròng (Bifocal)'),
+        ('TF', 'TF - Ba tròng (Trifocal)'),
+        ('PRO', 'PRO - Đa tròng (Progressive)'),
+        ('PT', 'PT - Phôi tròng'),
+        # Legacy values (giữ để không break dữ liệu cũ)
+        ('DT', 'DT - Đơn tròng (legacy)'),
+        ('HT', 'HT - Hai tròng (legacy)'),
+        ('DAT', 'DAT - Đa tròng (legacy)'),
     ], string='Loại tròng')
 
     x_java_qr_url = fields.Char(string='QR URL (Java)', copy=False)
@@ -59,61 +55,39 @@ class ProductTemplateExtension(models.Model):
     def _get_category_by_code(self, code):
         return self.env['product.category'].search([('code', '=', code)], limit=1)
 
-    def _get_root_categ_code(self):
-        """Walk up category tree and return the first code found."""
-        categ = self.categ_id
-        while categ:
-            code = (getattr(categ, 'code', '') or '').strip().upper()
-            if code:
-                return code
-            categ = categ.parent_id
-        return ''
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        for vals in vals_list:
-            name = vals.get('name')
-            if name and self._name_is_lens_eye_prefix(name):
-                tk_category = self._get_category_by_code('TK')
-                if tk_category:
-                    vals['categ_id'] = tk_category.id
-        return super().create(vals_list)
-
-    def write(self, vals):
-        name = vals.get('name')
-        if name and self._name_is_lens_eye_prefix(name):
-            tk_category = self._get_category_by_code('TK')
-            if tk_category:
-                vals = dict(vals, categ_id=tk_category.id)
-        return super().write(vals)
-
-    @api.onchange('categ_id')
+    @api.onchange('categ_id', 'classification_id')
     def _onchange_categ_id_reset_groups(self):
-        """Clear groups when category changes."""
+        """Clear len_type khi danh mục/phân loại đổi."""
         for rec in self:
-            rec.lens_group_id = False
-            rec.opt_group_id = False
-            rec.acc_group_id = False
-            rec.group_id = False
             rec.len_type = False
 
-    @api.onchange('len_type')
-    def _onchange_len_type_reset_group_id(self):
+    @api.constrains('barcode')
+    def _constrains_barcode_unique(self):
         for rec in self:
-            if rec._get_root_categ_code() == 'TK':
-                rec.group_id = False
-
-    @api.constrains('default_code')
-    def _constrains_default_code_unique(self):
-        for rec in self:
-            if not rec.default_code:
+            if not rec.barcode:
                 continue
-            if self.search_count([('id', '!=', rec.id), ('default_code', '=', rec.default_code)]):
-                raise ValidationError("Mã viết tắt (default_code) phải là duy nhất.")
+            if self.search_count([('id', '!=', rec.id), ('barcode', '=', rec.barcode)]):
+                raise ValidationError("Barcode phải là duy nhất.")
 
     x_eng_name = fields.Char(
         'Tên tiếng Anh',
         help="Product name in English"
+    )
+
+    x_short_name = fields.Char(
+        'Tên rút gọn',
+        help='Tên sản phẩm rút gọn (hiển thị tem, tree view, in mã)'
+    )
+
+    x_base_price = fields.Float(
+        'Giá bán cơ sở có thuế',
+        digits='Product Price',
+        help='Giá bán cơ sở (đã bao thuế) — dùng làm cơ sở so sánh markup. Khác list_price là giá bán lẻ.'
+    )
+
+    x_invoice_name = fields.Char(
+        'Tên viết hóa đơn',
+        help="Tên sản phẩm dùng để in trên hóa đơn"
     )
 
     x_uses = fields.Text(
@@ -183,11 +157,11 @@ class ProductTemplateExtension(models.Model):
     shape_id = fields.Many2one('product.shape', string='Hình dáng')
     material_id = fields.Many2one('product.material', string='Chất liệu')
     color_id = fields.Many2one('product.color', string='Màu sắc')
-    acc_width = fields.Float('Chiều rộng')
-    acc_length = fields.Float('Chiều dài')
-    acc_height = fields.Float('Chiều cao')
-    acc_head = fields.Float('Đầu')
-    acc_body = fields.Float('Thân')
+    acc_width = fields.Float('Chiều rộng', digits=(6, 2))
+    acc_length = fields.Float('Chiều dài', digits=(6, 2))
+    acc_height = fields.Float('Chiều cao', digits=(6, 2))
+    acc_head = fields.Float('Đầu', digits=(6, 2))
+    acc_body = fields.Float('Thân', digits=(6, 2))
 
     lens_template_key = fields.Char(
         'Lens Template Key',
@@ -223,6 +197,13 @@ class ProductTemplateExtension(models.Model):
         index=True,
         help='Phân loại nhóm sản phẩm (Gọng kính / Tròng kính / Phụ kiện / Khác) qua product.classification.category_type'
     )
+    classification_type = fields.Selection(
+        related='classification_id.category_type',
+        string='Loại sản phẩm',
+        store=True,
+        index=True,
+        help='Phân biệt frame / lens / accessory / other dựa trên classification_id.category_type'
+    )
 
     # ==================== RELATIONAL FIELDS (for sync) ====================
     brand_id = fields.Many2one(
@@ -255,72 +236,103 @@ class ProductTemplateExtension(models.Model):
     opt_ids = fields.One2many('product.opt', 'product_tmpl_id', 'Optical Details (Legacy)')
 
     # ==================== ADDITIONAL FIELDS FOR VIEW ====================
-    group_id = fields.Many2one(
-        'product.group',
-        string='Phân nhóm phụ',
-        help='Phân nhóm phụ (lọc theo cây danh mục).'
-    )
-    lens_group_id = fields.Many2one('product.group', string='Nhóm Tròng kính',
-                                    domain=[('category_id.code', '=', 'TK')],
-                                    help='Phân nhóm phụ cho Tròng kính')
-    opt_group_id = fields.Many2one('product.group', string='Nhóm Gọng kính',
-                                   domain=[('category_id.code', '=', 'GK')],
-                                   help='Phân nhóm phụ cho Gọng kính')
-    acc_group_id = fields.Many2one('product.group', string='Nhóm Phụ kiện',
-                                   domain=[('category_id.code', 'in', ('PK', 'TB', 'LK'))],
-                                   help='Phân nhóm phụ cho Phụ kiện')
-
-    # NOTE: lens_group_id/opt_group_id/acc_group_id giữ lại để tương thích dữ liệu cũ,
-    # UI hiện tại dùng group_id duy nhất và lọc theo danh mục.
     index_id = fields.Many2one('product.lens.index', string='Chiết suất',
                                help='Lens index for code generation (lens products only)')
-    auto_generate_code = fields.Boolean('Tự động tạo mã', default=True,
-                                        help='Automatically generate product code based on Group, Brand, and Index')
     product_status = fields.Selection([
         ('new', 'Mới'),
         ('current', 'Hiện hành'),
     ], string='Trạng thái')
 
+    label_print_type = fields.Selection([
+        ('0', 'Không in tem'),
+        ('1', 'In tem mắt'),
+        ('2', 'In tem gọng'),
+        ('3', 'Không thể dán tem'),
+    ], string='Kiểu in nhãn', default='0')
+
     # ==================== LENS SPECS (Hướng B: field trực tiếp trên template) ====================
-    # Thiết kế
-    lens_sph_id = fields.Many2one('product.lens.power', string='SPH',
-                                  index=True,
-                                  help='Công suất cầu (Sphere)')
-    lens_cyl_id = fields.Many2one('product.lens.power', string='CYL',
-                                  index=True,
-                                  help='Công suất trụ (Cylinder)')
-    lens_add_id = fields.Many2one('product.lens.add', string='ADD',
-                                  help='Addition (thấu kính đa tròng)')
-    lens_base_curve = fields.Float('Base Curve', digits=(4, 2))
-    lens_design1_id = fields.Many2one('product.design', string='Thiết kế 1')
-    lens_design2_id = fields.Many2one('product.design', string='Thiết kế 2')
+    # Thiết kế / Vật liệu / Hình học
+    lens_category = fields.Char('Hạng mục tròng kính', size=100)
+    lens_base_curve = fields.Float('Độ cong kính', digits=(6, 2))
+    lens_design_ids = fields.Many2many(
+        'product.design',
+        'product_tmpl_lens_design_rel', 'tmpl_id', 'design_id',
+        string='Thiết kế'
+    )
 
     # Chất liệu
-    lens_material_id = fields.Many2one('product.lens.material', string='Vật liệu')
+    lens_material_ids = fields.Many2many(
+        'product.lens.material',
+        'product_tmpl_lens_material_rel', 'tmpl_id', 'material_id',
+        string='Chất liệu'
+    )
     lens_index_id = fields.Many2one('product.lens.index', string='Chiết suất')
+    lens_film_ids = fields.Many2many(
+        'product.lens.film',
+        'product_tmpl_lens_film_rel', 'tmpl_id', 'film_id',
+        string='Lớp film chức năng'
+    )
 
     # Tích hợp
-    lens_uv_id = fields.Many2one('product.uv', string='UV')
+    lens_uv_id = fields.Many2one('product.uv', string='Chống UV')
+    lens_light_transmission = fields.Float('Tỷ lệ ánh sáng truyền qua (%)', digits=(6, 2))
     lens_color_int = fields.Char('Độ đậm màu', size=50)
+    lens_polarized = fields.Boolean('Mạ polarized')
     lens_coating_ids = fields.Many2many(
         'product.coating',
         'product_tmpl_coating_rel', 'tmpl_id', 'coating_id',
-        string='Coating'
+        string='Lớp phủ'
     )
+    lens_mirror_coating = fields.Char('Ánh mạ', size=100)
+    lens_color_coating = fields.Char('Mạ màu', size=100)
+    lens_mirror_color = fields.Char('Màu phủ gương', size=100)
+    lens_abbe = fields.Float('Chỉ số tán sắc (Abbe)', digits=(6, 2))
+    lens_corridor = fields.Float('Corridor (mm)', digits=(6, 2))
+    lens_hard_soft = fields.Selection([
+        ('hard', 'Cứng'),
+        ('soft', 'Mềm'),
+    ], string='Cứng/Mềm (áp tròng)')
+    lens_features = fields.Char('Đặc tính', size=200)
+    lens_eye_side = fields.Selection([
+        ('left', 'Trái'),
+        ('right', 'Phải'),
+        ('both', 'Cả hai'),
+    ], string='Trái/Phải')
     # Màu sắc HMC / Photochromic / Tinted (từ clhmcdto / clphodto / clTIntdto)
     lens_cl_hmc_id = fields.Many2one('product.cl', string='HMC')
-    lens_cl_pho_id = fields.Many2one('product.cl', string='Photochromic')
+    lens_cl_pho_id = fields.Many2one('product.cl', string='Đổi màu')
     lens_cl_tint_id = fields.Many2one('product.cl', string='Tinted')
 
-    # ==================== LENS SPECS (Custom display-only fields) ====================
-    x_sph = fields.Float('SPH', digits=(6, 2), help='Lens sphere power (display only)')
-    x_cyl = fields.Float('CYL', digits=(6, 2), help='Lens cylinder power (display only)')
-    x_add = fields.Float('ADD', digits=(6, 2), help='Lens add power (display only)')
-    x_axis = fields.Integer('Axis', help='Lens axis (display only)')
-    x_prism = fields.Char('Lăng kính', size=50, help='Lens prism (display only)')
+    # ==================== LENS SPECS (Selection cho SPH/CYL) ====================
+    # SPH: từ -10.50 đến -20.00, bước 0.5
+    _SPH_VALUES = [f"-{v / 100:.2f}" for v in range(1050, 2050, 50)]
+    # CYL: từ -2.25 đến -4.00, bước 0.25
+    _CYL_VALUES = [f"-{v / 100:.2f}" for v in range(225, 425, 25)]
+
+    x_sph = fields.Selection(
+        selection=[(v, v) for v in _SPH_VALUES],
+        string='Độ cầu (SPH)',
+        index=True,
+        help='Công suất cầu (Sphere): -10.50 → -20.00, bước 0.50'
+    )
+    x_cyl = fields.Selection(
+        selection=[(v, v) for v in _CYL_VALUES],
+        string='Độ trụ (CYL)',
+        index=True,
+        help='Công suất trụ (Cylinder): -2.25 → -4.00, bước 0.25'
+    )
+    x_add = fields.Float('Độ cộng thêm (ADD)', digits=(6, 2), help='Lens add power (display only)')
+    x_axis = fields.Integer('Trục (AXIS)', help='Lens axis (0-180)')
+    x_prism = fields.Float('Lăng kính (Prism)', digits=(6, 2), help='Lens prism (display only)')
     x_prism_base = fields.Char('Đáy lăng kính', size=50, help='Lens prism base (display only)')
+
+    @api.constrains('x_axis')
+    def _check_x_axis_range(self):
+        for rec in self:
+            if rec.x_axis and not (0 <= rec.x_axis <= 180):
+                raise ValidationError('Trục (AXIS) phải nằm trong khoảng 0–180.')
     x_mir_coating = fields.Char('Màu tráng gương', help='Mirror coating (display only)')
-    x_diameter = fields.Float('Đường kính (mm)', digits=(6, 1), help='Lens diameter (display only)')
+    x_diameter = fields.Float('Đường kính (mm)', digits=(6, 2), help='Lens diameter (display only)')
 
     # ==================== OPT SPECS (Hướng B: field trực tiếp trên template) ====================
     # Thông tin cơ bản
@@ -330,8 +342,16 @@ class ProductTemplateExtension(models.Model):
     opt_sku = fields.Char('SKU', size=50)
     opt_color = fields.Char('Mã màu', size=50)
     opt_gender = fields.Selection([
-        ('0', ''),
-        ('1', 'Nam'), ('2', 'Nữ'), ('3', 'Unisex')
+        ('M', 'Nam (M)'),
+        ('F', 'Nữ (F)'),
+        ('U', 'Unisex (U)'),
+        ('K-M', 'Trẻ em - Nam (K-M)'),
+        ('K-F', 'Trẻ em - Nữ (K-F)'),
+        ('K-U', 'Trẻ em - Unisex (K-U)'),
+        # Legacy numeric values
+        ('1', 'Nam (legacy)'),
+        ('2', 'Nữ (legacy)'),
+        ('3', 'Unisex (legacy)'),
     ], string='Giới tính')
 
     # Kích thước
@@ -341,28 +361,32 @@ class ProductTemplateExtension(models.Model):
     opt_lens_height = fields.Integer('Chiều cao tròng (mm)')
     opt_bridge_width = fields.Integer('Cầu mũi (mm)')
 
-    # Màu sắc
-    opt_color_lens_id = fields.Many2one('product.cl', string='Màu mắt kính (trường mắt)')
-    # Màu sắc - Many2many (mới, hỗ trợ nhiều màu)
-    opt_color_front_ids = fields.Many2many(
-        'product.cl', 'product_tmpl_color_front_rel',
-        'tmpl_id', 'cl_id', string='Màu mặt trước'
-    )
-    opt_color_temple_ids = fields.Many2many(
-        'product.cl', 'product_tmpl_color_temple_rel',
-        'tmpl_id', 'cl_id', string='Màu càng kính'
-    )
+    # Khối lượng & đá quý
+    opt_weight = fields.Float('Trọng lượng (g)', digits=(6, 2))
+    opt_gem_count = fields.Integer('Số lượng đá quý')
+    opt_gem_carat = fields.Float('Carat đá quý', digits=(6, 2))
+
+    # Màu sắc (Char free text)
+    opt_color_lens = fields.Char('Màu mắt kính', size=100)
+    opt_color_front = fields.Char('Màu mặt trước', size=100)
+    opt_color_temple = fields.Char('Màu càng kính', size=100)
 
     # Thiết kế
-    opt_frame_id = fields.Many2one('product.frame', string='Loại gọng')
-    opt_frame_type_id = fields.Many2one('product.frame.type', string='Kiểu loại')
-    opt_shape_id = fields.Many2one('product.shape', string='Kiểu dáng')
-    opt_ve_id = fields.Many2one('product.ve', string='Ve')
-    opt_temple_id = fields.Many2one('product.temple', string='Càng kính')
+    opt_frame_style = fields.Char('Kiểu gọng', size=100)
+    opt_frame_type_id = fields.Many2one('product.frame.type', string='Loại gọng')
+    opt_frame_structure_id = fields.Many2one('product.frame.structure', string='Cấu trúc vành')
+    opt_shape_id = fields.Many2one('product.shape', string='Dáng mắt')
+    opt_ve_id = fields.Many2one('product.ve', string='Loại ve')
+    opt_temple_tip_id = fields.Many2one('product.temple.tip', string='Loại chuôi càng')
+    opt_temple_style = fields.Char('Càng kính (mô tả)', size=100)
+    opt_polarized = fields.Boolean('Mạ mắt polarized')
 
     # Chất liệu
     opt_material_ve_id = fields.Many2one('product.material', string='Ve kính')
-    opt_material_temple_tip_id = fields.Many2one('product.material', string='Chuôi càng')
+    opt_material_temple_tip_ids = fields.Many2many(
+        'product.material', 'product_tmpl_material_temple_tip_rel',
+        'tmpl_id', 'material_id', string='Chuôi càng'
+    )
     opt_material_lens_id = fields.Many2one('product.material', string='Mắt kính')
     opt_materials_front_ids = fields.Many2many(
         'product.material', 'product_tmpl_material_front_rel',
@@ -402,6 +426,11 @@ class ProductTemplateExtension(models.Model):
         'Ngang mắt (mm)',
         digits=(6, 2),
         help='Chiều ngang mắt kính – RS field: ngang_mat'
+    )
+    cao_mat = fields.Float(
+        'Cao mắt (mm)',
+        digits=(6, 2),
+        help='Chiều cao mắt kính'
     )
     # Giá sỉ theo % = x_ws_price / list_price * 100 (computed, readonly)
     gia_si_theo_phan_tram = fields.Float(
@@ -444,11 +473,11 @@ class ProductTemplateExtension(models.Model):
     opt_frame_type = fields.Char('Loại gọng (hiển thị)', compute='_compute_opt_info', store=False, readonly=True)
     opt_shape = fields.Char('Dáng gọng (hiển thị)', compute='_compute_opt_info', store=False, readonly=True)
 
-    @api.depends('lens_sph_id', 'lens_cyl_id', 'lens_add_id', 'lens_index_id')
+    @api.depends('x_sph', 'x_cyl', 'lens_index_id')
     def _compute_lens_info(self):
         for record in self:
-            record.lens_sph = record.lens_sph_id.name if record.lens_sph_id else ''
-            record.lens_cyl = record.lens_cyl_id.name if record.lens_cyl_id else ''
+            record.lens_sph = record.x_sph or ''
+            record.lens_cyl = record.x_cyl or ''
             record.lens_index_name = record.lens_index_id.name if record.lens_index_id else ''
 
     @api.depends('opt_frame_type_id', 'opt_shape_id')
@@ -462,6 +491,19 @@ class ProductTemplateExtension(models.Model):
                                           compute='_compute_primary_supplier', store=True, readonly=True,
                                           help='Nhà cung cấp chính (lấy từ seller_ids đầu tiên)')
 
+    x_supplier_name = fields.Char(
+        string='Tên nguồn cung cấp',
+        related='primary_supplier_id.name',
+        store=True, readonly=True,
+        help='Tên đầy đủ của NCC chính (đồng bộ từ seller_ids đầu tiên).'
+    )
+    x_supplier_ref = fields.Char(
+        string='Mã NCC',
+        related='primary_supplier_id.ref',
+        store=True, readonly=True,
+        help='Mã (ref) của NCC chính.'
+    )
+
     @api.depends('seller_ids', 'seller_ids.partner_id')
     def _compute_primary_supplier(self):
         for record in self:
@@ -469,178 +511,4 @@ class ProductTemplateExtension(models.Model):
                 record.primary_supplier_id = record.seller_ids[0].partner_id
             else:
                 record.primary_supplier_id = False
-
-    # ==================== PRODUCT CREATION LOGIC ====================
-    @api.model_create_multi
-    def create(self, vals_list):
-        sequence_cache = {}
-        for vals in vals_list:
-            # Auto-generate product code if enabled and not provided
-            if vals.get('auto_generate_code', True) and not vals.get('default_code'):
-                categ_id = vals.get('categ_id')
-                brand_id = vals.get('brand_id')
-                group_id = vals.get('group_id')
-                lens_index_id = vals.get('lens_index_id') or vals.get('index_id')
-                try:
-                    vals['default_code'] = self._auto_generate_product_code(
-                        categ_id,
-                        brand_id,
-                        lens_index_id,
-                        group_id=group_id,
-                        sequence_cache=sequence_cache,
-                    )
-                except Exception as e:
-                    _logger.warning(f"Failed to auto-generate product code: {e}")
-
-        return super().create(vals_list)
-
-    def _product_code_base36_to_int(self, value):
-        text = (value or '').strip().upper()
-        if not text:
-            raise ValidationError('Suffix mã sản phẩm rỗng.')
-        result = 0
-        for ch in text:
-            pos = self._BASE36_ALPHABET.find(ch)
-            if pos < 0:
-                raise ValidationError(f'Suffix mã sản phẩm không hợp lệ: {value}')
-            result = result * 36 + pos
-        return result
-
-    def _product_code_int_to_base36(self, value, width):
-        if value < 0:
-            raise ValidationError('Suffix mã sản phẩm không được âm.')
-        if value > self._DEFAULT_CODE_SUFFIX_MAX:
-            raise ValidationError('Đã vượt giới hạn suffix 5 ký tự base36 cho mã sản phẩm.')
-        if value == 0:
-            text = '0'
-        else:
-            chars = []
-            number = value
-            while number:
-                number, rem = divmod(number, 36)
-                chars.append(self._BASE36_ALPHABET[rem])
-            text = ''.join(reversed(chars))
-        return text.rjust(width, '0')
-
-    def _get_root_category_code_from_id(self, categ_id):
-        if not categ_id:
-            return ''
-        categ = self.env['product.category'].browse(categ_id)
-        while categ:
-            code = (getattr(categ, 'code', '') or '').strip().upper()
-            if code:
-                return code
-            categ = categ.parent_id
-        return ''
-
-    def _normalize_lens_index_cid(self, index):
-        raw = (getattr(index, 'cid', '') or '').strip().upper()
-        cleaned = ''.join(ch for ch in raw if ch.isalnum())
-        if not cleaned:
-            raise ValidationError('Chiết suất chưa có CID để sinh mã sản phẩm.')
-        if len(cleaned) > 3:
-            raise ValidationError(
-                f'CID chiết suất "{raw}" không hợp lệ sau chuẩn hóa ({cleaned}), yêu cầu tối đa 3 ký tự.'
-            )
-        return cleaned.zfill(3)
-
-    def _build_default_code_prefix(self, group_id, brand_id, lens_index_id=False, product_type='lens'):
-        # AA: group.sequence (2 chữ số), fallback '00'
-        aa = '00'
-        if group_id:
-            group = self.env['product.group'].browse(group_id)
-            if group.exists():
-                try:
-                    group_seq = int(group.sequence)
-                    if 0 <= group_seq <= 99:
-                        aa = f"{group_seq:02d}"
-                except (ValueError, TypeError):
-                    pass
-
-        # BBB: brand.sequence (3 chữ số), fallback '000'
-        bbb = '000'
-        if brand_id:
-            brand = self.env['product.brand'].browse(brand_id)
-            if brand.exists():
-                try:
-                    brand_seq = int(brand.sequence)
-                    if 0 <= brand_seq <= 999:
-                        bbb = f"{brand_seq:03d}"
-                except (ValueError, TypeError):
-                    pass
-
-        # CCC: lens_index.cid (3 ký tự), fallback '000'
-        ccc = '000'
-        if product_type == 'lens' and lens_index_id:
-            lens_index = self.env['product.lens.index'].browse(lens_index_id)
-            if lens_index.exists():
-                try:
-                    ccc = self._normalize_lens_index_cid(lens_index)
-                except ValidationError:
-                    pass
-
-        return f"{aa}{bbb}{ccc}"
-
-    def _get_max_default_code_suffix(self, prefix):
-        max_suffix = -1
-        code_len = len(prefix) + self._DEFAULT_CODE_SUFFIX_LEN
-        records = self.with_context(active_test=False).search_read(
-            [('default_code', 'like', f'{prefix}%')],
-            ['default_code'],
-        )
-        for rec in records:
-            code = (rec.get('default_code') or '').strip().upper()
-            if len(code) != code_len:
-                continue
-            suffix = code[-self._DEFAULT_CODE_SUFFIX_LEN:]
-            if any(ch not in self._BASE36_ALPHABET for ch in suffix):
-                continue
-            suffix_value = self._product_code_base36_to_int(suffix)
-            if suffix_value > max_suffix:
-                max_suffix = suffix_value
-        return max_suffix
-
-    def generate_next_default_code(self, group_id, brand_id, lens_index_id=False, product_type='lens', sequence_cache=None):
-        cache = sequence_cache if sequence_cache is not None else {}
-        prefix = self._build_default_code_prefix(
-            group_id,
-            brand_id,
-            lens_index_id=lens_index_id,
-            product_type=product_type,
-        )
-
-        current_suffix = cache.get(prefix)
-        if current_suffix is None:
-            current_suffix = self._get_max_default_code_suffix(prefix)
-
-        next_suffix = current_suffix + 1
-        if next_suffix > self._DEFAULT_CODE_SUFFIX_MAX:
-            raise ValidationError(
-                f'Prefix {prefix} đã vượt giới hạn suffix 5 ký tự base36 (00000..ZZZZZ).'
-            )
-
-        cache[prefix] = next_suffix
-        suffix_text = self._product_code_int_to_base36(next_suffix, self._DEFAULT_CODE_SUFFIX_LEN)
-        return f"{prefix}{suffix_text}"
-
-    def _auto_generate_product_code(self, categ_id, brand_id, lens_index_id=None, group_id=None, sequence_cache=None):
-        """Generate product code in format AABBBCCCDDDDD."""
-        product_type = 'lens' if self._get_root_category_code_from_id(categ_id) == 'TK' else 'non_lens'
-        return self.generate_next_default_code(
-            group_id,
-            brand_id,
-            lens_index_id=lens_index_id,
-            product_type=product_type,
-            sequence_cache=sequence_cache,
-        )
-
-    def write(self, vals):
-        if 'categ_id' in vals:
-            # Clear groups when category changes, unless caller explicitly sets group fields.
-            if not any(k in vals for k in ('lens_group_id', 'opt_group_id', 'acc_group_id', 'group_id')):
-                vals.setdefault('lens_group_id', False)
-                vals.setdefault('opt_group_id', False)
-                vals.setdefault('acc_group_id', False)
-                vals.setdefault('group_id', False)
-        return super().write(vals)
 

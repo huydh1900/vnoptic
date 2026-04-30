@@ -1,241 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data noupdate="1">
-        <record id="product_category_lens" model="product.category">
-            <field name="name">Tròng kính</field>
-            <field name="parent_id" ref="product.product_category_all"/>
-            <field name="code">TK</field>
-        </record>
-        
-        <record id="product_category_opt" model="product.category">
+        <record id="product_category_gong" model="product.category">
             <field name="name">Gọng kính</field>
-            <field name="parent_id" ref="product.product_category_all"/>
-            <field name="code">GK</field>
+            <field name="property_cost_method">average</field>
+            <field name="code">01</field>
+        </record>
+
+        <record id="product_category_trong" model="product.category">
+            <field name="name">Tròng kính</field>
+            <field name="property_cost_method">average</field>
+            <field name="code">02</field>
+        </record>
+
+        <record id="product_category_glasses" model="product.category">
+            <field name="name">Kính</field>
+            <field name="property_cost_method">average</field>
+            <field name="code">03</field>
+        </record>
+
+        <record id="product_category_kids_glasses" model="product.category">
+            <field name="name">Kính trẻ em</field>
+            <field name="property_cost_method">average</field>
+            <field name="code">04</field>
         </record>
 
         <record id="product_category_accessory" model="product.category">
             <field name="name">Phụ kiện</field>
-            <field name="parent_id" ref="product.product_category_all"/>
-            <field name="code">PK</field>
+            <field name="property_cost_method">average</field>
+            <field name="code">05</field>
         </record>
 
-        <!-- Nhóm sản phẩm (group_id) -->
-        <record id="group_lens_single_myopia" model="product.group">
-            <field name="name">Đơn tròng cận</field>
-            <field name="cid">DTC</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">DT</field>
-            <field name="sequence">5</field>
-            <field name="description">Tròng kính / Đơn tròng</field>
+        <record id="product_category_equipment" model="product.category">
+            <field name="name">Thiết bị</field>
+            <field name="property_cost_method">average</field>
+            <field name="code">06</field>
         </record>
 
-        <record id="group_lens_single_myopia_astigmatism" model="product.group">
-            <field name="name">Đơn tròng - Cận loạn</field>
-            <field name="cid">DTCL</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">DT</field>
-            <field name="sequence">6</field>
-            <field name="description">Tròng kính / Đơn tròng</field>
+        <record id="product_category_service" model="product.category">
+            <field name="name">Dịch vụ</field>
+            <field name="property_cost_method">average</field>
+            <field name="code">07</field>
         </record>
-
-        <record id="group_lens_single_hyperopia" model="product.group">
-            <field name="name">Đơn tròng - Viễn</field>
-            <field name="cid">DTV</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">DT</field>
-            <field name="sequence">8</field>
-            <field name="description">Tròng kính / Đơn tròng</field>
-        </record>
-
-        <record id="group_lens_single_plano" model="product.group">
-            <field name="name">Đơn tròng - Không số</field>
-            <field name="cid">DTKS</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">DT</field>
-            <field name="sequence">7</field>
-            <field name="description">Tròng kính / Đơn tròng</field>
-        </record>
-
-        <record id="group_lens_single_hyperopia_astigmatism" model="product.group">
-            <field name="name">Đơn tròng - Viễn loạn</field>
-            <field name="cid">DTVL</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">DT</field>
-            <field name="sequence">9</field>
-            <field name="description">Tròng kính / Đơn tròng</field>
-        </record>
-
-        <record id="group_lens_single_photo_myopia" model="product.group">
-            <field name="name">Đơn tròng ĐM - Cận</field>
-            <field name="cid">DTDMC</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">DT</field>
-            <field name="sequence">10</field>
-            <field name="description">Tròng kính / Đơn tròng</field>
-        </record>
-
-        <record id="group_lens_single_photo_plano" model="product.group">
-            <field name="name">Đơn tròng ĐM - Không số</field>
-            <field name="cid">DTDMKS</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">DT</field>
-            <field name="sequence">12</field>
-            <field name="description">Tròng kính / Đơn tròng</field>
-        </record>
-
-        <record id="group_lens_single_photo_myopia_astigmatism" model="product.group">
-            <field name="name">Đơn tròng ĐM - Cận loạn</field>
-            <field name="cid">DTDMCL</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">DT</field>
-            <field name="sequence">11</field>
-            <field name="description">Tròng kính / Đơn tròng</field>
-        </record>
-
-        <record id="group_lens_single_photo_hyperopia_astigmatism" model="product.group">
-            <field name="name">Đơn tròng ĐM - Viễn loạn</field>
-            <field name="cid">DTDMVL</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">DT</field>
-            <field name="sequence">14</field>
-            <field name="description">Tròng kính / Đơn tròng</field>
-        </record>
-
-        <record id="group_lens_single_photo_hyperopia_astigmatism_color" model="product.group">
-            <field name="name">Đơn tròng ĐM - Viễn</field>
-            <field name="cid">DTDMV</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">DT</field>
-            <field name="sequence">13</field>
-            <field name="description">Tròng kính / Đơn tròng</field>
-        </record>
-
-        <record id="group_lens_bifocal_flat_top_hyperopia" model="product.group">
-            <field name="name">Hai tròng Flat top - Viễn</field>
-            <field name="cid">HTV</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">HT</field>
-            <field name="sequence">19</field>
-            <field name="description">Tròng kính / Hai tròng</field>
-        </record>
-
-        <!-- Nhóm sản phẩm (CID chuẩn) -->
-        <record id="group_warranty_card" model="product.group">
-            <field name="name">Thẻ Bảo hành</field>
-            <field name="cid">Thẻ</field>
-            <field name="category_id" ref="product_category_accessory"/>
-            <field name="product_type">PK</field>
-            <field name="sequence">30</field>
-            <field name="description">Thẻ Bảo hành</field>
-        </record>
-
-        <record id="group_opt_acetate_color_board" model="product.group">
-            <field name="name">Bảng màu acetate cho gọng kính</field>
-            <field name="cid">MATERIAL</field>
-            <field name="category_id" ref="product_category_accessory"/>
-            <field name="product_type">TB</field>
-            <field name="sequence">29</field>
-            <field name="description">Bảng màu acetate cho gọng kính</field>
-        </record>
-
-        <record id="group_display_tray" model="product.group">
-            <field name="name">Khay trưng bày</field>
-            <field name="cid">KHAY</field>
-            <field name="category_id" ref="product_category_accessory"/>
-            <field name="product_type">TB</field>
-            <field name="sequence">28</field>
-            <field name="description">khay trưng bày</field>
-        </record>
-
-        <record id="group_opt_frames" model="product.group">
-            <field name="name">Gọng kính</field>
-            <field name="cid">OPT</field>
-            <field name="category_id" ref="product_category_opt"/>
-            <field name="product_type">GK</field>
-            <field name="sequence">27</field>
-            <field name="description">Gọng kính</field>
-        </record>
-
-        <record id="group_display_items" model="product.group">
-            <field name="name">Đồ trưng bày</field>
-            <field name="cid">DISPLAY</field>
-            <field name="category_id" ref="product_category_accessory"/>
-            <field name="product_type">TB</field>
-            <field name="sequence">26</field>
-            <field name="description">Đồ trưng bày</field>
-        </record>
-
-        <record id="group_lens_blank" model="product.group">
-            <field name="name">Phôi tròng kính</field>
-            <field name="cid">P</field>
-            <field name="category_id" ref="product_category_lens"/>
-            <field name="product_type">PT</field>
-            <field name="sequence">25</field>
-            <field name="description">Phôi tròng kính</field>
-        </record>
-
-        <record id="group_technical_screw" model="product.group">
-            <field name="name">Ốc</field>
-            <field name="cid">SCREW</field>
-            <field name="category_id" ref="product_category_accessory"/>
-            <field name="product_type">LK</field>
-            <field name="sequence">24</field>
-            <field name="description">Ốc, ve, vít</field>
-        </record>
-
-        <record id="group_technical_ve" model="product.group">
-            <field name="name">Ve kính</field>
-            <field name="cid">VE</field>
-            <field name="category_id" ref="product_category_accessory"/>
-            <field name="product_type">LK</field>
-            <field name="sequence">23</field>
-            <field name="description">Ve kính</field>
-        </record>
-
-        <record id="group_accessory_cleaning_cloth" model="product.group">
-            <field name="name">Khăn-Cleaning cloth</field>
-            <field name="cid">CLOTH</field>
-            <field name="category_id" ref="product_category_accessory"/>
-            <field name="product_type">PK</field>
-            <field name="sequence">22</field>
-            <field name="description">Khăn lau kính</field>
-        </record>
-
-        <record id="group_accessory_case" model="product.group">
-            <field name="name">Vỏ bao</field>
-            <field name="cid">CASE</field>
-            <field name="category_id" ref="product_category_accessory"/>
-            <field name="product_type">PK</field>
-            <field name="sequence">21</field>
-            <field name="description">Vỏ bao</field>
-        </record>
-
-        <record id="group_technical_temple" model="product.group">
-            <field name="name">PK càng</field>
-            <field name="cid">TEMPLE</field>
-            <field name="category_id" ref="product_category_accessory"/>
-            <field name="product_type">LK</field>
-            <field name="sequence">20</field>
-            <field name="description">Càng</field>
-        </record>
-
-        <record id="group_opt_sunglasses" model="product.group">
-            <field name="name">Gọng kính râm</field>
-            <field name="cid">SUN</field>
-            <field name="category_id" ref="product_category_opt"/>
-            <field name="product_type">GK</field>
-            <field name="sequence">18</field>
-            <field name="description">Kính râm</field>
-        </record>
-
-        <record id="group_opt_foldable_frames" model="product.group">
-            <field name="name">Gọng gấp</field>
-            <field name="cid">GG</field>
-            <field name="category_id" ref="product_category_opt"/>
-            <field name="product_type">GK</field>
-            <field name="sequence">17</field>
-            <field name="description">Gọng gấp gọn</field>
-        </record>
-        
     </data>
 </odoo>

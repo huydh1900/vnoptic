@@ -14,9 +14,10 @@
                         style="width: auto; display: inline-block;"
                         t-on-change="onCategFilterChange">
                     <option value="">Tất cả</option>
-                    <option value="GK">Gọng kính</option>
-                    <option value="TK">Tròng kính</option>
-                    <option value="PK">Phụ kiện</option>
+                    <option value="frame">Gọng kính</option>
+                    <option value="lens">Tròng kính</option>
+                    <option value="accessory">Phụ kiện</option>
+                    <option value="other">Khác</option>
                 </select>
             </t>
         </xpath>

@@ -13,11 +13,64 @@
                     <field name="product_type"/>
                     <field name="file_data" filename="file_name"/>
                     <field name="file_name" invisible="1"/>
+                    <div colspan="2" class="text-muted">
+                        <p>
+                            <i class="fa fa-info-circle"/>
+                            Hỗ trợ 2 định dạng:
+                            <strong>Bảng mẫu kỹ thuật</strong> (header là technical field name)
+                            và <strong>ItemLst quy ước PM</strong> (header nhãn tiếng Việt).
+                            Hệ thống tự động nhận diện định dạng.
+                        </p>
+                    </div>
                 </group>
 
                 <!-- Bước 2: Kiểm thử -->
                 <div invisible="state != 'preview'" class="p-3">
                     <field name="preview_text" widget="html" nolabel="1" readonly="1"/>
+
+                    <div invisible="missing_ref_count == 0" class="mt-3">
+                        <div class="alert alert-warning d-flex align-items-center justify-content-between">
+                            <div>
+                                <i class="fa fa-exclamation-triangle"/>
+                                <strong> Master data còn thiếu:</strong>
+                                <field name="missing_ref_count" nolabel="1" class="oe_inline ms-1 fw-bold"/>
+                                giá trị. Bấm <strong>Tạo nhanh</strong> ở từng dòng hoặc
+                                <strong>Tạo tất cả</strong>.
+                            </div>
+                            <button name="action_create_all_missing" type="object"
+                                    string="Tạo tất cả" class="btn btn-warning"
+                                    icon="fa-magic"/>
+                        </div>
+                        <field name="missing_ref_ids" nolabel="1">
+                            <list editable="bottom" create="0" delete="0">
+                                <field name="model_label" string="Bảng dữ liệu"
+                                       readonly="1" optional="show"/>
+                                <field name="field_label" string="Trường"
+                                       readonly="1" optional="show"/>
+                                <field name="value" string="Mã / cid"
+                                       readonly="state == 'created'"/>
+                                <field name="display_name_value" string="Tên đầy đủ"
+                                       readonly="state == 'created'"/>
+                                <field name="state" string="Trạng thái" readonly="1"
+                                       widget="badge"
+                                       decoration-warning="state == 'pending'"
+                                       decoration-success="state == 'created'"/>
+                                <field name="created_record_display"
+                                       string="Đã tạo" readonly="1" optional="show"/>
+                                <field name="model_name" column_invisible="1"/>
+                                <field name="field_key" column_invisible="1"/>
+                                <field name="search_field" column_invisible="1"/>
+                                <button name="action_quick_create" type="object"
+                                        string="Tạo nhanh" icon="fa-plus-circle"
+                                        class="btn-link"
+                                        invisible="state == 'created'"/>
+                                <button name="action_open_record_form" type="object"
+                                        string="Mở bản ghi" icon="fa-external-link"
+                                        class="btn-link"
+                                        invisible="state == 'pending'"/>
+                            </list>
+                        </field>
+                    </div>
                 </div>
 
                 <!-- Bước 3: Kết quả import -->
@@ -25,13 +78,30 @@
                     <group invisible="not error_text">
                         <field name="error_text" widget="text"/>
                     </group>
+
+                    <group string="Tổng số đã tạo" invisible="not imported_count">
+                        <group>
+                            <field name="imported_count"/>
+                        </group>
+                        <group>
+                            <field name="imported_lens_count"/>
+                            <field name="imported_frame_count"/>
+                            <field name="imported_accessory_count"/>
+                            <field name="imported_other_count"
+                                   invisible="imported_other_count == 0"/>
+                        </group>
+                    </group>
+
                     <field name="imported_product_ids"
                            invisible="not imported_product_ids"
                            nolabel="1"
                            readonly="1">
                         <list create="0" edit="0" delete="0">
-                            <field name="default_code" string="Mã sản phẩm"/>
+                            <field name="barcode" string="Mã sản phẩm"/>
                             <field name="name"/>
+                            <field name="classification_id"/>
+                            <field name="classification_type"/>
+                            <field name="brand_id"/>
                         </list>
                     </field>
                 </div>
@@ -47,8 +117,12 @@
                     <button string="Đóng" class="btn-secondary" special="cancel"/>
                 </footer>
                 <footer invisible="state != 'done'">
-                    <button name="action_back_upload" type="object" string="Quay lại" class="btn-secondary" icon="fa-arrow-left"/>
-                    <button string="Đóng" class="btn-primary" special="cancel"/>
+                    <button name="action_view_imported_products" type="object"
+                            string="Xem sản phẩm đã tạo"
+                            class="btn-primary" icon="fa-list"
+                            invisible="not imported_product_ids"/>
+                    <button name="action_back_upload" type="object" string="Import file khác" class="btn-secondary" icon="fa-arrow-left"/>
+                    <button string="Đóng" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
         </field>

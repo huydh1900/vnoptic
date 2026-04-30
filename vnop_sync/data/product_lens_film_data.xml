@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="lens_film_tra" model="product.lens.film">
+        <field name="name">Transition</field>
+        <field name="description">Lớp film đổi màu</field>
+        <field name="cid">TRA</field>
+    </record>
+    <record id="lens_film_pol" model="product.lens.film">
+        <field name="name">Polarized</field>
+        <field name="description">Lớp film phân cực</field>
+        <field name="cid">POL</field>
+    </record>
+</odoo>
