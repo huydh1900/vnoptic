@@ -53,6 +53,29 @@
                         </h1>
                     </div>
 
+                    <!-- Progress card: hiện khi đang chạy hoặc vừa xong (có data) -->
+                    <div class="alert alert-info p-3 mb-3"
+                         invisible="sync_status not in ('queued', 'in_progress')">
+                        <div class="d-flex align-items-center mb-2" style="gap: .75rem;">
+                            <i class="fa fa-spinner fa-spin fa-2x text-primary"/>
+                            <div>
+                                <strong>Đang đồng bộ...</strong>
+                                <div class="text-muted small">
+                                    <field name="progress_message" nolabel="1" readonly="1" class="oe_inline"/>
+                                </div>
+                            </div>
+                        </div>
+                        <field name="progress_percent" widget="progressbar" nolabel="1"
+                               options="{'human_readable': false}"/>
+                        <div class="text-muted small mt-1">
+                            <field name="progress_done" nolabel="1" readonly="1" class="oe_inline"/>
+                            / <field name="progress_total" nolabel="1" readonly="1" class="oe_inline"/> sản phẩm
+                            &amp;nbsp;·&amp;nbsp;
+                            <button name="action_refresh_progress" type="object"
+                                    string="Cập nhật" icon="fa-sync" class="btn-link btn-sm p-0"/>
+                        </div>
+                    </div>
+
                     <group>
                         <group string="Thống kê">
                             <field name="last_sync_date" readonly="1"/>

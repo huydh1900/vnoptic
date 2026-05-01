@@ -10,36 +10,36 @@ _logger = logging.getLogger(__name__)
 
 class ServerConnector(models.Model):
     _name = 'server.connector'
-    _description = 'Spring Boot API Connector'
+    _description = 'Kết nối API Spring Boot'
     _rec_name = 'api_url'
 
     api_url = fields.Char(
-        string='API Base URL',
+        string='Địa chỉ API',
         default=lambda self: os.getenv('SPRINGBOOT_API_URL', 'http://localhost:8080'),
         required=True
     )
     service_username = fields.Char(
-        string='Service Username',
+        string='Tài khoản dịch vụ',
         default=lambda self: os.getenv('SPRINGBOOT_SERVICE_USERNAME', 'odoo_service'),
         required=True
     )
     service_password = fields.Char(
-        string='Service Password',
+        string='Mật khẩu dịch vụ',
         default=lambda self: os.getenv('SPRINGBOOT_SERVICE_PASSWORD'),
         required=True
     )
 
     # Token cache (transient - không lưu DB)
     access_token = fields.Char(string='Access Token', store=False)
-    token_expires_at = fields.Datetime(string='Token Expires At', store=False)
+    token_expires_at = fields.Datetime(string='Token hết hạn lúc', store=False)
 
     # Status
-    last_sync_date = fields.Datetime(string='Last Sync Date', readonly=True)
+    last_sync_date = fields.Datetime(string='Lần đồng bộ gần nhất', readonly=True)
     last_sync_status = fields.Selection([
-        ('success', 'Success'),
-        ('error', 'Error')
-    ], string='Last Sync Status', readonly=True)
-    last_sync_message = fields.Text(string='Last Sync Message', readonly=True)
+        ('success', 'Thành công'),
+        ('error', 'Lỗi'),
+    ], string='Trạng thái đồng bộ', readonly=True)
+    last_sync_message = fields.Text(string='Thông điệp đồng bộ', readonly=True)
 
     @api.model
     def get_default_connector(self):

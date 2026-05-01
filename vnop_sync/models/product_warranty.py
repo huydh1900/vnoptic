@@ -12,7 +12,7 @@ class ProductWarranty(models.Model):
     description = fields.Text('Mô tả')
 
     _sql_constraints = [
-        ('code_unique', 'unique(code)', 'Warranty code must be unique!'),
+        ('code_unique', 'unique(code)', 'Mã bảo hành phải duy nhất!'),
     ]
 
     def name_get(self):

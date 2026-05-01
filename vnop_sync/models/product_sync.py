@@ -49,6 +49,31 @@ class ProductSync(models.Model):
     opts_count = fields.Integer('Sản phẩm Gọng', readonly=True)
     other_count = fields.Integer('Sản phẩm khác', readonly=True)
 
+    # Progress tracking — worker cập nhật + commit theo batch để form hiện %.
+    progress_total = fields.Integer('Tổng dòng cần xử lý', readonly=True)
+    progress_done = fields.Integer('Đã xử lý', readonly=True)
+    progress_percent = fields.Float(
+        'Tiến độ (%)', compute='_compute_progress_percent',
+        readonly=True, store=False,
+    )
+    progress_message = fields.Char('Tiến độ chi tiết', readonly=True)
+
+    @api.depends('progress_total', 'progress_done')
+    def _compute_progress_percent(self):
+        for r in self:
+            r.progress_percent = (r.progress_done / r.progress_total * 100.0) if r.progress_total else 0.0
+
+    def action_refresh_progress(self):
+        """Reload form (dùng cho nút Cập nhật trên view khi state='in_progress')."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
     @api.model
     def _load_env(self):
         env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
@@ -979,12 +1004,26 @@ class ProductSync(models.Model):
         except Exception as e:
             raise UserError(_(f"Authentication failed: {str(e)}"))
 
-    def _make_session(self):
-        """Tạo mới requests.Session (không cache trên self vì Odoo ORM không cho phép)."""
+    def _make_session(self, pool_size=None):
+        """Tạo mới requests.Session (không cache trên self vì Odoo ORM không cho phép).
+
+        pool_size: kích thước HTTP connection pool. Mặc định 10 (urllib3) — quá nhỏ
+        khi nhiều thread share session sẽ phát warning 'Connection pool is full'.
+        """
         from requests.adapters import HTTPAdapter
         session = requests.Session()
-        session.mount('https://', HTTPAdapter(max_retries=0))
-        session.mount('http://', HTTPAdapter(max_retries=0))
+        if pool_size:
+            https_adapter = HTTPAdapter(
+                pool_connections=pool_size, pool_maxsize=pool_size, max_retries=0,
+            )
+            http_adapter = HTTPAdapter(
+                pool_connections=pool_size, pool_maxsize=pool_size, max_retries=0,
+            )
+        else:
+            https_adapter = HTTPAdapter(max_retries=0)
+            http_adapter = HTTPAdapter(max_retries=0)
+        session.mount('https://', https_adapter)
+        session.mount('http://', http_adapter)
         return session
 
     def _get_sync_batch_size(self):
@@ -1102,33 +1141,33 @@ class ProductSync(models.Model):
         cfg = image_sync_ctx.get('cfg') or self._get_api_config()
         token = image_sync_ctx.get('token')
         url_cache = image_sync_ctx.setdefault('_url_cache', {})
+        # Negative cache: URL đã fail trong session hiện tại — bỏ qua để né retry
+        failed_urls = image_sync_ctx.setdefault('_failed_urls', set())
 
-        # Thu thập tất cả URL cần download
-        urls_to_fetch = []
+        # Thu thập tất cả URL cần download (loại trùng lặp ngay từ đầu)
+        unique_urls = []
+        seen = set()
         for item in items:
             image_url = self._extract_rs_image_url(item)
             if not image_url:
                 continue
             full_url = self._build_rs_image_full_url(image_url, cfg)
-            if full_url and full_url not in url_cache:
-                urls_to_fetch.append(full_url)
-
-        # Loại bỏ trùng lặp, giữ thứ tự
-        seen = set()
-        unique_urls = []
-        for u in urls_to_fetch:
-            if u not in seen:
-                seen.add(u)
-                unique_urls.append(u)
+            if not full_url:
+                continue
+            if full_url in url_cache or full_url in failed_urls or full_url in seen:
+                continue
+            seen.add(full_url)
+            unique_urls.append(full_url)
 
         if not unique_urls:
             return
 
         try:
-            max_workers = int(os.getenv('PRODUCT_IMAGE_PARALLEL_WORKERS', '8'))
+            max_workers = int(os.getenv('PRODUCT_IMAGE_PARALLEL_WORKERS', '32'))
         except (TypeError, ValueError):
-            max_workers = 8
-        max_workers = max(1, min(max_workers, 20))
+            max_workers = 32
+        # Cap 64 — I/O network có thể đẩy cao, nhưng tránh DDoS server upstream.
+        max_workers = max(1, min(max_workers, 64))
 
         try:
             timeout = int(os.getenv('PRODUCT_IMAGE_TIMEOUT', '20'))
@@ -1147,8 +1186,9 @@ class ProductSync(models.Model):
             """Download 1 ảnh, trả về (url, base64_string) hoặc (url, False)."""
             try:
                 # Mỗi thread dùng session riêng (requests.Session không thread-safe)
+                # pool_size = max_workers để tránh "Connection pool is full"
                 if not hasattr(_thread_local, 'session'):
-                    _thread_local.session = self._make_session()
+                    _thread_local.session = self._make_session(pool_size=max_workers)
                 resp = _thread_local.session.get(target_url, headers=headers, verify=ssl_verify, timeout=timeout)
                 resp.raise_for_status()
                 content = resp.content or b''
@@ -1174,17 +1214,34 @@ class ProductSync(models.Model):
                 if result:
                     url_cache[url] = result
                     image_stats['downloaded'] += 1
+                else:
+                    # Negative cache: tránh retry URL đã fail ở batch sau
+                    failed_urls.add(url)
+                    image_stats['fetch_failed'] += 1
+
+    def _count_endpoint_total(self, endpoint, token):
+        """Lấy `totalElements` của endpoint Spring Boot bằng cách query 1 page size=1."""
+        try:
+            res = self._fetch_paged_api(endpoint, token, page=0, size=1)
+            return int(res.get('totalElements') or 0)
+        except Exception:
+            return 0
 
     def _sync_streaming(self, endpoint, token, product_type, child_model=None, cache=None, error_ctx=None, limit=None, image_sync_ctx=None):
-        """Fetch → process → commit từng batch. Không giữ data trong memory."""
+        """Fetch → (prefetch image batch N+1 song song với process batch N) → commit.
+
+        Pipeline: image download của batch kế tiếp chạy nền trên ThreadPool riêng,
+        overlap với DB write của batch hiện tại để rút gọn tổng thời gian sync.
+        """
+        from concurrent.futures import ThreadPoolExecutor
         db = self.env.cr.dbname
         rec_id = self.id
         batch_size = self._get_sync_batch_size()
         total_success = total_failed = 0
+        type_label = {'lens': 'Mắt', 'opt': 'Gọng', 'accessory': 'Phụ kiện'}.get(product_type, product_type)
 
-        for batch_idx, items in enumerate(self._iter_batches(endpoint, token, batch_size, limit), start=1):
-            # Pre-download ảnh song song trước khi xử lý batch
-            self._prefetch_images_parallel(items, image_sync_ctx)
+        def _run_batch(batch_idx, items):
+            nonlocal total_success, total_failed
             try:
                 with Registry(db).cursor() as cr:
                     env = self.env(cr=cr)
@@ -1193,13 +1250,61 @@ class ProductSync(models.Model):
                         success, failed = self_batch._process_batch(
                             items, cache, product_type, child_model, error_ctx=error_ctx, image_sync_ctx=image_sync_ctx
                         )
+                    processed = (success or 0) + (failed or 0)
+                    new_done = (self_batch.progress_done or 0) + processed
+                    self_batch.write({
+                        'progress_done': new_done,
+                        'progress_message': '%s: batch %s (+%s sản phẩm)' % (
+                            type_label, batch_idx, processed,
+                        ),
+                    })
                     cr.commit()
                 total_success += success
                 total_failed += failed
             except Exception as exc:
                 total_failed += len(items)
                 self._record_sync_error(error_ctx, product_type, 'CHUNK_ERR', ref=f"chunk={batch_idx}", exc=exc)
-                continue
+
+        # Prefetch executor: 1 worker là đủ vì _prefetch_images_parallel đã tự
+        # tạo ThreadPool nội bộ. Worker này chỉ là "background driver".
+        prefetch_skipped = (
+            not image_sync_ctx
+            or (image_sync_ctx.get('mode') or 'missing').strip().lower() == 'off'
+        )
+        prefetch_exec = None if prefetch_skipped else ThreadPoolExecutor(max_workers=1)
+        try:
+            pending = None  # (batch_idx, items, future_or_none)
+            for batch_idx, items in enumerate(self._iter_batches(endpoint, token, batch_size, limit), start=1):
+                # Submit prefetch của batch hiện tại (chạy nền)
+                if prefetch_exec is not None:
+                    cur_future = prefetch_exec.submit(self._prefetch_images_parallel, items, image_sync_ctx)
+                else:
+                    cur_future = None
+
+                # Trong khi prefetch batch N+1 chạy → process batch N (nếu có)
+                if pending is not None:
+                    prev_idx, prev_items, prev_future = pending
+                    if prev_future is not None:
+                        try:
+                            prev_future.result()
+                        except Exception as exc:
+                            _logger.warning("Prefetch batch %s lỗi (bỏ qua): %s", prev_idx, exc)
+                    _run_batch(prev_idx, prev_items)
+
+                pending = (batch_idx, items, cur_future)
+
+            # Process batch cuối cùng còn pending
+            if pending is not None:
+                last_idx, last_items, last_future = pending
+                if last_future is not None:
+                    try:
+                        last_future.result()
+                    except Exception as exc:
+                        _logger.warning("Prefetch batch %s lỗi (bỏ qua): %s", last_idx, exc)
+                _run_batch(last_idx, last_items)
+        finally:
+            if prefetch_exec is not None:
+                prefetch_exec.shutdown(wait=True)
 
         return total_success, total_failed
 
@@ -3710,6 +3815,15 @@ class ProductSync(models.Model):
             job_limit = job_limit or 1000
         # else 'full' → default (image_mode=None = auto)
 
+        # Reset progress + đánh dấu đang chạy → commit để UI thấy state.
+        self.write({
+            'sync_status': 'in_progress',
+            'progress_done': 0,
+            'progress_total': 0,
+            'progress_message': 'Đang khởi tạo...',
+        })
+        self.env.cr.commit()
+
         try:
             msg, full_log, stats = self._do_sync(limit=job_limit, image_mode=image_mode)
         except Exception as e:
@@ -3729,6 +3843,7 @@ class ProductSync(models.Model):
                 pass
             raise
 
+        total_processed = stats['lens'] + stats['opt'] + stats['acc'] + stats['failed']
         self.write({
             'sync_status': 'success',
             'sync_log': full_log,
@@ -3738,6 +3853,9 @@ class ProductSync(models.Model):
             'opts_count': stats['opt'],
             'other_count': stats['acc'],
             'last_sync_date': fields.Datetime.now(),
+            'progress_done': total_processed,
+            'progress_total': max(total_processed, self.progress_total or 0),
+            'progress_message': 'Hoàn tất.',
         })
         _logger.info("[vnop_sync] queue_job %s hoàn tất: %s", job, msg)
         return msg
@@ -3767,6 +3885,26 @@ class ProductSync(models.Model):
         token = self._get_access_token()
         cache = self._preload_all_data()
         cfg = self._get_api_config()
+
+        # Pre-count tổng để UI tính %. Mỗi endpoint trả `totalElements` trên page meta.
+        try:
+            t_lens = self._count_endpoint_total(cfg['lens_endpoint'], token)
+            t_opt = self._count_endpoint_total(cfg['opts_endpoint'], token)
+            t_acc = self._count_endpoint_total(cfg['types_endpoint'], token)
+            est_total = t_lens + t_opt + t_acc
+            if limit and est_total > limit:
+                est_total = limit
+            if est_total > 0:
+                self.write({
+                    'progress_total': est_total,
+                    'progress_message': 'Bắt đầu sync %s sản phẩm (Mắt:%s, Gọng:%s, PK:%s)' % (
+                        est_total, t_lens, t_opt, t_acc,
+                    ),
+                })
+                self.env.cr.commit()
+        except Exception:
+            pass
+
         product_tmpl = self.env['product.template']
         existing_ids = list(cache.get('products', {}).values())
         if image_mode is None:

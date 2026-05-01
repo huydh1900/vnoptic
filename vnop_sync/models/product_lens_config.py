@@ -4,18 +4,18 @@ from odoo import models, fields
 
 class LensDesign(models.Model):
     _name = 'product.lens.design'
-    _description = 'Lens Design Type'
+    _description = 'Thiết kế tròng kính'
     _order = 'name'
 
-    name = fields.Char('Design Name', required=True, translate=True)
+    name = fields.Char('Tên thiết kế', required=True, translate=True)
     name_en = fields.Char('Tên tiếng Anh')
     code = fields.Char('Viết tắt', index=True)
     design_type = fields.Selection([
-        ('single', 'Single Vision'),
-        ('progressive', 'Progressive'),
-        ('bifocal', 'Bifocal'),
-        ('other', 'Other')
-    ], string='Type', required=True, default='single')
+        ('single', 'Đơn tròng'),
+        ('progressive', 'Đa tròng'),
+        ('bifocal', 'Hai tròng'),
+        ('other', 'Khác'),
+    ], string='Loại thiết kế', required=True, default='single')
 
 class LensMaterial(models.Model):
     _name = 'product.lens.material'
@@ -29,18 +29,18 @@ class LensMaterial(models.Model):
 
 class LensFeature(models.Model):
     _name = 'product.lens.feature'
-    _description = 'Lens Feature (Coating, Tint, etc.)'
+    _description = 'Tính năng tròng kính'
     _order = 'feature_type, name'
 
-    name = fields.Char('Feature Name', required=True, translate=True)
+    name = fields.Char('Tên tính năng', required=True, translate=True)
     feature_type = fields.Selection([
-        ('uv', 'UV Protection'),
-        ('hmc', 'HMC Coating'),
-        ('coating', 'Other Coating'),
-        ('mirror', 'Mirror Coating'),
-        ('tint', 'Can Tint'),
-        ('photochromic', 'Photochromic'),
-        ('blue', 'Blue Control'),
-        ('other', 'Other')
-    ], string='Feature Type', required=True, index=True)
-    price_extra = fields.Float('Price Extra', default=0.0)
+        ('uv', 'Chống tia UV'),
+        ('hmc', 'Lớp phủ HMC'),
+        ('coating', 'Lớp phủ khác'),
+        ('mirror', 'Tráng gương'),
+        ('tint', 'Có thể nhuộm màu'),
+        ('photochromic', 'Đổi màu'),
+        ('blue', 'Chống ánh sáng xanh'),
+        ('other', 'Khác'),
+    ], string='Loại tính năng', required=True, index=True)
+    price_extra = fields.Float('Giá cộng thêm', default=0.0)

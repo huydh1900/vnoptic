@@ -4,7 +4,7 @@ from odoo import models, fields
 
 class ProductLensIndex(models.Model):
     _name = 'product.lens.index'
-    _description = 'Lens Index'
+    _description = 'Chiết suất tròng kính'
     _order = 'name'
 
     name = fields.Char('Chiết suất', required=True)
@@ -23,7 +23,7 @@ class ProductCoating(models.Model):
 
 class ProductCl(models.Model):
     _name = 'product.cl'
-    _description = 'Color Options'
+    _description = 'Bảng màu'
     _order = 'name'
 
     name = fields.Char('Tên màu', required=True)
@@ -33,7 +33,7 @@ class ProductCl(models.Model):
 
 class ProductUv(models.Model):
     _name = 'product.uv'
-    _description = 'UV Protection'
+    _description = 'Chống tia UV'
     _order = 'name'
 
     name = fields.Char('Loại UV', required=True)
@@ -63,7 +63,7 @@ class ProductLensPhotochromic(models.Model):
 
 class ProductFrameType(models.Model):
     _name = 'product.frame.type'
-    _description = 'Frame Type'
+    _description = 'Loại gọng'
     _order = 'name'
 
     name = fields.Char('Loại gọng', required=True)
@@ -72,7 +72,7 @@ class ProductFrameType(models.Model):
 
 class ProductFrameStructure(models.Model):
     _name = 'product.frame.structure'
-    _description = 'Frame Structure'
+    _description = 'Loại vành gọng'
     _order = 'name'
 
     name = fields.Char('Loại vành', required=True)
@@ -81,7 +81,7 @@ class ProductFrameStructure(models.Model):
 
 class ProductVe(models.Model):
     _name = 'product.ve'
-    _description = 'VE'
+    _description = 'Ve gọng'
     _order = 'name'
 
     name = fields.Char('Tên ve', required=True)
@@ -90,7 +90,7 @@ class ProductVe(models.Model):
 
 class ProductTempleTip(models.Model):
     _name = 'product.temple.tip'
-    _description = 'Temple Tip Type'
+    _description = 'Loại chuôi càng'
     _order = 'name'
 
     name = fields.Char('Loại chuôi càng', required=True)

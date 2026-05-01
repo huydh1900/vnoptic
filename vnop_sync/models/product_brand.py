@@ -11,5 +11,5 @@ class ProductBrand(models.Model):
     code = fields.Char('CID')
 
     _sql_constraints = [
-        ('name_unique', 'unique(name)', 'Brand name must be unique!'),
+        ('name_unique', 'unique(name)', 'Tên thương hiệu phải duy nhất!'),
     ]
