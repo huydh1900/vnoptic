@@ -38,6 +38,7 @@
         'views/product_opt_lens_views.xml',
         'views/server_connector_views.xml',
         'views/product_import_wizard_views.xml',
+        'views/queue_job_views.xml',
         'views/vnop_sync_purchase_config_menus.xml',
     ],
     'external_dependencies': {

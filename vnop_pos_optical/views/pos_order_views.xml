@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_pos_pos_form_optical_rx" model="ir.ui.view">
+        <field name="name">pos.order.form.optical.rx</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_pos_form"/>
+        <field name="arch" type="xml">
+            <!-- Cột "Có Rx" trên list lines -->
+            <xpath expr="//field[@name='lines']/list/field[@name='customer_note']" position="after">
+                <field name="rx_has_data" optional="show" string="Có Rx" readonly="1"/>
+            </xpath>
+
+            <!-- Tab Rx riêng trong form line popup -->
+            <xpath expr="//field[@name='lines']/form/group" position="after">
+                <group string="Đơn kính (Rx)" name="rx_group">
+                    <group string="OD - Mắt phải">
+                        <field name="rx_od_sph"/>
+                        <field name="rx_od_cyl"/>
+                        <field name="rx_od_axis"/>
+                        <field name="rx_od_add"/>
+                    </group>
+                    <group string="OS - Mắt trái">
+                        <field name="rx_os_sph"/>
+                        <field name="rx_os_cyl"/>
+                        <field name="rx_os_axis"/>
+                        <field name="rx_os_add"/>
+                    </group>
+                    <group>
+                        <field name="rx_pd"/>
+                        <field name="rx_note"/>
+                        <field name="rx_has_data" readonly="1"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

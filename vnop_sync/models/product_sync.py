@@ -28,6 +28,12 @@ class _TokenExpiredError(Exception):
     pass
 
 
+class _SyncCancelledError(Exception):
+    """Raised khi user yêu cầu dừng sync (cancel_requested=True).
+    Worker bắt và set sync_status='cancelled' thay vì 'error'."""
+    pass
+
+
 class ProductSync(models.Model):
     _name = 'product.sync'
     _description = 'Product Synchronization'
@@ -39,9 +45,17 @@ class ProductSync(models.Model):
         ('never', 'Chưa đồng bộ'),
         ('queued', 'Đang chờ'),
         ('in_progress', 'Đang đồng bộ'),
+        ('cancelling', 'Đang dừng...'),
+        ('cancelled', 'Đã dừng'),
         ('success', 'Thành công'),
         ('error', 'Lỗi')])
     sync_log = fields.Text('Nhật ký', readonly=True)
+    # Cooperative cancel flag: worker check sau mỗi batch — nếu True thì break.
+    cancel_requested = fields.Boolean(
+        'Yêu cầu dừng', default=False, readonly=True, copy=False,
+        help='Khi user bấm Dừng, flag này được set. Worker sync sẽ kiểm tra '
+             'sau mỗi batch và thoát sạch (không phá data đã commit).'
+    )
 
     total_synced = fields.Integer('Tổng sản phẩm đã sync', readonly=True)
     total_failed = fields.Integer('Tổng thất bại', readonly=True)
@@ -73,6 +87,66 @@ class ProductSync(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
+
+    def action_request_stop(self):
+        """Yêu cầu dừng job sync đang chạy.
+
+        Cách hoạt động:
+        1. Set `cancel_requested=True` + commit ngay → worker đọc flag qua
+           cursor batch riêng và sẽ thoát ở vòng lặp tiếp theo (cooperative).
+        2. Cancel ngay queue.job đang `pending`/`enqueued` của record này
+           (chưa start → cancel an toàn ở DB level).
+        3. Job đang `started`: KHÔNG kill worker thô bạo. Đặt state=`cancelling`
+           rồi đợi worker tự thoát (mất tối đa thời gian xử lý 1 batch).
+
+        Lý do không kill thô: worker đang giữ DB transaction; kill giữa chừng
+        có thể để lại lock/orphan data. Cooperative cancel an toàn hơn.
+        """
+        self.ensure_one()
+        if self.sync_status not in ('queued', 'in_progress'):
+            raise UserError(_('Không có job nào đang chạy để dừng.'))
+        # 1) Set cờ + commit ngay để worker (cursor riêng) nhìn thấy.
+        self.write({
+            'cancel_requested': True,
+            'sync_status': 'cancelling',
+            'progress_message': _('Đang yêu cầu dừng — đợi worker thoát sạch...'),
+        })
+        self.env.cr.commit()
+        # 2) Cancel ngay các queue.job pending của record này (theo description prefix).
+        QueueJob = self.env['queue.job']
+        prefixes = ('vnop_sync:',)  # description luôn bắt đầu bằng vnop_sync
+        pending_jobs = QueueJob.search([
+            ('state', 'in', ('pending', 'enqueued')),
+            ('name', '=like', f'{prefixes[0]}%'),
+        ])
+        if pending_jobs:
+            pending_jobs.write({'state': 'cancelled'})
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Đã yêu cầu dừng'),
+                'message': _(
+                    'Đã cancel %s job pending. Job đang chạy sẽ tự thoát sau '
+                    'batch hiện tại (tối đa vài phút). Bấm Cập nhật để xem trạng thái.'
+                ) % len(pending_jobs),
+                'type': 'warning',
+            },
+        }
+
+    def _is_cancel_requested(self):
+        """Đọc lại cờ cancel_requested từ DB (qua cursor mới) — dùng trong worker."""
+        self.ensure_one()
+        try:
+            with Registry(self.env.cr.dbname).cursor() as cr:
+                cr.execute(
+                    "SELECT cancel_requested FROM product_sync WHERE id=%s",
+                    (self.id,),
+                )
+                row = cr.fetchone()
+                return bool(row and row[0])
+        except Exception:
+            return False
 
     @api.model
     def _load_env(self):
@@ -1229,6 +1303,40 @@ class ProductSync(models.Model):
                     failed_urls.add(url)
                     image_stats['fetch_failed'] += 1
 
+    def _filter_items_for_image_resume(self, items, cache, image_sync_ctx):
+        """Bỏ qua items mà target product đã có ảnh — dùng cho mode='missing'.
+
+        Cho phép RESUME nhanh: nếu sync ảnh trước bị ngắt, lần chạy tiếp theo
+        sẽ skip toàn bộ products đã có ảnh ở mức batch (không cần gọi
+        prepare_base_vals/write/download cho những item này).
+        """
+        has_image_set = image_sync_ctx.get('_has_image_set') if image_sync_ctx else None
+        if not isinstance(has_image_set, set) or not has_image_set:
+            return items
+        products_cache = (cache or {}).get('products') or {}
+        if not products_cache:
+            return items
+        kept = []
+        for item in items:
+            dto = (
+                item.get('productdto')
+                or item.get('productDto')
+                or item.get('productDTO')
+                or {}
+            )
+            barcode = ''
+            for key in ('cid', 'default_code', 'defaultCode', 'code', 'sku'):
+                v = dto.get(key) or item.get(key)
+                if v:
+                    barcode = str(v).strip()
+                    if barcode:
+                        break
+            tmpl_id = products_cache.get(barcode) if barcode else None
+            if tmpl_id and tmpl_id in has_image_set:
+                continue  # Đã có ảnh → skip
+            kept.append(item)
+        return kept
+
     def _count_endpoint_total(self, endpoint, token):
         """Lấy `totalElements` của endpoint Spring Boot bằng cách query 1 page size=1."""
         try:
@@ -1279,14 +1387,44 @@ class ProductSync(models.Model):
 
         # Prefetch executor: 1 worker là đủ vì _prefetch_images_parallel đã tự
         # tạo ThreadPool nội bộ. Worker này chỉ là "background driver".
-        prefetch_skipped = (
-            not image_sync_ctx
-            or (image_sync_ctx.get('mode') or 'missing').strip().lower() == 'off'
-        )
+        image_mode_norm = (image_sync_ctx.get('mode') or 'missing').strip().lower() if image_sync_ctx else 'off'
+        prefetch_skipped = (not image_sync_ctx) or image_mode_norm == 'off'
         prefetch_exec = None if prefetch_skipped else ThreadPoolExecutor(max_workers=1)
+        # Resume mode: pre-skip cả batch nếu mode='missing' và mọi item đã có ảnh.
+        resume_mode = image_active and image_mode_norm == 'missing'
         try:
             pending = None  # (batch_idx, items, future_or_none)
             for batch_idx, items in enumerate(self._iter_batches(endpoint, token, batch_size, limit), start=1):
+                # Cooperative cancel: kiểm tra cờ trước khi xử lý batch tiếp theo.
+                if self._is_cancel_requested():
+                    _logger.warning(
+                        "[vnop_sync] Cancel requested — dừng sync %s ở batch %s.",
+                        product_type, batch_idx,
+                    )
+                    # Flush batch pending cuối cùng (đã prefetch xong) trước khi thoát.
+                    if pending is not None:
+                        prev_idx, prev_items, prev_future = pending
+                        if prev_future is not None:
+                            try:
+                                prev_future.result()
+                            except Exception:
+                                pass
+                        _run_batch(prev_idx, prev_items)
+                        pending = None
+                    raise _SyncCancelledError(f"Cancelled at batch {batch_idx}")
+                # Resume: lọc items mà target product đã có ảnh.
+                if resume_mode and items:
+                    original_n = len(items)
+                    items = self._filter_items_for_image_resume(items, cache, image_sync_ctx)
+                    skipped_n = original_n - len(items)
+                    if skipped_n:
+                        _logger.info(
+                            "Resume image sync: skip %s/%s items đã có ảnh (batch %s)",
+                            skipped_n, original_n, batch_idx,
+                        )
+                    if not items:
+                        # Cả batch đều đã sync xong → bỏ qua, không gọi prepare/write/prefetch.
+                        continue
                 # Submit prefetch của batch hiện tại (chạy nền)
                 if prefetch_exec is not None:
                     cur_future = prefetch_exec.submit(self._prefetch_images_parallel, items, image_sync_ctx)
@@ -3773,7 +3911,8 @@ class ProductSync(models.Model):
     _SYNC_JOB_DESCRIPTIONS = {
         'full': 'vnop_sync: Đồng bộ toàn bộ sản phẩm (thông tin + ảnh)',
         'data': 'vnop_sync: Đồng bộ thông tin sản phẩm (bỏ qua ảnh)',
-        'images': 'vnop_sync: Đồng bộ ảnh sản phẩm',
+        'images': 'vnop_sync: Đồng bộ ảnh sản phẩm (chỉ tải ảnh thiếu — resume)',
+        'images_force': 'vnop_sync: Đồng bộ lại TẤT CẢ ảnh sản phẩm (force)',
         'limited': 'vnop_sync: Đồng bộ giới hạn',
     }
 
@@ -3797,6 +3936,7 @@ class ProductSync(models.Model):
             'sync_status': 'queued',
             'sync_log': f'Đã enqueue: {description}. Queue Job worker sẽ xử lý.',
             'last_sync_date': fields.Datetime.now(),
+            'cancel_requested': False,  # reset cờ cancel khi enqueue mới
         })
         self.with_delay(description=description)._run_sync_job(job, int(limit or 0))
         return {
@@ -3822,6 +3962,13 @@ class ProductSync(models.Model):
         if job == 'data':
             image_mode = 'off'
         elif job == 'images':
+            # Default 'missing': RESUME — chỉ tải ảnh cho product chưa có.
+            # Nếu job trước bị ngắt giữa chừng, lần sync tiếp theo tự bỏ qua
+            # các product đã có ảnh, chỉ làm phần còn thiếu → không phải
+            # tải lại từ đầu.
+            image_mode = 'missing'
+        elif job == 'images_force':
+            # Force re-download toàn bộ (kể cả product đã có ảnh).
             image_mode = 'always'
         elif job == 'limited':
             job_limit = job_limit or 1000
@@ -3838,6 +3985,21 @@ class ProductSync(models.Model):
 
         try:
             msg, full_log, stats = self._do_sync(limit=job_limit, image_mode=image_mode)
+        except _SyncCancelledError as e:
+            _logger.warning("[vnop_sync] queue_job %s bị user dừng: %s", job, e)
+            try:
+                with Registry(self.env.cr.dbname).cursor() as new_cr:
+                    new_env = self.env(cr=new_cr)
+                    new_env[self._name].browse(self.id).write({
+                        'sync_status': 'cancelled',
+                        'cancel_requested': False,
+                        'sync_log': f'User dừng job {job} ở: {str(e)[:500]}',
+                        'progress_message': 'Đã dừng theo yêu cầu.',
+                        'last_sync_date': fields.Datetime.now(),
+                    })
+            except Exception:
+                pass
+            return 'cancelled'
         except Exception as e:
             # queue_job sẽ tự rollback + đánh dấu job failed với traceback.
             # Ghi thêm trạng thái lỗi trên product.sync bằng cursor riêng để
@@ -3889,8 +4051,21 @@ class ProductSync(models.Model):
         return self._enqueue_sync_job('data')
 
     def sync_images_only(self):
-        """Chỉ đồng bộ ảnh sản phẩm."""
+        """Đồng bộ ảnh sản phẩm — chỉ tải ảnh CÒN THIẾU.
+
+        Nếu lần sync trước bị ngắt giữa chừng (worker chết, restart, OOM...),
+        bấm lại nút này sẽ TỰ ĐỘNG RESUME — bỏ qua product đã có ảnh, chỉ
+        tải phần còn thiếu. Không phải tải lại từ đầu.
+        """
         return self._enqueue_sync_job('images')
+
+    def sync_images_force(self):
+        """Tải LẠI ảnh cho TẤT CẢ sản phẩm (kể cả product đã có ảnh).
+
+        Dùng khi nguồn API có ảnh mới / cần làm mới. Tốn nhiều thời gian
+        và băng thông. Trường hợp bình thường nên dùng `sync_images_only`.
+        """
+        return self._enqueue_sync_job('images_force')
 
     def _do_sync(self, limit=None, image_mode=None):
         """Logic sync thực sự — chạy trên cursor riêng được truyền vào qua self.env."""

@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ============================================================ -->
+        <!-- GỌNG KÍNH (5 mẫu)                                              -->
+        <!-- ============================================================ -->
+        <record id="product_frame_rb3025" model="product.template">
+            <field name="name">Gọng Ray-Ban Aviator RB3025 Gold</field>
+            <field name="default_code">FRM-RB3025-GOLD</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">2500000</field>
+            <field name="standard_price">1200000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_frame_men'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_frame_oakley_holbrook" model="product.template">
+            <field name="name">Gọng Oakley Holbrook OO9102 Matte Black</field>
+            <field name="default_code">FRM-OK9102-BLK</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">3200000</field>
+            <field name="standard_price">1500000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_frame_men'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_frame_vogue_vo5051" model="product.template">
+            <field name="name">Gọng Vogue VO5051 Rose Gold</field>
+            <field name="default_code">FRM-VO5051-RG</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">1800000</field>
+            <field name="standard_price">800000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_frame_women'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_frame_persol_po0714" model="product.template">
+            <field name="name">Gọng Persol PO0714 Tortoise</field>
+            <field name="default_code">FRM-PS0714-TOR</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">4500000</field>
+            <field name="standard_price">2200000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_frame_men'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_frame_kids_polaroid" model="product.template">
+            <field name="name">Gọng Polaroid Kids PLD-K001 Xanh</field>
+            <field name="default_code">FRM-PLDK001-BLU</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">800000</field>
+            <field name="standard_price">350000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_frame_kids'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- TRÒNG KÍNH (5 mẫu - is_optical_lens=True - bật popup Rx)        -->
+        <!-- ============================================================ -->
+        <record id="product_lens_crizal_156_uv" model="product.template">
+            <field name="name">Tròng Essilor Crizal 1.56 UV</field>
+            <field name="default_code">LNS-CRIZAL-156UV</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">800000</field>
+            <field name="standard_price">350000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="True"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_lens_single'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_lens_crizal_forte_161" model="product.template">
+            <field name="name">Tròng Essilor Crizal Forte 1.61</field>
+            <field name="default_code">LNS-CRIZAL-161F</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">1500000</field>
+            <field name="standard_price">700000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="True"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_lens_single'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_lens_eyezen_167" model="product.template">
+            <field name="name">Tròng Essilor Eyezen 1.67</field>
+            <field name="default_code">LNS-EYEZEN-167</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">2200000</field>
+            <field name="standard_price">1100000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="True"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_lens_single'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_lens_varilux_progressive" model="product.template">
+            <field name="name">Tròng đa tròng Varilux Comfort 1.56</field>
+            <field name="default_code">LNS-VARILUX-156</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">3500000</field>
+            <field name="standard_price">1800000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="True"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_lens_progressive'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_lens_blueblock_156" model="product.template">
+            <field name="name">Tròng Blue Block 1.56 chống ánh sáng xanh</field>
+            <field name="default_code">LNS-BLUEBLK-156</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">1000000</field>
+            <field name="standard_price">450000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="True"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_lens_blueblock'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- KÍNH ÁP TRÒNG (3 mẫu)                                         -->
+        <!-- ============================================================ -->
+        <record id="product_contact_acuvue_oasys" model="product.template">
+            <field name="name">Acuvue Oasys 1-Day - Hộp 30 chiếc</field>
+            <field name="default_code">CL-AVO-30</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">650000</field>
+            <field name="standard_price">320000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_contact_lens'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_contact_soflens" model="product.template">
+            <field name="name">Bausch Lomb Soflens Multi - Hộp 6 chiếc</field>
+            <field name="default_code">CL-BL-SOFLENS-6</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">280000</field>
+            <field name="standard_price">130000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_contact_lens'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_contact_renu_360" model="product.template">
+            <field name="name">Dung dịch ngâm kính Renu 360ml</field>
+            <field name="default_code">CL-RENU-360</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">150000</field>
+            <field name="standard_price">70000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_contact_lens_solution'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- PHỤ KIỆN (3 mẫu)                                              -->
+        <!-- ============================================================ -->
+        <record id="product_acc_case_hard" model="product.template">
+            <field name="name">Hộp đựng kính cứng VNOptic</field>
+            <field name="default_code">ACC-CASE-HARD</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">50000</field>
+            <field name="standard_price">15000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_accessories_case'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_acc_microfiber" model="product.template">
+            <field name="name">Khăn lau kính microfiber</field>
+            <field name="default_code">ACC-CLOTH-MF</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">25000</field>
+            <field name="standard_price">8000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_accessories_cleaner'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <record id="product_acc_cleaner_spray" model="product.template">
+            <field name="name">Nước lau kính 250ml</field>
+            <field name="default_code">ACC-CLEANER-250</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="list_price">80000</field>
+            <field name="standard_price">25000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_accessories_cleaner'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_8')])]"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- DỊCH VỤ (2 mẫu - type=service, không lưu kho)                  -->
+        <!-- ============================================================ -->
+        <record id="product_service_eye_exam" model="product.template">
+            <field name="name">Dịch vụ đo mắt cơ bản</field>
+            <field name="default_code">SVC-EYE-EXAM</field>
+            <field name="type">service</field>
+            <field name="list_price">100000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_service'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_5')])]"/>
+        </record>
+
+        <record id="product_service_lens_fitting" model="product.template">
+            <field name="name">Dịch vụ lắp tròng vào gọng</field>
+            <field name="default_code">SVC-LENS-FIT</field>
+            <field name="type">service</field>
+            <field name="list_price">50000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="available_in_pos" eval="True"/>
+            <field name="is_optical_lens" eval="False"/>
+            <field name="pos_categ_ids" eval="[(4, ref('pos_cat_service'))]"/>
+            <field name="taxes_id" eval="[(6, 0, [ref('vnop_sale_channel.tax_sale_5')])]"/>
+        </record>
+
+    </data>
+</odoo>

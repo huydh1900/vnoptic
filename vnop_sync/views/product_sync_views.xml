@@ -43,6 +43,12 @@
                             string="Đồng bộ 200 Test"
                             type="object"
                             invisible="id == False"/>
+                    <button name="action_request_stop"
+                            string="Dừng"
+                            type="object"
+                            class="btn-danger" icon="fa-stop"
+                            invisible="sync_status not in ('queued', 'in_progress')"
+                            confirm="Yêu cầu worker dừng sync. Job đang chạy sẽ thoát sau batch hiện tại (vài phút). Tiếp tục?"/>
                     <field name="sync_status" widget="statusbar" statusbar_visible="never,queued,in_progress,success,error"/>
                 </header>
                 <sheet>

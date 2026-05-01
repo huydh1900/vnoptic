@@ -10,6 +10,27 @@ _logger = logging.getLogger(__name__)
 class QueueJob(models.Model):
     _inherit = 'queue.job'
 
+    def action_force_cancel(self):
+        """Cho phép user cancel job từ UI cả khi state='started'.
+
+        UI mặc định chỉ cho cancel job pending. Khi job đang `started` mà
+        worker đã chết (zombie) hoặc user muốn dừng khẩn, dùng nút này.
+
+        Lưu ý: chỉ thay state='cancelled' ở DB. Worker còn sống (nếu có) sẽ
+        tự crash khi cố commit row đã cancel — đó là behavior mong muốn.
+        Để dừng MỀM (khuyến nghị) khi worker còn sống → dùng
+        product.sync.action_request_stop để worker tự thoát sạch.
+        """
+        for job in self:
+            if job.state in ('done', 'cancelled', 'failed'):
+                continue
+            job.write({
+                'state': 'cancelled',
+                'date_done': fields.Datetime.now(),
+                'exc_message': 'Cancelled by user (force).',
+            })
+        return True
+
     @api.model
     def cleanup_zombie_jobs(self, started_older_than_min=60):
         """Reset job kẹt ở state='started' về 'pending' để runner pick lại.

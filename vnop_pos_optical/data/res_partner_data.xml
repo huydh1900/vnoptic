@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ============================================================ -->
+        <!-- KHÁCH LẺ MẪU (channel_type=retail)                             -->
+        <!-- ============================================================ -->
+        <record id="partner_walkin_demo" model="res.partner">
+            <field name="name">Khách lẻ vãng lai</field>
+            <field name="customer_rank">1</field>
+            <field name="channel_type">retail</field>
+            <field name="company_type">person</field>
+        </record>
+
+        <record id="partner_retail_nguyen_van_a" model="res.partner">
+            <field name="name">Nguyễn Văn A</field>
+            <field name="phone">0901234567</field>
+            <field name="email">nguyenvana@example.com</field>
+            <field name="customer_rank">1</field>
+            <field name="channel_type">retail</field>
+            <field name="company_type">person</field>
+            <field name="street">Số 12 Nguyễn Trãi</field>
+            <field name="city">Hà Nội</field>
+        </record>
+
+        <record id="partner_retail_tran_thi_b" model="res.partner">
+            <field name="name">Trần Thị B</field>
+            <field name="phone">0912345678</field>
+            <field name="customer_rank">1</field>
+            <field name="channel_type">retail</field>
+            <field name="company_type">person</field>
+            <field name="street">Số 45 Lê Lợi</field>
+            <field name="city">Hà Nội</field>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- ĐẠI LÝ BÁN BUÔN MẪU (channel_type=wholesale)                   -->
+        <!-- ============================================================ -->
+        <record id="partner_dealer_kinhthuoc_hadong" model="res.partner">
+            <field name="name">Cửa hàng Kính thuốc Hà Đông</field>
+            <field name="phone">02466123456</field>
+            <field name="email">kinhthuochadong@example.com</field>
+            <field name="vat">0101234567</field>
+            <field name="customer_rank">1</field>
+            <field name="channel_type">wholesale</field>
+            <field name="company_type">company</field>
+            <field name="street">Số 99 Quang Trung, Hà Đông</field>
+            <field name="city">Hà Nội</field>
+            <field name="property_product_pricelist" ref="vnop_sale_channel.pricelist_wholesale"/>
+        </record>
+
+        <record id="partner_dealer_optical_haiphong" model="res.partner">
+            <field name="name">Công ty TNHH Optical Hải Phòng</field>
+            <field name="phone">0225887766</field>
+            <field name="email">optical-hp@example.com</field>
+            <field name="vat">0202345678</field>
+            <field name="customer_rank">1</field>
+            <field name="channel_type">wholesale</field>
+            <field name="company_type">company</field>
+            <field name="street">Số 88 Lạch Tray</field>
+            <field name="city">Hải Phòng</field>
+            <field name="property_product_pricelist" ref="vnop_sale_channel.pricelist_wholesale"/>
+        </record>
+
+        <record id="partner_dealer_kinh_saigon" model="res.partner">
+            <field name="name">Đại lý Kính Sài Gòn</field>
+            <field name="phone">0287788990</field>
+            <field name="email">kinh-saigon@example.com</field>
+            <field name="vat">0303456789</field>
+            <field name="customer_rank">1</field>
+            <field name="channel_type">wholesale</field>
+            <field name="company_type">company</field>
+            <field name="street">Số 250 Nguyễn Trãi, Q1</field>
+            <field name="city">TP. Hồ Chí Minh</field>
+            <field name="property_product_pricelist" ref="vnop_sale_channel.pricelist_wholesale"/>
+        </record>
+
+    </data>
+</odoo>

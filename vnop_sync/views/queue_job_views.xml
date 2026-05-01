@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- Thêm nút "Force Cancel" lên queue.job form (cho phép cancel khi state=started) -->
+    <record id="view_queue_job_form_force_cancel" model="ir.ui.view">
+        <field name="name">queue.job.form.force.cancel</field>
+        <field name="model">queue.job</field>
+        <field name="inherit_id" ref="queue_job.view_queue_job_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_force_cancel"
+                        string="Force Cancel"
+                        type="object"
+                        class="btn-danger" icon="fa-stop"
+                        invisible="state in ('done', 'cancelled', 'failed')"
+                        confirm="Cancel job ở DB level. Worker còn sống (nếu có) sẽ tự crash khi commit. Khuyến nghị dùng nút Dừng trên product.sync để worker thoát sạch. Tiếp tục?"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Thêm nút "Force Cancel" trên list view (multi-select) -->
+    <record id="view_queue_job_tree_force_cancel" model="ir.ui.view">
+        <field name="name">queue.job.tree.force.cancel</field>
+        <field name="model">queue.job</field>
+        <field name="inherit_id" ref="queue_job.view_queue_job_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <button name="action_force_cancel"
+                        type="object" string="Force Cancel" icon="fa-stop"
+                        invisible="state in ('done', 'cancelled', 'failed')"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

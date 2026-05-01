@@ -1,0 +1,111 @@
+.o_rx_popup {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 560px;
+
+    .o_rx_eyes_grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+
+        @media (max-width: 768px) {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .o_rx_eye_card {
+        background: #f7f8fa;
+        border: 1px solid #d9dde3;
+        border-radius: 8px;
+        padding: 14px 16px;
+
+        .o_rx_eye_label {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #1f2937;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 6px;
+        }
+    }
+
+    .o_rx_field_row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+
+        &.o_rx_field_row_note {
+            flex-direction: column;
+            align-items: stretch;
+
+            .o_rx_field_label {
+                margin-bottom: 4px;
+            }
+        }
+    }
+
+    .o_rx_field_label {
+        font-size: 14px;
+        color: #374151;
+        flex: 0 0 auto;
+        margin-right: 8px;
+    }
+
+    .o_rx_field_control {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .o_rx_btn {
+        // Cashier dùng tay/touchscreen — nút phải đủ lớn (min 44px theo Apple HIG).
+        width: 44px;
+        height: 44px;
+        font-size: 22px;
+        font-weight: 600;
+        padding: 0;
+        line-height: 1;
+        border: 1px solid #d1d5db;
+    }
+
+    .o_rx_input {
+        width: 88px;
+        height: 44px;
+        text-align: center;
+        font-size: 16px;
+        font-weight: 500;
+    }
+
+    .o_rx_extra {
+        background: #fffbea;
+        border: 1px solid #fde68a;
+        border-radius: 8px;
+        padding: 14px 16px;
+    }
+
+    .o_rx_note_input {
+        width: 100%;
+        height: 40px;
+    }
+
+    .o_rx_actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    .o_rx_action_btn {
+        min-width: 140px;
+        height: 44px;
+        font-size: 15px;
+        font-weight: 500;
+    }
+}

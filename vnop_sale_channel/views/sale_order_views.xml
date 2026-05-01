@@ -125,6 +125,22 @@
             <xpath expr="//field[@name='order_line']/list/control/create[@name='add_section_control']" position="replace"/>
             <xpath expr="//field[@name='order_line']/list/control/create[@name='add_note_control']" position="replace"/>
             <xpath expr="//field[@name='order_line']/list/control/button[@name='action_add_from_catalog']" position="replace"/>
+
+            <!-- Rx fields trên dòng SO bán buôn cắt theo đơn kính. Default optional=hide
+                 để không gây nhiễu cho bán hàng thông thường; user bật cột khi cần. -->
+            <xpath expr="//field[@name='order_line']/list/field[@name='product_uom_qty']" position="before">
+                <field name="rx_has_data" optional="hide" string="Có Rx" readonly="1"/>
+                <field name="rx_od_sph" optional="hide" string="OD-SPH"/>
+                <field name="rx_od_cyl" optional="hide" string="OD-CYL"/>
+                <field name="rx_od_axis" optional="hide" string="OD-AXIS"/>
+                <field name="rx_od_add" optional="hide" string="OD-ADD"/>
+                <field name="rx_os_sph" optional="hide" string="OS-SPH"/>
+                <field name="rx_os_cyl" optional="hide" string="OS-CYL"/>
+                <field name="rx_os_axis" optional="hide" string="OS-AXIS"/>
+                <field name="rx_os_add" optional="hide" string="OS-ADD"/>
+                <field name="rx_pd" optional="hide" string="PD"/>
+                <field name="rx_note" optional="hide" string="Ghi chú Rx"/>
+            </xpath>
         </field>
     </record>
 

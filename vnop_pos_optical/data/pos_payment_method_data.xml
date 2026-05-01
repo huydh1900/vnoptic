@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data noupdate="1">
+        <!-- POS payment methods - journal_id sẽ gán bởi post_init_hook để tránh
+             phụ thuộc thứ tự load với l10n_vn (chart_template wipes journals
+             khi cài). -->
 
         <record id="payment_method_cash_optical" model="pos.payment.method">
             <field name="name">Tiền mặt</field>
@@ -26,8 +29,6 @@
         <record id="payment_method_vnpay" model="pos.payment.method">
             <field name="name">VNPay</field>
             <field name="is_cash_count" eval="False"/>
-            <field name="use_payment_terminal">vnpay</field>
-            <field name="journal_id" ref="journal_pos_optical_bank"/>
         </record>
 
         <record id="payment_method_zalopay" model="pos.payment.method">

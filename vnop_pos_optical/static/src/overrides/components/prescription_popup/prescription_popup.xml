@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="vnop_pos_optical.PrescriptionPopup" xml:space="preserve">
+
+    <t t-name="vnop_pos_optical.PrescriptionPopup">
+        <Dialog title="title" size="'lg'" footer="false">
+            <div class="o_rx_popup">
+
+                <div class="o_rx_eyes_grid">
+                    <!-- OD - Mắt phải -->
+                    <div class="o_rx_eye_card">
+                        <div class="o_rx_eye_label">OD - Mắt phải</div>
+
+                        <t t-foreach="[
+                            ['rx_od_sph', 'SPH (Cầu)'],
+                            ['rx_od_cyl', 'CYL (Trụ)'],
+                            ['rx_od_axis', 'AXIS (°)'],
+                            ['rx_od_add', 'ADD (Cộng)']
+                        ]" t-as="row" t-key="row[0]">
+                            <div class="o_rx_field_row">
+                                <span class="o_rx_field_label" t-esc="row[1]"/>
+                                <div class="o_rx_field_control">
+                                    <button class="btn btn-light o_rx_btn"
+                                            t-on-click="() => this.decrement(row[0])">-</button>
+                                    <input type="text"
+                                           class="form-control o_rx_input"
+                                           t-att-value="formatValue(row[0])"
+                                           t-on-change="(ev) => this.onInputChange(row[0], ev)"/>
+                                    <button class="btn btn-light o_rx_btn"
+                                            t-on-click="() => this.increment(row[0])">+</button>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+
+                    <!-- OS - Mắt trái -->
+                    <div class="o_rx_eye_card">
+                        <div class="o_rx_eye_label">OS - Mắt trái</div>
+
+                        <t t-foreach="[
+                            ['rx_os_sph', 'SPH (Cầu)'],
+                            ['rx_os_cyl', 'CYL (Trụ)'],
+                            ['rx_os_axis', 'AXIS (°)'],
+                            ['rx_os_add', 'ADD (Cộng)']
+                        ]" t-as="row" t-key="row[0]">
+                            <div class="o_rx_field_row">
+                                <span class="o_rx_field_label" t-esc="row[1]"/>
+                                <div class="o_rx_field_control">
+                                    <button class="btn btn-light o_rx_btn"
+                                            t-on-click="() => this.decrement(row[0])">-</button>
+                                    <input type="text"
+                                           class="form-control o_rx_input"
+                                           t-att-value="formatValue(row[0])"
+                                           t-on-change="(ev) => this.onInputChange(row[0], ev)"/>
+                                    <button class="btn btn-light o_rx_btn"
+                                            t-on-click="() => this.increment(row[0])">+</button>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+
+                <div class="o_rx_extra">
+                    <div class="o_rx_field_row">
+                        <span class="o_rx_field_label">PD - Khoảng cách đồng tử (mm)</span>
+                        <div class="o_rx_field_control">
+                            <button class="btn btn-light o_rx_btn"
+                                    t-on-click="() => this.decrement('rx_pd')">-</button>
+                            <input type="text"
+                                   class="form-control o_rx_input"
+                                   t-att-value="formatValue('rx_pd')"
+                                   t-on-change="(ev) => this.onInputChange('rx_pd', ev)"/>
+                            <button class="btn btn-light o_rx_btn"
+                                    t-on-click="() => this.increment('rx_pd')">+</button>
+                        </div>
+                    </div>
+                    <div class="o_rx_field_row o_rx_field_row_note">
+                        <span class="o_rx_field_label">Ghi chú</span>
+                        <input type="text"
+                               class="form-control o_rx_note_input"
+                               placeholder="Vd: cắt vát cạnh, lắp gấp..."
+                               t-att-value="state.rx_note"
+                               t-on-change="onNoteChange"/>
+                    </div>
+                </div>
+
+                <div class="o_rx_actions">
+                    <button class="btn btn-secondary o_rx_action_btn" t-on-click="cancel">
+                        Bỏ qua
+                    </button>
+                    <button class="btn btn-primary o_rx_action_btn" t-on-click="confirm">
+                        Xác nhận đơn kính
+                    </button>
+                </div>
+            </div>
+        </Dialog>
+    </t>
+
+</templates>

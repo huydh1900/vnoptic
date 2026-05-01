@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="vnop_pos_optical.OrderlineRx" xml:space="preserve">
+
+    <!-- Inject 1 dòng badge "Đơn kính" + Rx summary ngay dưới note nội bộ.
+         Generic component point_of_sale.Orderline đã hardcode template, nhưng
+         <t t-slot="default"/> ở cuối <ul class="info-list"> nên ta append qua
+         slot khi component được dùng với props.line có prescriptionSummary. -->
+    <t t-inherit="point_of_sale.Orderline" t-inherit-mode="extension">
+        <xpath expr="//div[@class='internal-note-container d-flex gap-2']" position="after">
+            <li t-if="line.prescriptionSummary"
+                class="o_rx_orderline_summary w-100 p-2 mt-2 rounded text-break text-bg-info bg-opacity-25"
+                style="font-size: 0.85rem;">
+                <i class="fa fa-eye me-1" role="img" aria-label="Đơn kính" title="Đơn kính"/>
+                <strong>Rx:</strong> <t t-esc="line.prescriptionSummary"/>
+            </li>
+        </xpath>
+    </t>
+
+</templates>
