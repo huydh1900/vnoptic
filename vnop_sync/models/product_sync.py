@@ -1026,12 +1026,22 @@ class ProductSync(models.Model):
         session.mount('http://', http_adapter)
         return session
 
-    def _get_sync_batch_size(self):
-        """Đọc kích thước batch (mặc định 1000)."""
+    def _get_sync_batch_size(self, image_active=False):
+        """Đọc kích thước batch.
+
+        - Sync data thuần: mặc định 1000 (`SYNC_BATCH_SIZE`).
+        - Sync có ảnh: mặc định 100 (`SYNC_BATCH_SIZE_IMAGE`) để giảm:
+          + Bộ nhớ (mỗi ảnh base64 ~150-200KB, batch 1000 = 150-200MB).
+          + Thời gian rollback nếu worker crash giữa chừng (savepoint
+            chưa commit thì mất hết batch).
+          + Khoảng cách commit (UI thấy progress mượt hơn).
+        """
+        env_var = 'SYNC_BATCH_SIZE_IMAGE' if image_active else 'SYNC_BATCH_SIZE'
+        default = '100' if image_active else '1000'
         try:
-            size = int(os.getenv('SYNC_BATCH_SIZE', '1000'))
+            size = int(os.getenv(env_var, default))
         except (TypeError, ValueError):
-            size = 1000
+            size = int(default)
         return max(1, size)
 
     def _fetch_paged_api(self, endpoint, token, page=0, size=100, max_retries=5, session=None, config=None):
@@ -1236,7 +1246,9 @@ class ProductSync(models.Model):
         from concurrent.futures import ThreadPoolExecutor
         db = self.env.cr.dbname
         rec_id = self.id
-        batch_size = self._get_sync_batch_size()
+        # Sync có ảnh → batch nhỏ hơn để giảm RAM, rủi ro crash, và lag commit.
+        image_active = bool(image_sync_ctx and (image_sync_ctx.get('mode') or 'off') != 'off')
+        batch_size = self._get_sync_batch_size(image_active=image_active)
         total_success = total_failed = 0
         type_label = {'lens': 'Mắt', 'opt': 'Gọng', 'accessory': 'Phụ kiện'}.get(product_type, product_type)
 

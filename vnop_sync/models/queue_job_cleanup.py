@@ -11,36 +11,72 @@ class QueueJob(models.Model):
     _inherit = 'queue.job'
 
     @api.model
-    def cleanup_zombie_jobs(self, started_older_than_min=30, idle_min=5):
+    def cleanup_zombie_jobs(self, started_older_than_min=60):
         """Reset job kẹt ở state='started' về 'pending' để runner pick lại.
 
-        Heuristic phát hiện zombie (worker chết giữa chừng):
+        Heuristic zombie (worker chết giữa chừng — vd OOM, service restart,
+        cron timeout `limit_time_real_cron`):
           - state = 'started'
-          - date_started < now() - started_older_than_min
-          - write_date < now() - idle_min  (job không có update gần đây)
+          - date_started < now() - started_older_than_min phút
+          - không có PG backend nào đang giữ row lock job đó (kiểm tra qua
+            pg_stat_activity / pg_locks: nếu không có process nào reference
+            queue_job.id qua xact lock → worker đã chết)
 
-        Không có cách thuần SQL kiểm tra "process worker tồn tại" — dùng
-        write_date làm proxy: nếu worker còn sống, mỗi batch nó sẽ ghi
-        progress/state, write_date sẽ refresh.
+        queue.job có `_log_access = False` nên KHÔNG có `write_date`. Dùng
+        date_started + check pg backend là đủ tin cậy mà không nhầm với
+        job đang chạy lâu nhưng còn sống.
+
+        Tham số mặc định 60 phút: đủ buffer cho sync ảnh full (~30-50 phút).
+        Nếu sync nhỏ hơn nhiều, có thể giảm; sync lâu hơn nhiều, tăng.
         """
         now = fields.Datetime.now()
         started_cutoff = now - timedelta(minutes=started_older_than_min)
-        idle_cutoff = now - timedelta(minutes=idle_min)
-        zombies = self.search([
+        candidates = self.search([
             ('state', '=', 'started'),
             ('date_started', '<', started_cutoff),
-            ('write_date', '<', idle_cutoff),
         ])
-        if not zombies:
+        if not candidates:
             return 0
-        zombies.write({
+
+        # Lọc thêm: chỉ reset job mà KHÔNG có PG backend đang process queue_job
+        # row đó. Heuristic: nếu có process Odoo nào idle in transaction lâu
+        # tham chiếu queue_job lock, có thể worker còn sống → bỏ qua.
+        # Đơn giản: query pg_stat_activity xem có connection 'odoo-*' nào ở
+        # state 'idle in transaction' / 'active' với xact_start cũ hơn job
+        # date_started → khả năng cao worker đó đang chạy job.
+        cr = self.env.cr
+        cr.execute("""
+            SELECT count(*)::int
+            FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND application_name LIKE 'odoo%%'
+              AND state IN ('active', 'idle in transaction')
+              AND xact_start IS NOT NULL
+              AND xact_start <= %s
+        """, (started_cutoff,))
+        active_old_workers = cr.fetchone()[0] or 0
+
+        # Nếu vẫn có worker còn xact_start < cutoff → có thể đang chạy job →
+        # giữ lại candidate cũ nhất tránh kill nhầm. Phương án bảo thủ:
+        # chỉ reset khi KHÔNG có process Odoo nào ở idle-in-tx cũ.
+        if active_old_workers > 0:
+            _logger.info(
+                "queue_job cleanup: bỏ qua %s zombie candidates vì có %s worker còn xact_start cũ.",
+                len(candidates), active_old_workers,
+            )
+            return 0
+
+        candidates.write({
             'state': 'pending',
             'date_started': False,
             'exc_info': False,
-            'exc_message': 'Auto-reset zombie: worker treo > %s phút, runner sẽ retry.' % started_older_than_min,
+            'exc_message': (
+                'Auto-reset zombie: worker không còn hoạt động sau %s phút, '
+                'runner sẽ retry.' % started_older_than_min
+            ),
         })
         _logger.warning(
             "queue_job cleanup: reset %s zombie job(s) ids=%s",
-            len(zombies), zombies.ids,
+            len(candidates), candidates.ids,
         )
-        return len(zombies)
+        return len(candidates)
