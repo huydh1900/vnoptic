@@ -24,6 +24,7 @@
         'data/product_lens_film_data.xml',
         'data/product_lens_photochromic_data.xml',
         'data/product_classification_data.xml',
+        'data/queue_job_cleanup_cron.xml',
         'views/product_sync_views.xml',
         'views/product_brand_views.xml',
         'views/product_warranty_views.xml',
