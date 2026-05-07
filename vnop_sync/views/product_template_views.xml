@@ -68,6 +68,10 @@
             <!-- Ẩn button "Print Labels" trong form view -->
             <xpath expr="//button[@name='action_open_label_layout']" position="replace"/>
 
+            <!-- Ẩn smart button "Forecasted" (stock) và "Documents" (product) -->
+            <xpath expr="//button[@name='action_product_tmpl_forecast_report']" position="replace"/>
+            <xpath expr="//button[@name='action_open_documents']" position="replace"/>
+
             <xpath expr="//field[@name='image_1920']" position="replace">
                 <field name="image_1920" widget="image" class="oe_avatar"
                        options="{'convert_to_webp': True, 'preview_image': 'image_128'}"/>
@@ -145,7 +149,8 @@
                         <field name="warranty_supplier_id" options="{'no_create': True}"/>
                         <field name="warranty_retail_id" options="{'no_create': True}"/>
                         <field name="legacy_product_id" readonly="1"
-                               invisible="not legacy_product_id"/>
+                               invisible="not legacy_product_id"
+                               groups="base.group_no_one"/>
                     </group>
                 </group>
 
