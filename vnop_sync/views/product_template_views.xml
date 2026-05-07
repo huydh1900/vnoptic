@@ -144,6 +144,8 @@
                         <field name="warranty_id" options="{'no_create': True}"/>
                         <field name="warranty_supplier_id" options="{'no_create': True}"/>
                         <field name="warranty_retail_id" options="{'no_create': True}"/>
+                        <field name="legacy_product_id" readonly="1"
+                               invisible="not legacy_product_id"/>
                     </group>
                 </group>
 
@@ -351,6 +353,27 @@
                             <field name="acc_height"/>
                             <field name="acc_head"/>
                             <field name="acc_body"/>
+                        </group>
+                    </group>
+                </page>
+
+                <!-- Tab Thông tin sử dụng (chung cho mọi sản phẩm consu) -->
+                <page string="Thông tin sử dụng" name="product_usage_info"
+                      invisible="type != 'consu'">
+                    <group>
+                        <group>
+                            <field name="accessory_note" string="Thông tin bổ sung"
+                                   placeholder="Không"/>
+                            <field name="x_uses" string="Công dụng"
+                                   placeholder="Đang cập nhật"/>
+                            <field name="x_guide" string="Hướng dẫn sử dụng"
+                                   placeholder="Đang cập nhật"/>
+                        </group>
+                        <group>
+                            <field name="x_warning" string="Cảnh báo"
+                                   placeholder="Đang cập nhật"/>
+                            <field name="x_preserve" string="Bảo quản"
+                                   placeholder="Đang cập nhật"/>
                         </group>
                     </group>
                 </page>

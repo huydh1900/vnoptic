@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_kpi_tiles" model="ir.actions.client">
+        <field name="name">Tổng quan bán hàng</field>
+        <field name="tag">vnop_sale_dashboard_kpi_tiles</field>
+    </record>
+
+</odoo>

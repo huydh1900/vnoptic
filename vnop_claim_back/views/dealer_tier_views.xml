@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Thêm field claim_pct vào form dealer.tier từ vnop_sale_channel -->
+    <record id="dealer_tier_view_form_inherit_claim_pct" model="ir.ui.view">
+        <field name="name">dealer.tier.form.inherit.claim.pct</field>
+        <field name="model">dealer.tier</field>
+        <field name="inherit_id" ref="vnop_sale_channel.dealer_tier_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='default_discount']" position="after">
+                <field name="claim_pct" string="% Claim back"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Thêm cột claim_pct vào list dealer.tier -->
+    <record id="dealer_tier_view_list_inherit_claim_pct" model="ir.ui.view">
+        <field name="name">dealer.tier.list.inherit.claim.pct</field>
+        <field name="model">dealer.tier</field>
+        <field name="inherit_id" ref="vnop_sale_channel.dealer_tier_view_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='default_discount']" position="after">
+                <field name="claim_pct" string="% Claim back" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

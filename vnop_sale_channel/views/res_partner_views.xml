@@ -30,6 +30,17 @@
             <xpath expr="//page[@name='sales_purchases']//group[@name='fiscal_information']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
+
+            <!-- Group "Đại lý kính mắt" — chỉ hiện cho khách bán buôn. -->
+            <xpath expr="//page[@name='sales_purchases']//group[@name='container_row_2']" position="inside">
+                <group string="Đại lý kính mắt" name="dealer_info"
+                       invisible="channel_type != 'wholesale'">
+                    <field name="dealer_tier_id"/>
+                    <field name="credit_limit"/>
+                    <field name="credit"/>
+                    <field name="credit_used_pct" widget="progressbar"/>
+                </group>
+            </xpath>
         </field>
     </record>
 

@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Form view -->
+    <record id="vnop_rma_view_form" model="ir.ui.view">
+        <field name="name">vnop.rma.view.form</field>
+        <field name="model">vnop.rma</field>
+        <field name="arch" type="xml">
+            <form string="Yêu cầu trả hàng">
+                <header>
+                    <button name="action_submit"
+                            string="Gửi yêu cầu"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_approve"
+                            string="Duyệt"
+                            type="object"
+                            class="btn-primary"
+                            groups="vnop_sale_workflow.group_rma_approver"
+                            invisible="state != 'submitted'"/>
+                    <button name="action_reject"
+                            string="Từ chối"
+                            type="object"
+                            class="btn-danger"
+                            groups="vnop_sale_workflow.group_rma_approver"
+                            invisible="state != 'submitted'"/>
+                    <button name="action_receive"
+                            string="Xác nhận nhận hàng"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'approved'"/>
+                    <button name="action_refund"
+                            string="Tạo phiếu hoàn tiền"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'received' or resolution_type not in ('refund', 'credit_note')"/>
+                    <button name="action_replace"
+                            string="Tạo đơn đổi hàng"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'received' or resolution_type != 'replace'"/>
+                    <button name="action_cancel"
+                            string="Hủy"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state in ('done', 'refunded', 'replaced', 'cancelled')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,submitted,approved,received,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Thông tin đơn hàng">
+                            <field name="sale_order_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="partner_id" readonly="1"/>
+                            <field name="delivery_date" readonly="1"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group string="Thông tin xử lý">
+                            <field name="reason_code"
+                                   readonly="state != 'draft'"/>
+                            <field name="resolution_type"
+                                   readonly="state != 'draft'"/>
+                            <field name="approver_id" readonly="1"
+                                   invisible="not approver_id"/>
+                        </group>
+                    </group>
+                    <group string="Ghi chú">
+                        <field name="reason_note" nolabel="1"
+                               readonly="state != 'draft'"
+                               placeholder="Mô tả chi tiết lý do trả hàng..."/>
+                    </group>
+                    <notebook>
+                        <page name="rma_lines" string="Sản phẩm trả hàng">
+                            <field name="rma_line_ids"
+                                   readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sale_line_id"/>
+                                    <field name="product_id" readonly="1"/>
+                                    <field name="qty_returned"/>
+                                    <field name="qty_received"/>
+                                    <field name="unit_price" readonly="1"/>
+                                    <field name="currency_id" readonly="1" column_invisible="True"/>
+                                    <field name="reason_line"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page name="resolution_links" string="Kết quả xử lý"
+                              invisible="state not in ('refunded', 'replaced', 'done')">
+                            <group>
+                                <field name="picking_id" readonly="1"
+                                       invisible="not picking_id"/>
+                                <field name="refund_move_id" readonly="1"
+                                       invisible="not refund_move_id"/>
+                                <field name="replacement_order_id" readonly="1"
+                                       invisible="not replacement_order_id"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- List view -->
+    <record id="vnop_rma_view_list" model="ir.ui.view">
+        <field name="name">vnop.rma.view.list</field>
+        <field name="model">vnop.rma</field>
+        <field name="arch" type="xml">
+            <list string="Yêu cầu trả hàng"
+                  decoration-info="state == 'draft'"
+                  decoration-warning="state in ('submitted',)"
+                  decoration-success="state == 'approved'"
+                  decoration-danger="state in ('rejected', 'cancelled')">
+                <field name="name"/>
+                <field name="sale_order_id"/>
+                <field name="partner_id"/>
+                <field name="reason_code"/>
+                <field name="resolution_type"/>
+                <field name="delivery_date"/>
+                <field name="approver_id"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Search view -->
+    <record id="vnop_rma_view_search" model="ir.ui.view">
+        <field name="name">vnop.rma.view.search</field>
+        <field name="model">vnop.rma</field>
+        <field name="arch" type="xml">
+            <search string="Tìm kiếm RMA">
+                <field name="name" string="Mã RMA"/>
+                <field name="sale_order_id" string="Đơn hàng"/>
+                <field name="partner_id" string="Khách hàng"/>
+                <filter name="filter_draft" string="Nháp" domain="[('state','=','draft')]"/>
+                <filter name="filter_submitted" string="Chờ duyệt" domain="[('state','=','submitted')]"/>
+                <filter name="filter_approved" string="Đã duyệt" domain="[('state','=','approved')]"/>
+                <filter name="filter_done" string="Hoàn tất" domain="[('state','=','done')]"/>
+                <separator/>
+                <group expand="0" string="Nhóm theo">
+                    <filter name="group_state" string="Trạng thái" context="{'group_by': 'state'}"/>
+                    <filter name="group_partner" string="Khách hàng" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_reason" string="Lý do" context="{'group_by': 'reason_code'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_vnop_rma" model="ir.actions.act_window">
+        <field name="name">Yêu cầu trả hàng</field>
+        <field name="res_model">vnop.rma</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="vnop_rma_view_search"/>
+        <field name="context">{'search_default_filter_submitted': 0}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Chưa có yêu cầu trả hàng nào.
+            </p>
+            <p>Tạo yêu cầu trả hàng mới từ đơn bán hàng đã xác nhận.</p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,27 @@
+.o_vnop_dashboard_kpi {
+    background-color: var(--o-view-background-color, #f8f9fa);
+    min-height: 100%;
+
+    .o_vnop_dashboard_header h4 {
+        color: var(--o-headings-color, #333);
+    }
+
+    .o_vnop_kpi_tiles_grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1rem;
+    }
+
+    .o_vnop_kpi_tile {
+        border-radius: 0.5rem;
+        transition: box-shadow 0.2s ease;
+
+        &:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .o_vnop_kpi_amount {
+            color: var(--o-action-color, #017e84);
+        }
+    }
+}

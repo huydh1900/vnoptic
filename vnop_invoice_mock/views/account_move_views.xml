@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ===== Form view inherit: Tab HĐĐT Mock ===== -->
+    <record id="view_move_form_mock_einv" model="ir.ui.view">
+        <field name="name">account.move.form.mock.einv</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="HĐĐT Mock"
+                      name="mock_einv_tab"
+                      invisible="move_type not in ['out_invoice', 'out_refund']">
+                    <group>
+                        <group string="Thông tin hóa đơn">
+                            <field name="mock_einv_state"/>
+                            <field name="mock_einv_symbol"/>
+                            <field name="mock_einv_template_no"/>
+                            <field name="mock_einv_lookup_code"/>
+                            <field name="mock_einv_issued_at"/>
+                            <field name="mock_einv_pdf_attachment_id"/>
+                        </group>
+                        <group string="Thao tác">
+                            <button name="action_send_einv"
+                                    string="Gửi hóa đơn cho khách"
+                                    type="object"
+                                    class="btn-primary"
+                                    invisible="mock_einv_state != 'issued'"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ===== List/Tree view: danh sách HĐ đã phát hành ===== -->
+    <record id="view_mock_einv_invoice_list" model="ir.ui.view">
+        <field name="name">account.move.list.mock.einv</field>
+        <field name="model">account.move</field>
+        <field name="arch" type="xml">
+            <list string="Hóa đơn điện tử mock"
+                  default_order="invoice_date desc, name desc">
+                <field name="name" string="Số HĐ"/>
+                <field name="invoice_date" string="Ngày HĐ"/>
+                <field name="partner_id" string="Khách hàng"/>
+                <field name="mock_einv_symbol" string="Ký hiệu"/>
+                <field name="mock_einv_template_no" string="Mẫu số"/>
+                <field name="mock_einv_lookup_code" string="Mã tra cứu"/>
+                <field name="mock_einv_state" string="Trạng thái HĐĐT"
+                       widget="badge"
+                       decoration-success="mock_einv_state == 'sent'"
+                       decoration-info="mock_einv_state == 'issued'"
+                       decoration-muted="mock_einv_state == 'not_issued'"
+                       decoration-warning="mock_einv_state == 'replaced'"/>
+                <field name="mock_einv_issued_at" string="Ngày phát hành"/>
+                <field name="amount_total" string="Tổng tiền"/>
+                <field name="currency_id" string="Tiền tệ" optional="show"/>
+                <field name="move_type" invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ===== Action: danh sách HĐ đã phát hành ===== -->
+    <record id="action_mock_einv_invoice_list" model="ir.actions.act_window">
+        <field name="name">Hóa đơn điện tử mock</field>
+        <field name="res_model">account.move</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_mock_einv_invoice_list')})]"/>
+        <field name="domain">[('mock_einv_state', '!=', 'not_issued'), ('move_type', 'in', ['out_invoice', 'out_refund'])]</field>
+        <field name="context">{'default_move_type': 'out_invoice'}</field>
+    </record>
+
+    <!-- ===== Server Action: Gửi hóa đơn (binding) ===== -->
+    <record id="server_action_send_einv" model="ir.actions.server">
+        <field name="name">Gửi hóa đơn cho khách</field>
+        <field name="model_id" ref="account.model_account_move"/>
+        <field name="binding_model_id" ref="account.model_account_move"/>
+        <field name="binding_view_types">form</field>
+        <field name="state">code</field>
+        <field name="code">action.action_send_einv()</field>
+    </record>
+</odoo>

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="portal_returns_form" name="B2B Returns Form">
+        <t t-call="portal.portal_layout">
+            <t t-set="page_name" t-value="'b2b_returns_new'"/>
+
+            <div class="container mt-3">
+                <div class="d-flex align-items-center mb-3 gap-3">
+                    <a href="/my/returns" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa fa-arrow-left me-1"/>Quay lại
+                    </a>
+                    <h3 class="mb-0">Tạo yêu cầu trả hàng</h3>
+                </div>
+
+                <div class="row justify-content-center">
+                    <div class="col-12 col-lg-8">
+                        <div class="card">
+                            <div class="card-body">
+                                <form action="/my/returns/new" method="post">
+                                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+
+                                    <!-- Đơn hàng gốc -->
+                                    <div class="mb-3">
+                                        <label for="sale_order_id" class="form-label fw-semibold">
+                                            Đơn hàng gốc <span class="text-danger">*</span>
+                                        </label>
+                                        <select id="sale_order_id" name="sale_order_id"
+                                                t-attf-class="form-select #{error.get('sale_order_id') and 'is-invalid' or ''}">
+                                            <option value="">-- Chọn đơn hàng --</option>
+                                            <t t-foreach="orders" t-as="order">
+                                                <option t-att-value="order.id"
+                                                        t-att-selected="(kw or {}).get('sale_order_id') == str(order.id) and 'selected' or False">
+                                                    <t t-out="order.name"/> —
+                                                    <t t-out="order.date_order.strftime('%d/%m/%Y') if order.date_order else ''"/>
+                                                </option>
+                                            </t>
+                                        </select>
+                                        <t t-if="error.get('sale_order_id')">
+                                            <div class="invalid-feedback">Vui lòng chọn đơn hàng hợp lệ.</div>
+                                        </t>
+                                    </div>
+
+                                    <!-- Lý do trả hàng -->
+                                    <div class="mb-3">
+                                        <label for="reason_code" class="form-label fw-semibold">
+                                            Lý do trả hàng <span class="text-danger">*</span>
+                                        </label>
+                                        <select id="reason_code" name="reason_code"
+                                                t-attf-class="form-select #{error.get('reason_code') and 'is-invalid' or ''}">
+                                            <option value="">-- Chọn lý do --</option>
+                                            <t t-foreach="reason_codes" t-as="rc">
+                                                <option t-att-value="rc[0]"
+                                                        t-att-selected="(kw or {}).get('reason_code') == rc[0] and 'selected' or False">
+                                                    <t t-out="rc[1]"/>
+                                                </option>
+                                            </t>
+                                        </select>
+                                        <t t-if="error.get('reason_code')">
+                                            <div class="invalid-feedback">Vui lòng chọn lý do trả hàng.</div>
+                                        </t>
+                                    </div>
+
+                                    <!-- Hình thức xử lý -->
+                                    <div class="mb-3">
+                                        <label for="resolution_type" class="form-label fw-semibold">
+                                            Hình thức xử lý mong muốn
+                                        </label>
+                                        <select id="resolution_type" name="resolution_type" class="form-select">
+                                            <t t-foreach="resolution_types" t-as="rt">
+                                                <option t-att-value="rt[0]"
+                                                        t-att-selected="((kw or {}).get('resolution_type', 'refund') == rt[0]) and 'selected' or False">
+                                                    <t t-out="rt[1]"/>
+                                                </option>
+                                            </t>
+                                        </select>
+                                    </div>
+
+                                    <!-- Ghi chú thêm -->
+                                    <div class="mb-4">
+                                        <label for="reason_note" class="form-label fw-semibold">
+                                            Ghi chú thêm
+                                        </label>
+                                        <textarea id="reason_note" name="reason_note"
+                                                  class="form-control" rows="4"
+                                                  placeholder="Mô tả chi tiết vấn đề..."><t t-out="(kw or {}).get('reason_note', '')"/></textarea>
+                                    </div>
+
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <a href="/my/returns" class="btn btn-outline-secondary">Hủy</a>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fa fa-paper-plane me-1"/>Gửi yêu cầu
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+</odoo>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Pivot: Top 10 khách hàng -->
+    <record id="view_sale_order_top_customer_pivot" model="ir.ui.view">
+        <field name="name">sale.order.top.customer.pivot</field>
+        <field name="model">sale.order</field>
+        <field name="arch" type="xml">
+            <pivot string="Top khách hàng">
+                <field name="partner_id" type="row"/>
+                <field name="amount_total" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Action: Top 10 khách hàng -->
+    <record id="action_sale_order_top_customer" model="ir.actions.act_window">
+        <field name="name">Top khách hàng</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">pivot</field>
+        <field name="view_id" ref="view_sale_order_top_customer_pivot"/>
+        <field name="domain">[('state','in',['sale','done'])]</field>
+        <field name="limit">10</field>
+        <field name="context">{'search_default_this_year': 1}</field>
+    </record>
+
+</odoo>

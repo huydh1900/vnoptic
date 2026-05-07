@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_vnop_sale_report_channel_manager,vnop.sale.report.channel manager,model_vnop_sale_report_channel,sales_team.group_sale_manager,1,0,0,0
+access_vnop_sale_report_channel_salesman,vnop.sale.report.channel salesman,model_vnop_sale_report_channel,sales_team.group_sale_salesman_all_leads,1,0,0,0
+access_vnop_sale_report_aging_manager,vnop.sale.report.aging manager,model_vnop_sale_report_aging,sales_team.group_sale_manager,1,0,0,0
+access_vnop_sale_report_aging_salesman,vnop.sale.report.aging salesman,model_vnop_sale_report_aging,sales_team.group_sale_salesman_all_leads,1,0,0,0

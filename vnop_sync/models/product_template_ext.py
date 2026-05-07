@@ -33,6 +33,14 @@ class ProductTemplateExtension(models.Model):
     ], string='Loại tròng')
 
     x_java_qr_url = fields.Char(string='QR URL (Java)', copy=False)
+    legacy_product_id = fields.Integer(
+        string='Legacy Product ID',
+        index=True,
+        copy=False,
+        help='ID sản phẩm trên hệ thống Java cũ. Dùng để map QR code đã in tem '
+             'ngoài thị trường (URL cũ: /product/<legacy_product_id>). '
+             'Để trống cho sản phẩm mới tạo trên Odoo.',
+    )
     qr_code = fields.Binary(string='QR Code', compute='_compute_qr_code', store=False)
 
     @api.depends('x_java_qr_url')
@@ -54,6 +62,45 @@ class ProductTemplateExtension(models.Model):
 
     def _get_category_by_code(self, code):
         return self.env['product.category'].search([('code', '=', code)], limit=1)
+
+    @api.model
+    def _next_yymm_barcode_seq(self):
+        """Trả về (yymm, last_seq_int_or_None) cho tháng hiện tại.
+        last_seq=None nghĩa là chưa có barcode nào dạng YYMMxxxx tháng này
+        → caller bắt đầu từ 0000.
+
+        Lưu ý: trong Odoo 18, product.template.barcode là computed (không
+        store) — column thực sự nằm trên product.product. Phải query
+        product_product, không phải product_template.
+        """
+        today = fields.Date.context_today(self)
+        yymm = today.strftime('%y%m')
+        self.env.cr.execute(
+            """
+            SELECT MAX(CAST(SUBSTRING(barcode FROM 5 FOR 4) AS INTEGER))
+              FROM product_product
+             WHERE barcode ~ ('^' || %s || '[0-9]{4}$')
+            """,
+            (yymm,),
+        )
+        row = self.env.cr.fetchone()
+        return yymm, (row[0] if row else None)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Auto-sinh barcode dạng YYMMxxxx (yy=2 số cuối năm, mm=tháng,
+        xxxx=tăng dần từ 0000) cho mọi product.template tạo mới mà không
+        có barcode. Sản phẩm sync từ Java luôn set sẵn barcode = cid nên
+        không bị ảnh hưởng.
+        """
+        need_auto = [v for v in vals_list if not v.get('barcode')]
+        if need_auto:
+            yymm, last = self._next_yymm_barcode_seq()
+            next_seq = 0 if last is None else last + 1
+            for v in need_auto:
+                v['barcode'] = f"{yymm}{next_seq:04d}"
+                next_seq += 1
+        return super().create(vals_list)
 
     @api.onchange('categ_id', 'classification_id')
     def _onchange_categ_id_reset_groups(self):

@@ -60,11 +60,14 @@ patch(PosOrderline.prototype, {
     /**
      * Bơm prescriptionSummary vào display data — Orderline template đọc qua
      * t-slot mở rộng (xem orderline_inherit.xml).
+     * uuid để nút thùng rác trên template tra cứu lại record và gọi
+     * removeOrderline (Orderline là dumb component, chỉ nhận displayData).
      */
     getDisplayData() {
         return {
             ...super.getDisplayData(),
             prescriptionSummary: this.getPrescriptionSummary(),
+            uuid: this.uuid,
         };
     },
 });

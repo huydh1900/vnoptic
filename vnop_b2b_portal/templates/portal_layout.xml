@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Extend breadcrumbs để thêm các link B2B vào sidebar khi là B2B user -->
+    <template id="portal_breadcrumbs_b2b" inherit_id="portal.portal_breadcrumbs" name="B2B Portal Breadcrumbs">
+        <xpath expr="//ol" position="after">
+            <t t-if="is_user_b2b">
+                <div class="b2b_portal_nav d-flex gap-2 flex-wrap mt-2">
+                    <a t-attf-class="btn btn-sm #{page_name == 'b2b_catalog' and 'btn-primary' or 'btn-outline-secondary'}"
+                       href="/my/catalog">
+                        <i class="fa fa-th me-1"/>Danh mục
+                    </a>
+                    <a t-attf-class="btn btn-sm #{page_name == 'b2b_cart' and 'btn-primary' or 'btn-outline-secondary'}"
+                       href="/my/cart">
+                        <i class="fa fa-shopping-cart me-1"/>Giỏ hàng
+                    </a>
+                    <a t-attf-class="btn btn-sm #{page_name == 'b2b_financial' and 'btn-primary' or 'btn-outline-secondary'}"
+                       href="/my/financial">
+                        <i class="fa fa-money me-1"/>Công nợ
+                    </a>
+                    <a t-attf-class="btn btn-sm #{page_name == 'b2b_returns' and 'btn-primary' or 'btn-outline-secondary'}"
+                       href="/my/returns">
+                        <i class="fa fa-undo me-1"/>Trả hàng
+                    </a>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+</odoo>

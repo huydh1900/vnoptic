@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Graph: Doanh thu theo tháng -->
+    <record id="view_vnop_sale_report_channel_graph" model="ir.ui.view">
+        <field name="name">vnop.sale.report.channel.graph</field>
+        <field name="model">vnop.sale.report.channel</field>
+        <field name="arch" type="xml">
+            <graph string="Doanh thu theo kênh" type="line">
+                <field name="date_order" interval="month" type="row"/>
+                <field name="amount_total" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Pivot: Doanh thu theo kênh x tháng -->
+    <record id="view_vnop_sale_report_channel_pivot" model="ir.ui.view">
+        <field name="name">vnop.sale.report.channel.pivot</field>
+        <field name="model">vnop.sale.report.channel</field>
+        <field name="arch" type="xml">
+            <pivot string="Doanh thu theo kênh">
+                <field name="channel_type" type="row"/>
+                <field name="date_order" interval="month" type="col"/>
+                <field name="amount_total" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Search view -->
+    <record id="view_vnop_sale_report_channel_search" model="ir.ui.view">
+        <field name="name">vnop.sale.report.channel.search</field>
+        <field name="model">vnop.sale.report.channel</field>
+        <field name="arch" type="xml">
+            <search string="Báo cáo doanh thu">
+                <field name="partner_id" string="Khách hàng"/>
+                <field name="user_id" string="Nhân viên"/>
+                <field name="categ_id" string="Nhóm sản phẩm"/>
+                <filter string="Bán buôn" name="wholesale" domain="[('channel_type','=','wholesale')]"/>
+                <filter string="Bán lẻ" name="retail" domain="[('channel_type','=','retail')]"/>
+                <separator/>
+                <filter string="Tháng này" name="this_month"
+                    domain="[('date_order','&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                              ('date_order','&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Năm nay" name="this_year"
+                    domain="[('date_order','&gt;=', (context_today() + relativedelta(month=1,day=1)).strftime('%Y-%m-%d')),
+                              ('date_order','&lt;=', (context_today() + relativedelta(month=12,day=31)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Nhóm theo">
+                    <filter string="Kênh bán" name="group_channel" context="{'group_by': 'channel_type'}"/>
+                    <filter string="Nhân viên" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Nhóm SP" name="group_categ" context="{'group_by': 'categ_id'}"/>
+                    <filter string="Tháng" name="group_month" context="{'group_by': 'date_order:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action: Doanh thu (graph mặc định) -->
+    <record id="action_vnop_sale_report_channel" model="ir.actions.act_window">
+        <field name="name">Doanh thu</field>
+        <field name="res_model">vnop.sale.report.channel</field>
+        <field name="view_mode">graph,pivot</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'graph', 'view_id': ref('view_vnop_sale_report_channel_graph')}),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_vnop_sale_report_channel_pivot')}),
+        ]"/>
+        <field name="search_view_id" ref="view_vnop_sale_report_channel_search"/>
+        <field name="context">{'search_default_this_year': 1}</field>
+    </record>
+
+</odoo>

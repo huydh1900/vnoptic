@@ -2577,7 +2577,21 @@ class ProductSync(models.Model):
 
         # ── Resolve categ từ default_code prefix ──
         categ_id = False
+
+        # ── Resolve brand từ tmdto ──
+        # Cache cache['brands'] đã preload từ product.brand keyed UPPER(code) + UPPER(name)
+        # ở _build_cache. tmdto là TradeMark DTO trong API Java cũ.
         _parsed_brand_id = False
+        _tm_dto = dto.get('tmdto')
+        if isinstance(_tm_dto, dict):
+            _brand_cid = (_tm_dto.get('cid') or '').strip().upper()
+            _brand_name = (_tm_dto.get('name') or '').strip().upper()
+            _brands_cache = cache.get('brands') or {}
+            _parsed_brand_id = (
+                (_brand_cid and _brands_cache.get(_brand_cid))
+                or (_brand_name and _brands_cache.get(_brand_name))
+                or False
+            )
 
         if default_code and len(default_code) >= 2:
             # Rule: mã bắt đầu bằng "01" → danh mục TK, len_type=DT
@@ -2790,6 +2804,10 @@ class ProductSync(models.Model):
         java_id = dto.get('id')
         if java_id:
             vals['x_java_qr_url'] = f'https://erp.vnoptictech.com.vn/product/{java_id}'
+            try:
+                vals['legacy_product_id'] = int(java_id)
+            except (TypeError, ValueError):
+                pass
 
         if forced_len_type:
             vals['len_type'] = forced_len_type

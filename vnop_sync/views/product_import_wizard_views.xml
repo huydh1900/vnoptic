@@ -117,7 +117,7 @@
                            invisible="not imported_product_ids"
                            nolabel="1"
                            readonly="1">
-                        <list create="0" edit="0" delete="0">
+                        <list create="0" edit="0" delete="0" default_order="barcode asc">
                             <field name="barcode" string="Mã sản phẩm"/>
                             <field name="name"/>
                             <field name="classification_id"/>

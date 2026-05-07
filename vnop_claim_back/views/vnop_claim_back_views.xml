@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ===================== FORM ===================== -->
+    <record id="vnop_claim_back_view_form" model="ir.ui.view">
+        <field name="name">vnop.claim.back.form</field>
+        <field name="model">vnop.claim.back</field>
+        <field name="arch" type="xml">
+            <form string="Claim Back">
+                <header>
+                    <button name="action_confirm" type="object" string="Xác nhận"
+                            class="btn-primary"
+                            invisible="state != 'uploaded'"
+                            groups="sales_team.group_sale_manager"/>
+                    <button name="action_post" type="object" string="Ghi sổ"
+                            class="btn-primary"
+                            invisible="state != 'confirmed'"
+                            groups="account.group_account_manager"/>
+                    <button name="action_done" type="object" string="Hoàn tất"
+                            invisible="state != 'posted'"
+                            groups="account.group_account_manager"/>
+                    <button name="action_cancel" type="object" string="Hủy"
+                            invisible="state not in ('draft','uploaded','confirmed')"
+                            groups="sales_team.group_sale_manager"/>
+                    <button name="action_set_draft" type="object" string="Về nháp"
+                            invisible="state != 'cancelled'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,uploaded,confirmed,posted,done"/>
+                </header>
+                <sheet>
+                    <!-- Smart button: HĐ giảm trừ -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_refund_move" type="object"
+                                class="oe_stat_button" icon="fa-file-text-o"
+                                invisible="not refund_move_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">HĐ giảm trừ</span>
+                            </div>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Thông tin chung">
+                            <field name="dealer_id"
+                                   readonly="state not in ('draft','uploaded')"/>
+                            <field name="period_from"
+                                   readonly="state not in ('draft','uploaded')"/>
+                            <field name="period_to"
+                                   readonly="state not in ('draft','uploaded')"/>
+                            <field name="company_id" groups="base.group_multi_company"
+                                   readonly="state not in ('draft','uploaded')"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group string="Tổng kết">
+                            <field name="claim_pct_used"/>
+                            <field name="total_saleout_amount"/>
+                            <field name="total_claim_amount"/>
+                            <field name="refund_move_id" readonly="1"
+                                   invisible="not refund_move_id"/>
+                        </group>
+                    </group>
+                    <!-- Upload file -->
+                    <group string="File saleout">
+                        <field name="excel_file" widget="binary"
+                               filename="excel_filename"
+                               readonly="state != 'draft'"/>
+                        <field name="excel_filename" invisible="1"/>
+                    </group>
+                    <!-- Lines — readonly khi đã confirmed trở lên -->
+                    <notebook>
+                        <page string="Chi tiết saleout" name="line_ids">
+                            <field name="line_ids"
+                                   readonly="state in ('confirmed','posted','done','cancelled')"
+                                   widget="one2many_list">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="sale_date"/>
+                                    <field name="product_id"/>
+                                    <field name="qty_saleout"/>
+                                    <field name="unit_price_saleout"/>
+                                    <field name="amount_saleout" readonly="1"/>
+                                    <field name="claim_unit_amount" readonly="1"/>
+                                    <field name="claim_amount" readonly="1"/>
+                                    <field name="end_customer_vat" optional="hide"/>
+                                    <field name="end_customer_name" optional="hide"/>
+                                    <field name="notes" optional="hide"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <field name="company_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ===================== LIST ===================== -->
+    <record id="vnop_claim_back_view_list" model="ir.ui.view">
+        <field name="name">vnop.claim.back.list</field>
+        <field name="model">vnop.claim.back</field>
+        <field name="arch" type="xml">
+            <list string="Claim Back">
+                <field name="name"/>
+                <field name="dealer_id"/>
+                <field name="period_from"/>
+                <field name="period_to"/>
+                <field name="claim_pct_used" string="% Claim"/>
+                <field name="total_saleout_amount"/>
+                <field name="total_claim_amount"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'done'"
+                       decoration-info="state in ('uploaded','confirmed')"
+                       decoration-warning="state == 'posted'"
+                       decoration-muted="state in ('draft','cancelled')"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="company_id" column_invisible="1"
+                       groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ===================== SEARCH ===================== -->
+    <record id="vnop_claim_back_view_search" model="ir.ui.view">
+        <field name="name">vnop.claim.back.search</field>
+        <field name="model">vnop.claim.back</field>
+        <field name="arch" type="xml">
+            <search string="Tìm Claim Back">
+                <field name="name" string="Số hiệu"/>
+                <field name="dealer_id" string="Đại lý"/>
+                <separator/>
+                <filter string="Nháp" name="draft" domain="[('state','=','draft')]"/>
+                <filter string="Đã upload" name="uploaded" domain="[('state','=','uploaded')]"/>
+                <filter string="Đã xác nhận" name="confirmed" domain="[('state','=','confirmed')]"/>
+                <filter string="Đã ghi sổ" name="posted" domain="[('state','=','posted')]"/>
+                <filter string="Hoàn tất" name="done" domain="[('state','=','done')]"/>
+                <filter string="Hủy" name="cancelled" domain="[('state','=','cancelled')]"/>
+                <group expand="0" string="Nhóm theo">
+                    <filter string="Đại lý" name="group_dealer" context="{'group_by': 'dealer_id'}"/>
+                    <filter string="Tháng" name="group_month" context="{'group_by': 'period_from:month'}"/>
+                    <filter string="Trạng thái" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ===================== ACTION ===================== -->
+    <record id="action_vnop_claim_back" model="ir.actions.act_window">
+        <field name="name">Claim Back</field>
+        <field name="res_model">vnop.claim.back</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="vnop_claim_back_view_search"/>
+    </record>
+
+</odoo>

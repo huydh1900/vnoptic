@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="portal_financial" name="B2B Financial">
+        <t t-call="portal.portal_layout">
+            <t t-set="page_name" t-value="'b2b_financial'"/>
+
+            <div class="container mt-3">
+                <h3 class="mb-4">Công nợ</h3>
+
+                <!-- KPI Tiles -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6">
+                        <div class="card border-danger h-100">
+                            <div class="card-body text-center">
+                                <p class="text-muted mb-1">Tổng dư nợ chưa thanh toán</p>
+                                <h3 class="text-danger fw-bold">
+                                    <t t-out="'%s %s' % ('{:,.0f}'.format(total_overdue), currency.symbol)"/>
+                                </h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="card border-success h-100">
+                            <div class="card-body text-center">
+                                <p class="text-muted mb-1">Đã thanh toán trong tháng này</p>
+                                <h3 class="text-success fw-bold">
+                                    <t t-out="'%s %s' % ('{:,.0f}'.format(paid_this_month), currency.symbol)"/>
+                                </h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aging Summary -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">Phân tích tuổi nợ</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2 text-center">
+                            <div class="col-6 col-md-3">
+                                <div class="border rounded p-2">
+                                    <p class="text-muted small mb-1">0 – 30 ngày</p>
+                                    <strong class="text-success">
+                                        <t t-out="'%s %s' % ('{:,.0f}'.format(aging_buckets['0-30']), currency.symbol)"/>
+                                    </strong>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="border rounded p-2">
+                                    <p class="text-muted small mb-1">31 – 60 ngày</p>
+                                    <strong class="text-warning">
+                                        <t t-out="'%s %s' % ('{:,.0f}'.format(aging_buckets['31-60']), currency.symbol)"/>
+                                    </strong>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="border rounded p-2">
+                                    <p class="text-muted small mb-1">61 – 90 ngày</p>
+                                    <strong class="text-orange" style="color: #fd7e14;">
+                                        <t t-out="'%s %s' % ('{:,.0f}'.format(aging_buckets['61-90']), currency.symbol)"/>
+                                    </strong>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="border rounded p-2">
+                                    <p class="text-muted small mb-1">Trên 90 ngày</p>
+                                    <strong class="text-danger">
+                                        <t t-out="'%s %s' % ('{:,.0f}'.format(aging_buckets['over-90']), currency.symbol)"/>
+                                    </strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoice list -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Hóa đơn chưa thanh toán</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <t t-if="unpaid_invoices">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Số hóa đơn</th>
+                                            <th>Ngày</th>
+                                            <th>Hạn thanh toán</th>
+                                            <th class="text-end">Tổng tiền</th>
+                                            <th class="text-end">Còn lại</th>
+                                            <th class="text-center">Tuổi nợ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-foreach="unpaid_invoices" t-as="inv">
+                                            <tr>
+                                                <td>
+                                                    <a t-att-href="inv.get_portal_url()" target="_blank">
+                                                        <t t-out="inv.name"/>
+                                                    </a>
+                                                </td>
+                                                <td><t t-out="inv.invoice_date or ''"/></td>
+                                                <td>
+                                                    <t t-out="inv.invoice_date_due or ''"/>
+                                                </td>
+                                                <td class="text-end">
+                                                    <t t-out="'%s %s' % ('{:,.0f}'.format(inv.amount_total), currency.symbol)"/>
+                                                </td>
+                                                <td class="text-end fw-bold">
+                                                    <t t-out="'%s %s' % ('{:,.0f}'.format(inv.amount_residual), currency.symbol)"/>
+                                                </td>
+                                                <td class="text-center">
+                                                    <t t-set="days_due" t-value="(today - inv.invoice_date_due).days if inv.invoice_date_due else 0"/>
+                                                    <span t-attf-class="badge #{days_due > 90 and 'bg-danger' or days_due > 60 and 'bg-warning text-dark' or days_due > 30 and 'bg-warning text-dark' or 'bg-success'}">
+                                                        <t t-out="'%d ngày' % days_due"/>
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <div class="text-center py-4 text-muted">
+                                <i class="fa fa-check-circle fa-2x text-success mb-2"/><br/>
+                                Không có hóa đơn chưa thanh toán.
+                            </div>
+                        </t>
+                    </div>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+</odoo>

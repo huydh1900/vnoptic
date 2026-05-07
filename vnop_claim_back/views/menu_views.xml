@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Menu gốc dưới Sales (tái sử dụng menu cha của sale) -->
+    <menuitem id="menu_vnop_claim_back_root"
+        name="Claim Back"
+        parent="sale.sale_menu_root"
+        sequence="25"/>
+
+    <menuitem id="menu_vnop_claim_back_list"
+        name="Danh sách Claim Back"
+        parent="menu_vnop_claim_back_root"
+        action="action_vnop_claim_back"
+        sequence="10"
+        groups="base.group_user"/>
+
+    <menuitem id="menu_vnop_claim_back_import"
+        name="Import Saleout Excel"
+        parent="menu_vnop_claim_back_root"
+        action="action_vnop_claim_back_import_wizard"
+        sequence="20"
+        groups="sales_team.group_sale_manager"/>
+
+</odoo>

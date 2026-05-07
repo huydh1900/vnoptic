@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="portal_returns_list" name="B2B Returns List">
+        <t t-call="portal.portal_layout">
+            <t t-set="page_name" t-value="'b2b_returns'"/>
+
+            <div class="container mt-3">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="mb-0">Yêu cầu trả hàng (RMA)</h3>
+                    <t t-if="not rma_unavailable">
+                        <a href="/my/returns/new" class="btn btn-primary">
+                            <i class="fa fa-plus me-1"/>Tạo yêu cầu mới
+                        </a>
+                    </t>
+                </div>
+
+                <t t-if="rma_unavailable">
+                    <div class="alert alert-warning">
+                        <i class="fa fa-exclamation-triangle me-2"/>
+                        Tính năng trả hàng chưa khả dụng trên hệ thống. Vui lòng liên hệ nhân viên hỗ trợ.
+                    </div>
+                </t>
+
+                <t t-elif="rma_list">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Mã RMA</th>
+                                    <th>Đơn hàng gốc</th>
+                                    <th>Ngày tạo</th>
+                                    <th>Lý do</th>
+                                    <th>Hình thức xử lý</th>
+                                    <th class="text-center">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="rma_list" t-as="rma">
+                                    <tr>
+                                        <td><strong><t t-out="rma.name"/></strong></td>
+                                        <td>
+                                            <a t-att-href="rma.sale_order_id.get_portal_url()" target="_blank">
+                                                <t t-out="rma.sale_order_id.name"/>
+                                            </a>
+                                        </td>
+                                        <td><t t-out="rma.create_date.date() if rma.create_date else ''"/></td>
+                                        <td><t t-out="dict(rma._fields['reason_code'].selection).get(rma.reason_code, rma.reason_code)"/></td>
+                                        <td><t t-out="dict(rma._fields['resolution_type'].selection).get(rma.resolution_type, rma.resolution_type)"/></td>
+                                        <td class="text-center">
+                                            <t t-set="state_map" t-value="{'submitted': ('bg-info', 'Đã gửi'), 'approved': ('bg-success', 'Đã duyệt'), 'rejected': ('bg-danger', 'Từ chối')}"/>
+                                            <t t-set="state_info" t-value="state_map.get(rma.state, ('bg-secondary', rma.state))"/>
+                                            <span t-attf-class="badge {{ state_info[0] }}">
+                                                <t t-out="state_info[1]"/>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+                </t>
+
+                <t t-else="">
+                    <div class="text-center py-5 text-muted">
+                        <i class="fa fa-inbox fa-3x mb-3"/><br/>
+                        Chưa có yêu cầu trả hàng nào.
+                        <div class="mt-2">
+                            <a href="/my/returns/new" class="btn btn-primary">
+                                <i class="fa fa-plus me-1"/>Tạo yêu cầu mới
+                            </a>
+                        </div>
+                    </div>
+                </t>
+            </div>
+        </t>
+    </template>
+
+</odoo>

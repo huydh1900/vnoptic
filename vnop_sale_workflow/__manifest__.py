@@ -1,0 +1,32 @@
+# -*- coding: utf-8 -*-
+{
+    'name': 'VNOptic Sale Workflow',
+    'summary': 'Duyệt đơn hàng 2 cấp, quy trình RMA và theo dõi KPI doanh số',
+    'version': '18.0.1.0.0',
+    'category': 'Sales',
+    'depends': [
+        'base',
+        'mail',
+        'sale',
+        'sale_management',
+        'account',
+        'stock',
+        'vnop_sale_channel',
+    ],
+    'data': [
+        'security/res_groups.xml',
+        'security/ir_rule.xml',
+        'security/ir.model.access.csv',
+        'data/ir_sequence.xml',
+        'data/ir_config_parameter.xml',
+        'data/ir_cron.xml',
+        'views/sale_order_views.xml',
+        'views/vnop_rma_views.xml',
+        'views/vnop_sale_target_views.xml',
+        'views/res_company_views.xml',
+        'views/menu_views.xml',
+    ],
+    'license': 'LGPL-3',
+    'installable': True,
+    'application': False,
+}

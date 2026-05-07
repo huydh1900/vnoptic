@@ -107,6 +107,46 @@ class SaleOrder(models.Model):
         help='Kênh bán của đơn hàng. Mặc định lấy từ khách hàng, có thể chỉnh tay.',
     )
 
+    industry_id = fields.Many2one(
+        comodel_name='product.category',
+        string='Ngành hàng',
+        domain="[('parent_id', '=', False)]",
+        help='Phân loại sản phẩm chính của đơn hàng. Dùng cho báo cáo doanh thu theo ngành.',
+    )
+
+    deposit_amount = fields.Monetary(
+        string='Tiền đặt cọc',
+        currency_field='currency_id',
+        help='Số tiền khách đặt cọc trước khi giao hàng.',
+    )
+
+    dealer_tier_id = fields.Many2one(
+        comodel_name='dealer.tier',
+        related='partner_id.dealer_tier_id',
+        string='Hạng đại lý',
+        store=True,
+        readonly=True,
+        help='Hạng đại lý — quyết định chính sách giá và chiết khấu.',
+    )
+
+    partner_credit_available = fields.Monetary(
+        string='Hạn mức công nợ còn lại',
+        compute='_compute_partner_credit_available',
+        currency_field='currency_id',
+        help='Hạn mức công nợ còn lại sau khi trừ đơn hiện tại. Âm = vượt hạn mức.',
+    )
+
+    @api.depends('partner_id', 'amount_total')
+    def _compute_partner_credit_available(self):
+        for order in self:
+            partner = order.partner_id
+            if partner:
+                order.partner_credit_available = (
+                    partner.credit_limit - partner.credit - order.amount_total
+                )
+            else:
+                order.partner_credit_available = 0.0
+
     @api.depends('partner_id')
     def _compute_channel_type(self):
         for order in self:

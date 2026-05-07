@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Submenu RMA dưới Sales top-level -->
+    <menuitem
+        id="menu_vnop_rma_root"
+        name="Trả hàng (RMA)"
+        parent="sale.sale_menu_root"
+        sequence="50"/>
+
+    <menuitem
+        id="menu_vnop_rma_list"
+        name="Yêu cầu trả hàng"
+        parent="menu_vnop_rma_root"
+        action="action_vnop_rma"
+        sequence="10"/>
+
+    <!-- Submenu KPI dưới Sales top-level -->
+    <menuitem
+        id="menu_vnop_sale_kpi_root"
+        name="KPI Doanh số"
+        parent="sale.sale_menu_root"
+        sequence="60"/>
+
+    <menuitem
+        id="menu_vnop_sale_target_list"
+        name="Mục tiêu doanh số"
+        parent="menu_vnop_sale_kpi_root"
+        action="action_vnop_sale_target"
+        sequence="10"/>
+
+</odoo>

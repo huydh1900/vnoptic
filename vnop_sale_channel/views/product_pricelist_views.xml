@@ -22,9 +22,28 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='currency_id']" position="after">
                 <field name="channel_type"/>
+                <field name="purchaser_id" invisible="channel_type != 'wholesale'"/>
             </xpath>
             <xpath expr="//field[@name='country_group_ids']" position="attributes">
                 <attribute name="invisible">1</attribute>
+            </xpath>
+            <!-- Thêm cột "Đang hiệu lực" vào inline list pricelist item -->
+            <xpath expr="//field[@name='item_ids']/list/field[@name='date_end']" position="after">
+                <field name="is_active_now" string="Đang hiệu lực"
+                       decoration-success="is_active_now"
+                       decoration-muted="not is_active_now"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Thêm chatter vào pricelist item form để theo dõi audit log thay đổi giá. -->
+    <record id="product_pricelist_item_form_view_channel" model="ir.ui.view">
+        <field name="name">product.pricelist.item.form.channel</field>
+        <field name="model">product.pricelist.item</field>
+        <field name="inherit_id" ref="product.product_pricelist_item_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="after">
+                <chatter/>
             </xpath>
         </field>
     </record>

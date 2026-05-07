@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_invoice_vn_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page" style="position: relative; font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 13px;">
+
+                        <!-- Watermark -->
+                        <div t-if="o.mock_einv_state == 'not_issued'" style="
+                            position: fixed;
+                            top: 40%;
+                            left: 50%;
+                            transform: translate(-50%, -50%) rotate(-30deg);
+                            font-size: 80px;
+                            color: #000;
+                            opacity: 0.08;
+                            white-space: nowrap;
+                            z-index: 0;
+                            pointer-events: none;
+                        ">
+                            HÓA ĐƠN MOCK – CHƯA PHÁT HÀNH
+                        </div>
+
+                        <!-- ========== HEADER ========== -->
+                        <div style="text-align: center; margin-bottom: 8px;">
+                            <div style="font-size: 10px; color: #555;">
+                                Mẫu số: <span t-esc="o.mock_einv_template_no or '1/001'"/>
+                                &#160;&#160;|&#160;&#160;
+                                Ký hiệu: <span t-esc="o.mock_einv_symbol or '(chưa phát hành)'"/>
+                            </div>
+                            <h2 style="margin: 6px 0; font-size: 20px; text-transform: uppercase; letter-spacing: 2px;">
+                                HÓA ĐƠN GIÁ TRỊ GIA TĂNG
+                            </h2>
+                            <div style="font-size: 11px; color: #555;">
+                                (Dùng cho hàng hóa, dịch vụ)
+                            </div>
+                        </div>
+
+                        <!-- Thông tin công ty + khách hàng -->
+                        <table style="width: 100%; margin-bottom: 10px; font-size: 12px;">
+                            <tr>
+                                <td style="width: 50%; vertical-align: top; padding-right: 10px;">
+                                    <strong>Đơn vị bán hàng:</strong>
+                                    <t t-set="comp" t-value="o.company_id"/>
+                                    <div><strong t-esc="comp.name"/></div>
+                                    <div>MST: <span t-esc="comp.vat or ''"/></div>
+                                    <div>Địa chỉ: <span t-esc="comp.partner_id.contact_address or ''"/></div>
+                                </td>
+                                <td style="width: 50%; vertical-align: top; text-align: right;">
+                                    <div>
+                                        Ngày HĐ:
+                                        <strong>
+                                            <t t-if="o.invoice_date">
+                                                <span t-esc="o.invoice_date.strftime('%d/%m/%Y')"/>
+                                            </t>
+                                            <t t-else="">(chưa xác định)</t>
+                                        </strong>
+                                    </div>
+                                    <div>Số HĐ: <strong t-esc="o.name"/></div>
+                                    <div style="font-size: 11px; color: #555;">
+                                        Mã tra cứu: <span t-esc="o.mock_einv_lookup_code or '/'"/>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <hr style="margin: 4px 0 10px 0;"/>
+
+                        <!-- ========== KHÁCH HÀNG ========== -->
+                        <table style="width: 100%; margin-bottom: 10px; font-size: 12px;">
+                            <tr>
+                                <td style="width: 50%; vertical-align: top; padding-right: 10px;">
+                                    <strong>Khách hàng:</strong>
+                                    <t t-set="partner" t-value="o.partner_id"/>
+                                    <div t-esc="partner.name"/>
+                                    <div t-if="partner.vat">MST: <span t-esc="partner.vat"/></div>
+                                    <div>Địa chỉ: <span t-esc="partner.contact_address or ''"/></div>
+                                </td>
+                                <td style="width: 50%; vertical-align: top;">
+                                    <div>
+                                        Hình thức thanh toán:
+                                        <span t-esc="o.invoice_payment_term_id.name or 'Chuyển khoản'"/>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- ========== BẢNG SẢN PHẨM ========== -->
+                        <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 10px;">
+                            <thead>
+                                <tr style="background-color: #f0f0f0;">
+                                    <th style="border: 1px solid #ccc; padding: 4px; text-align: center; width: 4%;">STT</th>
+                                    <th style="border: 1px solid #ccc; padding: 4px; text-align: left; width: 30%;">Tên hàng hóa/dịch vụ</th>
+                                    <th style="border: 1px solid #ccc; padding: 4px; text-align: center; width: 8%;">ĐVT</th>
+                                    <th style="border: 1px solid #ccc; padding: 4px; text-align: center; width: 8%;">Số lượng</th>
+                                    <th style="border: 1px solid #ccc; padding: 4px; text-align: right; width: 13%;">Đơn giá</th>
+                                    <th style="border: 1px solid #ccc; padding: 4px; text-align: right; width: 13%;">Thành tiền</th>
+                                    <th style="border: 1px solid #ccc; padding: 4px; text-align: center; width: 10%;">Thuế suất</th>
+                                    <th style="border: 1px solid #ccc; padding: 4px; text-align: right; width: 14%;">Tiền thuế</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-set="stt" t-value="0"/>
+                                <t t-foreach="o.invoice_line_ids.filtered(lambda l: l.display_type == 'product')" t-as="line">
+                                    <t t-set="stt" t-value="stt + 1"/>
+                                    <tr>
+                                        <td style="border: 1px solid #ccc; padding: 4px; text-align: center;"><t t-esc="stt"/></td>
+                                        <td style="border: 1px solid #ccc; padding: 4px;"><t t-esc="line.name or line.product_id.name or ''"/></td>
+                                        <td style="border: 1px solid #ccc; padding: 4px; text-align: center;">
+                                            <t t-esc="line.product_uom_id.name if line.product_uom_id else ''"/>
+                                        </td>
+                                        <td style="border: 1px solid #ccc; padding: 4px; text-align: center;">
+                                            <t t-esc="'{:,.2f}'.format(line.quantity)"/>
+                                        </td>
+                                        <td style="border: 1px solid #ccc; padding: 4px; text-align: right;">
+                                            <t t-esc="'{:,.0f}'.format(line.price_unit)"/>
+                                        </td>
+                                        <td style="border: 1px solid #ccc; padding: 4px; text-align: right;">
+                                            <t t-esc="'{:,.0f}'.format(line.price_subtotal)"/>
+                                        </td>
+                                        <td style="border: 1px solid #ccc; padding: 4px; text-align: center;">
+                                            <t t-set="tax_names" t-value="', '.join(line.tax_ids.mapped('name'))"/>
+                                            <t t-esc="tax_names or ''"/>
+                                        </td>
+                                        <td style="border: 1px solid #ccc; padding: 4px; text-align: right;">
+                                            <t t-esc="'{:,.0f}'.format(line.price_total - line.price_subtotal)"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+
+                        <!-- ========== TỔNG CỘNG ========== -->
+                        <table style="width: 100%; font-size: 12px; margin-bottom: 10px;">
+                            <tr>
+                                <td style="width: 65%;"></td>
+                                <td style="width: 35%;">
+                                    <table style="width: 100%; border-collapse: collapse;">
+                                        <tr>
+                                            <td style="padding: 3px 8px;">Cộng tiền hàng:</td>
+                                            <td style="padding: 3px 8px; text-align: right; font-weight: bold;">
+                                                <t t-esc="'{:,.0f}'.format(o.amount_untaxed)"/>
+                                                <span style="font-size: 10px;"> <t t-esc="o.currency_id.name"/></span>
+                                            </td>
+                                        </tr>
+                                        <!-- Tiền thuế theo từng mức -->
+                                        <t t-if="o.tax_totals and o.tax_totals.get('groups_by_subtotal')">
+                                            <t t-foreach="o.tax_totals.get('groups_by_subtotal', {}).items()" t-as="subtotal_item">
+                                                <t t-foreach="subtotal_item[1]" t-as="tax_group">
+                                                    <tr>
+                                                        <td style="padding: 3px 8px;">
+                                                            Thuế <t t-esc="tax_group.get('tax_group_name', '')"/>:
+                                                        </td>
+                                                        <td style="padding: 3px 8px; text-align: right;">
+                                                            <t t-esc="'{:,.0f}'.format(tax_group.get('tax_group_amount', 0))"/>
+                                                            <span style="font-size: 10px;"> <t t-esc="o.currency_id.name"/></span>
+                                                        </td>
+                                                    </tr>
+                                                </t>
+                                            </t>
+                                        </t>
+                                        <t t-else="">
+                                            <tr>
+                                                <td style="padding: 3px 8px;">Tiền thuế VAT:</td>
+                                                <td style="padding: 3px 8px; text-align: right;">
+                                                    <t t-esc="'{:,.0f}'.format(o.amount_tax)"/>
+                                                    <span style="font-size: 10px;"> <t t-esc="o.currency_id.name"/></span>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                        <tr style="border-top: 2px solid #333;">
+                                            <td style="padding: 4px 8px; font-weight: bold;">Tổng cộng:</td>
+                                            <td style="padding: 4px 8px; text-align: right; font-weight: bold; font-size: 13px;">
+                                                <t t-esc="'{:,.0f}'.format(o.amount_total)"/>
+                                                <span style="font-size: 10px;"> <t t-esc="o.currency_id.name"/></span>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- ========== BẰNG CHỮ ========== -->
+                        <div style="margin-bottom: 16px; font-size: 12px;">
+                            <strong>Bằng chữ: </strong>
+                            <t t-if="o.amount_text_vi">
+                                <span t-esc="o.amount_text_vi"/>
+                            </t>
+                            <t t-else="">
+                                <span t-esc="'{:,.0f}'.format(o.amount_total)"/> <span t-esc="o.currency_id.name"/>
+                            </t>
+                        </div>
+
+                        <!-- ========== FOOTER KÝ TÊN ========== -->
+                        <table style="width: 100%; font-size: 12px; text-align: center; margin-top: 24px;">
+                            <tr>
+                                <td style="width: 33%; vertical-align: top; padding: 0 8px;">
+                                    <strong>Người lập hóa đơn</strong>
+                                    <div style="font-style: italic; font-size: 11px; color: #555;">(Ký, ghi rõ họ tên)</div>
+                                    <div style="height: 60px;"></div>
+                                </td>
+                                <td style="width: 33%; vertical-align: top; padding: 0 8px;">
+                                    <strong>Người mua hàng</strong>
+                                    <div style="font-style: italic; font-size: 11px; color: #555;">(Ký, ghi rõ họ tên)</div>
+                                    <div style="height: 60px;"></div>
+                                </td>
+                                <td style="width: 33%; vertical-align: top; padding: 0 8px;">
+                                    <strong>Người đại diện theo pháp luật</strong>
+                                    <div style="font-style: italic; font-size: 11px; color: #555;">(Ký, đóng dấu, ghi rõ họ tên)</div>
+                                    <div style="height: 60px;"></div>
+                                    <div style="font-size: 11px;">
+                                        Ngày
+                                        <t t-if="o.invoice_date">
+                                            <span t-esc="o.invoice_date.strftime('%d')"/>
+                                            tháng
+                                            <span t-esc="o.invoice_date.strftime('%m')"/>
+                                            năm
+                                            <span t-esc="o.invoice_date.strftime('%Y')"/>
+                                        </t>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

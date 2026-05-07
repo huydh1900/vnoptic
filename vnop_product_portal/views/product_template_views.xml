@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="product_template_form_inherit_qr_portal" model="ir.ui.view">
+        <field name="name">product.template.form.inherit.qr.portal</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="vnop_sync.product_template_form_inherit_product"/>
+        <field name="priority">110</field>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='qr_code']" position="attributes">
+                <attribute name="widget">qr_clickable</attribute>
+                <attribute name="options">{'size': [100, 100], 'link_field': 'x_java_qr_url'}</attribute>
+            </xpath>
+            <xpath expr="//field[@name='qr_code']" position="after">
+                <field name="x_java_qr_url" invisible="1"/>
+                <field name="legacy_product_id" invisible="1"/>
+                <field name="qr_portal_image" widget="qr_clickable" nolabel="1" readonly="1"
+                       invisible="not qr_portal_image"
+                       options="{'size': [100, 100], 'link_field': 'qr_portal_url'}"
+                       class="oe_avatar"
+                       style="margin-right:15px;"/>
+                <field name="qr_portal_url" invisible="1"/>
+            </xpath>
+            <xpath expr="//header" position="inside">
+                <button name="action_export_intem"
+                        string="Xuất thông tin"
+                        type="object"
+                        class="btn-primary"
+                        invisible="type == 'service'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- List view: replace "Print Labels" header button bằng "Xuất thông tin" -->
+    <record id="product_template_tree_inherit_intem" model="ir.ui.view">
+        <field name="name">product.template.list.inherit.intem</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_tree_view"/>
+        <field name="priority">110</field>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_open_label_layout']" position="replace">
+                <button name="action_export_intem"
+                        string="Xuất thông tin"
+                        type="object"
+                        class="btn-primary"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

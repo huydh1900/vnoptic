@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="report_invoice_vn" model="ir.actions.report">
+        <field name="name">Hóa đơn điện tử VN</field>
+        <field name="model">account.move</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">vnop_invoice_mock.report_invoice_vn_document</field>
+        <field name="report_file">vnop_invoice_mock.report_invoice_vn_document</field>
+        <field name="paperformat_id" ref="paperformat_invoice_vn"/>
+        <field name="binding_model_id" ref="account.model_account_move"/>
+        <field name="domain">[('move_type', 'in', ['out_invoice', 'out_refund'])]</field>
+        <field name="binding_type">report</field>
+    </record>
+</odoo>

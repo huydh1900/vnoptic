@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Graph: Tuổi nợ theo nhóm -->
+    <record id="view_vnop_sale_report_aging_graph" model="ir.ui.view">
+        <field name="name">vnop.sale.report.aging.graph</field>
+        <field name="model">vnop.sale.report.aging</field>
+        <field name="arch" type="xml">
+            <graph string="Phân tích tuổi nợ" type="bar" stacked="1">
+                <field name="aging_bucket" type="row"/>
+                <field name="amount_residual" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Pivot: Tuổi nợ theo khách hàng x nhóm nợ -->
+    <record id="view_vnop_sale_report_aging_pivot" model="ir.ui.view">
+        <field name="name">vnop.sale.report.aging.pivot</field>
+        <field name="model">vnop.sale.report.aging</field>
+        <field name="arch" type="xml">
+            <pivot string="Phân tích tuổi nợ">
+                <field name="partner_id" type="row"/>
+                <field name="aging_bucket" type="col"/>
+                <field name="amount_residual" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Search view -->
+    <record id="view_vnop_sale_report_aging_search" model="ir.ui.view">
+        <field name="name">vnop.sale.report.aging.search</field>
+        <field name="model">vnop.sale.report.aging</field>
+        <field name="arch" type="xml">
+            <search string="Tuổi nợ">
+                <field name="partner_id" string="Khách hàng"/>
+                <filter string="0-30 ngày" name="bucket_0_30" domain="[('aging_bucket','=','b_0_30')]"/>
+                <filter string="31-60 ngày" name="bucket_31_60" domain="[('aging_bucket','=','b_31_60')]"/>
+                <filter string="61-90 ngày" name="bucket_61_90" domain="[('aging_bucket','=','b_61_90')]"/>
+                <filter string="91-180 ngày" name="bucket_91_180" domain="[('aging_bucket','=','b_91_180')]"/>
+                <filter string="Trên 180 ngày" name="bucket_over_180" domain="[('aging_bucket','=','b_over_180')]"/>
+                <group expand="0" string="Nhóm theo">
+                    <filter string="Khách hàng" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                    <filter string="Nhóm nợ" name="group_bucket" context="{'group_by': 'aging_bucket'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action: Tuổi nợ (graph mặc định) -->
+    <record id="action_vnop_sale_report_aging" model="ir.actions.act_window">
+        <field name="name">Tuổi nợ</field>
+        <field name="res_model">vnop.sale.report.aging</field>
+        <field name="view_mode">graph,pivot</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'graph', 'view_id': ref('view_vnop_sale_report_aging_graph')}),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_vnop_sale_report_aging_pivot')}),
+        ]"/>
+        <field name="search_view_id" ref="view_vnop_sale_report_aging_search"/>
+    </record>
+
+</odoo>

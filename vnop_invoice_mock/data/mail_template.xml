@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="mail_template_invoice_vn" model="mail.template">
+        <field name="name">Hóa đơn điện tử mock</field>
+        <field name="model_id" ref="account.model_account_move"/>
+        <field name="subject">Hóa đơn {{ object.name }} – {{ object.partner_id.name or '' }}</field>
+        <field name="email_to">{{ object.partner_id.email or '' }}</field>
+        <field name="body_html"><![CDATA[
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #222;">
+    <p>Kính gửi Quý khách <strong>{{ object.partner_id.name or '' }}</strong>,</p>
+    <p>
+        Công ty <strong>{{ object.company_id.name }}</strong> trân trọng gửi đến Quý khách
+        <strong>hóa đơn điện tử</strong> số <strong>{{ object.name }}</strong>
+        {% if object.mock_einv_symbol %} – ký hiệu <strong>{{ object.mock_einv_symbol }}</strong>{% endif %}
+        ngày {{ object.invoice_date and object.invoice_date.strftime('%d/%m/%Y') or '' }}.
+    </p>
+    <p>
+        Mã tra cứu hóa đơn: <strong>{{ object.mock_einv_lookup_code or '/' }}</strong>
+    </p>
+    <p>
+        Tổng tiền thanh toán:
+        <strong>{{ '{:,.0f}'.format(object.amount_total) }} {{ object.currency_id.name }}</strong>
+    </p>
+    <p>File PDF hóa đơn được đính kèm trong email này.</p>
+    <p>Trân trọng,<br/>{{ object.company_id.name }}</p>
+    <hr/>
+    <p style="font-size: 11px; color: #999;">
+        <em>Đây là hóa đơn mock – chưa có giá trị pháp lý theo quy định HĐĐT.</em>
+    </p>
+</div>
+        ]]></field>
+        <field name="report_template_ids" eval="[(4, ref('vnop_invoice_mock.report_invoice_vn'))]"/>
+        <field name="auto_delete" eval="False"/>
+    </record>
+</odoo>

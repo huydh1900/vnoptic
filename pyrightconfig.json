@@ -1,0 +1,11 @@
+{
+    "venvPath": "/home/huytq/vnoptic",
+    "venv": "venv3_12",
+    "pythonVersion": "3.12",
+    "extraPaths": [
+        "/home/huytq/vnoptic/odoo18"
+    ],
+    "reportMissingImports": "warning",
+    "reportUnusedImport": "none",
+    "reportUnusedExpression": "none"
+}

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_company_form_inherit_workflow" model="ir.ui.view">
+        <field name="name">res.company.form.inherit.workflow</field>
+        <field name="model">res.company</field>
+        <field name="inherit_id" ref="base.view_company_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page name="sale_workflow" string="Quy trình duyệt đơn hàng">
+                    <group string="Ngưỡng duyệt theo giá trị đơn hàng">
+                        <field name="workflow_approval_l1_threshold"
+                               widget="monetary"
+                               options="{'currency_field': 'currency_id'}"
+                               help="Tổng đơn hàng vượt ngưỡng này sẽ cần duyệt cấp Quản lý."/>
+                        <field name="workflow_approval_l2_threshold"
+                               widget="monetary"
+                               options="{'currency_field': 'currency_id'}"
+                               help="Tổng đơn hàng vượt ngưỡng này sẽ cần duyệt cấp Giám đốc."/>
+                    </group>
+                    <group string="Ngưỡng duyệt theo chiết khấu">
+                        <field name="discount_approval_l1_threshold"
+                               help="Chiết khấu trên dòng bán vượt ngưỡng này cần duyệt cấp Quản lý (%)."
+                               string="Ngưỡng chiết khấu L1 (%)"/>
+                        <field name="discount_approval_l2_threshold"
+                               help="Chiết khấu trên dòng bán vượt ngưỡng này cần duyệt cấp Giám đốc (%)."
+                               string="Ngưỡng chiết khấu L2 (%)"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

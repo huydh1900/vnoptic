@@ -21,6 +21,14 @@
             <field name="is_favorite" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </field>
+            <!-- Hide "Forecasted" column do stock thêm vào (virtual_available) -->
+            <field name="virtual_available" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
+            <!-- Hide cột activity (mail.activity exception decoration) -->
+            <field name="activity_exception_decoration" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
             <!-- Add common fields after name -->
             <xpath expr="//field[@name='name']" position="after">
                 <!-- Common fields -->

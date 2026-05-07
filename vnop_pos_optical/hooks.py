@@ -9,14 +9,13 @@ Quy trình hook (chạy idempotent):
   1. Đảm bảo chart of accounts VN (l10n_vn) đã load cho company.
   2. Lookup/đảm bảo các tài khoản chuẩn VN cốt lõi (1111, 1121, 131, 156,
      5111, 5113, 632, 33311, 1331).
-  3. Tạo product.category 'Sản phẩm mắt kính' với property income/expense/stock
-     gắn tài khoản trên.
+  3. Gắn property income/expense/stock cho các product.category đang dùng.
   4. Tạo (hoặc lookup) 3 journal POS chuyên biệt + bind default_account.
   5. Bind 7 POS payment methods về journal phù hợp.
   6. Bind tax repartition đầu ra/refund của thuế GTGT 5/8/10% → 33311.
   7. Bật available_in_pos cho mọi sản phẩm sale_ok.
   8. Tạo (hoặc lookup) pos.config + bind pricelist + payment methods.
-  9. Gắn product.category cho sản phẩm mẫu (gọng/tròng/phụ kiện).
+  9. Đồng bộ danh mục POS từ product.template.categ_id.
 
 Lưu ý kỹ thuật: l10n_vn chart_template loading **xoá** journals cũ. Vì vậy
 journal + pos.config KHÔNG đặt trong XML data — phải tạo trong hook (chạy
@@ -169,32 +168,36 @@ def _setup_taxes(env, company, accounts):
             })
             _logger.info("vnop_pos_optical: created tax %s", label)
         for line in tax.invoice_repartition_line_ids.filtered(
-            lambda l: l.repartition_type == 'tax' and not l.account_id
+            lambda line: line.repartition_type == 'tax' and not line.account_id
         ):
             line.account_id = vat_out.id
         for line in tax.refund_repartition_line_ids.filtered(
-            lambda l: l.repartition_type == 'tax' and not l.account_id
+            lambda line: line.repartition_type == 'tax' and not line.account_id
         ):
             line.account_id = vat_out.id
 
 
-def _setup_product_category(env, company, accounts):
-    Category = env['product.category']
-    cat = Category.search([('name', '=', 'Sản phẩm mắt kính')], limit=1)
-    if not cat:
-        cat = Category.create({'name': 'Sản phẩm mắt kính'})
-    cat_co = cat.with_company(company)
-    if not cat_co.property_account_income_categ_id:
-        cat_co.property_account_income_categ_id = accounts['5111'].id
-    if not cat_co.property_account_expense_categ_id:
-        cat_co.property_account_expense_categ_id = accounts['632'].id
-    if 'property_stock_valuation_account_id' in cat._fields:
-        try:
-            if not cat_co.property_stock_valuation_account_id:
-                cat_co.property_stock_valuation_account_id = accounts['156'].id
-        except Exception:
-            pass
-    return cat
+def _setup_product_categories(env, company, accounts):
+    products = env['product.template'].search([
+        ('active', '=', True),
+        ('sale_ok', '=', True),
+        ('available_in_pos', '=', True),
+        ('categ_id', '!=', False),
+    ])
+    categories = products.mapped('categ_id')
+    for category in categories:
+        cat_co = category.with_company(company)
+        if not cat_co.property_account_income_categ_id:
+            cat_co.property_account_income_categ_id = accounts['5111'].id
+        if not cat_co.property_account_expense_categ_id:
+            cat_co.property_account_expense_categ_id = accounts['632'].id
+        if 'property_stock_valuation_account_id' in category._fields:
+            try:
+                if not cat_co.property_stock_valuation_account_id:
+                    cat_co.property_stock_valuation_account_id = accounts['156'].id
+            except Exception:
+                pass
+    env['product.category']._vnop_sync_pos_categories_from_products()
 
 
 def _enable_pos_for_products(env):
@@ -210,7 +213,7 @@ def _enable_pos_for_products(env):
 
 
 def _bind_product_taxes(env, company):
-    """Sản phẩm/dịch vụ mẫu có thể mất link tax sau khi chart wipe. Gán mặc
+    """Sản phẩm/dịch vụ POS có thể mất link tax sau khi chart wipe. Gán mặc
     định:
       - SP vật lý (consu) → thuế GTGT 8%
       - SP dịch vụ (service) → thuế GTGT 5%
@@ -240,30 +243,6 @@ def _bind_product_taxes(env, company):
             svc.write({'taxes_id': [(6, 0, [tax_5.id])]})
 
 
-def _bind_sample_products_to_category(env, category):
-    pos_cat_xmlids = [
-        'vnop_pos_optical.pos_cat_frame',
-        'vnop_pos_optical.pos_cat_lens',
-        'vnop_pos_optical.pos_cat_sunglasses',
-        'vnop_pos_optical.pos_cat_contact_lens',
-        'vnop_pos_optical.pos_cat_accessories',
-        'vnop_pos_optical.pos_cat_service',
-    ]
-    pos_cats = env['pos.category']
-    for xid in pos_cat_xmlids:
-        c = env.ref(xid, raise_if_not_found=False)
-        if c:
-            pos_cats |= c
-    if not pos_cats:
-        return
-    products = env['product.template'].search([
-        ('pos_categ_ids', 'in', pos_cats.ids),
-        ('categ_id.name', '!=', category.name),
-    ])
-    if products:
-        products.write({'categ_id': category.id})
-
-
 def _setup_pos_config(env, company, journals):
     """Tạo (idempotent) pos.config 'Cửa hàng Mắt kính - Quầy chính' nếu chưa
     có, gán đầy đủ pricelist + payment methods + journals + picking type."""
@@ -274,8 +253,6 @@ def _setup_pos_config(env, company, journals):
     ], limit=1)
 
     sale_j = journals.get('POSMK')
-    cash_j = journals.get('POSCM')
-
     # Picking type cho POS — pick từ warehouse mặc định
     picking_type = env['stock.picking.type'].search([
         ('code', '=', 'outgoing'),
@@ -309,6 +286,9 @@ def _setup_pos_config(env, company, journals):
     wholesale = env.ref('vnop_sale_channel.pricelist_wholesale', raise_if_not_found=False)
     if wholesale and wholesale.currency_id != company.currency_id:
         wholesale.currency_id = company.currency_id.id
+    pos_categories = env['product.category'].search([
+        ('vnop_pos_category_id', '!=', False),
+    ]).mapped('vnop_pos_category_id')
 
     vals = {
         'name': POS_CONFIG_NAME,
@@ -334,6 +314,8 @@ def _setup_pos_config(env, company, journals):
         vals['use_pricelist'] = True
         vals['pricelist_id'] = retail.id
         vals['available_pricelist_ids'] = [(6, 0, [retail.id])]
+    if pos_categories:
+        vals['iface_available_categ_ids'] = [(6, 0, pos_categories.ids)]
 
     if not config:
         config = PosConfig.create(vals)
@@ -351,10 +333,9 @@ def post_init_hook(env):
     journals = _setup_journals(env, company, accounts)
     _setup_payment_methods(env, journals)
     _setup_taxes(env, company, accounts)
-    category = _setup_product_category(env, company, accounts)
     _enable_pos_for_products(env)
+    _setup_product_categories(env, company, accounts)
     _bind_product_taxes(env, company)
-    _bind_sample_products_to_category(env, category)
     _setup_pos_config(env, company, journals)
 
     _logger.info("vnop_pos_optical: post-init completed.")

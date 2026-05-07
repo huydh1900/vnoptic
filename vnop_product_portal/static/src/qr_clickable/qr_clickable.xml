@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="vnop_product_portal.QrClickableField">
+        <div class="d-inline-block position-relative o_qr_clickable">
+            <a t-if="linkUrl"
+               t-att-href="linkUrl"
+               target="_blank"
+               rel="noopener noreferrer"
+               t-att-title="linkUrl"
+               class="d-inline-block o_qr_clickable_link">
+                <img
+                    loading="lazy"
+                    t-att-class="imgClass"
+                    t-att-alt="imgAlt"
+                    t-att-src="this.getUrl(props.previewImage or props.name)"
+                    t-att-name="props.name"
+                    t-att-height="props.height"
+                    t-att-width="props.width"
+                    t-att-style="sizeStyle"
+                    t-on-error.stop="onLoadFailed"
+                />
+            </a>
+            <img t-else=""
+                 loading="lazy"
+                 t-att-class="imgClass"
+                 t-att-alt="imgAlt"
+                 t-att-src="this.getUrl(props.previewImage or props.name)"
+                 t-att-name="props.name"
+                 t-att-height="props.height"
+                 t-att-width="props.width"
+                 t-att-style="sizeStyle"
+                 t-on-error.stop="onLoadFailed"
+            />
+        </div>
+    </t>
+
+</templates>

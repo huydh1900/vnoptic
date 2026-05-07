@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Root menu: Bảng điều khiển (dưới sale root) -->
+    <menuitem
+        id="menu_dashboard_root"
+        name="Bảng điều khiển"
+        parent="sale.sale_menu_root"
+        sequence="1"
+        groups="sales_team.group_sale_salesman_all_leads"
+    />
+
+    <!-- Tổng quan bán hàng (KPI tiles) -->
+    <menuitem
+        id="menu_kpi_tiles"
+        name="Tổng quan bán hàng"
+        parent="menu_dashboard_root"
+        action="action_kpi_tiles"
+        sequence="10"
+        groups="sales_team.group_sale_salesman_all_leads"
+    />
+
+    <!-- Doanh thu -->
+    <menuitem
+        id="menu_revenue"
+        name="Doanh thu"
+        parent="menu_dashboard_root"
+        action="action_vnop_sale_report_channel"
+        sequence="20"
+        groups="sales_team.group_sale_salesman_all_leads"
+    />
+
+    <!-- Top khách hàng -->
+    <menuitem
+        id="menu_top_customer"
+        name="Top khách hàng"
+        parent="menu_dashboard_root"
+        action="action_sale_order_top_customer"
+        sequence="30"
+        groups="sales_team.group_sale_salesman_all_leads"
+    />
+
+    <!-- Top sản phẩm -->
+    <menuitem
+        id="menu_top_product"
+        name="Top sản phẩm"
+        parent="menu_dashboard_root"
+        action="action_sale_order_line_top_product"
+        sequence="40"
+        groups="sales_team.group_sale_salesman_all_leads"
+    />
+
+    <!-- Tuổi nợ (chỉ manager) -->
+    <menuitem
+        id="menu_aging"
+        name="Tuổi nợ"
+        parent="menu_dashboard_root"
+        action="action_vnop_sale_report_aging"
+        sequence="50"
+        groups="sales_team.group_sale_manager"
+    />
+
+    <!--
+        Menu KPI nhân viên: cần vnop_sale_workflow installed.
+        TODO: uncomment khi module vnop_sale_workflow được cài.
+        <menuitem
+            id="menu_kpi_target"
+            name="KPI nhân viên"
+            parent="menu_dashboard_root"
+            action="vnop_sale_workflow.action_vnop_sale_target"
+            sequence="60"
+            groups="sales_team.group_sale_manager"
+        />
+    -->
+
+</odoo>

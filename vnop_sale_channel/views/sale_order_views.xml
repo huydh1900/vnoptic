@@ -10,6 +10,22 @@
                 <field name="channel_type" readonly="1"/>
             </xpath>
 
+            <!-- Group "Thông tin đại lý" — chỉ hiện cho đơn bán buôn (B2B). -->
+            <xpath expr="//field[@name='payment_term_id']" position="after">
+                <field name="industry_id"
+                       invisible="channel_type != 'wholesale'"
+                       options="{'no_create': True}"/>
+                <field name="deposit_amount"
+                       invisible="channel_type != 'wholesale'"/>
+                <field name="dealer_tier_id"
+                       invisible="channel_type != 'wholesale'"
+                       readonly="1"/>
+                <field name="partner_credit_available"
+                       invisible="channel_type != 'wholesale'"
+                       decoration-danger="partner_credit_available &lt; 0"
+                       decoration-warning="partner_credit_available &lt; amount_total"/>
+            </xpath>
+
             <!-- Bán lẻ: ẩn trạng thái 'Quotation Sent' khỏi statusbar.
                  Bán buôn: vẫn hiển thị 'sent' (mặc định Odoo).
                  Trick: render 2 statusbar mutually-exclusive theo channel_type vì

@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_vnop_claim_back_user,vnop_claim_back.vnop.claim.back user,model_vnop_claim_back,base.group_user,1,0,0,0
+access_vnop_claim_back_sale_manager,vnop_claim_back.vnop.claim.back sale manager,model_vnop_claim_back,sales_team.group_sale_manager,1,1,1,1
+access_vnop_claim_back_account_manager,vnop_claim_back.vnop.claim.back account manager,model_vnop_claim_back,account.group_account_manager,1,1,1,0
+access_vnop_claim_back_line_user,vnop_claim_back.vnop.claim.back.line user,model_vnop_claim_back_line,base.group_user,1,0,0,0
+access_vnop_claim_back_line_sale_manager,vnop_claim_back.vnop.claim.back.line sale manager,model_vnop_claim_back_line,sales_team.group_sale_manager,1,1,1,1
+access_vnop_claim_back_line_account_manager,vnop_claim_back.vnop.claim.back.line account manager,model_vnop_claim_back_line,account.group_account_manager,1,1,1,0
+access_vnop_claim_back_import_wizard,vnop_claim_back.import.wizard,model_vnop_claim_back_import_wizard,sales_team.group_sale_manager,1,1,1,1

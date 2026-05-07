@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="dealer_tier_view_list" model="ir.ui.view">
+        <field name="name">dealer.tier.list</field>
+        <field name="model">dealer.tier</field>
+        <field name="arch" type="xml">
+            <list string="Hạng đại lý">
+                <field name="sequence" widget="handle"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="default_discount"/>
+                <field name="suggested_credit_limit"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="partner_count" string="Số đại lý"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="dealer_tier_view_form" model="ir.ui.view">
+        <field name="name">dealer.tier.form</field>
+        <field name="model">dealer.tier</field>
+        <field name="arch" type="xml">
+            <form string="Hạng đại lý">
+                <sheet>
+                    <widget name="web_ribbon" title="Đã lưu trữ"
+                            bg_color="bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="Tên hạng..."/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="default_discount"/>
+                            <field name="suggested_credit_limit"/>
+                            <field name="currency_id"/>
+                            <field name="partner_count" string="Số đại lý"/>
+                        </group>
+                    </group>
+                    <group string="Mô tả">
+                        <field name="description" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="dealer_tier_view_search" model="ir.ui.view">
+        <field name="name">dealer.tier.search</field>
+        <field name="model">dealer.tier</field>
+        <field name="arch" type="xml">
+            <search string="Tìm hạng đại lý">
+                <field name="name" string="Tên hạng"/>
+                <field name="code" string="Mã hạng"/>
+                <filter string="Đã lưu trữ" name="archived" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_dealer_tier" model="ir.actions.act_window">
+        <field name="name">Hạng đại lý</field>
+        <field name="res_model">dealer.tier</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'active_test': False}</field>
+    </record>
+
+    <menuitem id="menu_dealer_tier"
+        name="Hạng đại lý"
+        parent="sale.menu_sale_config"
+        action="action_dealer_tier"
+        groups="sales_team.group_sale_manager"
+        sequence="30"/>
+
+</odoo>

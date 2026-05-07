@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="param_vnop_claim_back_default_pct" model="ir.config_parameter">
+        <field name="key">vnop_claim_back.default_claim_pct</field>
+        <field name="value">5.0</field>
+    </record>
+
+</odoo>

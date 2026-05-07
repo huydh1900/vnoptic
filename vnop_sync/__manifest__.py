@@ -1,6 +1,6 @@
 {
     'name': 'Product Sync from Server',
-    'version': '18.0.1.1.0',
+    'version': '18.0.1.2.0',
     'category': 'Inventory',
     'depends': ['base', 'stock', 'product', 'purchase', 'account', 'base_import', 'l10n_vn', 'queue_job', 'queue_job_cron_jobrunner'],
     'data': [
@@ -47,7 +47,6 @@
     'assets': {
         'web.assets_backend': [
             'vnop_sync/static/src/scss/product_kanban_modern.scss',
-            'vnop_sync/static/src/js/preview_long_text.js',
             'vnop_sync/static/src/js/product_kanban_buttons.js',
             'vnop_sync/static/src/xml/product_kanban_buttons.xml',
         ],

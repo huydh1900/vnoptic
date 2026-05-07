@@ -1,0 +1,18 @@
+.o_qr_clickable {
+    .o_qr_clickable_link {
+        cursor: pointer;
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        outline: 2px solid transparent;
+        border-radius: 4px;
+
+        &:hover {
+            opacity: 0.85;
+            transform: scale(1.04);
+            outline-color: rgba(113, 75, 103, 0.45);
+        }
+
+        &:focus-visible {
+            outline-color: #714b67;
+        }
+    }
+}

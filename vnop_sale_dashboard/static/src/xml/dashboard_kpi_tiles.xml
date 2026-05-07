@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="vnop_sale_dashboard.KpiTiles">
+        <div class="o_vnop_dashboard_kpi">
+            <div class="o_vnop_dashboard_header d-flex align-items-center justify-content-between mb-3 px-3 pt-3">
+                <h4 class="mb-0">Tổng quan bán hàng</h4>
+                <button class="btn btn-sm btn-outline-secondary" t-on-click="onRefresh">
+                    <i class="fa fa-refresh"/> Làm mới
+                </button>
+            </div>
+
+            <!-- Loading state -->
+            <t t-if="state.loading">
+                <div class="d-flex justify-content-center align-items-center p-5">
+                    <i class="fa fa-spinner fa-spin fa-2x text-muted"/>
+                </div>
+            </t>
+
+            <!-- Error state -->
+            <t t-elif="state.error">
+                <div class="alert alert-danger mx-3">
+                    <i class="fa fa-exclamation-triangle me-2"/>
+                    <t t-esc="state.error"/>
+                </div>
+            </t>
+
+            <!-- KPI tiles -->
+            <t t-else="">
+                <div class="o_vnop_kpi_tiles_grid px-3 pb-3">
+                    <t t-foreach="state.tiles" t-as="tile" t-key="tile.label">
+                        <div class="o_vnop_kpi_tile card shadow-sm">
+                            <div class="card-body">
+                                <div class="o_vnop_kpi_label text-muted small mb-1">
+                                    <t t-esc="tile.label"/>
+                                </div>
+                                <div class="o_vnop_kpi_amount h4 mb-1 fw-bold">
+                                    <t t-esc="formatAmount(tile.amount)"/>
+                                </div>
+                                <div t-attf-class="o_vnop_kpi_delta small {{ deltaClass(tile.delta) }}">
+                                    <i t-attf-class="fa {{ tile.delta !== null and tile.delta >= 0 ? 'fa-arrow-up' : tile.delta !== null ? 'fa-arrow-down' : 'fa-minus' }} me-1"/>
+                                    <t t-esc="formatDelta(tile.delta)"/>
+                                    <span class="text-muted ms-1">so kỳ trước</span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </t>
+        </div>
+    </t>
+
+</templates>

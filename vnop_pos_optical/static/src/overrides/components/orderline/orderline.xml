@@ -14,6 +14,19 @@
                 <strong>Rx:</strong> <t t-esc="line.prescriptionSummary"/>
             </li>
         </xpath>
+
+        <!-- Nút thùng rác xóa dòng sản phẩm. Chèn cạnh giá để giữ layout
+             flex của hàng (div ngoài là w-100, nút đặt ngoài sẽ bị tràn).
+             Chỉ hiện trên màn POS (không phải receipt) và chỉ khi line có
+             uuid (record thực). t-on-click.stop để không trigger select. -->
+        <xpath expr="//div[@class='product-price price fw-bolder']" position="after">
+            <button t-if="!props.basic_receipt and line.uuid"
+                class="btn btn-link text-danger p-1 ms-1 o_pos_orderline_remove"
+                t-on-click.stop="onRemoveLine"
+                title="Xóa dòng">
+                <i class="fa fa-trash" role="img" aria-label="Xóa dòng"/>
+            </button>
+        </xpath>
     </t>
 
 </templates>

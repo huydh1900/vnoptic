@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Inherit sale.order form: thêm approval fields và workflow buttons -->
+    <record id="sale_order_form_inherit_workflow" model="ir.ui.view">
+        <field name="name">sale.order.form.inherit.workflow</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Thêm trạng thái duyệt vào statusbar -->
+            <xpath expr="//header/field[@name='state']" position="attributes">
+                <attribute name="statusbar_visible">draft,sent,to_approve_l1,to_approve_l2,sale,done</attribute>
+            </xpath>
+
+            <!-- Nút yêu cầu duyệt — hiển thị khi draft/sent và cần duyệt -->
+            <xpath expr="//header/button[@name='action_confirm']" position="before">
+                <button name="action_request_approval"
+                        string="Yêu cầu duyệt"
+                        type="object"
+                        class="btn-primary"
+                        invisible="state not in ('draft', 'sent') or approval_level_required == '0'"/>
+            </xpath>
+
+            <!-- Override nút Confirm: ẩn khi cần duyệt nhưng chưa duyệt xong -->
+            <xpath expr="//header/button[@name='action_confirm']" position="attributes">
+                <attribute name="invisible">state not in ('draft', 'sent') or approval_level_required != '0'</attribute>
+            </xpath>
+
+            <!-- Nút duyệt L1 -->
+            <xpath expr="//header/button[@name='action_confirm']" position="after">
+                <button name="action_approve_l1"
+                        string="Duyệt (L1)"
+                        type="object"
+                        class="btn-primary"
+                        groups="sales_team.group_sale_manager"
+                        invisible="state != 'to_approve_l1'"/>
+                <button name="action_approve_l2"
+                        string="Duyệt (L2)"
+                        type="object"
+                        class="btn-primary"
+                        groups="vnop_sale_workflow.group_sale_director"
+                        invisible="state != 'to_approve_l2'"/>
+                <button name="action_reject_approval"
+                        string="Từ chối"
+                        type="object"
+                        class="btn-danger"
+                        groups="sales_team.group_sale_manager"
+                        invisible="state not in ('to_approve_l1', 'to_approve_l2')"/>
+            </xpath>
+
+            <!-- Thêm tab Duyệt đơn hàng -->
+            <xpath expr="//notebook" position="inside">
+                <page name="approval_info" string="Thông tin duyệt"
+                      invisible="approval_level_required == '0' and state not in ('to_approve_l1', 'to_approve_l2')">
+                    <group>
+                        <group string="Trạng thái duyệt">
+                            <field name="approval_level_required" readonly="1"/>
+                            <field name="is_approval_locked" readonly="1"/>
+                        </group>
+                        <group string="Người duyệt">
+                            <field name="approver_l1_id" readonly="1"/>
+                            <field name="approver_l2_id" readonly="1"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- List view: thêm cột trạng thái duyệt -->
+    <record id="sale_order_list_inherit_workflow" model="ir.ui.view">
+        <field name="name">sale.order.list.inherit.workflow</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_quotation_tree_with_onboarding"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="attributes">
+                <attribute name="decoration-warning">state in ('to_approve_l1', 'to_approve_l2')</attribute>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
