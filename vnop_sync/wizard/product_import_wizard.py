@@ -48,6 +48,13 @@ VN_LABEL_TO_FIELD = {
     'mã thuế bán ra': 'taxes_code',
     'kiểu in nhãn': 'label_print_type',
     'phụ kiện': 'accessory_note',
+    # Tab "Thông tin sử dụng" — text/html fields chung cho mọi consu
+    'thông tin bổ sung': 'accessory_note',
+    'mô tả': 'description_sale',
+    'công dụng': 'x_uses',
+    'hướng dẫn sử dụng': 'x_guide',
+    'cảnh báo': 'x_warning',
+    'bảo quản': 'x_preserve',
     # Frame
     'mã model': 'opt_model',
     'mã màu': 'opt_color',
@@ -310,6 +317,11 @@ class ProductImportWizard(models.TransientModel):
         default='auto',
         help='"Tự động" suy loại sản phẩm theo cột "Mã nhóm hàng" trong file (đề xuất cho file ItemLst).'
     )
+    mode = fields.Selection([
+        ('create', 'Nhập sản phẩm mới'),
+        ('update', 'Cập nhật thông tin sản phẩm'),
+    ], string='Chế độ', default='create', required=True,
+        help='"Cập nhật" sẽ tìm sản phẩm đã tồn tại theo mã vạch (ưu tiên) hoặc tên đầy đủ và ghi đè thông tin từ file. Các dòng không khớp sẽ bị bỏ qua.')
     file_data = fields.Binary(string='File Excel', required=True)
     file_name = fields.Char()
 
@@ -418,6 +430,10 @@ class ProductImportWizard(models.TransientModel):
 
         raw = base64.b64decode(self.file_data)
         fmt = self._detect_format(raw)
+        if self.mode == 'update':
+            if fmt == 'vn_label':
+                return self._action_test_update_vn_label(raw)
+            return self._action_test_update_technical(raw)
         if fmt == 'vn_label':
             return self._action_test_vn_label(raw)
         return self._action_test_technical(raw)
@@ -429,6 +445,10 @@ class ProductImportWizard(models.TransientModel):
 
         raw = base64.b64decode(self.file_data)
         fmt = self._detect_format(raw)
+        if self.mode == 'update':
+            if fmt == 'vn_label':
+                return self._action_update_vn_label(raw)
+            return self._action_update_technical(raw)
         if fmt == 'vn_label':
             return self._action_import_vn_label(raw)
         return self._action_import_technical(raw)
@@ -625,9 +645,10 @@ class ProductImportWizard(models.TransientModel):
         name_idx = col_index['name']
 
         # 2. Suy classification_type cho từng dòng
-        Classification = self.env['product.classification']
         classif_cache = {
-            (c.code or '').strip(): c for c in Classification.search([])
+            r['code'].strip(): r['category_type']
+            for r in self.env['product.classification'].search_read([], ['code', 'category_type'])
+            if r.get('code')
         }
 
         empty_name_rows = []
@@ -656,7 +677,7 @@ class ProductImportWizard(models.TransientModel):
                     code_norm = code.lstrip('0') or '0'
                     classif = classif_cache.get(code) or classif_cache.get(code_norm)
                     if classif:
-                        ctype = classif.category_type or 'other'
+                        ctype = classif or 'other'
                     else:
                         unknown_classif[code] = unknown_classif.get(code, 0) + 1
             buckets[ctype].append(row_no)
@@ -879,11 +900,12 @@ class ProductImportWizard(models.TransientModel):
                           if (r[col_index['name']] or '').strip()})
         existing_names = set()
         if all_names:
-            existing_names = set(
-                self.env['product.template'].with_context(active_test=False).search([
-                    ('name', 'in', all_names)
-                ]).mapped('name')
-            )
+            existing_names = {
+                r['name'] for r in
+                self.env['product.template'].with_context(active_test=False).search_read(
+                    [('name', 'in', all_names)], ['name']
+                ) if r.get('name')
+            }
 
         # Barcode duy nhất: pre-fetch các barcode đã tồn tại trong DB.
         bc_idx = col_index.get('barcode')
@@ -898,11 +920,12 @@ class ProductImportWizard(models.TransientModel):
                     all_barcodes.add(v)
         existing_barcodes = set()
         if all_barcodes:
-            existing_barcodes = set(
-                self.env['product.template'].with_context(active_test=False).search([
-                    ('barcode', 'in', list(all_barcodes))
-                ]).mapped('barcode')
-            )
+            existing_barcodes = {
+                r['barcode'] for r in
+                self.env['product.template'].with_context(active_test=False).search_read(
+                    [('barcode', 'in', list(all_barcodes))], ['barcode']
+                ) if r.get('barcode')
+            }
 
         # Tắt mail tracking + chatter để giảm chi phí khi tạo hàng loạt.
         Product = self.env['product.template'].with_context(
@@ -979,12 +1002,17 @@ class ProductImportWizard(models.TransientModel):
         _flush(batch_vals, batch_meta)
 
         # Counters phân loại
-        created = self.env['product.template'].browse(created_ids) if created_ids \
-            else self.env['product.template']
-        lens_n = sum(1 for p in created if p.classification_type == 'lens')
-        frame_n = sum(1 for p in created if p.classification_type == 'frame')
-        acc_n = sum(1 for p in created if p.classification_type == 'accessory')
-        other_n = len(created) - lens_n - frame_n - acc_n
+        if created_ids:
+            groups = Product.read_group(
+                [('id', 'in', created_ids)], ['classification_type'], ['classification_type']
+            )
+            counts = {g['classification_type']: g['classification_type_count'] for g in groups}
+        else:
+            counts = {}
+        lens_n = counts.get('lens', 0)
+        frame_n = counts.get('frame', 0)
+        acc_n = counts.get('accessory', 0)
+        other_n = len(created_ids) - lens_n - frame_n - acc_n
 
         error_text_parts = []
         if skipped_existing:
@@ -1047,6 +1075,546 @@ class ProductImportWizard(models.TransientModel):
             })
 
     # ────────────────────────────────────────────────────────────
+    #   UPDATE MODE: VN-LABEL
+    # ────────────────────────────────────────────────────────────
+
+    def _resolve_update_targets(self, rows, col_index):
+        """Tra cứu sản phẩm cho mỗi row theo barcode (ưu tiên) → name.
+        Trả về (matches, not_found, ambiguous, dup_in_file) trong đó:
+          matches      = [(r_idx, target_id, name_or_key)]
+          not_found    = [str (mô tả dòng)]
+          ambiguous    = [str (mô tả dòng)]
+          dup_in_file  = [str (cùng product_id bị nhiều dòng cùng nhắm tới)]
+        Pre-fetch toàn bộ DB matches → O(N) lookup, an toàn cho file ~1k dòng.
+        """
+        name_idx = col_index.get('name')
+        bc_idx = col_index.get('barcode')
+        dc_idx = col_index.get('default_code')
+
+        Tmpl = self.env['product.template'].with_context(active_test=False)
+
+        all_names, all_barcodes = set(), set()
+        for r in rows:
+            if name_idx is not None and name_idx < len(r) and r[name_idx]:
+                v = str(r[name_idx]).strip()
+                if v:
+                    all_names.add(v)
+            for ix in (bc_idx, dc_idx):
+                if ix is not None and ix < len(r) and r[ix]:
+                    v = str(r[ix]).strip()
+                    if v:
+                        all_barcodes.add(v)
+
+        by_name, by_bc = {}, {}
+        if all_names:
+            for r in Tmpl.search_read([('name', 'in', list(all_names))], ['name']):
+                by_name.setdefault(r['name'], []).append(r['id'])
+        if all_barcodes:
+            for r in Tmpl.search_read([('barcode', 'in', list(all_barcodes))], ['barcode']):
+                by_bc.setdefault(r['barcode'], []).append(r['id'])
+
+        matches = []
+        not_found = []
+        ambiguous = []
+        seen_target = {}  # target_id -> first row idx
+        dup_in_file = []
+
+        for r_idx, row in enumerate(rows):
+            nm = ''
+            if name_idx is not None and name_idx < len(row) and row[name_idx]:
+                nm = str(row[name_idx]).strip()
+            bc_candidates = []
+            for ix in (bc_idx, dc_idx):
+                if ix is not None and ix < len(row) and row[ix]:
+                    v = str(row[ix]).strip()
+                    if v:
+                        bc_candidates.append(v)
+
+            target_ids = []
+            matched_key = ''
+            for bc in bc_candidates:
+                if bc in by_bc:
+                    target_ids = by_bc[bc]
+                    matched_key = bc
+                    break
+            if not target_ids and nm and nm in by_name:
+                target_ids = by_name[nm]
+                matched_key = nm
+
+            if not target_ids:
+                not_found.append('Dòng %s ("%s"): không tìm thấy sản phẩm.' % (
+                    r_idx + 1, nm or (bc_candidates[0] if bc_candidates else '?')))
+                continue
+            if len(target_ids) > 1:
+                ambiguous.append('Dòng %s ("%s"): %s sản phẩm trùng khoá "%s".' % (
+                    r_idx + 1, nm or '?', len(target_ids), matched_key))
+                continue
+
+            tid = target_ids[0]
+            if tid in seen_target:
+                dup_in_file.append('Dòng %s và dòng %s cùng nhắm tới 1 sản phẩm ("%s").' % (
+                    seen_target[tid] + 1, r_idx + 1, nm or matched_key))
+                # Vẫn cho qua: dòng sau ghi đè dòng trước.
+            else:
+                seen_target[tid] = r_idx
+            matches.append((r_idx, tid, nm or matched_key))
+
+        return matches, not_found, ambiguous, dup_in_file
+
+    def _action_update_vn_label(self, raw):
+        """Update sản phẩm đã tồn tại theo barcode (ưu tiên) / name từ file VN-label."""
+        header, rows, errors = self._parse_vn_label_excel(raw)
+        if errors:
+            self.write({'state': 'done', 'imported_count': 0, 'error_text': '\n'.join(errors)})
+            return self._reopen()
+        if not rows:
+            self.write({'state': 'done', 'imported_count': 0,
+                        'error_text': _('File không có dữ liệu hợp lệ.')})
+            return self._reopen()
+        col_index = {f: i for i, f in enumerate(header) if f}
+        if 'name' not in col_index and 'barcode' not in col_index and 'default_code' not in col_index:
+            self.write({'state': 'done', 'imported_count': 0,
+                        'error_text': _('Cần cột "Tên đầy đủ" hoặc "Mã vạch / Mã hàng tự định nghĩa" để tra cứu sản phẩm.')})
+            return self._reopen()
+
+        total = len(rows)
+        # File nhỏ → chạy đồng bộ, file lớn → enqueue queue_job giống flow import.
+        if total <= self._IMPORT_SYNC_THRESHOLD:
+            self.write({
+                'state': 'running', 'progress_total': total, 'progress_done': 0,
+                'progress_message': _('Đang cập nhật...'),
+                'imported_count': 0,
+                'imported_lens_count': 0, 'imported_frame_count': 0,
+                'imported_accessory_count': 0, 'imported_other_count': 0,
+                'imported_product_ids': [(5, 0, 0)],
+                'error_text': False,
+            })
+            self._run_vn_label_update(header, rows, col_index)
+            return self._reopen()
+
+        self.write({
+            'state': 'running', 'progress_total': total, 'progress_done': 0,
+            'progress_message': _('Đã đưa vào hàng đợi, đang chờ xử lý...'),
+            'imported_count': 0,
+            'imported_lens_count': 0, 'imported_frame_count': 0,
+            'imported_accessory_count': 0, 'imported_other_count': 0,
+            'imported_product_ids': [(5, 0, 0)],
+            'error_text': False,
+        })
+        self.env.cr.commit()
+        raw_b64 = base64.b64encode(raw).decode('ascii')
+        self.with_delay(
+            description=_('Update VN-label: %s (%s dòng)') % (self.file_name or '?', total),
+        )._update_vn_label_job(raw_b64)
+        return self._reopen()
+
+    def _run_vn_label_update(self, header, rows, col_index):
+        """Tra cứu + write theo batch. Savepoint cấp batch + fallback row-by-row
+        khi batch fail để 1 dòng lỗi không phá cả batch.
+        Cập nhật progress + commit sau mỗi batch để file lớn (~1k) không
+        giữ tx quá lâu và để UI thấy tiến độ ngay khi reload form.
+        """
+        self.ensure_one()
+        caches = self._build_lookup_caches()
+
+        matches, not_found, ambiguous, dup_in_file = \
+            self._resolve_update_targets(rows, col_index)
+
+        Product = self.env['product.template'].with_context(
+            tracking_disable=True,
+            mail_create_nolog=True,
+            mail_notrack=True,
+        )
+
+        updated_ids = []
+        errors_per_row = []
+        total = len(rows)
+        batch_size = self._IMPORT_BATCH_SIZE
+
+        # Pre-build vals cho từng match để tách lỗi parse khỏi lỗi write.
+        prepared = []  # [(r_idx, target_id, label, vals)]
+        for (r_idx, tid, label) in matches:
+            try:
+                vals = self._row_to_vals(rows[r_idx], col_index, caches)
+            except Exception as e:
+                errors_per_row.append('Dòng %s: %s' % (r_idx + 1, str(e)))
+                continue
+            if not vals:
+                continue
+            prepared.append((r_idx, tid, label, vals))
+
+        def _flush(batch):
+            if not batch:
+                return
+            try:
+                with self.env.cr.savepoint():
+                    for _ri, tid, _lb, vals in batch:
+                        Product.browse(tid).write(vals)
+                updated_ids.extend(t for _ri, t, _lb, _v in batch)
+            except Exception:
+                # Fallback row-by-row để khoanh dòng lỗi
+                for ri, tid, lb, vals in batch:
+                    try:
+                        with self.env.cr.savepoint():
+                            Product.browse(tid).write(vals)
+                        updated_ids.append(tid)
+                    except Exception as ee:
+                        errors_per_row.append('Dòng %s ("%s"): %s' % (ri + 1, lb, ee))
+
+        batch = []
+        for idx, item in enumerate(prepared):
+            batch.append(item)
+            if len(batch) >= batch_size:
+                _flush(batch)
+                batch = []
+                done = item[0] + 1  # dòng Excel cao nhất đã chạm
+                self.write({
+                    'progress_done': done,
+                    'progress_message': _('Đã xử lý %s/%s dòng (%s cập nhật)') % (
+                        done, total, len(updated_ids)),
+                })
+                self.env.cr.commit()
+        _flush(batch)
+
+        if updated_ids:
+            groups = Product.read_group(
+                [('id', 'in', updated_ids)], ['classification_type'], ['classification_type']
+            )
+            counts = {g['classification_type']: g['classification_type_count'] for g in groups}
+        else:
+            counts = {}
+        lens_n = counts.get('lens', 0)
+        frame_n = counts.get('frame', 0)
+        acc_n = counts.get('accessory', 0)
+        other_n = len(updated_ids) - lens_n - frame_n - acc_n
+
+        error_text_parts = []
+
+        def _append_block(title, items):
+            if not items:
+                return
+            sample = '\n'.join(items[:50])
+            tail = '' if len(items) <= 50 else (_('\n... và %s dòng khác') % (len(items) - 50))
+            error_text_parts.append(title + '\n' + sample + tail)
+
+        _append_block(_('Không tìm thấy %s sản phẩm:') % len(not_found), not_found)
+        _append_block(_('Trùng khoá tra cứu (%s dòng):') % len(ambiguous), ambiguous)
+        _append_block(_('Trùng trong file (%s dòng):') % len(dup_in_file), dup_in_file)
+        _append_block(_('Lỗi từng dòng (%s):') % len(errors_per_row), errors_per_row)
+
+        self.write({
+            'state': 'done',
+            'progress_done': total,
+            'progress_message': _('Hoàn tất.'),
+            'imported_count': len(updated_ids),
+            'imported_lens_count': lens_n,
+            'imported_frame_count': frame_n,
+            'imported_accessory_count': acc_n,
+            'imported_other_count': other_n,
+            'imported_product_ids': [(6, 0, updated_ids)],
+            'error_text': '\n\n'.join(error_text_parts) if error_text_parts else False,
+        })
+
+    def _update_vn_label_job(self, raw_b64):
+        """Worker queue_job: chạy update VN-label trong background."""
+        self.ensure_one()
+        try:
+            raw = base64.b64decode(raw_b64)
+            header, rows, errors = self._parse_vn_label_excel(raw)
+            if errors or not rows:
+                self.write({
+                    'state': 'done', 'imported_count': 0,
+                    'error_text': '\n'.join(errors) if errors else _('File không có dữ liệu hợp lệ.'),
+                })
+                return
+            col_index = {f: i for i, f in enumerate(header) if f}
+            if 'name' not in col_index and 'barcode' not in col_index and 'default_code' not in col_index:
+                self.write({
+                    'state': 'done', 'imported_count': 0,
+                    'error_text': _('Cần cột "Tên đầy đủ" hoặc "Mã vạch / Mã hàng tự định nghĩa" để tra cứu sản phẩm.'),
+                })
+                return
+            self._run_vn_label_update(header, rows, col_index)
+        except Exception as e:
+            _logger.exception('Update VN-label job lỗi')
+            self.write({
+                'state': 'done',
+                'progress_message': _('Lỗi.'),
+                'error_text': str(e),
+            })
+
+    def _action_test_update_vn_label(self, raw):
+        """Dry-run cho mode update + format VN-label. Chỉ tra cứu, KHÔNG write."""
+        header, rows, errors = self._parse_vn_label_excel(raw)
+        if errors:
+            self.write({
+                'state': 'preview',
+                'preview_text': self._html_error_panel(_('Lỗi đọc file'), '<br/>'.join(errors)),
+            })
+            return self._reopen()
+        if not rows:
+            self.write({
+                'state': 'preview',
+                'preview_text': self._html_error_panel(_('Lỗi'), _('File không có dữ liệu.')),
+            })
+            return self._reopen()
+        col_index = {f: i for i, f in enumerate(header) if f}
+        if 'name' not in col_index and 'barcode' not in col_index and 'default_code' not in col_index:
+            self.write({
+                'state': 'preview',
+                'preview_text': self._html_error_panel(
+                    _('Lỗi'),
+                    _('Cần cột "Tên đầy đủ" hoặc "Mã vạch / Mã hàng tự định nghĩa" để tra cứu sản phẩm.'),
+                ),
+            })
+            return self._reopen()
+
+        matches, not_found, ambiguous, dup_in_file = \
+            self._resolve_update_targets(rows, col_index)
+        html = self._build_update_preview_html(
+            len(rows), matches, not_found, ambiguous, dup_in_file)
+        self.write({'state': 'preview', 'preview_text': html})
+        return self._reopen()
+
+    def _build_update_preview_html(self, total_rows, matches, not_found, ambiguous, dup_in_file):
+        """Render HTML preview cho dry-run update mode."""
+        match_n = len(matches)
+        nf_n = len(not_found)
+        amb_n = len(ambiguous)
+        dup_n = len(dup_in_file)
+
+        ok_class = 'success' if match_n else 'secondary'
+        warn_class = 'warning' if (nf_n or amb_n or dup_n) else 'success'
+
+        parts = [
+            '<div class="p-2">',
+            '<h4 class="mb-3">Kết quả kiểm thử (chế độ Cập nhật)</h4>',
+            '<div class="row g-2 mb-3">',
+            '<div class="col-md-3"><div class="alert alert-info mb-0">'
+            '<div class="text-muted small">Tổng số dòng</div>'
+            f'<div class="fs-4 fw-bold">{total_rows}</div></div></div>',
+            f'<div class="col-md-3"><div class="alert alert-{ok_class} mb-0">'
+            '<div class="text-muted small">Sẽ cập nhật</div>'
+            f'<div class="fs-4 fw-bold">{match_n}</div></div></div>',
+            f'<div class="col-md-3"><div class="alert alert-{warn_class} mb-0">'
+            '<div class="text-muted small">Không tìm thấy</div>'
+            f'<div class="fs-4 fw-bold">{nf_n}</div></div></div>',
+            f'<div class="col-md-3"><div class="alert alert-{warn_class} mb-0">'
+            '<div class="text-muted small">Trùng khoá / trùng dòng</div>'
+            f'<div class="fs-4 fw-bold">{amb_n + dup_n}</div></div></div>',
+            '</div>',
+        ]
+
+        def _block(title, items, cls):
+            if not items:
+                return
+            sample = items[:30]
+            more = '' if len(items) <= 30 else f'<li class="text-muted">... và {len(items) - 30} dòng khác</li>'
+            lis = ''.join(f'<li>{x}</li>' for x in sample)
+            parts.append(
+                f'<div class="alert alert-{cls}"><strong>{title}</strong>'
+                f'<ul class="mb-0 mt-1">{lis}{more}</ul></div>'
+            )
+
+        _block(_('Không tìm thấy sản phẩm (%s dòng)') % nf_n, not_found, 'warning')
+        _block(_('Trùng khoá tra cứu trong DB (%s dòng)') % amb_n, ambiguous, 'warning')
+        _block(_('Trùng trong file (%s dòng)') % dup_n, dup_in_file, 'warning')
+
+        if match_n and not (nf_n or amb_n):
+            parts.append(
+                '<div class="alert alert-success mb-0">'
+                '<i class="fa fa-check-circle"/> Sẵn sàng cập nhật. Bấm '
+                '<strong>Cập nhật</strong> để áp dụng thay đổi.</div>'
+            )
+
+        parts.append('</div>')
+        return ''.join(parts)
+
+    # ────────────────────────────────────────────────────────────
+    #   UPDATE MODE: TECHNICAL FORMAT
+    # ────────────────────────────────────────────────────────────
+
+    def _resolve_update_targets_technical(self, rows, col_map):
+        """Tra cứu update target cho format technical (header = field name).
+        Trả về (matched_rows, not_found, ambiguous, dup_in_file)
+        matched_rows = [[id_str] + row_values]
+        """
+        Tmpl = self.env['product.template'].with_context(active_test=False)
+        name_idx = col_map.get('name')
+        bc_idx = col_map.get('barcode')
+
+        all_names, all_barcodes = set(), set()
+        for r in rows:
+            if name_idx is not None and name_idx < len(r) and r[name_idx]:
+                v = str(r[name_idx]).strip()
+                if v:
+                    all_names.add(v)
+            if bc_idx is not None and bc_idx < len(r) and r[bc_idx]:
+                v = str(r[bc_idx]).strip()
+                if v:
+                    all_barcodes.add(v)
+
+        by_name, by_bc = {}, {}
+        if all_names:
+            for r in Tmpl.search_read([('name', 'in', list(all_names))], ['name']):
+                by_name.setdefault(r['name'], []).append(r['id'])
+        if all_barcodes:
+            for r in Tmpl.search_read([('barcode', 'in', list(all_barcodes))], ['barcode']):
+                by_bc.setdefault(r['barcode'], []).append(r['id'])
+
+        matched_rows = []
+        not_found = []
+        ambiguous = []
+        seen_target = {}
+        dup_in_file = []
+
+        for r_idx, row in enumerate(rows):
+            nm = str(row[name_idx]).strip() if (name_idx is not None and name_idx < len(row) and row[name_idx]) else ''
+            bc = str(row[bc_idx]).strip() if (bc_idx is not None and bc_idx < len(row) and row[bc_idx]) else ''
+            target_ids, matched_key = [], ''
+            if bc and bc in by_bc:
+                target_ids = by_bc[bc]
+                matched_key = bc
+            elif nm and nm in by_name:
+                target_ids = by_name[nm]
+                matched_key = nm
+            if not target_ids:
+                not_found.append('Dòng %s ("%s"): không tìm thấy sản phẩm.' % (
+                    r_idx + 1, nm or bc or '?'))
+                continue
+            if len(target_ids) > 1:
+                ambiguous.append('Dòng %s ("%s"): %s sản phẩm trùng khoá "%s".' % (
+                    r_idx + 1, nm or '?', len(target_ids), matched_key))
+                continue
+            tid = target_ids[0]
+            if tid in seen_target:
+                dup_in_file.append('Dòng %s và dòng %s cùng nhắm tới 1 sản phẩm ("%s").' % (
+                    seen_target[tid] + 1, r_idx + 1, nm or matched_key))
+            else:
+                seen_target[tid] = r_idx
+            matched_rows.append([str(tid)] + list(row))
+
+        return matched_rows, not_found, ambiguous, dup_in_file
+
+    def _action_test_update_technical(self, raw):
+        """Dry-run cho mode update + format technical."""
+        header, rows, errors = self._parse_excel(raw)
+        if errors:
+            self.write({
+                'state': 'preview',
+                'preview_text': self._html_error_panel(_('Lỗi đọc file'), '<br/>'.join(errors)),
+            })
+            return self._reopen()
+        if not rows:
+            self.write({
+                'state': 'preview',
+                'preview_text': self._html_error_panel(_('Lỗi'), _('File không có dữ liệu.')),
+            })
+            return self._reopen()
+        col_map = {h: i for i, h in enumerate(header) if h}
+        if 'name' not in col_map and 'barcode' not in col_map:
+            self.write({
+                'state': 'preview',
+                'preview_text': self._html_error_panel(
+                    _('Lỗi'),
+                    _('Cần cột "name" hoặc "barcode" để tra cứu sản phẩm.'),
+                ),
+            })
+            return self._reopen()
+
+        matched_rows, not_found, ambiguous, dup_in_file = \
+            self._resolve_update_targets_technical(rows, col_map)
+        # matches stub chỉ để đếm; không cần label thực tế cho preview HTML.
+        matches_stub = [(0, 0, '') for _ in matched_rows]
+        html = self._build_update_preview_html(
+            len(rows), matches_stub, not_found, ambiguous, dup_in_file)
+        self.write({'state': 'preview', 'preview_text': html})
+        return self._reopen()
+
+    def _action_update_technical(self, raw):
+        """Update sản phẩm với file định dạng technical: tra cứu theo barcode/name,
+        inject cột '.id' rồi gọi load() để tận dụng coercion của Odoo."""
+        header, rows, errors = self._parse_excel(raw)
+        if errors:
+            self.write({'state': 'done', 'imported_count': 0, 'error_text': '\n'.join(errors)})
+            return self._reopen()
+        if not rows:
+            self.write({'state': 'done', 'imported_count': 0,
+                        'error_text': _('File không có dữ liệu.')})
+            return self._reopen()
+
+        col_map = {h: i for i, h in enumerate(header) if h}
+        if 'name' not in col_map and 'barcode' not in col_map:
+            self.write({'state': 'done', 'imported_count': 0,
+                        'error_text': _('Cần cột "name" hoặc "barcode" để tra cứu sản phẩm.')})
+            return self._reopen()
+
+        kept_rows, not_found, ambiguous, dup_in_file = \
+            self._resolve_update_targets_technical(rows, col_map)
+
+        if not kept_rows:
+            error_text_parts = []
+            if not_found:
+                error_text_parts.append('\n'.join(not_found[:50]))
+            if ambiguous:
+                error_text_parts.append('\n'.join(ambiguous[:50]))
+            self.write({
+                'state': 'done', 'imported_count': 0,
+                'error_text': _('Không có dòng nào khớp sản phẩm để cập nhật.\n\n')
+                              + '\n\n'.join(error_text_parts),
+            })
+            return self._reopen()
+
+        ProductTemplate = self.env['product.template'].with_context(
+            import_file=True,
+            vnop_import_product_type=self.product_type if self.product_type != 'auto' else 'lens',
+        )
+        try:
+            result = ProductTemplate.load(['.id'] + list(header), kept_rows)
+        except Exception as e:
+            self.write({'state': 'done', 'imported_count': 0, 'error_text': str(e)})
+            return self._reopen()
+
+        messages = result.get('messages', [])
+        error_messages = [m.get('message', '') for m in messages if m.get('type') == 'error']
+        if error_messages:
+            self.write({'state': 'done', 'imported_count': 0,
+                        'error_text': '\n'.join(error_messages)})
+            return self._reopen()
+
+        ids = result.get('ids') or []
+        updated = self.env['product.template'].browse(ids) if ids else self.env['product.template']
+        lens_n = sum(1 for p in updated if p.classification_type == 'lens')
+        frame_n = sum(1 for p in updated if p.classification_type == 'frame')
+        acc_n = sum(1 for p in updated if p.classification_type == 'accessory')
+        other_n = len(updated) - lens_n - frame_n - acc_n
+
+        error_text_parts = []
+
+        def _append_block(title, items):
+            if not items:
+                return
+            sample = '\n'.join(items[:50])
+            tail = '' if len(items) <= 50 else (_('\n... và %s dòng khác') % (len(items) - 50))
+            error_text_parts.append(title + '\n' + sample + tail)
+
+        _append_block(_('Không tìm thấy %s sản phẩm:') % len(not_found), not_found)
+        _append_block(_('Trùng khoá tra cứu (%s dòng):') % len(ambiguous), ambiguous)
+        _append_block(_('Trùng trong file (%s dòng):') % len(dup_in_file), dup_in_file)
+
+        self.write({
+            'state': 'done',
+            'imported_count': len(ids),
+            'imported_lens_count': lens_n,
+            'imported_frame_count': frame_n,
+            'imported_accessory_count': acc_n,
+            'imported_other_count': other_n,
+            'imported_product_ids': [(6, 0, ids)],
+            'error_text': '\n\n'.join(error_text_parts) if error_text_parts else False,
+        })
+        return self._reopen()
+
+    # ────────────────────────────────────────────────────────────
     #   VN-LABEL: ROW → VALS
     # ────────────────────────────────────────────────────────────
 
@@ -1065,12 +1633,11 @@ class ProductImportWizard(models.TransientModel):
             CoModel = env[model]
             if key not in CoModel._fields:
                 return {}
-            res = {}
-            for r in CoModel.search([]):
-                v = r[key]
-                if v:
-                    res[str(v).strip()] = r.id
-            return res
+            return {
+                str(r[key]).strip(): r['id']
+                for r in CoModel.search_read([], [key])
+                if r.get(key)
+            }
 
         # UoM cache + alias (CAI / cai → Cái)
         uom_cache = cache_by('uom.uom', 'name')
@@ -1080,11 +1647,11 @@ class ProductImportWizard(models.TransientModel):
 
         # Brand: cho phép tra cứu theo cả code (CID) lẫn name
         brand_cache = {}
-        for r in env['product.brand'].search([]):
-            if r.code:
-                brand_cache[str(r.code).strip()] = r.id
-            if r.name:
-                brand_cache.setdefault(str(r.name).strip(), r.id)
+        for r in env['product.brand'].search_read([], ['code', 'name']):
+            if r.get('code'):
+                brand_cache[str(r['code']).strip()] = r['id']
+            if r.get('name'):
+                brand_cache.setdefault(str(r['name']).strip(), r['id'])
 
         return {
             'classification_code': cache_by('product.classification', 'code'),
@@ -1106,19 +1673,25 @@ class ProductImportWizard(models.TransientModel):
             'opt_temple_tip_cid': cache_by('product.temple.tip', 'cid'),
             'opt_material_cid': cache_by('product.material', 'cid'),
             'supplier_ref': {
-                p.ref.strip(): p.id for p in env['res.partner'].search([
-                    ('supplier_rank', '>', 0), ('ref', '!=', False),
-                ]) if p.ref
+                r['ref'].strip(): r['id']
+                for r in env['res.partner'].search_read(
+                    [('supplier_rank', '>', 0), ('ref', '!=', False)], ['ref']
+                )
+                if r.get('ref')
             },
             'taxes_name': {
-                t.name.strip(): t.id for t in env['account.tax'].search([
-                    ('type_tax_use', '=', 'sale'),
-                ]) if t.name
+                r['name'].strip(): r['id']
+                for r in env['account.tax'].search_read(
+                    [('type_tax_use', '=', 'sale')], ['name']
+                )
+                if r.get('name')
             },
             'supplier_taxes_name': {
-                t.name.strip(): t.id for t in env['account.tax'].search([
-                    ('type_tax_use', '=', 'purchase'),
-                ]) if t.name
+                r['name'].strip(): r['id']
+                for r in env['account.tax'].search_read(
+                    [('type_tax_use', '=', 'purchase')], ['name']
+                )
+                if r.get('name')
             },
         }
 
@@ -1152,6 +1725,11 @@ class ProductImportWizard(models.TransientModel):
             vals['barcode'] = cell('barcode')
         if cell('accessory_note'):
             vals['accessory_note'] = cell('accessory_note')
+        # Tab "Thông tin sử dụng" (text/html, áp dụng cho mọi sản phẩm consu)
+        for tok in ('description_sale', 'x_uses', 'x_guide', 'x_warning', 'x_preserve'):
+            v = cell(tok)
+            if v:
+                vals[tok] = v
 
         # Numeric
         for tok, field_name in [
@@ -1571,14 +2149,18 @@ class ProductImportWizard(models.TransientModel):
         Tmpl = self.env['product.template'].with_context(active_test=False)
         existing_names = set()
         if all_names:
-            existing_names = set(Tmpl.search(
-                [('name', 'in', list(set(all_names)))]
-            ).mapped('name'))
+            existing_names = {
+                r['name'] for r in Tmpl.search_read(
+                    [('name', 'in', list(set(all_names)))], ['name']
+                ) if r.get('name')
+            }
         existing_bcs = set()
         if all_bcs:
-            existing_bcs = set(Tmpl.search(
-                [('barcode', 'in', list(set(all_bcs)))]
-            ).mapped('barcode'))
+            existing_bcs = {
+                r['barcode'] for r in Tmpl.search_read(
+                    [('barcode', 'in', list(set(all_bcs)))], ['barcode']
+                ) if r.get('barcode')
+            }
 
         errors = []
         if dup_names_in_file:

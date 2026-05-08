@@ -369,6 +369,8 @@
                         <group>
                             <field name="accessory_note" string="Thông tin bổ sung"
                                    placeholder="Không"/>
+                            <field name="description_sale" string="Mô tả"
+                                   placeholder="Đang cập nhật"/>
                             <field name="x_uses" string="Công dụng"
                                    placeholder="Đang cập nhật"/>
                             <field name="x_guide" string="Hướng dẫn sử dụng"

@@ -6,7 +6,7 @@ import { patch } from "@web/core/utils/patch";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 
 const PRODUCT_MODEL = "product.template";
-const TEMPLATE_FILE_URL = "/vnop_purchase/static/xlsx/import_san_pham.xlsx";
+const TEMPLATE_FILE_URL = "/vnop_purchase/static/xlsx/import_san_pham.xlsx?v=20260508";
 const CLASSIFICATION_FIELD = "classification_type";
 const CLASSIFICATION_LABELS = {
     frame: "Gọng kính",
@@ -31,6 +31,10 @@ patch(KanbanController.prototype, {
 
     async onImportProduct() {
         await this.actionService.doAction("vnop_sync.action_product_import_wizard");
+    },
+
+    async onUpdateProduct() {
+        await this.actionService.doAction("vnop_sync.action_product_update_wizard");
     },
 
     onExportTemplate() {

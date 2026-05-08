@@ -10,6 +10,9 @@
                 <button type="button" class="btn btn-success" t-on-click="onImportProduct">
                     <i class="fa fa-upload me-1"/>Import
                 </button>
+                <button type="button" class="btn btn-warning" t-on-click="onUpdateProduct">
+                    <i class="fa fa-edit me-1"/>Cập nhật
+                </button>
                 <select class="form-select form-select-sm ms-2 vnop-product-categ-filter"
                         style="width: auto; display: inline-block;"
                         t-on-change="onCategFilterChange">

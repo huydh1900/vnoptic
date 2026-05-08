@@ -7,21 +7,23 @@
         <field name="arch" type="xml">
             <form string="Import sản phẩm từ Excel">
                 <field name="state" invisible="1"/>
+                <field name="mode" invisible="1"/>
+
+                <!-- Banner chế độ -->
+                <div class="alert alert-info mb-2" role="alert"
+                     invisible="state != 'upload' or mode != 'update'">
+                    <i class="fa fa-edit"/>
+                    <strong> Chế độ Cập nhật:</strong>
+                    Hệ thống sẽ tìm sản phẩm đã tồn tại theo
+                    <strong>mã vạch</strong> (ưu tiên) hoặc <strong>tên đầy đủ</strong>
+                    rồi ghi đè thông tin từ file. Dòng không khớp sẽ bị bỏ qua và liệt kê ở phần lỗi.
+                </div>
 
                 <!-- Bước 1: Upload -->
                 <group invisible="state != 'upload'">
                     <field name="product_type"/>
                     <field name="file_data" filename="file_name"/>
                     <field name="file_name" invisible="1"/>
-                    <div colspan="2" class="text-muted">
-                        <p>
-                            <i class="fa fa-info-circle"/>
-                            Hỗ trợ 2 định dạng:
-                            <strong>Bảng mẫu kỹ thuật</strong> (header là technical field name)
-                            và <strong>ItemLst quy ước PM</strong> (header nhãn tiếng Việt).
-                            Hệ thống tự động nhận diện định dạng.
-                        </p>
-                    </div>
                 </group>
 
                 <!-- Bước 2: Kiểm thử -->
@@ -100,9 +102,23 @@
                         <field name="error_text" widget="text"/>
                     </group>
 
-                    <group string="Tổng số đã tạo" invisible="not imported_count">
+                    <group string="Tổng số đã tạo"
+                           invisible="not imported_count or mode == 'update'">
                         <group>
                             <field name="imported_count"/>
+                        </group>
+                        <group>
+                            <field name="imported_lens_count"/>
+                            <field name="imported_frame_count"/>
+                            <field name="imported_accessory_count"/>
+                            <field name="imported_other_count"
+                                   invisible="imported_other_count == 0"/>
+                        </group>
+                    </group>
+                    <group string="Tổng số đã cập nhật"
+                           invisible="not imported_count or mode != 'update'">
+                        <group>
+                            <field name="imported_count" string="Số sản phẩm đã cập nhật"/>
                         </group>
                         <group>
                             <field name="imported_lens_count"/>
@@ -128,13 +144,24 @@
                 </div>
 
                 <footer invisible="state != 'upload'">
-                    <button name="action_test" type="object" string="Kiểm thử" class="btn-secondary" icon="fa-check-circle"/>
-                    <button name="action_import" type="object" string="Import" class="btn-primary" icon="fa-upload"/>
+                    <button name="action_test" type="object" string="Kiểm thử"
+                            class="btn-secondary" icon="fa-check-circle"/>
+                    <button name="action_import" type="object" string="Import"
+                            class="btn-primary" icon="fa-upload"
+                            invisible="mode == 'update'"/>
+                    <button name="action_import" type="object" string="Cập nhật"
+                            class="btn-primary" icon="fa-edit"
+                            invisible="mode != 'update'"/>
                     <button string="Đóng" class="btn-secondary" special="cancel"/>
                 </footer>
                 <footer invisible="state != 'preview'">
                     <button name="action_back_upload" type="object" string="Quay lại" class="btn-secondary" icon="fa-arrow-left"/>
-                    <button name="action_import" type="object" string="Import" class="btn-primary" icon="fa-upload"/>
+                    <button name="action_import" type="object" string="Import"
+                            class="btn-primary" icon="fa-upload"
+                            invisible="mode == 'update'"/>
+                    <button name="action_import" type="object" string="Cập nhật"
+                            class="btn-primary" icon="fa-edit"
+                            invisible="mode != 'update'"/>
                     <button string="Đóng" class="btn-secondary" special="cancel"/>
                 </footer>
                 <footer invisible="state != 'running'">
@@ -147,7 +174,10 @@
                             string="Xem sản phẩm đã tạo"
                             class="btn-primary" icon="fa-list"
                             invisible="not imported_product_ids"/>
-                    <button name="action_back_upload" type="object" string="Import file khác" class="btn-secondary" icon="fa-arrow-left"/>
+                    <button name="action_back_upload" type="object" string="Import file khác" class="btn-secondary" icon="fa-arrow-left"
+                            invisible="mode == 'update'"/>
+                    <button name="action_back_upload" type="object" string="Cập nhật file khác" class="btn-secondary" icon="fa-arrow-left"
+                            invisible="mode != 'update'"/>
                     <button string="Đóng" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
@@ -160,6 +190,16 @@
         <field name="view_mode">form</field>
         <field name="target">new</field>
         <field name="view_id" ref="view_product_import_wizard_form"/>
+        <field name="context">{'default_mode': 'create'}</field>
+    </record>
+
+    <record id="action_product_update_wizard" model="ir.actions.act_window">
+        <field name="name">Cập nhật thông tin sản phẩm từ Excel</field>
+        <field name="res_model">product.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="view_id" ref="view_product_import_wizard_form"/>
+        <field name="context">{'default_mode': 'update'}</field>
     </record>
 
 </odoo>
