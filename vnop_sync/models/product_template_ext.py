@@ -351,22 +351,30 @@ class ProductTemplateExtension(models.Model):
     lens_cl_tint_id = fields.Many2one('product.cl', string='Tinted')
 
     # ==================== LENS SPECS (Selection cho SPH/CYL) ====================
-    # SPH: từ -10.50 đến -20.00, bước 0.5
-    _SPH_VALUES = [f"-{v / 100:.2f}" for v in range(1050, 2050, 50)]
-    # CYL: từ -2.25 đến -4.00, bước 0.25
-    _CYL_VALUES = [f"-{v / 100:.2f}" for v in range(225, 425, 25)]
+    # Format khớp chuẩn hóa của product.import.wizard:
+    #   negative -> '-X.YY' ; zero/positive -> '+X.YY'
+    # SPH: -25.00 → +25.00, bước 0.25
+    _SPH_VALUES = [
+        ('%.2f' if v < 0 else '+%.2f') % (v / 100)
+        for v in range(-2500, 2525, 25)
+    ]
+    # CYL: -10.00 → 0.00, bước 0.25
+    _CYL_VALUES = [
+        ('%.2f' if v < 0 else '+%.2f') % (v / 100)
+        for v in range(-1000, 25, 25)
+    ]
 
     x_sph = fields.Selection(
         selection=[(v, v) for v in _SPH_VALUES],
         string='Độ cầu (SPH)',
         index=True,
-        help='Công suất cầu (Sphere): -10.50 → -20.00, bước 0.50'
+        help='Công suất cầu (Sphere): -25.00 → +25.00, bước 0.25'
     )
     x_cyl = fields.Selection(
         selection=[(v, v) for v in _CYL_VALUES],
         string='Độ trụ (CYL)',
         index=True,
-        help='Công suất trụ (Cylinder): -2.25 → -4.00, bước 0.25'
+        help='Công suất trụ (Cylinder): -10.00 → 0.00, bước 0.25'
     )
     x_add = fields.Float('Độ cộng thêm (ADD)', digits=(6, 2), help='Lens add power (display only)')
     x_axis = fields.Integer('Trục (AXIS)', help='Lens axis (0-180)')
