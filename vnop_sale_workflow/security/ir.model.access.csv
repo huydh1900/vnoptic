@@ -1,7 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_vnop_rma_salesman,vnop.rma salesman,model_vnop_rma,sales_team.group_sale_salesman,1,1,1,0
-access_vnop_rma_manager,vnop.rma manager,model_vnop_rma,sales_team.group_sale_manager,1,1,1,1
-access_vnop_rma_line_salesman,vnop.rma.line salesman,model_vnop_rma_line,sales_team.group_sale_salesman,1,1,1,0
-access_vnop_rma_line_manager,vnop.rma.line manager,model_vnop_rma_line,sales_team.group_sale_manager,1,1,1,1
-access_vnop_sale_target_salesman,vnop.sale.target salesman,model_vnop_sale_target,sales_team.group_sale_salesman,1,0,0,0
-access_vnop_sale_target_manager,vnop.sale.target manager,model_vnop_sale_target,sales_team.group_sale_manager,1,1,1,1

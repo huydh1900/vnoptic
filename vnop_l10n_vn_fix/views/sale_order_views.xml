@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_order_form_vnd_only" model="ir.ui.view">
+        <field name="name">sale.order.form.vnd.only</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <field name="pricelist_id" position="attributes">
+                <attribute name="domain">[('currency_id.name', '=', 'VND')]</attribute>
+            </field>
+        </field>
+    </record>
+
+</odoo>

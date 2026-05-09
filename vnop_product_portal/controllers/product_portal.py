@@ -105,6 +105,52 @@ class ProductPortalController(http.Controller):
         return self._render_product(product_id)
 
     @http.route(
+        '/', type='http', auth='public', website=True, sitemap=True,
+    )
+    def home_page(self, **_kwargs):
+        Product = request.env['product.template'].sudo()
+        featured = Product.search(
+            [
+                ('active', '=', True),
+                ('sale_ok', '=', True),
+                ('image_1920', '!=', False),
+            ],
+            limit=8,
+            order='create_date desc, id desc',
+        )
+        currency = request.env.company.currency_id
+        values = {
+            'featured_products': featured,
+            'currency_symbol': currency.symbol if currency else '₫',
+            'categories': [
+                {'key': 'frame', 'name': 'Gọng kính',
+                 'desc': 'Đa dạng kiểu dáng, chất liệu cao cấp',
+                 'icon': 'M2 12c4-6 16-6 20 0M2 12c4 6 16 6 20 0'},
+                {'key': 'lens', 'name': 'Tròng kính',
+                 'desc': 'Tròng đa tròng, chống tia UV, chiết suất cao',
+                 'icon': 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18'},
+                {'key': 'accessory', 'name': 'Phụ kiện',
+                 'desc': 'Hộp, khăn lau, dây đeo, dung dịch vệ sinh',
+                 'icon': 'M4 7h16M4 12h16M4 17h10'},
+            ],
+        }
+        return request.render('vnop_product_portal.home_page', values)
+
+    @http.route(
+        '/policy/return',
+        type='http', auth='public', methods=['GET'], csrf=False, sitemap=False,
+    )
+    def return_policy_page(self, **_kwargs):
+        return request.render('vnop_product_portal.return_policy_page', {})
+
+    @http.route(
+        '/policy/privacy',
+        type='http', auth='public', methods=['GET'], csrf=False, sitemap=False,
+    )
+    def privacy_policy_page(self, **_kwargs):
+        return request.render('vnop_product_portal.privacy_policy_page', {})
+
+    @http.route(
         '/product/image/<int:product_id>',
         type='http', auth='public', methods=['GET'], csrf=False, sitemap=False,
     )

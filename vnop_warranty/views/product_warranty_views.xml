@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="product_warranty_tree_view_inherit" model="ir.ui.view">
+        <field name="name">product.warranty.tree.inherit.vnop_warranty</field>
+        <field name="model">product.warranty</field>
+        <field name="inherit_id" ref="vnop_sync.view_product_warranty_tree"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="duration"/>
+                <field name="duration_unit"/>
+                <field name="bonus_days"/>
+            </field>
+        </field>
+    </record>
+
+</odoo>

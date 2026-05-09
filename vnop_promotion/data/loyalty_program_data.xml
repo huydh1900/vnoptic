@@ -7,7 +7,6 @@
         <field name="program_type">promotion</field>
         <field name="applies_on">current</field>
         <field name="trigger">auto</field>
-        <field name="channel_type">all</field>
     </record>
     <record id="promo_khai_truong_rule" model="loyalty.rule">
         <field name="program_id" ref="promo_khai_truong"/>
@@ -31,7 +30,6 @@
         <field name="program_type">promotion</field>
         <field name="applies_on">current</field>
         <field name="trigger">auto</field>
-        <field name="channel_type">wholesale</field>
     </record>
     <record id="promo_khach_buon_5tr_rule" model="loyalty.rule">
         <field name="program_id" ref="promo_khach_buon_5tr"/>
@@ -55,7 +53,6 @@
         <field name="program_type">promotion</field>
         <field name="applies_on">current</field>
         <field name="trigger">auto</field>
-        <field name="channel_type">retail</field>
     </record>
     <record id="promo_mua_3_sp_rule" model="loyalty.rule">
         <field name="program_id" ref="promo_mua_3_sp"/>
@@ -79,7 +76,6 @@
         <field name="program_type">promo_code</field>
         <field name="applies_on">current</field>
         <field name="trigger">with_code</field>
-        <field name="channel_type">all</field>
     </record>
     <record id="promo_code_matkinh2026_rule" model="loyalty.rule">
         <field name="program_id" ref="promo_code_matkinh2026"/>
@@ -105,7 +101,6 @@
         <field name="program_type">promotion</field>
         <field name="applies_on">current</field>
         <field name="trigger">auto</field>
-        <field name="channel_type">all</field>
     </record>
     <record id="promo_black_friday_rule" model="loyalty.rule">
         <field name="program_id" ref="promo_black_friday"/>
@@ -129,7 +124,6 @@
         <field name="program_type">promo_code</field>
         <field name="applies_on">current</field>
         <field name="trigger">with_code</field>
-        <field name="channel_type">retail</field>
     </record>
     <record id="promo_student_rule" model="loyalty.rule">
         <field name="program_id" ref="promo_student"/>

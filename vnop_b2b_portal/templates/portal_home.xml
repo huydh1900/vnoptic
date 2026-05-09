@@ -46,14 +46,6 @@
                         <t t-set="placeholder_count" t-value="'b2b_invoice'"/>
                     </t>
 
-                    <!-- Returns -->
-                    <t t-call="portal.portal_docs_entry">
-                        <t t-set="icon" t-value="'/web/static/img/activity_icons/transfer.svg'"/>
-                        <t t-set="title">Trả hàng (RMA)</t>
-                        <t t-set="text">Gửi yêu cầu trả hàng hoặc theo dõi trạng thái RMA</t>
-                        <t t-set="url" t-value="'/my/returns'"/>
-                        <t t-set="placeholder_count" t-value="'b2b_returns'"/>
-                    </t>
                 </div>
             </t>
         </xpath>

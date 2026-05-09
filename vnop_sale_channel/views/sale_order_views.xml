@@ -6,66 +6,22 @@
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='payment_term_id']" position="before">
-                <field name="channel_type" readonly="1"/>
-            </xpath>
-
-            <!-- Group "Thông tin đại lý" — chỉ hiện cho đơn bán buôn (B2B). -->
             <xpath expr="//field[@name='payment_term_id']" position="after">
-                <field name="industry_id"
-                       invisible="channel_type != 'wholesale'"
-                       options="{'no_create': True}"/>
-                <field name="deposit_amount"
-                       invisible="channel_type != 'wholesale'"/>
+                <field name="deposit_amount"/>
                 <field name="dealer_tier_id"
-                       invisible="channel_type != 'wholesale'"
                        readonly="1"/>
                 <field name="partner_credit_available"
-                       invisible="channel_type != 'wholesale'"
                        decoration-danger="partner_credit_available &lt; 0"
                        decoration-warning="partner_credit_available &lt; amount_total"/>
             </xpath>
 
-            <!-- Bán lẻ: ẩn trạng thái 'Quotation Sent' khỏi statusbar.
-                 Bán buôn: vẫn hiển thị 'sent' (mặc định Odoo).
-                 Trick: render 2 statusbar mutually-exclusive theo channel_type vì
-                 attribute statusbar_visible là static, không dynamic được. -->
-            <xpath expr="//header/field[@name='state']" position="attributes">
-                <attribute name="invisible">channel_type == 'retail'</attribute>
-            </xpath>
-            <xpath expr="//header/field[@name='state']" position="after">
-                <field name="state" widget="statusbar" statusbar_visible="draft,sale"
-                       invisible="channel_type != 'retail'"/>
-            </xpath>
-            <!-- Ẩn partner_id mặc định của Odoo (widget res_partner_many2one cho phép quick-create),
-                 thay bằng 2 partner_id mutually-exclusive theo channel_type:
-                 - Retail: chỉ list khách lẻ; default tạo mới = retail.
-                 - Wholesale: chỉ list khách buôn; default tạo mới = wholesale.
-                 Hiện theo channel_type của đơn (default channel_type lấy từ context). -->
             <xpath expr="//field[@name='partner_id']" position="attributes">
-                <attribute name="invisible">1</attribute>
-            </xpath>
-            <xpath expr="//field[@name='partner_id']" position="after">
-                <field name="partner_id"
-                       domain="[('customer_rank', '>', 0), ('channel_type', '=', 'retail')]"
-                       context="{'show_address': 0, 'show_vat': True, 'default_customer_rank': 1, 'default_channel_type': 'retail'}"
-                       options="{'no_quick_create': True}"
-                       readonly="state in ['cancel', 'sale']"
-                       invisible="channel_type != 'retail'"
-                       placeholder="Chọn khách lẻ..."/>
-                <field name="partner_id"
-                       domain="[('customer_rank', '>', 0), ('channel_type', '=', 'wholesale')]"
-                       context="{'show_address': 0, 'show_vat': True, 'default_customer_rank': 1, 'default_channel_type': 'wholesale'}"
-                       options="{'no_quick_create': True}"
-                       readonly="state in ['cancel', 'sale']"
-                       invisible="channel_type != 'wholesale'"
-                       placeholder="Chọn khách buôn..."/>
+                <attribute name="options">{'no_quick_create': True}</attribute>
             </xpath>
             <xpath expr="//page[@name='customer_signature']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="(//field[@name='pricelist_id'])[1]" position="attributes">
-                <attribute name="domain">[('channel_type', 'in', [channel_type, False])]</attribute>
                 <attribute name="readonly">1</attribute>
             </xpath>
             <xpath expr="//button[@name='action_preview_sale_order']" position="attributes">
@@ -107,20 +63,6 @@
                 <attribute name="class">btn-info</attribute>
             </xpath>
 
-            <!-- Bán lẻ: ẩn các nút action_quotation_send (Send by Email / Send PRO-FORMA Invoice) -->
-            <xpath expr="//button[@id='send_by_email_primary']" position="attributes">
-                <attribute name="invisible">state != 'draft' or channel_type == 'retail'</attribute>
-            </xpath>
-            <xpath expr="//button[@id='send_proforma_primary']" position="attributes">
-                <attribute name="invisible">state != 'draft' or invoice_count &gt;= 1 or channel_type == 'retail'</attribute>
-            </xpath>
-            <xpath expr="//button[@id='send_proforma']" position="attributes">
-                <attribute name="invisible">state == 'draft' or invoice_count &gt;= 1 or channel_type == 'retail'</attribute>
-            </xpath>
-            <xpath expr="//button[@id='send_by_email']" position="attributes">
-                <attribute name="invisible">state not in ('sent', 'sale') or channel_type == 'retail'</attribute>
-            </xpath>
-
             <!-- Buttons import Excel + tải template trước order_line -->
             <xpath expr="//field[@name='order_line']" position="before">
                 <div class="mb-2" invisible="state not in ('draft', 'sent')">
@@ -142,9 +84,15 @@
             <xpath expr="//field[@name='order_line']/list/control/create[@name='add_note_control']" position="replace"/>
             <xpath expr="//field[@name='order_line']/list/control/button[@name='action_add_from_catalog']" position="replace"/>
 
-            <!-- Rx fields trên dòng SO bán buôn cắt theo đơn kính. Default optional=hide
-                 để không gây nhiễu cho bán hàng thông thường; user bật cột khi cần. -->
+            <!-- Đánh dấu dòng có sản phẩm storable nhưng tồn không đủ.
+                 is_stock_insufficient ẩn (dùng cho decoration row), qty_available_display
+                 hiển thị optional để user bật khi cần xem tồn. -->
+            <xpath expr="//field[@name='order_line']/list" position="attributes">
+                <attribute name="decoration-warning">is_stock_insufficient</attribute>
+            </xpath>
             <xpath expr="//field[@name='order_line']/list/field[@name='product_uom_qty']" position="before">
+                <field name="is_stock_insufficient" column_invisible="True"/>
+                <field name="qty_available_display" optional="hide" string="Tồn" readonly="1"/>
                 <field name="rx_has_data" optional="hide" string="Có Rx" readonly="1"/>
                 <field name="rx_od_sph" optional="hide" string="OD-SPH"/>
                 <field name="rx_od_cyl" optional="hide" string="OD-CYL"/>
@@ -207,14 +155,6 @@
             <xpath expr="//search/field[@name='user_id']" position="replace"/>
             <xpath expr="//search/field[@name='team_id']" position="replace"/>
             <xpath expr="//search/field[@name='order_line']" position="replace"/>
-
-            <xpath expr="//search" position="inside">
-                <separator/>
-                <filter string="Bán buôn" name="filter_channel_wholesale"
-                        domain="[('channel_type', '=', 'wholesale')]"/>
-                <filter string="Bán lẻ" name="filter_channel_retail"
-                        domain="[('channel_type', '=', 'retail')]"/>
-            </xpath>
         </field>
     </record>
 

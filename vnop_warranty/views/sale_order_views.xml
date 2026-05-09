@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="sale_order_view_form_inherit_warranty" model="ir.ui.view">
+        <field name="name">sale.order.form.inherit.vnop_warranty</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_print_warranty_labels"
+                        type="object"
+                        string="In tem QR bảo hành"
+                        class="btn-secondary"
+                        invisible="state not in ('sale', 'done')"/>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Bảo hành"
+                      name="warranty_registrations">
+                    <field name="warranty_registration_ids" readonly="1">
+                        <list>
+                            <field name="product_id"/>
+                            <field name="warranty_id"/>
+                            <field name="customer_name"/>
+                            <field name="customer_phone"/>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="state"
+                                   decoration-success="state == 'active'"
+                                   decoration-warning="state == 'pending'"
+                                   decoration-danger="state == 'expired'"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

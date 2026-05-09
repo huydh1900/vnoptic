@@ -6,20 +6,6 @@ from odoo import models
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
-    def _get_program_domain(self):
-        """Filter loyalty.program theo kênh bán của đơn (áp cho program auto)."""
-        domain = super()._get_program_domain()
-        order_channel = self.channel_type or 'retail'
-        return domain + [('channel_type', 'in', ('all', order_channel))]
-
-    def _get_trigger_domain(self):
-        """Filter loyalty.rule theo kênh bán của đơn (áp cho program with_code)."""
-        domain = super()._get_trigger_domain()
-        order_channel = self.channel_type or 'retail'
-        return domain + [
-            ('program_id.channel_type', 'in', ('all', order_channel)),
-        ]
-
     def action_open_reward_wizard(self):
         """Luôn mở wizard chọn chiết khấu thay vì auto-apply khi chỉ có 1 reward."""
         self.ensure_one()

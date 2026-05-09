@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'VNOptic Sale Channel',
-    'summary': 'Phân kênh bán buôn / bán lẻ cho khách hàng, bảng giá và đơn hàng',
-    'version': '18.0.2.0.3',
+    'summary': 'Hạ tầng B2B đại lý: dealer tier, hạn mức công nợ, đặt cọc',
+    'version': '18.0.3.1.0',
     'category': 'Sales',
     'depends': [
         'base',
@@ -29,13 +29,7 @@
     'external_dependencies': {
         'python': ['num2words'],
     },
-    'assets': {
-        'web.assets_backend': [
-            'vnop_sale_channel/static/src/js/sale_order_stock_warning.js',
-        ],
-    },
     'license': 'LGPL-3',
     'installable': True,
     'application': False,
-    'post_init_hook': 'post_init_hook',
 }

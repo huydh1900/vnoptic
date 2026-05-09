@@ -10,7 +10,7 @@ key information (name, brand, category, country, material, serial,
 specification, price, uses, guide, warning, preserve).
 The QR points to an Odoo controller served by this module.
 """,
-    'depends': ['base', 'product', 'vnop_sync'],
+    'depends': ['base', 'product', 'vnop_sync', 'website'],
     'data': [
         'views/product_portal_templates.xml',
         'views/product_template_views.xml',

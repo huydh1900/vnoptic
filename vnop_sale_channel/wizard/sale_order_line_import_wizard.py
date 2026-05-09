@@ -111,10 +111,6 @@ class SaleOrderLineImportWizard(models.TransientModel):
             "state": "done",
             "imported_count": len(line_vals_list),
         })
-        # Notification cảnh báo tồn kho không return từ đây nữa: form sale.order
-        # phía sau wizard refresh order_line → useEffect bên JS sẽ bắt thay đổi
-        # và tự gọi check_stock_warning. JS có module-level singleton đảm bảo
-        # chỉ 1 notification hiển thị cùng lúc.
         return self._reopen()
 
     def action_back_upload(self):

@@ -20,7 +20,7 @@ class VnopClaimBack(models.Model):
         string='Đại lý',
         required=True,
         tracking=True,
-        domain=[('channel_type', '=', 'wholesale')],
+        domain=[('dealer_tier_id', '!=', False)],
     )
     period_from = fields.Date(string='Từ ngày', required=True, tracking=True)
     period_to = fields.Date(string='Đến ngày', required=True, tracking=True)
@@ -89,12 +89,6 @@ class VnopClaimBack(models.Model):
         for rec in self:
             if rec.period_from and rec.period_to and rec.period_from > rec.period_to:
                 raise UserError(_('Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.'))
-
-    @api.constrains('dealer_id')
-    def _check_dealer_channel(self):
-        for rec in self:
-            if rec.dealer_id and rec.dealer_id.channel_type != 'wholesale':
-                raise UserError(_('Đại lý phải thuộc kênh bán buôn (wholesale).'))
 
     # ---------- computes ----------
 

@@ -36,8 +36,8 @@ odoo-bin -c <odoo.conf> -d <db> -i <module_name> --dev=all
 - **vnop_purchase** — Purchase order extensions + landed cost product data (18 predefined cost types). Depends on `vnop_delivery`, `vnop_contract`, `stock_landed_costs`.
 
 ### Sales / Partner
-- **vnop_sale_channel** — Dual-channel sales infrastructure (wholesale/retail). Adds `channel_type` field to `res.partner`, `product.pricelist`, and `sale.order`. Seeds default wholesale/retail pricelists.
-- **vnop_promotion** — Channel-aware promotions. Extends `loyalty.program` with `channel_type` so promotions apply only to matching sales channel. Depends on `vnop_sale_channel`.
+- **vnop_sale_channel** — B2B dealer infrastructure: `dealer.tier` model, `dealer_tier_id` + `credit_limit` + `credit_used_pct` on `res.partner`, `industry_id` + `deposit_amount` + `partner_credit_available` on `sale.order`, `purchaser_id` on `product.pricelist`. Seeds default Wholesale/Retail pricelists (no channel gating). Field `channel_type` đã loại bỏ.
+- **vnop_promotion** — Reward dialog wrapper + Vietnamese label cho `sale_loyalty`. Standalone (không depend vnop_sale_channel).
 - **vnop_partner** — `res.partner` extensions: `ref` uniqueness SQL constraint.
 
 ### Inventory
@@ -63,12 +63,12 @@ vnop_purchase → vnop_delivery → vnop_contract → [purchase_stock, stock, ma
                                  ↑
 vnop_purchase_offer ─────────────┘
 
-vnop_promotion → vnop_sale_channel
+vnop_promotion → sale_loyalty
 vnop_stock → vnop_sync
 queue_job_cron_jobrunner → queue_job
 ```
 
-Standalone: `vnop_sync`, `vnop_currency_rate`, `vnop_sale_channel`, `vnop_partner`, `vnop_theme`, `vnop_chatter_toggle`, `vnop_float_trim_zeros`, `vnop_l10n_vn_fix`, `queue_job`.
+Standalone: `vnop_sync`, `vnop_currency_rate`, `vnop_sale_channel`, `vnop_promotion`, `vnop_partner`, `vnop_theme`, `vnop_chatter_toggle`, `vnop_float_trim_zeros`, `vnop_l10n_vn_fix`, `queue_job`.
 
 ## Module Layout Convention
 

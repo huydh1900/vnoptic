@@ -6,7 +6,7 @@ from odoo.addons.portal.controllers.portal import CustomerPortal, pager
 
 
 class B2BPortal(CustomerPortal):
-    """Portal B2B đại lý: catalog, cart, đặt đơn, công nợ, RMA."""
+    """Portal B2B đại lý: catalog, cart, đặt đơn, công nợ."""
 
     _B2B_PAGE_SIZE = 20
 
@@ -18,16 +18,11 @@ class B2BPortal(CustomerPortal):
         """Trả về commercial_partner_id của user hiện tại.
 
         Raise NotFound nếu:
-        - Không phải wholesale partner
-        - Hoặc is_b2b_portal_active = False
+        - is_b2b_portal_active = False
         - Hoặc company mismatch
         """
         partner = request.env.user.partner_id.commercial_partner_id
-        if (
-            not partner
-            or partner.channel_type != 'wholesale'
-            or not partner.is_b2b_portal_active
-        ):
+        if not partner or not partner.is_b2b_portal_active:
             raise MissingError("Bạn không có quyền truy cập cổng B2B đại lý.")
 
         # Multi-company check: partner phải thuộc company hiện tại
@@ -293,10 +288,6 @@ class B2BPortal(CustomerPortal):
             'pricelist_id': pricelist.id,
             'order_line': order_lines,
         }
-        # channel_type: chỉ set nếu field tồn tại (từ vnop_sale_channel)
-        if 'channel_type' in request.env['sale.order']._fields:
-            order_vals['channel_type'] = 'wholesale'
-
         SaleOrder = request.env['sale.order'].sudo()
         order = SaleOrder.create(order_vals)
         order._compute_amounts()
@@ -370,127 +361,3 @@ class B2BPortal(CustomerPortal):
             'page_name': 'b2b_financial',
         })
         return request.render('vnop_b2b_portal.portal_financial', values)
-
-    # -------------------------------------------------------------------------
-    # Routes — Returns (RMA) — soft dependency vnop_sale_workflow
-    # -------------------------------------------------------------------------
-
-    @http.route('/my/returns', type='http', auth='user', website=True)
-    def b2b_returns(self, **kw):
-        partner = self._b2b_partner()
-        values = self._prepare_portal_layout_values()
-        values['is_user_b2b'] = partner
-        values['page_name'] = 'b2b_returns'
-
-        if 'vnop.rma' not in request.env:
-            values['rma_unavailable'] = True
-            values['rma_list'] = []
-            return request.render('vnop_b2b_portal.portal_returns_list', values)
-
-        rma_list = request.env['vnop.rma'].sudo().search([
-            ('partner_id.commercial_partner_id', '=', partner.id),
-            ('state', 'in', ('submitted', 'approved', 'rejected')),
-        ], order='id desc')
-        values['rma_list'] = rma_list
-        values['rma_unavailable'] = False
-        return request.render('vnop_b2b_portal.portal_returns_list', values)
-
-    @http.route('/my/returns/new', type='http', auth='user', website=True, methods=['GET', 'POST'])
-    def b2b_returns_new(self, **kw):
-        partner = self._b2b_partner()
-        values = self._prepare_portal_layout_values()
-        values['is_user_b2b'] = partner
-        values['page_name'] = 'b2b_returns_new'
-
-        if 'vnop.rma' not in request.env:
-            return request.redirect('/my/returns')
-
-        SaleOrder = request.env['sale.order'].sudo()
-        orders = SaleOrder.search([
-            ('partner_id.commercial_partner_id', '=', partner.id),
-            ('state', 'in', ('sale', 'done')),
-        ], order='id desc')
-
-        if request.httprequest.method == 'POST':
-            return self._b2b_returns_submit(partner, orders, **kw)
-
-        values.update({
-            'orders': orders,
-            'error': {},
-            'kw': None,
-            'reason_codes': [
-                ('defect', 'Hàng lỗi'),
-                ('wrong_item', 'Sai mặt hàng'),
-                ('customer_change', 'Khách đổi ý'),
-                ('quality_issue', 'Lỗi chất lượng'),
-                ('other', 'Khác'),
-            ],
-            'resolution_types': [
-                ('refund', 'Hoàn tiền'),
-                ('replace', 'Đổi hàng'),
-                ('credit_note', 'Giảm trừ công nợ'),
-            ],
-        })
-        return request.render('vnop_b2b_portal.portal_returns_form', values)
-
-    def _b2b_returns_submit(self, partner, orders, **kw):
-        """Xử lý POST tạo vnop.rma mới."""
-        error = {}
-        order_id = kw.get('sale_order_id')
-        reason_code = kw.get('reason_code')
-        resolution_type = kw.get('resolution_type', 'refund')
-        reason_note = kw.get('reason_note', '')
-
-        if not order_id:
-            error['sale_order_id'] = True
-        if not reason_code:
-            error['reason_code'] = True
-
-        order = None
-        if order_id and not error:
-            try:
-                order = request.env['sale.order'].sudo().browse(int(order_id))
-                # Kiểm tra order thuộc đúng partner
-                if order.partner_id.commercial_partner_id.id != partner.id:
-                    error['sale_order_id'] = True
-                    order = None
-            except (ValueError, TypeError, MissingError):
-                error['sale_order_id'] = True
-
-        if error:
-            values = self._prepare_portal_layout_values()
-            values.update({
-                'is_user_b2b': partner,
-                'page_name': 'b2b_returns_new',
-                'orders': orders,
-                'error': error,
-                'kw': kw,
-                'reason_codes': [
-                    ('defect', 'Hàng lỗi'),
-                    ('wrong_item', 'Sai mặt hàng'),
-                    ('customer_change', 'Khách đổi ý'),
-                    ('quality_issue', 'Lỗi chất lượng'),
-                    ('other', 'Khác'),
-                ],
-                'resolution_types': [
-                    ('refund', 'Hoàn tiền'),
-                    ('replace', 'Đổi hàng'),
-                    ('credit_note', 'Giảm trừ công nợ'),
-                ],
-            })
-            return request.render('vnop_b2b_portal.portal_returns_form', values)
-
-        rma = request.env['vnop.rma'].sudo().create({
-            'sale_order_id': order.id,
-            'reason_code': reason_code,
-            'resolution_type': resolution_type,
-            'reason_note': reason_note,
-            'state': 'submitted',
-            'company_id': request.env.company.id,
-        })
-        # Sinh mã sequence
-        sequence = request.env['ir.sequence'].sudo().next_by_code('vnop.rma')
-        if sequence:
-            rma.write({'name': sequence})
-
-        return request.redirect('/my/returns')

@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Trang in tem QR bảo hành — render HTML/CSS thuần (không dùng
+        ir.actions.report của Odoo). Mở trong tab mới, user xem preview rồi
+        Ctrl+P / nút "In" trên trang để in hoặc lưu PDF qua trình duyệt.
+    -->
+    <template id="warranty_label_print" name="In tem QR bảo hành">&lt;!DOCTYPE html&gt;
+        <html lang="vi">
+            <head>
+                <meta charset="utf-8"/>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+                <title>Tem QR bảo hành – <t t-out="order.name"/></title>
+                <style>
+                    *, *::before, *::after { box-sizing: border-box; }
+                    html, body { margin: 0; padding: 0; }
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                        background: #eef0f3;
+                        color: #1f2933;
+                        font-size: 13px;
+                        line-height: 1.45;
+                    }
+
+                    /* ===== Toolbar (chỉ hiện trên màn hình) ===== */
+                    .lbl-toolbar {
+                        position: sticky;
+                        top: 0;
+                        z-index: 10;
+                        background: #0e3b3b;
+                        color: #fff;
+                        padding: 12px 24px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+                    }
+                    .lbl-toolbar .info {
+                        display: flex; flex-direction: column; gap: 2px;
+                    }
+                    .lbl-toolbar .info b { font-size: 14px; }
+                    .lbl-toolbar .info span { font-size: 12px; opacity: 0.85; }
+                    .lbl-toolbar .actions { display: flex; gap: 8px; }
+                    .lbl-btn {
+                        background: #ffffff;
+                        color: #0e3b3b;
+                        border: none;
+                        padding: 8px 18px;
+                        border-radius: 3px;
+                        font-size: 13px;
+                        font-weight: 600;
+                        font-family: inherit;
+                        cursor: pointer;
+                    }
+                    .lbl-btn:hover { background: #d8efef; }
+                    .lbl-btn-ghost {
+                        background: transparent;
+                        color: #ffffff;
+                        border: 1px solid rgba(255,255,255,0.45);
+                    }
+                    .lbl-btn-ghost:hover { background: rgba(255,255,255,0.12); }
+
+                    /* ===== Empty state ===== */
+                    .lbl-empty {
+                        max-width: 560px;
+                        margin: 60px auto;
+                        background: #fff;
+                        border-radius: 6px;
+                        padding: 32px;
+                        text-align: center;
+                        color: #6b7280;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                    }
+
+                    /* ===== Sheet (mô phỏng A4 trên màn hình) ===== */
+                    .lbl-sheet {
+                        width: 210mm;
+                        min-height: 297mm;
+                        margin: 16px auto;
+                        padding: 12mm 10mm;
+                        background: #ffffff;
+                        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr);
+                        grid-auto-rows: 65mm;
+                        gap: 4mm;
+                        page-break-after: always;
+                    }
+                    .lbl-sheet:last-child { page-break-after: auto; }
+
+                    /* ===== Tem ===== */
+                    .lbl {
+                        border: 1px dashed #cbd5e1;
+                        border-radius: 4px;
+                        padding: 4mm;
+                        display: grid;
+                        grid-template-rows: auto 1fr auto;
+                        background: #fff;
+                        overflow: hidden;
+                    }
+                    .lbl-head {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        border-bottom: 1px solid #e5e7eb;
+                        padding-bottom: 2mm;
+                        margin-bottom: 2mm;
+                    }
+                    .lbl-brand {
+                        font-size: 12px;
+                        font-weight: 700;
+                        color: #0e3b3b;
+                        letter-spacing: 0.5px;
+                    }
+                    .lbl-brand small {
+                        display: block;
+                        font-weight: 400;
+                        color: #6b7280;
+                        font-size: 10px;
+                        letter-spacing: 0;
+                    }
+                    .lbl-pkg {
+                        font-size: 10px;
+                        font-weight: 600;
+                        color: #ffffff;
+                        background: #0e6e6b;
+                        padding: 2px 8px;
+                        border-radius: 999px;
+                        white-space: nowrap;
+                    }
+
+                    .lbl-body {
+                        display: grid;
+                        grid-template-columns: 32mm 1fr;
+                        gap: 3mm;
+                        align-items: center;
+                    }
+                    .lbl-qr {
+                        width: 32mm; height: 32mm;
+                        border: 1px solid #e5e7eb;
+                        border-radius: 3px;
+                        padding: 1mm;
+                        background: #fff;
+                    }
+                    .lbl-qr img {
+                        width: 100%; height: 100%;
+                        display: block;
+                        image-rendering: pixelated;
+                    }
+                    .lbl-info {
+                        font-size: 11px;
+                        line-height: 1.35;
+                        overflow: hidden;
+                    }
+                    .lbl-product {
+                        font-size: 12px;
+                        font-weight: 700;
+                        color: #1f2933;
+                        margin: 0 0 1.5mm;
+                        display: -webkit-box;
+                        -webkit-line-clamp: 2;
+                        -webkit-box-orient: vertical;
+                        overflow: hidden;
+                    }
+                    .lbl-meta {
+                        margin: 0.6mm 0;
+                        color: #4b5563;
+                    }
+                    .lbl-meta b { color: #1f2933; }
+                    .lbl-token {
+                        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+                        font-size: 10px;
+                        color: #0e6e6b;
+                        word-break: break-all;
+                    }
+
+                    .lbl-foot {
+                        border-top: 1px dashed #e5e7eb;
+                        padding-top: 1.5mm;
+                        margin-top: 2mm;
+                        font-size: 9.5px;
+                        color: #6b7280;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 2mm;
+                    }
+                    .lbl-foot .scan {
+                        display: inline-flex; align-items: center; gap: 1mm;
+                    }
+                    .lbl-foot .scan svg { flex-shrink: 0; }
+
+                    /* ===== Print ===== */
+                    @page { size: A4; margin: 8mm; }
+                    @media print {
+                        body { background: #ffffff; }
+                        .lbl-toolbar, .lbl-empty .actions { display: none !important; }
+                        .lbl-sheet {
+                            box-shadow: none;
+                            margin: 0;
+                            padding: 0;
+                            width: auto;
+                            min-height: 0;
+                        }
+                        .lbl { break-inside: avoid; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="lbl-toolbar">
+                    <div class="info">
+                        <b>Tem QR bảo hành</b>
+                        <span>Đơn: <t t-out="order.name"/> · <t t-out="len(regs)"/> tem</span>
+                    </div>
+                    <div class="actions">
+                        <button type="button" class="lbl-btn lbl-btn-ghost" onclick="window.close()">Đóng</button>
+                        <button type="button" class="lbl-btn" onclick="window.print()">In / Lưu PDF</button>
+                    </div>
+                </div>
+
+                <t t-if="not regs">
+                    <div class="lbl-empty">
+                        <h3 style="margin:0 0 8px;">Chưa có phiếu bảo hành</h3>
+                        <p style="margin:0;">Đơn này chưa sinh phiếu bảo hành nào. Hãy xác nhận đơn và đảm bảo
+                            sản phẩm có gắn gói "Bảo hành công ty".</p>
+                    </div>
+                </t>
+
+                <t t-if="regs">
+                    <!-- Chia regs thành các sheet 8 tem (2 cột x 4 dòng) -->
+                    <t t-set="page_size" t-value="8"/>
+                    <t t-set="reg_list" t-value="list(regs)"/>
+                    <t t-set="num_pages" t-value="(len(reg_list) + page_size - 1) // page_size"/>
+                    <t t-foreach="range(num_pages)" t-as="p">
+                        <div class="lbl-sheet">
+                            <t t-foreach="reg_list[p * page_size:(p + 1) * page_size]" t-as="reg">
+                                <div class="lbl">
+                                    <div class="lbl-head">
+                                        <div class="lbl-brand">
+                                            VNOPTIC
+                                            <small>Bảo hành điện tử</small>
+                                        </div>
+                                        <span class="lbl-pkg" t-out="reg.warranty_id.name"/>
+                                    </div>
+                                    <div class="lbl-body">
+                                        <div class="lbl-qr">
+                                            <img t-att-src="'data:image/png;base64,%s' % qr_map.get(reg.id, '')"
+                                                 alt="QR"/>
+                                        </div>
+                                        <div class="lbl-info">
+                                            <p class="lbl-product" t-out="reg.product_id.display_name"/>
+                                            <p class="lbl-meta">
+                                                <b>Đơn:</b> <t t-out="order.name"/>
+                                            </p>
+                                            <p class="lbl-meta">
+                                                <b>Thời hạn:</b>
+                                                <t t-out="reg.warranty_id.duration"/>
+                                                <t t-out="dict(reg.warranty_id._fields['duration_unit'].selection).get(reg.warranty_id.duration_unit, '')"/>
+                                                <t t-if="reg.warranty_id.bonus_days">
+                                                    + <t t-out="reg.warranty_id.bonus_days"/>n
+                                                </t>
+                                            </p>
+                                            <p class="lbl-token" t-out="reg.token"/>
+                                        </div>
+                                    </div>
+                                    <div class="lbl-foot">
+                                        <span class="scan">
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3z"/><path d="M20 14h1"/><path d="M14 20h1"/><path d="M20 20h1"/></svg>
+                                            Quét QR để đăng ký bảo hành
+                                        </span>
+                                        <span>vnoptictech.com.vn</span>
+                                    </div>
+                                </div>
+                            </t>
+                        </div>
+                    </t>
+                </t>
+            </body>
+        </html>
+    </template>
+
+</odoo>

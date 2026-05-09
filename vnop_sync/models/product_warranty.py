@@ -9,7 +9,6 @@ class ProductWarranty(models.Model):
 
     name = fields.Char('Tên bảo hành', required=True, index=True)
     code = fields.Char('Mã bảo hành', required=True, index=True)
-    description = fields.Text('Mô tả')
 
     _sql_constraints = [
         ('code_unique', 'unique(code)', 'Mã bảo hành phải duy nhất!'),

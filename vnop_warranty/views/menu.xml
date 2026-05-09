@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem id="menu_warranty_root"
+              name="Bảo hành"
+              parent="sale.sale_menu_root"
+              sequence="80"/>
+
+    <menuitem id="menu_warranty_registration"
+              name="Phiếu bảo hành"
+              parent="menu_warranty_root"
+              action="action_warranty_registration"
+              sequence="10"/>
+
+    <menuitem id="menu_warranty_packages"
+              name="Gói bảo hành"
+              parent="menu_warranty_root"
+              action="vnop_sync.action_product_warranty"
+              sequence="20"/>
+
+</odoo>

@@ -1,24 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="product_qr_page" name="Product QR Detail Page">&lt;!DOCTYPE html&gt;
+
+    <!-- ============== LAYOUT CHUNG (VNOPTIC PUBLIC) ============== -->
+    <!--
+        Shared standalone layout (nav + footer + base CSS) for public pages
+        rendered behind a QR code. Reused by:
+          - vnop_product_portal.product_qr_page
+          - vnop_warranty.template_warranty_*
+        Body content is rendered via <t t-out="0"/>. Caller may set
+        `page_title` to override the <title>.
+    -->
+    <template id="vnoptic_public_layout" name="VNOptic Public Layout">&lt;!DOCTYPE html&gt;
         <html lang="vi">
             <head>
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-                <title t-out="name or 'Sản phẩm'"/>
+                <title t-out="page_title or 'VNOptic'"/>
                 <link rel="preconnect" href="https://fonts.googleapis.com"/>
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin"/>
                 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
                 <style>
                     *, *::before, *::after { box-sizing: border-box; }
                     html, body { margin: 0; padding: 0; }
+                    html { height: 100%; }
                     body {
                         font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
                         background: #f5f5f7;
                         color: #2c2c2c;
                         font-size: 14px;
                         line-height: 1.5;
+                        min-height: 100vh;
+                        display: flex;
+                        flex-direction: column;
                     }
+                    body > .vn-nav,
+                    body > .vn-footer,
+                    body > .vn-footer-bottom { flex-shrink: 0; }
                     a { color: inherit; text-decoration: none; }
 
                     /* ===== Top navbar ===== */
@@ -47,71 +64,18 @@
                         max-width: 1100px;
                         margin: 0 auto;
                         padding: 32px 24px 60px;
+                        width: 100%;
+                        flex: 1 0 auto;
                     }
+                    .vn-narrow { max-width: 560px; margin: 0 auto; }
 
-                    /* ===== Hero ===== */
-                    .vn-hero {
-                        display: grid;
-                        grid-template-columns: 360px 1fr;
-                        gap: 48px;
-                        align-items: start;
-                        margin-bottom: 28px;
-                    }
-                    .vn-hero-img {
-                        background: #fff;
-                        border: 1px solid #e3e3e3;
-                        border-radius: 4px;
-                        height: 240px;
-                        display: flex; align-items: center; justify-content: center;
-                        overflow: hidden;
-                    }
-                    .vn-hero-img img {
-                        max-width: 100%; max-height: 100%; object-fit: contain;
-                    }
-                    .vn-hero-info h1 {
-                        margin: 0 0 14px;
-                        font-size: 26px;
+                    /* ===== Page heading ===== */
+                    .vn-page-title {
+                        margin: 0 0 18px;
+                        font-size: 22px;
                         font-weight: 700;
                         color: #0e3b3b;
-                        line-height: 1.25;
                     }
-                    .vn-price {
-                        font-size: 22px;
-                        font-weight: 500;
-                        color: #d4a017;
-                        margin-bottom: 18px;
-                    }
-                    .vn-meta-line {
-                        margin: 6px 0;
-                        font-size: 14px;
-                    }
-                    .vn-meta-line b { font-weight: 700; color: #2c2c2c; }
-
-                    /* ===== Tabs ===== */
-                    .vn-tabs {
-                        display: flex; gap: 6px;
-                        margin: 28px 0 24px;
-                    }
-                    .vn-tab {
-                        padding: 9px 20px;
-                        border: 1px solid #d8d8d8;
-                        background: #fff;
-                        font-size: 14px;
-                        cursor: pointer;
-                        color: #2c2c2c;
-                        border-radius: 2px;
-                        transition: background 0.15s, color 0.15s;
-                    }
-                    .vn-tab.is-active {
-                        background: #0e3b3b;
-                        color: #ffffff;
-                        border-color: #0e3b3b;
-                    }
-                    .vn-tab:hover:not(.is-active) {
-                        background: #f0f0f0;
-                    }
-
-                    /* ===== Section title ===== */
                     .vn-section-title {
                         text-align: center;
                         color: #6e6e73;
@@ -127,9 +91,7 @@
                         margin-bottom: 22px;
                         overflow: hidden;
                     }
-                    .vn-card-head {
-                        padding: 16px 24px 4px;
-                    }
+                    .vn-card-head { padding: 16px 24px 4px; }
                     .vn-card-head h3 {
                         margin: 0;
                         font-size: 14px;
@@ -142,45 +104,101 @@
                         color: #8a8a8e;
                         font-size: 13px;
                     }
-                    .vn-card-body {
-                        padding: 16px 24px 22px;
-                    }
+                    .vn-card-body { padding: 16px 24px 22px; }
 
-                    /* Two-column grid (THÔNG TIN SẢN PHẨM) */
-                    .vn-grid-2 {
-                        display: grid;
-                        grid-template-columns: 1fr 1fr;
-                        column-gap: 48px;
-                        row-gap: 0;
-                    }
-                    .vn-row {
-                        display: grid;
-                        grid-template-columns: 110px 1fr;
-                        align-items: center;
-                        padding: 11px 0;
+                    /* ===== Info row (key/value) ===== */
+                    .vn-info-row {
+                        display: flex;
+                        gap: 12px;
+                        padding: 9px 0;
                         border-bottom: 1px solid #ededed;
                         font-size: 14px;
                     }
-                    .vn-row .k {
-                        font-weight: 500;
-                        color: #2c2c2c;
-                    }
-                    .vn-row .v {
-                        color: #2c2c2c;
-                    }
-                    .vn-grid-2 .vn-row:nth-last-child(-n+2) { border-bottom: none; }
-
-                    /* Stacked rows (THÔNG TIN SỬ DỤNG) */
-                    .vn-stack .vn-row-stack {
-                        padding: 11px 0;
-                        border-bottom: 1px solid #ededed;
-                        font-size: 14px;
-                    }
-                    .vn-stack .vn-row-stack:last-child { border-bottom: none; }
-                    .vn-stack .vn-row-stack b {
+                    .vn-info-row:last-child { border-bottom: none; }
+                    .vn-info-row .k {
                         font-weight: 700;
                         color: #2c2c2c;
+                        min-width: 130px;
                     }
+                    .vn-info-row .v { color: #2c2c2c; flex: 1; }
+                    .vn-info-row code {
+                        background: #f5f5f7;
+                        padding: 2px 6px;
+                        border-radius: 3px;
+                        font-size: 13px;
+                    }
+
+                    /* ===== Forms ===== */
+                    .vn-field { margin-bottom: 14px; }
+                    .vn-field label {
+                        display: block;
+                        font-weight: 500;
+                        margin-bottom: 6px;
+                        font-size: 13px;
+                        color: #2c2c2c;
+                    }
+                    .vn-field .req { color: #d04a4a; }
+                    .vn-field input {
+                        width: 100%;
+                        padding: 10px 12px;
+                        border: 1px solid #d8d8d8;
+                        border-radius: 3px;
+                        font-size: 14px;
+                        font-family: inherit;
+                        background: #fff;
+                    }
+                    .vn-field input:focus {
+                        outline: none;
+                        border-color: #0e6e6b;
+                        box-shadow: 0 0 0 2px rgba(14,110,107,0.12);
+                    }
+
+                    /* ===== Buttons ===== */
+                    .vn-btn {
+                        display: inline-block;
+                        background: #0e3b3b;
+                        color: #ffffff;
+                        padding: 11px 22px;
+                        border: none;
+                        border-radius: 3px;
+                        font-size: 14px;
+                        font-weight: 500;
+                        font-family: inherit;
+                        cursor: pointer;
+                        text-align: center;
+                        transition: background 0.15s;
+                    }
+                    .vn-btn:hover { background: #145252; color: #ffffff; }
+                    .vn-btn-block { display: block; width: 100%; }
+                    .vn-btn-link {
+                        background: transparent;
+                        color: #0e6e6b;
+                        padding: 8px 0;
+                        font-weight: 500;
+                    }
+                    .vn-btn-link:hover {
+                        background: transparent;
+                        color: #0e3b3b;
+                        text-decoration: underline;
+                    }
+
+                    /* ===== Alerts ===== */
+                    .vn-alert {
+                        padding: 16px 18px;
+                        border-radius: 4px;
+                        margin-bottom: 18px;
+                        font-size: 14px;
+                        border: 1px solid transparent;
+                    }
+                    .vn-alert h4 {
+                        margin: 0 0 6px;
+                        font-size: 16px;
+                        font-weight: 700;
+                    }
+                    .vn-alert p { margin: 0; }
+                    .vn-alert-success { background: #e7f6ec; color: #14532d; border-color: #b6e4c4; }
+                    .vn-alert-warning { background: #fff4d6; color: #7a5500; border-color: #f4d77c; }
+                    .vn-alert-danger  { background: #fde7e7; color: #8a1f1f; border-color: #f3b9b9; }
 
                     /* ===== Footer ===== */
                     .vn-footer {
@@ -212,6 +230,10 @@
                         margin: 6px 0; font-size: 14px; color: #ffffff;
                     }
                     .vn-footer .contact-row svg { flex-shrink: 0; margin-top: 3px; }
+                    .vn-footer .vn-footer-link { color: #ffffff; text-decoration: none; }
+                    .vn-footer .vn-footer-link:hover { text-decoration: underline; }
+                    .vn-footer ul a { color: #ffffff; text-decoration: none; }
+                    .vn-footer ul a:hover { text-decoration: underline; }
                     .vn-footer .vn-foot-label {
                         margin-top: 14px; font-size: 14px; color: #ffffff;
                     }
@@ -225,10 +247,6 @@
 
                     /* ===== Responsive ===== */
                     @media (max-width: 900px) {
-                        .vn-hero { grid-template-columns: 1fr; gap: 24px; }
-                        .vn-grid-2 { grid-template-columns: 1fr; }
-                        .vn-grid-2 .vn-row:nth-last-child(-n+2) { border-bottom: 1px solid #ededed; }
-                        .vn-grid-2 .vn-row:last-child { border-bottom: none; }
                         .vn-footer-inner { grid-template-columns: 1fr 1fr; }
                         .vn-menu { gap: 18px; }
                     }
@@ -236,13 +254,13 @@
                         .vn-nav { padding: 12px 16px; flex-wrap: wrap; gap: 10px; }
                         .vn-menu { gap: 14px; font-size: 13px; }
                         .vn-wrap { padding: 16px 12px 40px; }
-                        .vn-hero-info h1 { font-size: 20px; }
-                        .vn-price { font-size: 19px; }
                         .vn-card-head, .vn-card-body { padding-left: 16px; padding-right: 16px; }
-                        .vn-row { grid-template-columns: 100px 1fr; }
                         .vn-footer-inner { grid-template-columns: 1fr; gap: 24px; }
+                        .vn-info-row { flex-direction: column; gap: 4px; }
+                        .vn-info-row .k { min-width: 0; }
                     }
                 </style>
+                <t t-out="head_extra or ''"/>
             </head>
             <body>
                 <nav class="vn-nav">
@@ -250,83 +268,18 @@
                         <img src="/vnop_theme/static/src/img/image.png" alt="VNOPTICTECH"/>
                     </div>
                     <div class="vn-menu">
-                        <a href="#">Trang chủ</a>
-                        <a href="#">Sản phẩm</a>
+                        <a href="/">Trang chủ</a>
+                        <a href="/#featured-products">Sản phẩm</a>
                         <a href="#">Blog</a>
                         <a href="#">Giới thiệu</a>
+                        <a href="/warranty/check">Tra cứu bảo hành</a>
+                        <a href="/web/login">Đăng nhập</a>
                     </div>
                 </nav>
 
-                <div class="vn-wrap">
-                    <!-- Hero -->
-                    <section class="vn-hero">
-                        <div class="vn-hero-img">
-                            <img t-att-src="image_url" t-att-alt="name"/>
-                        </div>
-                        <div class="vn-hero-info">
-                            <h1 t-out="name"/>
-                            <div class="vn-price">
-                                <t t-out="'{:,.0f}'.format(price)"/> <t t-out="currency_symbol"/>
-                            </div>
-                            <div class="vn-meta-line">
-                                <b>Thương hiệu</b> : <span t-out="brand or 'Đang cập nhật'"/>
-                            </div>
-                            <div class="vn-meta-line">
-                                <b>Mô tả</b> : <span t-out="description"/>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- Tabs -->
-                    <div class="vn-tabs" role="tablist">
-                        <button class="vn-tab is-active" data-tab="mota" type="button">Mô tả</button>
-                        <button class="vn-tab" data-tab="thongtin" type="button">Thông tin</button>
-                        <button class="vn-tab" data-tab="khac" type="button">Sản phẩm khác</button>
-                    </div>
-
-                    <div class="vn-section-title">Mô tả sản phẩm</div>
-
-                    <!-- THÔNG TIN SẢN PHẨM -->
-                    <section class="vn-card">
-                        <div class="vn-card-head">
-                            <h3>THÔNG TIN SẢN PHẨM</h3>
-                            <p class="sub">Thông số &amp; Cấu hình</p>
-                        </div>
-                        <div class="vn-card-body">
-                            <div class="vn-grid-2">
-                                <div class="vn-row"><span class="k">Mã kính:</span><span class="v" t-out="ma_kinh"/></div>
-                                <div class="vn-row"><span class="k">SPH:</span><span class="v" t-out="sph"/></div>
-
-                                <div class="vn-row"><span class="k">Xuất xứ:</span><span class="v" t-out="xuat_xu"/></div>
-                                <div class="vn-row"><span class="k">CYL:</span><span class="v" t-out="cyl"/></div>
-
-                                <div class="vn-row"><span class="k">Phân loại:</span><span class="v" t-out="phan_loai"/></div>
-                                <div class="vn-row"><span class="k">ADD:</span><span class="v" t-out="add_val"/></div>
-
-                                <div class="vn-row"><span class="k">Chiết suất:</span><span class="v" t-out="chiet_suat"/></div>
-                                <div class="vn-row"><span class="k">Đường kính:</span><span class="v" t-out="duong_kinh"/></div>
-
-                                <div class="vn-row"><span class="k">Vật liệu:</span><span class="v" t-out="vat_lieu"/></div>
-                                <div class="vn-row"><span class="k"></span><span class="v"></span></div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- THÔNG TIN SỬ DỤNG -->
-                    <section class="vn-card">
-                        <div class="vn-card-head">
-                            <h3>THÔNG TIN SỬ DỤNG</h3>
-                            <p class="sub">Thông tin bổ sung về sản phẩm</p>
-                        </div>
-                        <div class="vn-card-body vn-stack">
-                            <div class="vn-row-stack"><b>Thông tin bổ sung:</b> <span t-out="thong_tin_bo_sung"/></div>
-                            <div class="vn-row-stack"><b>Hướng dẫn sử dụng:</b> <span t-out="huong_dan"/></div>
-                            <div class="vn-row-stack"><b>Bảo quản:</b> <span t-out="bao_quan"/></div>
-                            <div class="vn-row-stack"><b>Cảnh báo:</b> <span t-out="canh_bao"/></div>
-                            <div class="vn-row-stack"><b>Công dụng:</b> <span t-out="cong_dung"/></div>
-                        </div>
-                    </section>
-                </div>
+                <main class="vn-wrap">
+                    <t t-out="0"/>
+                </main>
 
                 <footer class="vn-footer">
                     <div class="vn-footer-inner">
@@ -339,7 +292,7 @@
                                 nghệ hiện đại và dịch vụ chuyên nghiệp.</p>
                             <div class="contact-row">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                <span>Số 63 phố Lê Duẩn, Phường Cửa Nam, Quận Hoàn Kiếm, Thành phố Hà Nội, Việt Nam</span>
+                                <a href="https://www.google.com/maps/search/?api=1&amp;query=S%E1%BB%91%2063%20ph%E1%BB%91%20L%C3%AA%20Du%E1%BA%A9n%2C%20Ph%C6%B0%E1%BB%9Dng%20C%E1%BB%ADa%20Nam%2C%20Qu%E1%BA%ADn%20Ho%C3%A0n%20Ki%E1%BA%BFm%2C%20H%C3%A0%20N%E1%BB%99i" target="_blank" rel="noopener noreferrer" class="vn-footer-link">Số 63 phố Lê Duẩn, Phường Cửa Nam, Quận Hoàn Kiếm, Thành phố Hà Nội, Việt Nam</a>
                             </div>
                             <div class="contact-row">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -375,8 +328,8 @@
                             <ul>
                                 <li>Tìm kiếm</li>
                                 <li>Giới thiệu</li>
-                                <li>Chính sách đổi trả</li>
-                                <li>Chính sách bảo mật</li>
+                                <li><a href="/policy/return">Chính sách đổi trả</a></li>
+                                <li><a href="/policy/privacy">Chính sách bảo mật</a></li>
                                 <li>Điều khoản dịch vụ</li>
                                 <li>Câu hỏi thường gặp</li>
                                 <li>Liên hệ</li>
@@ -387,19 +340,963 @@
                 <div class="vn-footer-bottom">
                     Copyright © 2025 Vnoptictech.
                 </div>
-
-                <script>
-                    document.addEventListener('DOMContentLoaded', function() {
-                        var tabs = document.querySelectorAll('.vn-tab');
-                        tabs.forEach(function(tab) {
-                            tab.addEventListener('click', function() {
-                                tabs.forEach(function(t) { t.classList.remove('is-active'); });
-                                tab.classList.add('is-active');
-                            });
-                        });
-                    });
-                </script>
             </body>
         </html>
+    </template>
+
+    <!-- ============== TRANG CHI TIẾT SẢN PHẨM (QR) ============== -->
+    <template id="product_qr_page" name="Product QR Detail Page">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title" t-value="name or 'Sản phẩm'"/>
+            <t t-set="head_extra">
+                <style>
+                    /* Page-specific styles for product detail */
+                    .vn-hero {
+                        display: grid;
+                        grid-template-columns: 360px 1fr;
+                        gap: 48px;
+                        align-items: start;
+                        margin-bottom: 28px;
+                    }
+                    .vn-hero-img {
+                        background: #fff;
+                        border: 1px solid #e3e3e3;
+                        border-radius: 4px;
+                        height: 240px;
+                        display: flex; align-items: center; justify-content: center;
+                        overflow: hidden;
+                    }
+                    .vn-hero-img img {
+                        max-width: 100%; max-height: 100%; object-fit: contain;
+                    }
+                    .vn-hero-info h1 {
+                        margin: 0 0 14px;
+                        font-size: 26px;
+                        font-weight: 700;
+                        color: #0e3b3b;
+                        line-height: 1.25;
+                    }
+                    .vn-price {
+                        font-size: 22px;
+                        font-weight: 500;
+                        color: #d4a017;
+                        margin-bottom: 18px;
+                    }
+                    .vn-meta-line { margin: 6px 0; font-size: 14px; }
+                    .vn-meta-line b { font-weight: 700; color: #2c2c2c; }
+
+                    .vn-tabs { display: flex; gap: 6px; margin: 28px 0 24px; }
+                    .vn-tab {
+                        padding: 9px 20px;
+                        border: 1px solid #d8d8d8;
+                        background: #fff;
+                        font-size: 14px;
+                        cursor: pointer;
+                        color: #2c2c2c;
+                        border-radius: 2px;
+                        transition: background 0.15s, color 0.15s;
+                    }
+                    .vn-tab.is-active {
+                        background: #0e3b3b;
+                        color: #ffffff;
+                        border-color: #0e3b3b;
+                    }
+                    .vn-tab:hover:not(.is-active) { background: #f0f0f0; }
+
+                    .vn-grid-2 {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        column-gap: 48px;
+                        row-gap: 0;
+                    }
+                    .vn-row {
+                        display: grid;
+                        grid-template-columns: 110px 1fr;
+                        align-items: center;
+                        padding: 11px 0;
+                        border-bottom: 1px solid #ededed;
+                        font-size: 14px;
+                    }
+                    .vn-row .k { font-weight: 500; color: #2c2c2c; }
+                    .vn-row .v { color: #2c2c2c; }
+                    .vn-grid-2 .vn-row:nth-last-child(-n+2) { border-bottom: none; }
+
+                    .vn-stack .vn-row-stack {
+                        padding: 11px 0;
+                        border-bottom: 1px solid #ededed;
+                        font-size: 14px;
+                    }
+                    .vn-stack .vn-row-stack:last-child { border-bottom: none; }
+                    .vn-stack .vn-row-stack b { font-weight: 700; color: #2c2c2c; }
+
+                    @media (max-width: 900px) {
+                        .vn-hero { grid-template-columns: 1fr; gap: 24px; }
+                        .vn-grid-2 { grid-template-columns: 1fr; }
+                        .vn-grid-2 .vn-row:nth-last-child(-n+2) { border-bottom: 1px solid #ededed; }
+                        .vn-grid-2 .vn-row:last-child { border-bottom: none; }
+                    }
+                    @media (max-width: 560px) {
+                        .vn-hero-info h1 { font-size: 20px; }
+                        .vn-price { font-size: 19px; }
+                        .vn-row { grid-template-columns: 100px 1fr; }
+                    }
+                </style>
+            </t>
+
+            <!-- Hero -->
+            <section class="vn-hero">
+                <div class="vn-hero-img">
+                    <img t-att-src="image_url" t-att-alt="name"/>
+                </div>
+                <div class="vn-hero-info">
+                    <h1 t-out="name"/>
+                    <div class="vn-price">
+                        <t t-out="'{:,.0f}'.format(price)"/> <t t-out="currency_symbol"/>
+                    </div>
+                    <div class="vn-meta-line">
+                        <b>Thương hiệu</b> : <span t-out="brand or 'Đang cập nhật'"/>
+                    </div>
+                    <div class="vn-meta-line">
+                        <b>Mô tả</b> : <span t-out="description"/>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tabs -->
+            <div class="vn-tabs" role="tablist">
+                <button class="vn-tab is-active" data-tab="mota" type="button">Mô tả</button>
+                <button class="vn-tab" data-tab="thongtin" type="button">Thông tin</button>
+                <button class="vn-tab" data-tab="khac" type="button">Sản phẩm khác</button>
+            </div>
+
+            <div class="vn-section-title">Mô tả sản phẩm</div>
+
+            <!-- THÔNG TIN SẢN PHẨM -->
+            <section class="vn-card">
+                <div class="vn-card-head">
+                    <h3>THÔNG TIN SẢN PHẨM</h3>
+                    <p class="sub">Thông số &amp; Cấu hình</p>
+                </div>
+                <div class="vn-card-body">
+                    <div class="vn-grid-2">
+                        <div class="vn-row"><span class="k">Mã kính:</span><span class="v" t-out="ma_kinh"/></div>
+                        <div class="vn-row"><span class="k">SPH:</span><span class="v" t-out="sph"/></div>
+
+                        <div class="vn-row"><span class="k">Xuất xứ:</span><span class="v" t-out="xuat_xu"/></div>
+                        <div class="vn-row"><span class="k">CYL:</span><span class="v" t-out="cyl"/></div>
+
+                        <div class="vn-row"><span class="k">Phân loại:</span><span class="v" t-out="phan_loai"/></div>
+                        <div class="vn-row"><span class="k">ADD:</span><span class="v" t-out="add_val"/></div>
+
+                        <div class="vn-row"><span class="k">Chiết suất:</span><span class="v" t-out="chiet_suat"/></div>
+                        <div class="vn-row"><span class="k">Đường kính:</span><span class="v" t-out="duong_kinh"/></div>
+
+                        <div class="vn-row"><span class="k">Vật liệu:</span><span class="v" t-out="vat_lieu"/></div>
+                        <div class="vn-row"><span class="k"></span><span class="v"></span></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- THÔNG TIN SỬ DỤNG -->
+            <section class="vn-card">
+                <div class="vn-card-head">
+                    <h3>THÔNG TIN SỬ DỤNG</h3>
+                    <p class="sub">Thông tin bổ sung về sản phẩm</p>
+                </div>
+                <div class="vn-card-body vn-stack">
+                    <div class="vn-row-stack"><b>Thông tin bổ sung:</b> <span t-out="thong_tin_bo_sung"/></div>
+                    <div class="vn-row-stack"><b>Hướng dẫn sử dụng:</b> <span t-out="huong_dan"/></div>
+                    <div class="vn-row-stack"><b>Bảo quản:</b> <span t-out="bao_quan"/></div>
+                    <div class="vn-row-stack"><b>Cảnh báo:</b> <span t-out="canh_bao"/></div>
+                    <div class="vn-row-stack"><b>Công dụng:</b> <span t-out="cong_dung"/></div>
+                </div>
+            </section>
+
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    var tabs = document.querySelectorAll('.vn-tab');
+                    tabs.forEach(function(tab) {
+                        tab.addEventListener('click', function() {
+                            tabs.forEach(function(t) { t.classList.remove('is-active'); });
+                            tab.classList.add('is-active');
+                        });
+                    });
+                });
+            </script>
+        </t>
+    </template>
+
+    <!-- ============== TRANG CHỦ ============== -->
+    <template id="home_page" name="VNOptic Home Page">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title">VNOPTICTECH — Kính mắt cao cấp</t>
+            <t t-set="head_extra">
+                <style>
+                    .vn-home { display: flex; flex-direction: column; gap: 56px; }
+
+                    /* Hero */
+                    .vn-hero-home {
+                        display: grid;
+                        grid-template-columns: 1.1fr 1fr;
+                        gap: 40px;
+                        align-items: center;
+                        background: linear-gradient(120deg, #f7f4ec 0%, #ecf3df 100%);
+                        border-radius: 16px;
+                        padding: 56px 56px;
+                    }
+                    .vn-hero-home .eyebrow {
+                        display: inline-block;
+                        background: #a5cd39;
+                        color: #fff;
+                        padding: 4px 12px;
+                        border-radius: 999px;
+                        font-size: 12px;
+                        font-weight: 600;
+                        letter-spacing: 0.4px;
+                        text-transform: uppercase;
+                        margin-bottom: 16px;
+                    }
+                    .vn-hero-home h1 {
+                        font-size: 40px;
+                        line-height: 1.15;
+                        margin: 0 0 16px;
+                        color: #1f2a1a;
+                        font-weight: 700;
+                    }
+                    .vn-hero-home p {
+                        font-size: 16px;
+                        color: #4a4a4a;
+                        margin: 0 0 28px;
+                        max-width: 520px;
+                    }
+                    .vn-cta {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                        background: #1f2a1a;
+                        color: #fff;
+                        padding: 14px 26px;
+                        border-radius: 999px;
+                        text-decoration: none;
+                        font-weight: 600;
+                        font-size: 14px;
+                        transition: transform .15s ease, background .15s ease;
+                    }
+                    .vn-cta:hover { background: #a5cd39; color: #1f2a1a; transform: translateY(-1px); }
+                    .vn-cta-ghost {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                        margin-left: 12px;
+                        color: #1f2a1a;
+                        text-decoration: none;
+                        font-weight: 600;
+                        font-size: 14px;
+                        padding: 14px 4px;
+                    }
+                    .vn-cta-ghost:hover { color: #a5cd39; }
+                    .vn-hero-img-wrap {
+                        position: relative;
+                        aspect-ratio: 1 / 1;
+                        max-width: 460px;
+                        margin-left: auto;
+                    }
+                    .vn-hero-img-wrap .blob {
+                        position: absolute; inset: 0;
+                        background: radial-gradient(circle at 30% 30%, #fff 0%, #e9efd6 60%, transparent 70%);
+                        border-radius: 50%;
+                    }
+                    .vn-hero-img-wrap img {
+                        position: relative; z-index: 1;
+                        width: 100%; height: 100%; object-fit: contain;
+                    }
+
+                    /* Section */
+                    .vn-section-head {
+                        text-align: center;
+                        margin-bottom: 28px;
+                    }
+                    .vn-section-head h2 {
+                        font-size: 28px;
+                        margin: 0 0 8px;
+                        color: #1f2a1a;
+                        font-weight: 700;
+                    }
+                    .vn-section-head p {
+                        font-size: 15px;
+                        color: #6a6a6a;
+                        margin: 0;
+                    }
+
+                    /* Categories */
+                    .vn-cats {
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        gap: 20px;
+                    }
+                    .vn-cat {
+                        background: #fff;
+                        border: 1px solid #ececec;
+                        border-radius: 12px;
+                        padding: 28px 24px;
+                        text-decoration: none;
+                        color: inherit;
+                        transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+                    }
+                    .vn-cat:hover {
+                        border-color: #a5cd39;
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 20px rgba(165, 205, 57, 0.12);
+                    }
+                    .vn-cat-icon {
+                        width: 48px; height: 48px;
+                        border-radius: 12px;
+                        background: #f0f5e2;
+                        display: flex; align-items: center; justify-content: center;
+                        margin-bottom: 16px;
+                    }
+                    .vn-cat h3 {
+                        font-size: 17px;
+                        margin: 0 0 6px;
+                        color: #1f2a1a;
+                        font-weight: 600;
+                    }
+                    .vn-cat p {
+                        font-size: 14px;
+                        color: #6a6a6a;
+                        margin: 0;
+                    }
+
+                    /* Products grid */
+                    .vn-prods {
+                        display: grid;
+                        grid-template-columns: repeat(4, 1fr);
+                        gap: 20px;
+                    }
+                    .vn-prod {
+                        background: #fff;
+                        border: 1px solid #ececec;
+                        border-radius: 12px;
+                        overflow: hidden;
+                        text-decoration: none;
+                        color: inherit;
+                        display: flex; flex-direction: column;
+                        transition: transform .15s ease, box-shadow .15s ease;
+                    }
+                    .vn-prod:hover {
+                        transform: translateY(-3px);
+                        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+                    }
+                    .vn-prod-img {
+                        aspect-ratio: 1 / 1;
+                        background: #f7f7f7;
+                        overflow: hidden;
+                    }
+                    .vn-prod-img img {
+                        width: 100%; height: 100%; object-fit: cover;
+                        transition: transform .3s ease;
+                    }
+                    .vn-prod:hover .vn-prod-img img { transform: scale(1.05); }
+                    .vn-prod-body { padding: 14px 16px 18px; flex: 1; display: flex; flex-direction: column; }
+                    .vn-prod-brand {
+                        font-size: 12px; color: #8a8a8a; text-transform: uppercase;
+                        letter-spacing: 0.5px; margin-bottom: 4px;
+                    }
+                    .vn-prod-name {
+                        font-size: 14px; color: #1f2a1a; font-weight: 600;
+                        line-height: 1.4;
+                        display: -webkit-box; -webkit-line-clamp: 2;
+                        -webkit-box-orient: vertical; overflow: hidden;
+                        margin-bottom: 10px;
+                        min-height: 40px;
+                    }
+                    .vn-prod-price {
+                        margin-top: auto;
+                        font-size: 16px; color: #a5cd39; font-weight: 700;
+                    }
+
+                    .vn-empty {
+                        grid-column: 1 / -1;
+                        text-align: center;
+                        padding: 40px 20px;
+                        color: #8a8a8a;
+                        background: #fafafa;
+                        border-radius: 12px;
+                    }
+
+                    @media (max-width: 900px) {
+                        .vn-hero-home {
+                            grid-template-columns: 1fr;
+                            padding: 36px 28px;
+                            gap: 24px;
+                        }
+                        .vn-hero-home h1 { font-size: 30px; }
+                        .vn-hero-img-wrap { max-width: 320px; margin: 0 auto; }
+                        .vn-cats { grid-template-columns: 1fr; }
+                        .vn-prods { grid-template-columns: repeat(2, 1fr); }
+                    }
+                    @media (max-width: 480px) {
+                        .vn-prods { grid-template-columns: 1fr; }
+                    }
+
+                    /* === Feature blocks (2-col with bg image) === */
+                    .vn-features-2col {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 20px;
+                    }
+                    .vn-feature {
+                        position: relative;
+                        min-height: 280px;
+                        border-radius: 16px;
+                        overflow: hidden;
+                        background-size: cover;
+                        background-position: center;
+                        display: flex;
+                        align-items: flex-end;
+                    }
+                    .vn-feature::before {
+                        content: "";
+                        position: absolute; inset: 0;
+                        background: linear-gradient(0deg, rgba(31,42,26,0.78) 0%, rgba(31,42,26,0.1) 65%);
+                    }
+                    .vn-feature-body {
+                        position: relative; z-index: 1;
+                        padding: 28px 32px;
+                        color: #fff;
+                    }
+                    .vn-feature-body h3 {
+                        font-size: 22px;
+                        font-weight: 700;
+                        margin: 0 0 8px;
+                    }
+                    .vn-feature-body p {
+                        font-size: 14px;
+                        margin: 0 0 16px;
+                        max-width: 380px;
+                        opacity: 0.92;
+                    }
+                    .vn-feature-body .vn-cta {
+                        background: #a5cd39;
+                        color: #1f2a1a;
+                    }
+                    .vn-feature-body .vn-cta:hover { background: #fff; }
+
+                    /* === Blog === */
+                    .vn-blog {
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        gap: 20px;
+                    }
+                    .vn-blog-card {
+                        background: #fff;
+                        border: 1px solid #ececec;
+                        border-radius: 12px;
+                        overflow: hidden;
+                        text-decoration: none;
+                        color: inherit;
+                        display: flex;
+                        flex-direction: column;
+                        transition: transform .15s ease, box-shadow .15s ease;
+                    }
+                    .vn-blog-card:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+                    }
+                    .vn-blog-img {
+                        aspect-ratio: 3 / 2;
+                        overflow: hidden;
+                        background: #f7f7f7;
+                    }
+                    .vn-blog-img img {
+                        width: 100%; height: 100%; object-fit: cover;
+                        transition: transform .3s ease;
+                    }
+                    .vn-blog-card:hover .vn-blog-img img { transform: scale(1.04); }
+                    .vn-blog-body { padding: 16px 18px 20px; }
+                    .vn-blog-date {
+                        font-size: 12px;
+                        color: #8a8a8a;
+                        margin-bottom: 6px;
+                    }
+                    .vn-blog-title {
+                        font-size: 16px;
+                        color: #1f2a1a;
+                        font-weight: 600;
+                        line-height: 1.4;
+                        margin: 0;
+                    }
+
+                    /* === About === */
+                    .vn-about {
+                        background: linear-gradient(120deg, #f7f4ec 0%, #ecf3df 100%);
+                        border-radius: 16px;
+                        padding: 56px 40px;
+                        text-align: center;
+                    }
+                    .vn-about h2 {
+                        font-size: 26px;
+                        color: #1f2a1a;
+                        margin: 0 0 16px;
+                        font-weight: 700;
+                    }
+                    .vn-about p.desc {
+                        max-width: 720px;
+                        margin: 0 auto 20px;
+                        font-size: 15px;
+                        line-height: 1.7;
+                        color: #4a4a4a;
+                    }
+                    .vn-about .tagline {
+                        font-size: 22px;
+                        font-weight: 700;
+                        letter-spacing: 4px;
+                        color: #a5cd39;
+                        margin: 8px 0 0;
+                    }
+
+                    /* === Benefits === */
+                    .vn-benefits {
+                        display: grid;
+                        grid-template-columns: repeat(4, 1fr);
+                        gap: 20px;
+                    }
+                    .vn-benefit {
+                        text-align: center;
+                        padding: 24px 16px;
+                        background: #fff;
+                        border: 1px solid #ececec;
+                        border-radius: 12px;
+                    }
+                    .vn-benefit-icon {
+                        width: 56px; height: 56px;
+                        margin: 0 auto 14px;
+                        border-radius: 50%;
+                        background: #f0f5e2;
+                        display: flex; align-items: center; justify-content: center;
+                    }
+                    .vn-benefit h4 {
+                        font-size: 15px;
+                        color: #1f2a1a;
+                        margin: 0 0 4px;
+                        font-weight: 600;
+                    }
+                    .vn-benefit p {
+                        font-size: 13px;
+                        color: #6a6a6a;
+                        margin: 0;
+                    }
+
+                    /* === Newsletter === */
+                    .vn-newsletter {
+                        background: #1f2a1a;
+                        color: #fff;
+                        border-radius: 16px;
+                        padding: 48px 40px;
+                        text-align: center;
+                    }
+                    .vn-newsletter h3 {
+                        font-size: 24px;
+                        margin: 0 0 8px;
+                        font-weight: 700;
+                    }
+                    .vn-newsletter p {
+                        margin: 0 0 24px;
+                        opacity: 0.85;
+                        font-size: 14px;
+                    }
+                    .vn-newsletter form {
+                        max-width: 480px;
+                        margin: 0 auto;
+                        display: flex;
+                        gap: 8px;
+                    }
+                    .vn-newsletter input {
+                        flex: 1;
+                        padding: 12px 16px;
+                        border-radius: 999px;
+                        border: none;
+                        font-size: 14px;
+                        outline: none;
+                    }
+                    .vn-newsletter button {
+                        padding: 12px 24px;
+                        border-radius: 999px;
+                        border: none;
+                        background: #a5cd39;
+                        color: #1f2a1a;
+                        font-weight: 700;
+                        font-size: 14px;
+                        cursor: pointer;
+                        transition: background .15s ease;
+                    }
+                    .vn-newsletter button:hover { background: #fff; }
+
+                    /* === Socials === */
+                    .vn-socials {
+                        text-align: center;
+                        padding: 16px 0 8px;
+                    }
+                    .vn-socials a {
+                        display: inline-flex;
+                        align-items: center; justify-content: center;
+                        width: 44px; height: 44px;
+                        border-radius: 50%;
+                        background: #f0f5e2;
+                        margin: 0 6px;
+                        color: #1f2a1a;
+                        text-decoration: none;
+                        transition: background .15s ease, color .15s ease, transform .15s ease;
+                    }
+                    .vn-socials a:hover {
+                        background: #a5cd39;
+                        color: #fff;
+                        transform: translateY(-2px);
+                    }
+
+                    @media (max-width: 900px) {
+                        .vn-features-2col { grid-template-columns: 1fr; }
+                        .vn-blog { grid-template-columns: 1fr; }
+                        .vn-benefits { grid-template-columns: repeat(2, 1fr); }
+                        .vn-newsletter form { flex-direction: column; }
+                        .vn-newsletter button { width: 100%; }
+                    }
+                </style>
+            </t>
+
+            <div class="vn-home">
+                <!-- Hero -->
+                <section class="vn-hero-home">
+                    <div>
+                        <span class="eyebrow">VNOPTICTECH · Kính mắt cao cấp</span>
+                        <p>Gần 50 năm kinh nghiệm trong ngành kính và quang học. Sản phẩm chính hãng,
+                            công nghệ hiện đại, dịch vụ chuyên nghiệp.</p>
+                        <a href="#featured-products" class="vn-cta">
+                            Xem sản phẩm
+                            <span>→</span>
+                        </a>
+                        <a href="/policy/return" class="vn-cta-ghost">Chính sách đổi trả</a>
+                    </div>
+                    <div class="vn-hero-img-wrap">
+                        <div class="blob"></div>
+                        <img src="/vnop_theme/static/src/img/image.png" alt="VNOPTICTECH"/>
+                    </div>
+                </section>
+
+                <!-- Categories -->
+                <section>
+                    <div class="vn-section-head">
+                        <h2>Danh mục sản phẩm</h2>
+                        <p>Lựa chọn theo nhu cầu của bạn</p>
+                    </div>
+                    <div class="vn-cats">
+                        <t t-foreach="categories" t-as="cat">
+                            <a t-att-href="'#featured-products'" class="vn-cat">
+                                <div class="vn-cat-icon">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                                         stroke="#a5cd39" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path t-att-d="cat['icon']"/>
+                                    </svg>
+                                </div>
+                                <h3 t-out="cat['name']"/>
+                                <p t-out="cat['desc']"/>
+                            </a>
+                        </t>
+                    </div>
+                </section>
+
+                <!-- Featured products -->
+                <section id="featured-products">
+                    <div class="vn-section-head">
+                        <h2>Sản phẩm nổi bật</h2>
+                        <p>Những mẫu được ưa chuộng nhất</p>
+                    </div>
+                    <div class="vn-prods">
+                        <t t-if="featured_products">
+                            <t t-foreach="featured_products" t-as="p">
+                                <a t-att-href="'/product/%s' % p.id" class="vn-prod">
+                                    <div class="vn-prod-img">
+                                        <img t-att-src="'/product/image/%s' % p.id" t-att-alt="p.name"/>
+                                    </div>
+                                    <div class="vn-prod-body">
+                                        <div class="vn-prod-brand" t-out="p.brand_id.name or ''"/>
+                                        <div class="vn-prod-name" t-out="p.name"/>
+                                        <div class="vn-prod-price">
+                                            <t t-out="'{:,.0f}'.format(p.list_price or 0).replace(',', '.')"/>
+                                            <span t-out="currency_symbol"/>
+                                        </div>
+                                    </div>
+                                </a>
+                            </t>
+                        </t>
+                        <t t-else="">
+                            <div class="vn-empty">Chưa có sản phẩm nào để hiển thị.</div>
+                        </t>
+                    </div>
+                </section>
+
+                <!-- 2 Feature blocks (tròng kính / gọng kính) -->
+                <section>
+                    <div class="vn-features-2col">
+                        <div class="vn-feature"
+                             style="background-image:url('https://picsum.photos/id/1059/900/600')">
+                            <div class="vn-feature-body">
+                                <h3>Tròng kính độc quyền</h3>
+                                <p>Công nghệ Cadillac – chống lóa, chống tia UV, độ trong suốt vượt trội.</p>
+                                <a href="#featured-products" class="vn-cta">
+                                    Tìm hiểu thêm <span>→</span>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="vn-feature"
+                             style="background-image:url('https://picsum.photos/id/1060/900/600')">
+                            <div class="vn-feature-body">
+                                <h3>Gọng kính thời trang</h3>
+                                <p>Thiết kế hiện đại, chất liệu cao cấp, tôn dáng khuôn mặt.</p>
+                                <a href="#featured-products" class="vn-cta">
+                                    Tìm hiểu thêm <span>→</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Bestsellers (mock data) -->
+                <section>
+                    <div class="vn-section-head">
+                        <h2>Bán chạy nhất</h2>
+                        <p>Bộ sưu tập được khách hàng tin chọn</p>
+                    </div>
+                    <div class="vn-prods">
+                        <t t-foreach="[
+                            ('Urik U01', 'https://picsum.photos/id/1062/400/400', '1.290.000'),
+                            ('Urik U02', 'https://picsum.photos/id/1063/400/400', '1.450.000'),
+                            ('Urik U03', 'https://picsum.photos/id/1064/400/400', '1.690.000'),
+                            ('Urik U04', 'https://picsum.photos/id/1065/400/400', '1.890.000'),
+                        ]" t-as="bp">
+                            <a href="#featured-products" class="vn-prod">
+                                <div class="vn-prod-img">
+                                    <img t-att-src="bp[1]" t-att-alt="bp[0]"/>
+                                </div>
+                                <div class="vn-prod-body">
+                                    <div class="vn-prod-brand">VNOPTIC</div>
+                                    <div class="vn-prod-name" t-out="bp[0]"/>
+                                    <div class="vn-prod-price">
+                                        <t t-out="bp[2]"/>
+                                        <span t-out="currency_symbol"/>
+                                    </div>
+                                </div>
+                            </a>
+                        </t>
+                    </div>
+                </section>
+
+                <!-- Blog (mock data) -->
+                <section>
+                    <div class="vn-section-head">
+                        <h2>Tin tức &amp; Sự kiện</h2>
+                        <p>Cập nhật thông tin mới nhất từ VNOPTICTECH</p>
+                    </div>
+                    <div class="vn-blog">
+                        <t t-foreach="[
+                            ('Tuyển dụng nhân viên bán hàng tháng 5', '09/05/2026', 'https://picsum.photos/id/1067/600/400'),
+                            ('Bảng giá tròng kính mới nhất 2026', '02/05/2026', 'https://picsum.photos/id/1068/600/400'),
+                            ('Kinh nghiệm chọn gọng kính phù hợp', '25/04/2026', 'https://picsum.photos/id/1069/600/400'),
+                        ]" t-as="post">
+                            <a href="#" class="vn-blog-card">
+                                <div class="vn-blog-img">
+                                    <img t-att-src="post[2]" t-att-alt="post[0]"/>
+                                </div>
+                                <div class="vn-blog-body">
+                                    <div class="vn-blog-date" t-out="post[1]"/>
+                                    <h3 class="vn-blog-title" t-out="post[0]"/>
+                                </div>
+                            </a>
+                        </t>
+                    </div>
+                </section>
+
+                <!-- About -->
+                <section>
+                    <div class="vn-about">
+                        <h2>Về VNOPTICTECH</h2>
+                        <p class="desc">
+                            VNOPTICTECH là thương hiệu kính mắt cao cấp với gần 50 năm kinh nghiệm,
+                            cam kết mang đến sản phẩm chính hãng và dịch vụ tận tâm cho khách hàng Việt Nam.
+                        </p>
+                        <p class="tagline">SEE THE WORLD BETTER THAN NOW</p>
+                    </div>
+                </section>
+
+                <!-- Benefits -->
+                <section>
+                    <div class="vn-benefits">
+                        <div class="vn-benefit">
+                            <div class="vn-benefit-icon">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+                                     stroke="#a5cd39" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                                    <path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"/>
+                                </svg>
+                            </div>
+                            <h4>Hỗ trợ 24/7</h4>
+                            <p>Tư vấn mọi lúc qua hotline</p>
+                        </div>
+                        <div class="vn-benefit">
+                            <div class="vn-benefit-icon">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+                                     stroke="#a5cd39" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="1" y="3" width="15" height="13"/>
+                                    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                                    <circle cx="5.5" cy="18.5" r="2.5"/>
+                                    <circle cx="18.5" cy="18.5" r="2.5"/>
+                                </svg>
+                            </div>
+                            <h4>Giao hàng miễn phí</h4>
+                            <p>Cho đơn từ 500.000₫</p>
+                        </div>
+                        <div class="vn-benefit">
+                            <div class="vn-benefit-icon">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+                                     stroke="#a5cd39" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="5" width="20" height="14" rx="2"/>
+                                    <line x1="2" y1="10" x2="22" y2="10"/>
+                                </svg>
+                            </div>
+                            <h4>Thanh toán đa dạng</h4>
+                            <p>Tiền mặt, thẻ, ví điện tử</p>
+                        </div>
+                        <div class="vn-benefit">
+                            <div class="vn-benefit-icon">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+                                     stroke="#a5cd39" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="1 4 1 10 7 10"/>
+                                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                                </svg>
+                            </div>
+                            <h4>Đổi trả dễ dàng</h4>
+                            <p>Trong vòng 7 ngày</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Newsletter -->
+                <section>
+                    <div class="vn-newsletter">
+                        <h3>Đăng ký nhận tin</h3>
+                        <p>Nhận ưu đãi và sản phẩm mới qua email mỗi tuần.</p>
+                        <form action="#" method="post">
+                            <input type="email" name="email"
+                                   placeholder="Email của bạn" required="required"/>
+                            <button type="submit">Đăng ký</button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Socials -->
+                <section>
+                    <div class="vn-socials">
+                        <a href="#" aria-label="Facebook">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.5 2.9h-2.4V22A10 10 0 0 0 22 12z"/>
+                            </svg>
+                        </a>
+                        <a href="#" aria-label="Instagram">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="2" width="20" height="20" rx="5"/>
+                                <path d="M16 11.4A4 4 0 1 1 12.6 8 4 4 0 0 1 16 11.4z"/>
+                                <line x1="17.5" y1="6.5" x2="17.5" y2="6.5"/>
+                            </svg>
+                        </a>
+                        <a href="#" aria-label="YouTube">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.6 15.6V8.4l6.3 3.6z"/>
+                            </svg>
+                        </a>
+                        <a href="#" aria-label="TikTok">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19.6 6.7a4.8 4.8 0 0 1-2.9-1 4.8 4.8 0 0 1-1.9-3h-3.2v12.4a2.8 2.8 0 1 1-2-2.7v-3.3a6 6 0 1 0 5.2 6V8.6a8 8 0 0 0 4.8 1.6V6.7z"/>
+                            </svg>
+                        </a>
+                    </div>
+                </section>
+
+            </div>
+        </t>
+    </template>
+
+    <!-- ============== TRANG TĨNH: CHÍNH SÁCH ============== -->
+    <template id="policy_page_styles" name="Policy Page Shared Styles">
+        <style>
+            .vn-policy {
+                max-width: 880px;
+                margin: 24px auto;
+                padding: 32px;
+                background: #ffffff;
+                border-radius: 8px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            }
+            .vn-policy h1 {
+                font-size: 24px;
+                margin: 0 0 20px;
+                color: #2c2c2c;
+                border-bottom: 2px solid #a5cd39;
+                padding-bottom: 10px;
+            }
+            .vn-policy h2 {
+                font-size: 18px;
+                margin: 24px 0 12px;
+                color: #2c2c2c;
+            }
+            .vn-policy p { margin: 0 0 12px; line-height: 1.7; color: #444; }
+            .vn-policy ul { margin: 0 0 12px 20px; padding: 0; }
+            .vn-policy li { margin: 6px 0; line-height: 1.7; color: #444; }
+        </style>
+    </template>
+
+    <template id="return_policy_page" name="Return Policy Page">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title">Chính sách đổi trả</t>
+            <t t-set="head_extra">
+                <t t-call="vnop_product_portal.policy_page_styles"/>
+            </t>
+            <article class="vn-policy">
+                <h1>Chính sách đổi trả</h1>
+
+                <h2>1. Điều kiện đổi trả</h2>
+                <p>Quý Khách hàng cần kiểm tra tình trạng hàng hóa và có thể đổi hàng/ trả lại hàng ngay tại thời điểm giao/nhận hàng trong những trường hợp sau:</p>
+                <ul>
+                    <li>Hàng không đúng chủng loại, mẫu mã trong đơn hàng đã đặt hoặc như trên website tại thời điểm đặt hàng.</li>
+                    <li>Không đủ số lượng, không đủ bộ như trong đơn hàng.</li>
+                    <li>Tình trạng bên ngoài bị ảnh hưởng như rách bao bì, bong tróc, bể vỡ…</li>
+                </ul>
+                <p>Khách hàng có trách nhiệm trình giấy tờ liên quan chứng minh sự thiếu sót trên để hoàn thành việc hoàn trả/đổi trả hàng hóa.</p>
+
+                <h2>2. Quy định về thời gian thông báo và gửi sản phẩm đổi trả</h2>
+                <ul>
+                    <li><b>Thời gian thông báo đổi trả:</b> trong vòng 48h kể từ khi nhận sản phẩm đối với trường hợp sản phẩm thiếu phụ kiện, quà tặng hoặc bể vỡ.</li>
+                    <li><b>Thời gian gửi chuyển trả sản phẩm:</b> trong vòng 14 ngày kể từ khi nhận sản phẩm.</li>
+                    <li><b>Địa điểm đổi trả sản phẩm:</b> Khách hàng có thể mang hàng trực tiếp đến văn phòng/ cửa hàng của chúng tôi hoặc chuyển qua đường bưu điện.</li>
+                </ul>
+                <p>Trong trường hợp Quý Khách hàng có ý kiến đóng góp/khiếu nại liên quan đến chất lượng sản phẩm, Quý Khách hàng vui lòng liên hệ đường dây chăm sóc khách hàng của chúng tôi.</p>
+            </article>
+        </t>
+    </template>
+
+    <template id="privacy_policy_page" name="Privacy Policy Page">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title">Chính sách bảo mật</t>
+            <t t-set="head_extra">
+                <t t-call="vnop_product_portal.policy_page_styles"/>
+            </t>
+            <article class="vn-policy">
+                <h1>Chính sách bảo mật</h1>
+                <p>Chính sách bảo mật này nhằm giúp Quý khách hiểu về cách website thu thập và sử dụng thông tin cá nhân của mình thông qua việc sử dụng trang web, bao gồm mọi thông tin có thể cung cấp thông qua trang web khi Quý khách đăng ký tài khoản, đăng ký nhận thông tin liên lạc từ chúng tôi, hoặc khi Quý khách mua sản phẩm, dịch vụ, yêu cầu thêm thông tin dịch vụ từ chúng tôi.</p>
+                <p>Chúng tôi sử dụng thông tin cá nhân của Quý khách để liên lạc khi cần thiết liên quan đến việc Quý khách sử dụng website của chúng tôi, để trả lời các câu hỏi hoặc gửi tài liệu và thông tin Quý khách yêu cầu.</p>
+                <p>Trang web của chúng tôi coi trọng việc bảo mật thông tin và sử dụng các biện pháp tốt nhất để bảo vệ thông tin cũng như việc thanh toán của khách hàng.</p>
+                <p>Mọi thông tin giao dịch sẽ được bảo mật ngoại trừ trong trường hợp cơ quan pháp luật yêu cầu.</p>
+            </article>
+        </t>
     </template>
 </odoo>

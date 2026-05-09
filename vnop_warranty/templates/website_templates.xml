@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Tất cả trang public bảo hành dùng layout chung
+        `vnop_product_portal.vnoptic_public_layout` để giữ nhất quán UI
+        với trang chi tiết sản phẩm khi quét QR.
+    -->
+
+    <!-- ============== ĐĂNG KÝ BẢO HÀNH ============== -->
+
+    <template id="template_warranty_register_form" name="Đăng ký bảo hành">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title" t-value="'Đăng ký bảo hành – VNOptic'"/>
+            <div class="vn-narrow">
+                <h2 class="vn-page-title">Đăng ký bảo hành sản phẩm</h2>
+
+                <section class="vn-card">
+                    <div class="vn-card-head">
+                        <h3>THÔNG TIN PHIẾU BẢO HÀNH</h3>
+                    </div>
+                    <div class="vn-card-body">
+                        <div class="vn-info-row">
+                            <span class="k">Sản phẩm:</span>
+                            <span class="v" t-out="reg.product_id.display_name"/>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Gói bảo hành:</span>
+                            <span class="v">
+                                <t t-out="reg.warranty_id.name"/>
+                                (<t t-out="reg.warranty_id.duration"/>
+                                <t t-out="dict(reg.warranty_id._fields['duration_unit'].selection).get(reg.warranty_id.duration_unit, '')"/>
+                                + <t t-out="reg.warranty_id.bonus_days"/> ngày bonus)
+                            </span>
+                        </div>
+                    </div>
+                </section>
+
+                <t t-if="error">
+                    <div class="vn-alert vn-alert-danger" t-out="error"/>
+                </t>
+
+                <section class="vn-card">
+                    <div class="vn-card-head">
+                        <h3>THÔNG TIN KHÁCH HÀNG</h3>
+                        <p class="sub">Vui lòng điền chính xác để được hỗ trợ tốt nhất</p>
+                    </div>
+                    <div class="vn-card-body">
+                        <form t-attf-action="/warranty/register/{{ reg.token }}/submit"
+                              method="POST">
+                            <input type="hidden" name="csrf_token"
+                                   t-att-value="request.csrf_token()"/>
+                            <div class="vn-field">
+                                <label>Họ và tên <span class="req">*</span></label>
+                                <input type="text" name="customer_name" required="required"/>
+                            </div>
+                            <div class="vn-field">
+                                <label>Số điện thoại <span class="req">*</span></label>
+                                <input type="tel" name="customer_phone" required="required"/>
+                            </div>
+                            <div class="vn-field">
+                                <label>Email</label>
+                                <input type="email" name="customer_email"/>
+                            </div>
+                            <div class="vn-field">
+                                <label>Địa chỉ</label>
+                                <input type="text" name="customer_address"/>
+                            </div>
+                            <button type="submit" class="vn-btn vn-btn-block">Đăng ký</button>
+                        </form>
+                    </div>
+                </section>
+            </div>
+        </t>
+    </template>
+
+    <template id="template_warranty_success" name="Đăng ký thành công">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title" t-value="'Đăng ký thành công – VNOptic'"/>
+            <div class="vn-narrow">
+                <div class="vn-alert vn-alert-success">
+                    <h4>Đăng ký bảo hành thành công!</h4>
+                    <p>Cảm ơn bạn đã sử dụng sản phẩm VNOptic.</p>
+                </div>
+
+                <section class="vn-card">
+                    <div class="vn-card-head">
+                        <h3>THÔNG TIN BẢO HÀNH</h3>
+                    </div>
+                    <div class="vn-card-body">
+                        <div class="vn-info-row">
+                            <span class="k">Sản phẩm:</span>
+                            <span class="v" t-out="reg.product_id.display_name"/>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Bắt đầu:</span>
+                            <span class="v" t-out="reg.date_start and reg.date_start.strftime('%d/%m/%Y') or ''"/>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Hết hạn:</span>
+                            <span class="v" t-out="reg.date_end and reg.date_end.strftime('%d/%m/%Y') or ''"/>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Mã tra cứu:</span>
+                            <span class="v"><code t-out="reg.token"/></span>
+                        </div>
+                    </div>
+                </section>
+
+                <p style="text-align:center; margin-top: 16px;">
+                    <a class="vn-btn-link" href="/warranty/check">Tra cứu bảo hành</a>
+                </p>
+            </div>
+        </t>
+    </template>
+
+    <template id="template_warranty_already_active" name="Phiếu đã kích hoạt">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title" t-value="'Phiếu đã kích hoạt – VNOptic'"/>
+            <div class="vn-narrow">
+                <div class="vn-alert vn-alert-warning">
+                    <h4>Phiếu bảo hành này đã được đăng ký trước đó.</h4>
+                    <p>Nếu bạn cần hỗ trợ, vui lòng liên hệ cửa hàng.</p>
+                </div>
+                <p style="text-align:center;">
+                    <a class="vn-btn-link" href="/warranty/check">Tra cứu bảo hành</a>
+                </p>
+            </div>
+        </t>
+    </template>
+
+    <template id="template_warranty_not_found" name="Không tìm thấy phiếu">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title" t-value="'Không tìm thấy phiếu – VNOptic'"/>
+            <div class="vn-narrow">
+                <div class="vn-alert vn-alert-danger">
+                    <h4>Không tìm thấy phiếu bảo hành.</h4>
+                    <p>Mã không đúng hoặc đã bị thu hồi.</p>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============== TRA CỨU BẢO HÀNH ============== -->
+
+    <template id="template_warranty_check_form" name="Tra cứu bảo hành">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title" t-value="'Tra cứu bảo hành – VNOptic'"/>
+            <div class="vn-narrow">
+                <h2 class="vn-page-title">Tra cứu bảo hành</h2>
+
+                <t t-if="error">
+                    <div class="vn-alert vn-alert-danger" t-out="error"/>
+                </t>
+
+                <section class="vn-card">
+                    <div class="vn-card-body">
+                        <p class="sub" style="margin-bottom: 12px;">
+                            Nhập <b>Mã phiếu</b> hoặc <b>Số điện thoại</b> đã đăng ký (chỉ cần một trong hai).
+                        </p>
+                        <form action="/warranty/check/lookup" method="POST">
+                            <input type="hidden" name="csrf_token"
+                                   t-att-value="request.csrf_token()"/>
+                            <div class="vn-field">
+                                <label>Số điện thoại đã đăng ký</label>
+                                <input type="tel" name="phone"/>
+                            </div>
+                            <div class="vn-field">
+                                <label>Mã phiếu bảo hành</label>
+                                <input type="text" name="token"
+                                       placeholder="Mã in trên tem hoặc nhận khi đăng ký"/>
+                            </div>
+                            <button type="submit" class="vn-btn vn-btn-block">Tra cứu</button>
+                        </form>
+                    </div>
+                </section>
+            </div>
+        </t>
+    </template>
+
+    <template id="template_warranty_check_result" name="Kết quả tra cứu">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title" t-value="'Kết quả tra cứu – VNOptic'"/>
+            <div class="vn-narrow">
+                <h2 class="vn-page-title">Thông tin bảo hành</h2>
+
+                <section class="vn-card">
+                    <div class="vn-card-body">
+                        <div class="vn-info-row">
+                            <span class="k">Sản phẩm:</span>
+                            <span class="v" t-out="reg.product_id.display_name"/>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Gói:</span>
+                            <span class="v" t-out="reg.warranty_id.name"/>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Khách hàng:</span>
+                            <span class="v" t-out="reg.customer_name"/>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Bắt đầu:</span>
+                            <span class="v" t-out="reg.date_start and reg.date_start.strftime('%d/%m/%Y') or ''"/>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Hết hạn:</span>
+                            <span class="v" t-out="reg.date_end and reg.date_end.strftime('%d/%m/%Y') or ''"/>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Trạng thái:</span>
+                            <span class="v" t-out="dict(reg._fields['state'].selection).get(reg.state, '')"/>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </t>
+    </template>
+
+    <template id="template_warranty_check_list" name="Danh sách phiếu bảo hành theo SĐT">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title" t-value="'Danh sách phiếu bảo hành – VNOptic'"/>
+            <div class="vn-narrow">
+                <h2 class="vn-page-title">Danh sách phiếu bảo hành</h2>
+
+                <p class="sub">
+                    Tìm thấy <b t-out="len(regs)"/> phiếu cho SĐT
+                    <b t-out="phone"/>.
+                </p>
+
+                <t t-foreach="regs" t-as="reg">
+                    <section class="vn-card">
+                        <div class="vn-card-head">
+                            <h3 t-out="reg.product_id.display_name"/>
+                        </div>
+                        <div class="vn-card-body">
+                            <div class="vn-info-row">
+                                <span class="k">Gói:</span>
+                                <span class="v" t-out="reg.warranty_id.name"/>
+                            </div>
+                            <div class="vn-info-row">
+                                <span class="k">Khách hàng:</span>
+                                <span class="v" t-out="reg.customer_name"/>
+                            </div>
+                            <div class="vn-info-row">
+                                <span class="k">Bắt đầu:</span>
+                                <span class="v" t-out="reg.date_start and reg.date_start.strftime('%d/%m/%Y') or ''"/>
+                            </div>
+                            <div class="vn-info-row">
+                                <span class="k">Hết hạn:</span>
+                                <span class="v" t-out="reg.date_end and reg.date_end.strftime('%d/%m/%Y') or ''"/>
+                            </div>
+                            <div class="vn-info-row">
+                                <span class="k">Trạng thái:</span>
+                                <span class="v" t-out="dict(reg._fields['state'].selection).get(reg.state, '')"/>
+                            </div>
+                            <div class="vn-info-row">
+                                <span class="k">Mã tra cứu:</span>
+                                <span class="v"><code t-out="reg.token"/></span>
+                            </div>
+                        </div>
+                    </section>
+                </t>
+
+                <p style="text-align:center; margin-top: 16px;">
+                    <a class="vn-btn-link" href="/warranty/check">Tra cứu phiếu khác</a>
+                </p>
+            </div>
+        </t>
+    </template>
+
+</odoo>

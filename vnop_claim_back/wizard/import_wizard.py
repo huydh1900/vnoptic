@@ -47,7 +47,7 @@ class VnopClaimBackImportWizard(models.TransientModel):
         comodel_name='res.partner',
         string='Đại lý',
         required=True,
-        domain=[('channel_type', '=', 'wholesale')],
+        domain=[('dealer_tier_id', '!=', False)],
     )
     period_from = fields.Date(
         string='Từ ngày',

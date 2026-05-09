@@ -20,3 +20,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:sale.field_sale_report__user_id
 msgid "Salesperson"
 msgstr "Người phụ trách"
+
+#. module: sale
+#: model:ir.ui.menu,name:sale.sale_menu_root
+msgid "Sales"
+msgstr "Bán buôn"

@@ -6,9 +6,6 @@
         <field name="model">product.pricelist</field>
         <field name="inherit_id" ref="product.product_pricelist_view_tree"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='name']" position="after">
-                <field name="channel_type"/>
-            </xpath>
             <xpath expr="//field[@name='country_group_ids']" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </xpath>
@@ -21,8 +18,7 @@
         <field name="inherit_id" ref="product.product_pricelist_view"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='currency_id']" position="after">
-                <field name="channel_type"/>
-                <field name="purchaser_id" invisible="channel_type != 'wholesale'"/>
+                <field name="purchaser_id"/>
             </xpath>
             <xpath expr="//field[@name='country_group_ids']" position="attributes">
                 <attribute name="invisible">1</attribute>

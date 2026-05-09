@@ -8,9 +8,6 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='vat']" position="after">
                 <field name="supplier_rank" invisible="1" force_save="1"/>
-                <!-- force_save="1" để giá trị channel_type vẫn được lưu khi field
-                     bị ẩn (vd: NCC), tránh save reset value đã set qua context. -->
-                <field name="channel_type" invisible="supplier_rank > 0" force_save="1"/>
             </xpath>
             <xpath expr="//field[@id='company']" position="attributes">
                 <attribute name="placeholder">VD: Công ty TNHH ABC</attribute>
@@ -31,10 +28,8 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- Group "Đại lý kính mắt" — chỉ hiện cho khách bán buôn. -->
             <xpath expr="//page[@name='sales_purchases']//group[@name='container_row_2']" position="inside">
-                <group string="Đại lý kính mắt" name="dealer_info"
-                       invisible="channel_type != 'wholesale'">
+                <group string="Đại lý kính mắt" name="dealer_info">
                     <field name="dealer_tier_id"/>
                     <field name="credit_limit"/>
                     <field name="credit"/>
@@ -50,21 +45,6 @@
 
     <record id="account.res_partner_action_supplier" model="ir.actions.act_window">
         <field name="domain">[('supplier_rank', '>', 0)]</field>
-    </record>
-
-    <record id="view_res_partner_filter_channel" model="ir.ui.view">
-        <field name="name">res.partner.search.channel</field>
-        <field name="model">res.partner</field>
-        <field name="inherit_id" ref="base.view_res_partner_filter"/>
-        <field name="arch" type="xml">
-            <xpath expr="//filter[@name='type_company']" position="after">
-                <separator/>
-                <filter string="Khách buôn" name="filter_wholesale"
-                        domain="[('channel_type', '=', 'wholesale')]"/>
-                <filter string="Khách lẻ" name="filter_retail"
-                        domain="[('channel_type', '=', 'retail')]"/>
-            </xpath>
-        </field>
     </record>
 
 </odoo>
