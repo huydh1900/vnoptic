@@ -41,7 +41,7 @@
                  thay bằng 2 partner_id mutually-exclusive theo channel_type:
                  - Retail: chỉ list khách lẻ; default tạo mới = retail.
                  - Wholesale: chỉ list khách buôn; default tạo mới = wholesale.
-                 Hiện theo channel_type của đơn (action menu_retail_* / menu_wholesale_root đã set default). -->
+                 Hiện theo channel_type của đơn (default channel_type lấy từ context). -->
             <xpath expr="//field[@name='partner_id']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>

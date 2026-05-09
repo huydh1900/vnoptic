@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         Lịch sử import / cập nhật sản phẩm
+         ──────────────────────────────────────────────────────────────── -->
+
+    <record id="view_product_import_history_list" model="ir.ui.view">
+        <field name="name">product.import.history.list</field>
+        <field name="model">product.import.history</field>
+        <field name="arch" type="xml">
+            <list string="Lịch sử" create="false" edit="false" delete="false">
+                <field name="date"/>
+                <field name="user_id"/>
+                <field name="mode"/>
+                <field name="file_format" column_invisible="True"/>
+                <field name="file_name"/>
+                <field name="total_count" sum="Tổng dòng"/>
+                <field name="success_count" sum="Thành công"/>
+                <field name="lens_count" sum="Tròng"/>
+                <field name="frame_count" sum="Gọng"/>
+                <field name="accessory_count" sum="Phụ kiện"/>
+                <field name="other_count" sum="Khác"/>
+                <field name="product_count"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_import_history_form" model="ir.ui.view">
+        <field name="name">product.import.history.form</field>
+        <field name="model">product.import.history</field>
+        <field name="arch" type="xml">
+            <form string="Lịch sử" create="false" edit="false">
+                <header>
+                    <button name="action_view_products" type="object"
+                            string="Xem sản phẩm" class="btn-primary"
+                            invisible="product_count == 0"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="display_name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="mode"/>
+                            <field name="date"/>
+                            <field name="user_id"/>
+                        </group>
+                        <group>
+                            <field name="file_format" invisible="1"/>
+                            <field name="file_data" filename="file_name"
+                                   string="File đính kèm"
+                                   invisible="not file_data"/>
+                            <field name="file_name" invisible="file_data"/>
+                            <field name="product_count"/>
+                        </group>
+                    </group>
+                    <group string="Thống kê">
+                        <group>
+                            <field name="total_count"/>
+                            <field name="success_count"/>
+                        </group>
+                        <group>
+                            <field name="lens_count"/>
+                            <field name="frame_count"/>
+                            <field name="accessory_count"/>
+                            <field name="other_count"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Sản phẩm" name="products">
+                            <field name="product_ids" readonly="1">
+                                <list>
+                                    <field name="default_code"/>
+                                    <field name="barcode"/>
+                                    <field name="name"/>
+                                    <field name="classification_type"/>
+                                    <field name="brand_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Ghi chú / Lỗi" name="errors"
+                              invisible="not error_text">
+                            <field name="error_text" readonly="1" nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_product_import_history_search" model="ir.ui.view">
+        <field name="name">product.import.history.search</field>
+        <field name="model">product.import.history</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="file_name"/>
+                <field name="user_id"/>
+                <filter name="filter_create" string="Import mới"
+                        domain="[('mode', '=', 'create')]"/>
+                <filter name="filter_update" string="Cập nhật"
+                        domain="[('mode', '=', 'update')]"/>
+                <separator/>
+                <filter name="filter_today" string="Hôm nay"
+                        domain="[('date', '&gt;=', context_today().strftime('%Y-%m-%d 00:00:00'))]"/>
+                <filter name="filter_7d" string="7 ngày qua"
+                        domain="[('date', '&gt;=', (context_today() - relativedelta(days=7)).strftime('%Y-%m-%d 00:00:00'))]"/>
+                <group expand="0" string="Nhóm theo">
+                    <filter name="group_user" string="Người thực hiện"
+                            context="{'group_by': 'user_id'}"/>
+                    <filter name="group_mode" string="Loại thao tác"
+                            context="{'group_by': 'mode'}"/>
+                    <filter name="group_date" string="Ngày"
+                            context="{'group_by': 'date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action: Lịch sử import (mode=create) -->
+    <record id="action_product_import_history_create" model="ir.actions.act_window">
+        <field name="name">Lịch sử import</field>
+        <field name="res_model">product.import.history</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('mode', '=', 'create')]</field>
+        <field name="context">{'search_default_filter_create': 0}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Chưa có lần import sản phẩm nào.
+            </p>
+            <p>Mỗi lần chạy <b>Import sản phẩm mới</b> qua wizard sẽ tự động tạo một bản ghi tại đây.</p>
+        </field>
+    </record>
+
+    <!-- Action: Lịch sử cập nhật (mode=update) -->
+    <record id="action_product_import_history_update" model="ir.actions.act_window">
+        <field name="name">Lịch sử cập nhật</field>
+        <field name="res_model">product.import.history</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('mode', '=', 'update')]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Chưa có lần cập nhật sản phẩm nào.
+            </p>
+            <p>Mỗi lần chạy <b>Cập nhật thông tin sản phẩm</b> qua wizard sẽ tự động tạo một bản ghi tại đây.</p>
+        </field>
+    </record>
+
+    <!-- ─── Menu: Lịch sử ──────────────────────────────────────────
+         Đặt cạnh purchase.menu_purchase_products (sequence=5)
+         ──────────────────────────────────────────────────────────── -->
+    <menuitem id="menu_product_import_history_root"
+              name="Lịch sử"
+              parent="purchase.menu_purchase_root"
+              sequence="6"/>
+
+    <menuitem id="menu_product_import_history_create"
+              name="Lịch sử import"
+              parent="menu_product_import_history_root"
+              action="action_product_import_history_create"
+              sequence="10"/>
+
+    <menuitem id="menu_product_import_history_update"
+              name="Lịch sử cập nhật"
+              parent="menu_product_import_history_root"
+              action="action_product_import_history_update"
+              sequence="20"/>
+
+</odoo>

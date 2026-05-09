@@ -1024,6 +1024,7 @@ class ProductImportWizard(models.TransientModel):
             if len(errors_per_row) > 50:
                 error_text_parts.append(_('... và %s lỗi khác') % (len(errors_per_row) - 50))
 
+        final_error_text = '\n\n'.join(error_text_parts) if error_text_parts else False
         self.write({
             'state': 'done',
             'progress_done': total,
@@ -1034,8 +1035,14 @@ class ProductImportWizard(models.TransientModel):
             'imported_accessory_count': acc_n,
             'imported_other_count': other_n,
             'imported_product_ids': [(6, 0, created_ids)],
-            'error_text': '\n\n'.join(error_text_parts) if error_text_parts else False,
+            'error_text': final_error_text,
         })
+        self._log_import_history(
+            mode='create', file_format='vn_label', total=total,
+            product_ids=created_ids,
+            lens_n=lens_n, frame_n=frame_n, acc_n=acc_n, other_n=other_n,
+            error_text=final_error_text,
+        )
 
     def _import_vn_label_job(self, raw_b64):
         """Worker queue_job: chạy import VN-label trong background."""
@@ -1177,6 +1184,28 @@ class ProductImportWizard(models.TransientModel):
                         'error_text': _('Cần cột "Tên đầy đủ" hoặc "Mã vạch / Mã hàng tự định nghĩa" để tra cứu sản phẩm.')})
             return self._reopen()
 
+        # Chặn cập nhật khi còn master data chưa tồn tại — bắt user "Tạo nhanh"
+        # trước. Re-validate ngay cả khi user đã chạy Kiểm thử (DB có thể đã đổi).
+        issues = []
+        self._validate_vn_relational(issues, header, rows, col_index)
+        pending_missing = self.missing_ref_ids.filtered(lambda r: r.state == 'pending')
+        if pending_missing:
+            matches, not_found, ambiguous, dup_in_file = \
+                self._resolve_update_targets(rows, col_index)
+            block_msg = (
+                '<div class="alert alert-danger mb-3">'
+                '<i class="fa fa-ban"/> <strong>%s</strong> %s</div>'
+            ) % (
+                _('Không thể cập nhật:'),
+                _('còn %s giá trị master data chưa tồn tại. '
+                  'Bấm "Tạo nhanh" / "Tạo tất cả" ở bảng bên dưới rồi thử lại.')
+                % len(pending_missing),
+            )
+            html = self._build_update_preview_html(
+                len(rows), matches, not_found, ambiguous, dup_in_file, issues=issues)
+            self.write({'state': 'preview', 'preview_text': block_msg + html})
+            return self._reopen()
+
         total = len(rows)
         # File nhỏ → chạy đồng bộ, file lớn → enqueue queue_job giống flow import.
         if total <= self._IMPORT_SYNC_THRESHOLD:
@@ -1302,6 +1331,7 @@ class ProductImportWizard(models.TransientModel):
         _append_block(_('Trùng trong file (%s dòng):') % len(dup_in_file), dup_in_file)
         _append_block(_('Lỗi từng dòng (%s):') % len(errors_per_row), errors_per_row)
 
+        final_error_text = '\n\n'.join(error_text_parts) if error_text_parts else False
         self.write({
             'state': 'done',
             'progress_done': total,
@@ -1312,8 +1342,14 @@ class ProductImportWizard(models.TransientModel):
             'imported_accessory_count': acc_n,
             'imported_other_count': other_n,
             'imported_product_ids': [(6, 0, updated_ids)],
-            'error_text': '\n\n'.join(error_text_parts) if error_text_parts else False,
+            'error_text': final_error_text,
         })
+        self._log_import_history(
+            mode='update', file_format='vn_label', total=total,
+            product_ids=updated_ids,
+            lens_n=lens_n, frame_n=frame_n, acc_n=acc_n, other_n=other_n,
+            error_text=final_error_text,
+        )
 
     def _update_vn_label_job(self, raw_b64):
         """Worker queue_job: chạy update VN-label trong background."""
@@ -1371,12 +1407,16 @@ class ProductImportWizard(models.TransientModel):
 
         matches, not_found, ambiguous, dup_in_file = \
             self._resolve_update_targets(rows, col_index)
+        # Cảnh báo master data thiếu kèm "Tạo nhanh" — giống flow tạo mới,
+        # vì update cũng có thể fail khi write nếu giá trị M2O/M2M chưa tồn tại.
+        issues = []
+        self._validate_vn_relational(issues, header, rows, col_index)
         html = self._build_update_preview_html(
-            len(rows), matches, not_found, ambiguous, dup_in_file)
+            len(rows), matches, not_found, ambiguous, dup_in_file, issues=issues)
         self.write({'state': 'preview', 'preview_text': html})
         return self._reopen()
 
-    def _build_update_preview_html(self, total_rows, matches, not_found, ambiguous, dup_in_file):
+    def _build_update_preview_html(self, total_rows, matches, not_found, ambiguous, dup_in_file, issues=None):
         """Render HTML preview cho dry-run update mode."""
         match_n = len(matches)
         nf_n = len(not_found)
@@ -1419,6 +1459,18 @@ class ProductImportWizard(models.TransientModel):
         _block(_('Không tìm thấy sản phẩm (%s dòng)') % nf_n, not_found, 'warning')
         _block(_('Trùng khoá tra cứu trong DB (%s dòng)') % amb_n, ambiguous, 'warning')
         _block(_('Trùng trong file (%s dòng)') % dup_n, dup_in_file, 'warning')
+
+        for it in (issues or []):
+            cls = 'danger' if it.get('level') == 'error' else 'warning'
+            details = it.get('details') or []
+            details_html = ''
+            if details:
+                lis = ''.join('<li>%s</li>' % d for d in details)
+                details_html = '<ul class="mb-0 mt-1">%s</ul>' % lis
+            parts.append(
+                '<div class="alert alert-%s"><strong>%s</strong>%s</div>'
+                % (cls, it.get('title', ''), details_html)
+            )
 
         if match_n and not (nf_n or amb_n):
             parts.append(
@@ -1602,6 +1654,7 @@ class ProductImportWizard(models.TransientModel):
         _append_block(_('Trùng khoá tra cứu (%s dòng):') % len(ambiguous), ambiguous)
         _append_block(_('Trùng trong file (%s dòng):') % len(dup_in_file), dup_in_file)
 
+        final_error_text = '\n\n'.join(error_text_parts) if error_text_parts else False
         self.write({
             'state': 'done',
             'imported_count': len(ids),
@@ -1610,8 +1663,14 @@ class ProductImportWizard(models.TransientModel):
             'imported_accessory_count': acc_n,
             'imported_other_count': other_n,
             'imported_product_ids': [(6, 0, ids)],
-            'error_text': '\n\n'.join(error_text_parts) if error_text_parts else False,
+            'error_text': final_error_text,
         })
+        self._log_import_history(
+            mode='update', file_format='technical', total=len(rows),
+            product_ids=ids,
+            lens_n=lens_n, frame_n=frame_n, acc_n=acc_n, other_n=other_n,
+            error_text=final_error_text,
+        )
         return self._reopen()
 
     # ────────────────────────────────────────────────────────────
@@ -2109,6 +2168,11 @@ class ProductImportWizard(models.TransientModel):
             'imported_product_ids': [(6, 0, ids)],
             'error_text': False,
         })
+        self._log_import_history(
+            mode='create', file_format='technical', total=len(rows),
+            product_ids=ids,
+            lens_n=lens_n, frame_n=frame_n, acc_n=acc_n, other_n=other_n,
+        )
         return self._reopen()
 
     _DUP_SAMPLE_LIMIT = 10
@@ -2588,3 +2652,33 @@ class ProductImportWizard(models.TransientModel):
             'view_mode': 'form',
             'target': 'new',
         }
+
+    # ────────────────────────────────────────────────────────────
+    #   HISTORY LOGGING
+    # ────────────────────────────────────────────────────────────
+
+    def _log_import_history(self, mode, file_format, total, product_ids,
+                            lens_n=0, frame_n=0, acc_n=0, other_n=0,
+                            error_text=False):
+        """Tạo bản ghi product.import.history cho lần import/cập nhật vừa chạy.
+        Gọi trong cả flow đồng bộ và queue_job worker. Bọc try/except để
+        không phá flow ghi state của wizard nếu log thất bại.
+        """
+        self.ensure_one()
+        try:
+            self.env['product.import.history'].sudo().create({
+                'mode': mode,
+                'file_format': file_format,
+                'file_name': self.file_name or False,
+                'file_data': self.file_data or False,
+                'total_count': total or 0,
+                'success_count': len(product_ids or []),
+                'lens_count': lens_n or 0,
+                'frame_count': frame_n or 0,
+                'accessory_count': acc_n or 0,
+                'other_count': other_n or 0,
+                'error_text': error_text or False,
+                'product_ids': [(6, 0, list(product_ids or []))],
+            })
+        except Exception:
+            _logger.exception('Không ghi được product.import.history')

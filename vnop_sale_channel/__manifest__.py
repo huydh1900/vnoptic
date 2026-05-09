@@ -2,7 +2,7 @@
 {
     'name': 'VNOptic Sale Channel',
     'summary': 'Phân kênh bán buôn / bán lẻ cho khách hàng, bảng giá và đơn hàng',
-    'version': '18.0.2.0.1',
+    'version': '18.0.2.0.3',
     'category': 'Sales',
     'depends': [
         'base',

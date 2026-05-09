@@ -1,6 +1,6 @@
 {
     'name': 'Product Sync from Server',
-    'version': '18.0.1.2.0',
+    'version': '18.0.1.3.0',
     'category': 'Inventory',
     'depends': ['base', 'stock', 'product', 'purchase', 'account', 'base_import', 'l10n_vn', 'queue_job', 'queue_job_cron_jobrunner'],
     'data': [
@@ -38,6 +38,7 @@
         'views/product_opt_lens_views.xml',
         'views/server_connector_views.xml',
         'views/product_import_wizard_views.xml',
+        'views/product_import_history_views.xml',
         'views/queue_job_views.xml',
         'views/vnop_sync_purchase_config_menus.xml',
     ],

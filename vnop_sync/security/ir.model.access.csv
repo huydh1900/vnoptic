@@ -30,3 +30,5 @@ access_product_color_manager,product.color manager,model_product_color,base.grou
 access_server_connector_manager,server.connector manager,model_server_connector,base.group_system,1,1,1,1
 access_product_import_wizard_user,product.import.wizard user,model_product_import_wizard,base.group_user,1,1,1,1
 access_product_import_missing_ref_user,product.import.missing.ref user,model_product_import_missing_ref,base.group_user,1,1,1,1
+access_product_import_history_user,product.import.history user,model_product_import_history,base.group_user,1,0,0,0
+access_product_import_history_manager,product.import.history manager,model_product_import_history,base.group_system,1,1,1,1

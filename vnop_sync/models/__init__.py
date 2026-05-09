@@ -16,6 +16,7 @@ from . import res_bank_display_name_patch
 
 from . import product_import_base_inherit
 from . import base_import_product_template_inherit
+from . import product_import_history
 
 from . import queue_job_cleanup
 

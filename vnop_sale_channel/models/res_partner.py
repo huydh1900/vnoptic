@@ -50,8 +50,8 @@ class ResPartner(models.Model):
         Lý do override thay vì để field default xử lý: trong 1 số path
         (m2o quick-create, NameAndShortcuts), Odoo có thể serialize sẵn
         default trong arch view trước khi context action được merge,
-        khiến static `default='retail'` lấn át `default_channel_type` của
-        action menu_wholesale_*. Ép tay ở default_get bảo đảm context thắng.
+        khiến static `default='retail'` lấn át `default_channel_type` từ
+        context. Ép tay ở default_get bảo đảm context thắng.
         """
         res = super().default_get(fields_list)
         if 'channel_type' in fields_list:
