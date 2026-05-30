@@ -6,6 +6,14 @@
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_print_intem" type="object"
+                        class="oe_stat_button" icon="fa-print"
+                        invisible="not order_line">
+                    <span class="o_stat_text">In tem</span>
+                </button>
+            </xpath>
+
             <xpath expr="//field[@name='payment_term_id']" position="after">
                 <field name="deposit_amount"/>
                 <field name="dealer_tier_id"
@@ -17,6 +25,12 @@
 
             <xpath expr="//field[@name='partner_id']" position="attributes">
                 <attribute name="options">{'no_quick_create': True}</attribute>
+                <attribute name="domain">[('customer_rank', '&gt;', 0)]</attribute>
+                <attribute name="context">{'res_partner_search_mode': 'customer', 'show_address': 0, 'show_vat': False}</attribute>
+            </xpath>
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="partner_full_address" readonly="1" invisible="not partner_id"/>
+                <field name="partner_vat" readonly="1" invisible="not partner_id"/>
             </xpath>
             <xpath expr="//page[@name='customer_signature']" position="attributes">
                 <attribute name="invisible">1</attribute>
@@ -138,6 +152,32 @@
                 <attribute name="js_class"/>
             </kanban>
         </field>
+    </record>
+
+    <record id="view_quotation_tree_with_onboarding_hide_channel" model="ir.ui.view">
+        <field name="name">sale.order.list.onboarding.hide</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_quotation_tree_with_onboarding"/>
+        <field name="arch" type="xml">
+            <list position="attributes">
+                <attribute name="js_class"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_quotation_kanban_with_onboarding_hide_channel" model="ir.ui.view">
+        <field name="name">sale.order.kanban.onboarding.hide</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_quotation_kanban_with_onboarding"/>
+        <field name="arch" type="xml">
+            <kanban position="attributes">
+                <attribute name="js_class"/>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="sale.action_quotations_with_onboarding" model="ir.actions.act_window">
+        <field name="view_mode">list,kanban,form</field>
     </record>
 
     <record id="view_sales_order_filter_channel" model="ir.ui.view">

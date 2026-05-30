@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Tuỳ biến header website mặc định cho VNOptic:
+        - Logo: thay placeholder website.logo bằng ảnh VNOPTICTECH cố định.
+        - Phone: thay placeholder +1 555-555-5556 bằng số tổng đài VNOptic.
+        - Bỏ button "Contact Us / Liên hệ với chúng tôi" trên header.
+        Header dùng chung cho mọi page (homepage, /shop, /my) → đổi 1 lần áp toàn site.
+    -->
+
+    <template id="option_header_brand_logo_vnoptic"
+              inherit_id="website.option_header_brand_logo"
+              priority="99"
+              name="Header Brand Logo (VNOptic)">
+        <xpath expr="//span[@t-field='website.logo']" position="replace">
+            <img src="/vnop_theme/static/src/img/image.png"
+                 alt="VNOPTICTECH"
+                 width="95" height="40"
+                 style="height: 40px; width: auto;"
+                 t-att-title="website.name"/>
+        </xpath>
+    </template>
+
+    <template id="header_text_element_vnoptic"
+              inherit_id="website.header_text_element"
+              priority="99"
+              name="Header Text Element (VNOptic phone)">
+        <xpath expr="//t[@t-else='']" position="replace">
+            <t t-else="">
+                <div t-attf-class="s_text_block #{_div_class}" data-name="Text">
+                    <a href="tel:+842438221225" class="nav-link o_nav-link_secondary p-2">
+                        <i class="fa fa-1x fa-fw fa-phone me-1"/>
+                        <span class="o_force_ltr"><small>+84 24 3822 1225</small></span>
+                    </a>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+    <record id="website.header_call_to_action" model="ir.ui.view">
+        <field name="active" eval="False"/>
+    </record>
+
+</odoo>

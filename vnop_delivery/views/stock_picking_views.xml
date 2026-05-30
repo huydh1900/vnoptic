@@ -26,10 +26,15 @@
             <xpath expr="//button[@name='button_validate']" position="attributes">
                 <attribute name="invisible">is_temp_location or state in ('done', 'cancel')</attribute>
             </xpath>
+            <!-- Chỉ cho phép Trả hàng trên phiếu xuất (giao khách); ẩn ở phiếu nhập/nội bộ để giữ luồng OTK -->
             <xpath expr="//button[@name='%(stock.act_stock_return_picking)d']" position="attributes">
-                <attribute name="invisible">1</attribute>
+                <attribute name="invisible">state != 'done' or picking_type_code != 'outgoing'</attribute>
             </xpath>
             <xpath expr="//button[@name='do_print_picking']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <!-- Ẩn nốt button "In" phiếu giao hàng (report action_report_delivery, hiện khi state = done) -->
+            <xpath expr="//button[@name='%(stock.action_report_delivery)d']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
         </field>

@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
 
+    <!--
+        Cách hoạt động:
+        1. Patch base `web.ListRenderer` (extension): chèn <th>#</th> vào thead
+           sau cột selector, chèn <td/> vào tfoot tương ứng.
+        2. Patch base `web.ListRenderer.RecordRow` (extension): chèn <td> với
+           `record_index + 1` (biến do t-foreach của Rows sinh sẵn) — bền hơn
+           t-set RowNumber vì t-set trong t-foreach không persist cross-iteration.
+        3. Với mỗi renderer dùng `t-inherit-mode="primary"` (Odoo tạo bản sao
+           độc lập của template gốc), phải patch lại extension trên CHÍNH primary
+           đó, nếu không header/body lệch một cột (xem ảnh bug ở stock.picking).
+           Chỉ liệt kê những primary có trong module đã cài ở project này.
+    -->
+
+    <!-- =============== BASE: web.ListRenderer =============== -->
     <t t-name="rowno_in_tree.ListRenderer"
        t-inherit="web.ListRenderer"
        t-inherit-mode="extension">
@@ -13,35 +27,18 @@
         </xpath>
     </t>
 
-    <t t-name="rowno_in_tree.ListRenderer.Rows"
-       t-inherit="web.ListRenderer.Rows"
-       t-inherit-mode="extension">
-        <xpath expr="//t[@t-foreach='list.records']" position="before">
-            <t t-set="RowNumber" t-value="1"/>
-        </xpath>
-        <xpath expr="//t[@t-call='{{ constructor.recordRowTemplate }}']"
-               position="after">
-            <t t-set="RowNumber" t-value="RowNumber + 1"/>
-        </xpath>
-    </t>
-
     <t t-name="rowno_in_tree.ListRenderer.RecordRow"
        t-inherit="web.ListRenderer.RecordRow"
        t-inherit-mode="extension">
         <xpath expr="//tr/td[1]" position="after">
             <td class="o_list_row_number text-center text-muted"
                 tabindex="-1">
-                <span t-esc="RowNumber"/>
+                <span t-esc="record_index + 1"/>
             </td>
         </xpath>
     </t>
 
-    <!--
-        account/sale dùng primary inheritance (account.sectionAndNoteListRenderer
-        kế thừa web.ListRenderer; sale.ListRenderer.RecordRow kế thừa
-        web.ListRenderer.RecordRow). Primary tạo bản sao độc lập nên các xpath
-        trên template gốc không áp dụng → phải patch lại y hệt cho từng bản primary.
-    -->
+    <!-- =============== PRIMARY: account (sectionAndNote) =============== -->
     <t t-name="rowno_in_tree.account.sectionAndNoteListRenderer"
        t-inherit="account.sectionAndNoteListRenderer"
        t-inherit-mode="extension">
@@ -54,13 +51,165 @@
         </xpath>
     </t>
 
+    <!-- =============== PRIMARY: account (FileUpload) =============== -->
+    <t t-name="rowno_in_tree.account.FileUploadListRenderer"
+       t-inherit="account.FileUploadListRenderer"
+       t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[1]" position="after">
+            <th class="o_list_row_number_header align-middle text-center"
+                tabindex="-1">#</th>
+        </xpath>
+        <xpath expr="//tfoot/tr/td[1]" position="after">
+            <td class="o_list_row_number_footer"/>
+        </xpath>
+    </t>
+
+    <!-- =============== PRIMARY: account.move list (account_tree) =============== -->
+    <!-- AccountMoveListRenderer là primary-clone của FileUploadListRenderer,
+         không nhận extension trên FileUploadListRenderer → phải patch lại. -->
+    <t t-name="rowno_in_tree.account.AccountMoveListRenderer"
+       t-inherit="account.AccountMoveListRenderer"
+       t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[1]" position="after">
+            <th class="o_list_row_number_header align-middle text-center"
+                tabindex="-1">#</th>
+        </xpath>
+        <xpath expr="//tfoot/tr/td[1]" position="after">
+            <td class="o_list_row_number_footer"/>
+        </xpath>
+    </t>
+
+    <!-- =============== PRIMARY: account_bank_statement_import =============== -->
+    <t t-name="rowno_in_tree.account.BankRecListUploadRenderer"
+       t-inherit="account.BankRecListUploadRenderer"
+       t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[1]" position="after">
+            <th class="o_list_row_number_header align-middle text-center"
+                tabindex="-1">#</th>
+        </xpath>
+        <xpath expr="//tfoot/tr/td[1]" position="after">
+            <td class="o_list_row_number_footer"/>
+        </xpath>
+    </t>
+
+    <!-- =============== PRIMARY: account_online_synchronization =============== -->
+    <t t-name="rowno_in_tree.account_online_synchronization.AccountDuplicateTransactionsListRenderer"
+       t-inherit="account_online_synchronization.AccountDuplicateTransactionsListRenderer"
+       t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[1]" position="after">
+            <th class="o_list_row_number_header align-middle text-center"
+                tabindex="-1">#</th>
+        </xpath>
+        <xpath expr="//tfoot/tr/td[1]" position="after">
+            <td class="o_list_row_number_footer"/>
+        </xpath>
+    </t>
+
+    <t t-name="rowno_in_tree.account_online_synchronization.AccountDuplicateTransactionsRecordRow"
+       t-inherit="account_online_synchronization.AccountDuplicateTransactionsRecordRow"
+       t-inherit-mode="extension">
+        <xpath expr="//tr/td[1]" position="after">
+            <td class="o_list_row_number text-center text-muted"
+                tabindex="-1">
+                <span t-esc="record_index + 1"/>
+            </td>
+        </xpath>
+    </t>
+
+    <t t-name="rowno_in_tree.account_online_synchronization.TransientBankStatementLineRenderer"
+       t-inherit="account_online_synchronization.TransientBankStatementLineRenderer"
+       t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[1]" position="after">
+            <th class="o_list_row_number_header align-middle text-center"
+                tabindex="-1">#</th>
+        </xpath>
+        <xpath expr="//tfoot/tr/td[1]" position="after">
+            <td class="o_list_row_number_footer"/>
+        </xpath>
+    </t>
+
+    <!-- =============== PRIMARY: purchase =============== -->
+    <t t-name="rowno_in_tree.purchase.PurchaseListView"
+       t-inherit="purchase.PurchaseListView"
+       t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[1]" position="after">
+            <th class="o_list_row_number_header align-middle text-center"
+                tabindex="-1">#</th>
+        </xpath>
+        <xpath expr="//tfoot/tr/td[1]" position="after">
+            <td class="o_list_row_number_footer"/>
+        </xpath>
+    </t>
+
+    <!-- =============== PRIMARY: sale =============== -->
     <t t-name="rowno_in_tree.sale.ListRenderer.RecordRow"
        t-inherit="sale.ListRenderer.RecordRow"
        t-inherit-mode="extension">
         <xpath expr="//tr/td[1]" position="after">
             <td class="o_list_row_number text-center text-muted"
                 tabindex="-1">
-                <span t-esc="RowNumber"/>
+                <span t-esc="record_index + 1"/>
+            </td>
+        </xpath>
+    </t>
+
+    <!-- =============== PRIMARY: sale_loyalty =============== -->
+    <t t-name="rowno_in_tree.loyalty.LoyaltyListRenderer"
+       t-inherit="loyalty.LoyaltyListRenderer"
+       t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[1]" position="after">
+            <th class="o_list_row_number_header align-middle text-center"
+                tabindex="-1">#</th>
+        </xpath>
+        <xpath expr="//tfoot/tr/td[1]" position="after">
+            <td class="o_list_row_number_footer"/>
+        </xpath>
+    </t>
+
+    <!-- =============== PRIMARY: stock =============== -->
+    <t t-name="rowno_in_tree.stock.StockListRenderer"
+       t-inherit="stock.StockListRenderer"
+       t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[1]" position="after">
+            <th class="o_list_row_number_header align-middle text-center"
+                tabindex="-1">#</th>
+        </xpath>
+        <xpath expr="//tfoot/tr/td[1]" position="after">
+            <td class="o_list_row_number_footer"/>
+        </xpath>
+    </t>
+
+    <t t-name="rowno_in_tree.stock.MovesListRenderer.RecordRow"
+       t-inherit="stock.MovesListRenderer.RecordRow"
+       t-inherit-mode="extension">
+        <xpath expr="//tr/td[1]" position="after">
+            <td class="o_list_row_number text-center text-muted"
+                tabindex="-1">
+                <span t-esc="record_index + 1"/>
+            </td>
+        </xpath>
+    </t>
+
+    <!-- =============== PRIMARY: website =============== -->
+    <t t-name="rowno_in_tree.website.PageListRenderer.RecordRow"
+       t-inherit="website.PageListRenderer.RecordRow"
+       t-inherit-mode="extension">
+        <xpath expr="//tr/td[1]" position="after">
+            <td class="o_list_row_number text-center text-muted"
+                tabindex="-1">
+                <span t-esc="record_index + 1"/>
+            </td>
+        </xpath>
+    </t>
+
+    <!-- =============== PRIMARY: resource =============== -->
+    <t t-name="rowno_in_tree.resource.SectionListRenderer.RecordRow"
+       t-inherit="resource.SectionListRenderer.RecordRow"
+       t-inherit-mode="extension">
+        <xpath expr="//tr/td[1]" position="after">
+            <td class="o_list_row_number text-center text-muted"
+                tabindex="-1">
+                <span t-esc="record_index + 1"/>
             </td>
         </xpath>
     </t>

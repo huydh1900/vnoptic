@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_stock_nxt_report" model="ir.actions.client">
+        <field name="name">Báo cáo Nhập-Xuất-Tồn</field>
+        <field name="tag">vnop_stock_nxt.nxt_report</field>
+    </record>
+
+    <menuitem id="menu_stock_nxt_report"
+              name="Báo cáo Nhập-Xuất-Tồn"
+              parent="vnop_report.menu_vnop_report_root"
+              action="action_stock_nxt_report"
+              sequence="10"/>
+</odoo>

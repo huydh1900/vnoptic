@@ -1,0 +1,11 @@
+// Mở rộng modal wizard "In tem" gần full màn hình + iframe cao 85vh
+.modal-dialog:has(.o_intem_preview_form) {
+    max-width: 95vw !important;
+    width: 95vw;
+}
+
+.o_intem_preview_form iframe {
+    height: 85vh !important;
+    width: 100%;
+    border: 0;
+}

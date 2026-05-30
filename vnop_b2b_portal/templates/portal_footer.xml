@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Bỏ hoàn toàn footer trên các trang /my/* (portal.frontend_layout). -->
+    <template id="portal_frontend_layout_footer_b2b"
+              inherit_id="portal.frontend_layout"
+              priority="99"
+              name="B2B Portal Footer (VN style)">
+        <xpath expr="//footer[@id='bottom']" position="replace"/>
+    </template>
+
+</odoo>

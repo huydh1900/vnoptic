@@ -6,12 +6,16 @@
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//header" position="inside">
+            <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_print_warranty_labels"
                         type="object"
-                        string="In tem QR bảo hành"
-                        class="btn-secondary"
-                        invisible="state not in ('sale', 'done')"/>
+                        class="oe_stat_button"
+                        icon="fa-qrcode"
+                        invisible="warranty_registration_count == 0">
+                    <field name="warranty_registration_count"
+                           string="Tem QR BH"
+                           widget="statinfo"/>
+                </button>
             </xpath>
             <xpath expr="//notebook" position="inside">
                 <page string="Bảo hành"

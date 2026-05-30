@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Đặt dưới menu Sales (Bán hàng / Bán buôn) -->
+    <menuitem id="menu_vnop_return_root"
+              name="Trả hàng lỗi"
+              parent="sale.sale_menu_root"
+              sequence="48"
+              groups="vnop_return.group_return_user"/>
+
+    <menuitem id="menu_vnop_return_request"
+              name="Phiếu trả hàng"
+              parent="menu_vnop_return_root"
+              action="action_vnop_return_request"
+              sequence="10"/>
+
+    <menuitem id="menu_vnop_return_reason"
+              name="Lý do trả hàng"
+              parent="sale.menu_sale_config"
+              action="action_vnop_return_reason"
+              sequence="80"
+              groups="vnop_return.group_return_chief_accountant"/>
+</odoo>

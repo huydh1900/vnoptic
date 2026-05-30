@@ -6,7 +6,7 @@
         <field name="model">warranty.registration</field>
         <field name="arch" type="xml">
             <list string="Phiếu bảo hành">
-                <field name="create_date"/>
+                <field name="create_date" string="Ngày tạo"/>
                 <field name="sale_order_id"/>
                 <field name="product_id"/>
                 <field name="warranty_id"/>
@@ -15,7 +15,8 @@
                 <field name="customer_phone"/>
                 <field name="date_start"/>
                 <field name="date_end"/>
-                <field name="state" decoration-success="state == 'active'"
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
                        decoration-warning="state == 'pending'"
                        decoration-danger="state == 'expired'"/>
             </list>
@@ -28,8 +29,10 @@
         <field name="arch" type="xml">
             <form string="Phiếu bảo hành">
                 <header>
-                    <field name="state" widget="statusbar"
-                           statusbar_visible="pending,active,expired"/>
+                    <field name="state" widget="badge"
+                           decoration-success="state == 'active'"
+                           decoration-warning="state == 'pending'"
+                           decoration-danger="state == 'expired'"/>
                 </header>
                 <sheet>
                     <group>

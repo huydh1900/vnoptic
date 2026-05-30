@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============ SEARCH ============ -->
+    <record id="view_vnop_return_request_search" model="ir.ui.view">
+        <field name="name">vnop.return.request.search</field>
+        <field name="model">vnop.return.request</field>
+        <field name="arch" type="xml">
+            <search string="Tìm phiếu trả">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="sale_order_id"/>
+                <field name="salesperson_id"/>
+                <filter string="Của tôi" name="my" domain="[('salesperson_id', '=', uid)]"/>
+                <separator/>
+                <filter string="Theo chính sách" name="policy" domain="[('return_type', '=', 'policy')]"/>
+                <filter string="Ngoại lệ" name="exception" domain="[('return_type', '=', 'exception')]"/>
+                <separator/>
+                <filter string="Chờ tôi xử lý" name="todo"
+                        domain="[('activity_user_id', '=', uid)]"/>
+                <group expand="0" string="Nhóm theo">
+                    <filter string="Trạng thái" name="g_state" context="{'group_by': 'state'}"/>
+                    <filter string="Đại lý" name="g_partner" context="{'group_by': 'partner_id'}"/>
+                    <filter string="Loại trả" name="g_type" context="{'group_by': 'return_type'}"/>
+                    <filter string="Sale" name="g_sale" context="{'group_by': 'salesperson_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============ LIST ============ -->
+    <record id="view_vnop_return_request_list" model="ir.ui.view">
+        <field name="name">vnop.return.request.list</field>
+        <field name="model">vnop.return.request</field>
+        <field name="arch" type="xml">
+            <list string="Phiếu trả hàng" decoration-info="state == 'draft'"
+                  decoration-warning="state in ('submitted','back_to_sales')"
+                  decoration-success="state == 'done'"
+                  decoration-muted="state in ('cancel','refused')">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="sale_order_id" optional="show"/>
+                <field name="return_type"/>
+                <field name="amount_total" sum="Tổng"/>
+                <field name="salesperson_id" optional="show"/>
+                <field name="next_approver_role" optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'done'"
+                       decoration-info="state in ('biz_approved','qc_classified','finance_approved')"
+                       decoration-warning="state in ('submitted','goods_in_transit','qc_checking','back_to_sales')"
+                       decoration-muted="state in ('cancel','refused','draft')"/>
+                <field name="create_date" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============ FORM ============ -->
+    <record id="view_vnop_return_request_form" model="ir.ui.view">
+        <field name="name">vnop.return.request.form</field>
+        <field name="model">vnop.return.request</field>
+        <field name="arch" type="xml">
+            <form string="Phiếu trả hàng">
+                <header>
+                    <button name="action_submit" string="Gửi duyệt"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'draft'"
+                            groups="vnop_return.group_return_user"/>
+                    <button name="action_biz_approve" string="Duyệt nghiệp vụ"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'submitted'"
+                            groups="vnop_return.group_return_accountant,vnop_return.group_return_sales_manager,vnop_return.group_return_director"/>
+                    <button name="action_mark_in_transit" string="Xác nhận đại lý đã gửi hàng"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'biz_approved'"/>
+                    <button name="action_qc_match" string="OTK xác nhận khớp"
+                            type="object" class="oe_highlight"
+                            invisible="state not in ('goods_in_transit','qc_checking')"
+                            groups="vnop_return.group_return_otk"/>
+                    <button name="action_qc_mismatch" string="Lệch — trả Sale xác minh"
+                            type="object"
+                            invisible="state not in ('goods_in_transit','qc_checking')"
+                            groups="vnop_return.group_return_otk"
+                            confirm="Xác nhận hàng lệch khai báo? Phiếu sẽ chuyển về Sale."/>
+                    <button name="action_resubmit" string="Gửi lại"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'back_to_sales'"/>
+                    <button name="action_finance_approve" string="KT trưởng duyệt &amp; xuất giảm trừ"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'qc_classified'"
+                            groups="vnop_return.group_return_chief_accountant"/>
+                    <button name="action_refuse" string="Từ chối"
+                            type="object"
+                            invisible="state in ('draft','done','cancel','refused')"
+                            confirm="Bạn chắc chắn từ chối phiếu này?"/>
+                    <button name="action_cancel" string="Hủy"
+                            type="object"
+                            invisible="state in ('done','cancel','refused')"/>
+                    <button name="action_reset_to_draft" string="Về Nháp"
+                            type="object"
+                            invisible="state not in ('refused','cancel')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,submitted,biz_approved,goods_in_transit,qc_checking,qc_classified,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_return_pickings" type="object"
+                                class="oe_stat_button" icon="fa-truck"
+                                invisible="return_picking_count == 0">
+                            <field name="return_picking_count" widget="statinfo"
+                                   string="Phiếu nhập"/>
+                        </button>
+                        <button name="action_view_classify_pickings" type="object"
+                                class="oe_stat_button" icon="fa-exchange"
+                                invisible="classify_picking_count == 0">
+                            <field name="classify_picking_count" widget="statinfo"
+                                   string="Chuyển kho"/>
+                        </button>
+                        <button name="action_view_refund_moves" type="object"
+                                class="oe_stat_button" icon="fa-file-text-o"
+                                invisible="refund_move_count == 0">
+                            <field name="refund_move_count" widget="statinfo"
+                                   string="Hoá đơn giảm trừ"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Thông tin chung">
+                            <field name="partner_id" options="{'no_create': True}"
+                                   readonly="state != 'draft'"/>
+                            <field name="salesperson_id" readonly="state != 'draft'"/>
+                            <field name="sale_order_id"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"/>
+                            <field name="invoice_id"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"/>
+                        </group>
+                        <group string="Phân loại">
+                            <field name="return_type" widget="radio"
+                                   readonly="state != 'draft'"/>
+                            <field name="amount_total" widget="monetary"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="next_approver_role" readonly="1"/>
+                        </group>
+                    </group>
+                    <field name="exception_reason"
+                           placeholder="Bắt buộc khi trả ngoại lệ hoặc không có hoá đơn gốc..."
+                           readonly="state not in ('draft','back_to_sales')"
+                           invisible="return_type == 'policy' and sale_order_id"/>
+                    <notebook>
+                        <page string="Sản phẩm trả" name="lines">
+                            <field name="line_ids"
+                                   readonly="state not in ('draft','back_to_sales')">
+                                <list editable="bottom">
+                                    <field name="sale_order_line_id"
+                                           options="{'no_create': True}"
+                                           context="{'default_order_id': parent.sale_order_id}"/>
+                                    <field name="product_id" options="{'no_create': True}"/>
+                                    <field name="lot_id" optional="show"
+                                           options="{'no_create': True}"/>
+                                    <field name="quantity"/>
+                                    <field name="product_uom_id"/>
+                                    <field name="price_unit"/>
+                                    <field name="subtotal" sum="Tổng"/>
+                                    <field name="warranty_days_remaining" readonly="1"
+                                           optional="show"/>
+                                    <field name="defect_group" options="{'no_create': True}"/>
+                                    <field name="reason_id" options="{'no_create': True}"/>
+                                    <field name="currency_id" column_invisible="True"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="OTK kiểm hàng" name="qc"
+                              invisible="state in ('draft','submitted','biz_approved','refused','cancel')">
+                            <field name="mismatch_note"
+                                   placeholder="Nếu hàng lệch khai báo: mô tả lệch gì (số lượng, tình trạng, ...)"
+                                   readonly="state not in ('goods_in_transit','qc_checking')"/>
+                            <field name="line_ids" readonly="1" nolabel="1">
+                                <list>
+                                    <field name="product_id"/>
+                                    <field name="quantity"/>
+                                    <field name="defect_group"/>
+                                    <field name="reason_id"/>
+                                    <field name="classify_destination"/>
+                                    <field name="qc_note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Ghi chú" name="note">
+                            <field name="note" placeholder="Ghi chú nội bộ..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============ ACTION ============ -->
+    <record id="action_vnop_return_request" model="ir.actions.act_window">
+        <field name="name">Phiếu trả hàng lỗi</field>
+        <field name="res_model">vnop.return.request</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_vnop_return_request_search"/>
+        <field name="context">{'search_default_my': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Tạo phiếu trả hàng lỗi đầu tiên
+            </p>
+            <p>
+                Sale chọn đại lý, đơn hàng gốc và sản phẩm cần trả.
+                Hệ thống tự định tuyến tới người duyệt phù hợp.
+            </p>
+        </field>
+    </record>
+</odoo>

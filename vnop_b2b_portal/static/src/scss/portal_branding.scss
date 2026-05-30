@@ -1,0 +1,137 @@
+// VNOptic portal branding — đồng nhất visual với login page (vnop_theme).
+// Scope ở .o_portal_wrap + .o_portal để không ảnh hưởng các page non-portal khác.
+
+.o_portal_wrap,
+.o_portal {
+    --vnop-red-1: #970f1d;
+    --vnop-red-2: #be2137;
+    --vnop-red-3: #7c0914;
+    --vnop-text-dark: #182133;
+    --vnop-text-muted: #606a7d;
+    --vnop-border: #d9dee8;
+    --vnop-focus: rgba(187, 34, 55, 0.2);
+
+    .btn-primary {
+        border: 1px solid #a71a2f;
+        background: linear-gradient(180deg, #c42a3f 0%, #af1830 100%);
+        color: #fff;
+        font-weight: 600;
+        border-radius: 10px;
+        box-shadow: 0 6px 14px rgba(158, 22, 40, 0.18);
+
+        &:hover, &:focus, &:active,
+        &:not(:disabled):not(.disabled):active {
+            border-color: #940f24 !important;
+            background: linear-gradient(180deg, #b72338 0%, #951024 100%) !important;
+            color: #fff !important;
+            box-shadow: 0 6px 14px rgba(158, 22, 40, 0.22);
+        }
+    }
+
+    .btn-outline-primary,
+    .btn-outline-secondary,
+    .btn-secondary {
+        border-radius: 10px;
+    }
+
+    .btn-outline-primary {
+        border-color: var(--vnop-red-2);
+        color: var(--vnop-red-2);
+
+        &:hover, &:focus, &:active {
+            background: var(--vnop-red-2);
+            border-color: var(--vnop-red-2);
+            color: #fff;
+        }
+    }
+
+    a:not(.btn):not(.nav-link):not(.dropdown-item):not(.list-group-item):not(.page-link) {
+        color: #9e1a31;
+
+        &:hover, &:focus {
+            color: #7f1023;
+        }
+    }
+
+    .card {
+        border: 1px solid #e4e8ef;
+        border-radius: 16px;
+        box-shadow: 0 6px 18px rgba(18, 28, 44, 0.06);
+    }
+
+    .form-control,
+    .form-select {
+        border: 1px solid var(--vnop-border);
+        border-radius: 10px;
+
+        &:focus {
+            border-color: #bf2a3f;
+            box-shadow: 0 0 0 0.2rem var(--vnop-focus);
+        }
+    }
+
+    .badge.bg-primary {
+        background-color: var(--vnop-red-2) !important;
+    }
+
+    .list-group-item.active {
+        background-color: var(--vnop-red-2);
+        border-color: var(--vnop-red-2);
+    }
+
+    .nav-pills .nav-link.active,
+    .nav-pills .show > .nav-link {
+        background-color: var(--vnop-red-2);
+    }
+
+    .page-link {
+        color: var(--vnop-red-2);
+
+        &:hover, &:focus {
+            color: #7f1023;
+        }
+    }
+
+    .page-item.active .page-link {
+        background-color: var(--vnop-red-2);
+        border-color: var(--vnop-red-2);
+        color: #fff;
+    }
+}
+
+// Header brand line: thêm viền đỏ mỏng dưới navbar khi đang ở portal page,
+// để có signature đồng nhất với login. Dùng :has() — modern browsers only.
+body:has(.o_portal_wrap) #wrapwrap > header .navbar.navbar-light {
+    border-bottom: 3px solid #be2137;
+}
+
+// Đồng nhất font/spacing trong form Đơn đặt hàng (/my/cart)
+.b2b-order-form {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #182133;
+
+    h3 { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
+    strong { font-weight: 600; }
+
+    .b2b-order-info > div { padding: 2px 0; }
+
+    table {
+        font-size: 14px;
+        th { font-weight: 600; background: #f5f6f8; }
+        td, th { vertical-align: middle; }
+        tfoot td { font-size: 14px; }
+    }
+
+    // "Xóa" col: nằm ngoài viền table (borderless + transparent bg)
+    .b2b-line-table {
+        th.b2b-col-delete,
+        td.b2b-col-delete {
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+    }
+
+    .form-select-sm, .form-control-sm { font-size: 14px; }
+}

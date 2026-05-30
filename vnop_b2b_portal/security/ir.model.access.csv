@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_vnop_order_request_user,vnop.order.request user,model_vnop_order_request,sales_team.group_sale_salesman,1,1,1,1
+access_vnop_order_request_manager,vnop.order.request manager,model_vnop_order_request,sales_team.group_sale_manager,1,1,1,1
+access_vnop_order_request_portal,vnop.order.request portal,model_vnop_order_request,base.group_portal,1,0,0,0
+access_vnop_order_request_line_user,vnop.order.request.line user,model_vnop_order_request_line,sales_team.group_sale_salesman,1,1,1,1
+access_vnop_order_request_line_manager,vnop.order.request.line manager,model_vnop_order_request_line,sales_team.group_sale_manager,1,1,1,1
+access_vnop_order_request_line_portal,vnop.order.request.line portal,model_vnop_order_request_line,base.group_portal,1,0,0,0

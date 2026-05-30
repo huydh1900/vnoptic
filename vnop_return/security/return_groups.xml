@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="module_category_vnop_return" model="ir.module.category">
+        <field name="name">Trả hàng lỗi (VNOptic)</field>
+        <field name="sequence">25</field>
+    </record>
+
+    <record id="group_return_user" model="res.groups">
+        <field name="name">Sale tạo phiếu trả</field>
+        <field name="category_id" ref="module_category_vnop_return"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="group_return_accountant" model="res.groups">
+        <field name="name">Kế toán duyệt trả hàng</field>
+        <field name="category_id" ref="module_category_vnop_return"/>
+        <field name="implied_ids" eval="[(4, ref('group_return_user'))]"/>
+    </record>
+
+    <record id="group_return_sales_manager" model="res.groups">
+        <field name="name">Trưởng phòng KD duyệt trả hàng</field>
+        <field name="category_id" ref="module_category_vnop_return"/>
+        <field name="implied_ids" eval="[(4, ref('group_return_user'))]"/>
+    </record>
+
+    <record id="group_return_otk" model="res.groups">
+        <field name="name">OTK kiểm hàng trả</field>
+        <field name="category_id" ref="module_category_vnop_return"/>
+        <field name="implied_ids" eval="[(4, ref('group_return_user'))]"/>
+    </record>
+
+    <record id="group_return_chief_accountant" model="res.groups">
+        <field name="name">Kế toán trưởng duyệt trả hàng</field>
+        <field name="category_id" ref="module_category_vnop_return"/>
+        <field name="implied_ids" eval="[(4, ref('group_return_accountant'))]"/>
+    </record>
+
+    <record id="group_return_director" model="res.groups">
+        <field name="name">Giám đốc duyệt trả hàng</field>
+        <field name="category_id" ref="module_category_vnop_return"/>
+        <field name="implied_ids" eval="[(4, ref('group_return_sales_manager')), (4, ref('group_return_chief_accountant'))]"/>
+    </record>
+</odoo>

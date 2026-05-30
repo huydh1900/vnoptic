@@ -2,52 +2,45 @@
 <odoo>
 
     <template id="portal_my_home_b2b" inherit_id="portal.portal_my_home" name="B2B Portal Home Cards">
-        <xpath expr="//div[@id='portal_client_category']" position="after">
+        <!-- Ẩn tiêu đề "My account" trên /my/home: cờ hide_account_title được consume bởi portal_layout_hide_title -->
+        <xpath expr="//t[@t-set='my_details']" position="after">
+            <t t-set="hide_account_title" t-value="True"/>
+        </xpath>
+
+        <xpath expr="//div[@id='portal_client_category']" position="before">
             <t t-if="is_user_b2b">
                 <div class="o_portal_category row g-2 mt-3" id="portal_b2b_category">
                     <h5 class="col-12 text-muted mb-2">Cổng đại lý B2B</h5>
 
-                    <!-- Catalog -->
+                    <!-- Đơn đặt hàng: list + tạo mới -->
                     <t t-call="portal.portal_docs_entry">
-                        <t t-set="icon" t-value="'/web/static/img/activity_icons/email.svg'"/>
-                        <t t-set="title">Danh mục sản phẩm</t>
-                        <t t-set="text">Xem và đặt hàng từ catalog sản phẩm</t>
-                        <t t-set="url" t-value="'/my/catalog'"/>
-                        <t t-set="placeholder_count" t-value="'b2b_catalog'"/>
-                    </t>
-
-                    <!-- Cart -->
-                    <t t-call="portal.portal_docs_entry">
-                        <t t-set="icon" t-value="'/web/static/img/activity_icons/todo.svg'"/>
-                        <t t-set="title">Giỏ hàng</t>
-                        <t t-set="text">Xem và chỉnh sửa giỏ hàng của bạn</t>
-                        <t t-set="url" t-value="'/my/cart'"/>
-                        <t t-set="count" t-value="b2b_cart_count or 0"/>
-                        <t t-set="placeholder_count" t-value="'b2b_cart'"/>
-                    </t>
-
-                    <!-- Orders -->
-                    <t t-call="portal.portal_docs_entry">
-                        <t t-set="icon" t-value="'/web/static/img/activity_icons/upload.svg'"/>
-                        <t t-set="title">Đơn hàng của tôi</t>
-                        <t t-set="text">Theo dõi các đơn hàng đã đặt</t>
-                        <t t-set="url" t-value="'/my/orders'"/>
+                        <t t-set="icon" t-value="'/vnop_b2b_portal/static/src/img/order_request.svg'"/>
+                        <t t-set="title">Đơn đặt hàng</t>
+                        <t t-set="text">Xem danh sách và tạo đơn đặt hàng mới</t>
+                        <t t-set="url" t-value="'/my/b2b/orders'"/>
                         <t t-set="count" t-value="b2b_order_count or 0"/>
-                        <t t-set="placeholder_count" t-value="'b2b_order'"/>
+                        <t t-set="placeholder_count" t-value="'b2b_order_count'"/>
                     </t>
 
                     <!-- Financial -->
                     <t t-call="portal.portal_docs_entry">
-                        <t t-set="icon" t-value="'/web/static/img/activity_icons/payment.svg'"/>
+                        <t t-set="icon" t-value="'/account/static/src/img/Bill.svg'"/>
                         <t t-set="title">Công nợ</t>
                         <t t-set="text">Theo dõi hóa đơn và công nợ chưa thanh toán</t>
                         <t t-set="url" t-value="'/my/financial'"/>
                         <t t-set="count" t-value="b2b_invoice_count or 0"/>
-                        <t t-set="placeholder_count" t-value="'b2b_invoice'"/>
+                        <t t-set="placeholder_count" t-value="'b2b_invoice_count'"/>
                     </t>
 
                 </div>
             </t>
+        </xpath>
+    </template>
+
+    <!-- Ẩn h3 "My account" của portal_layout khi hide_account_title=True -->
+    <template id="portal_layout_hide_title" inherit_id="portal.portal_layout" name="B2B Portal Layout: Hide Account Title">
+        <xpath expr="//h3[hasclass('my-3')]" position="attributes">
+            <attribute name="t-if">not hide_account_title</attribute>
         </xpath>
     </template>
 

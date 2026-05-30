@@ -1,0 +1,10 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_vnop_return_defect_group_user,vnop.return.defect.group user,model_vnop_return_defect_group,group_return_user,1,0,0,0
+access_vnop_return_defect_group_admin,vnop.return.defect.group admin,model_vnop_return_defect_group,group_return_chief_accountant,1,1,1,1
+access_vnop_return_reason_user,vnop.return.reason user,model_vnop_return_reason,group_return_user,1,0,0,0
+access_vnop_return_reason_admin,vnop.return.reason admin,model_vnop_return_reason,group_return_chief_accountant,1,1,1,1
+access_vnop_return_request_user,vnop.return.request user,model_vnop_return_request,group_return_user,1,1,1,0
+access_vnop_return_request_admin,vnop.return.request admin,model_vnop_return_request,group_return_chief_accountant,1,1,1,1
+access_vnop_return_request_line_user,vnop.return.request.line user,model_vnop_return_request_line,group_return_user,1,1,1,1
+access_vnop_return_qc_wizard,qc wizard,model_vnop_return_qc_classify_wizard,group_return_otk,1,1,1,1
+access_vnop_return_qc_wizard_line,qc wizard line,model_vnop_return_qc_classify_wizard_line,group_return_otk,1,1,1,1

@@ -1,9 +1,20 @@
 {
     "name": "Row Number in List View",
-    "version": "18.0.1.0.4",
+    "version": "18.0.1.0.5",
     "summary": "Show row number (#) column in backend list views.",
     "category": "Extra Tools",
-    "depends": ["web"],
+    "depends": [
+        "web",
+        "account",
+        "account_bank_statement_import",
+        "account_online_synchronization",
+        "purchase",
+        "sale",
+        "sale_loyalty",
+        "stock",
+        "website",
+        "resource",
+    ],
     "data": [],
     "assets": {
         "web.assets_backend": [

@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- =========================================================
+         LIST: /my/b2b/orders
+         ========================================================= -->
+    <template id="portal_orders_list" name="B2B Orders List">
+        <t t-call="portal.portal_layout">
+            <t t-set="page_name" t-value="'b2b_orders'"/>
+
+            <div class="container mt-3 b2b-orders-page">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <h3 class="mb-0">Đơn đặt hàng</h3>
+                    <form action="/my/b2b/orders/new" method="post" class="m-0">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fa fa-plus me-1"/>Tạo đơn mới
+                        </button>
+                    </form>
+                </div>
+
+                <form method="get" action="/my/b2b/orders" class="row g-2 mb-3">
+                    <div class="col-12 col-md-6">
+                        <div class="input-group">
+                            <input type="text" name="search" class="form-control"
+                                   placeholder="Tìm theo số đơn..."
+                                   t-att-value="search or ''"/>
+                            <button type="submit" class="btn btn-outline-secondary">
+                                <i class="fa fa-search"/>
+                            </button>
+                            <t t-if="search">
+                                <a href="/my/b2b/orders" class="btn btn-outline-secondary">
+                                    <i class="fa fa-times"/>
+                                </a>
+                            </t>
+                        </div>
+                    </div>
+                </form>
+
+                <t t-if="orders">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Số đơn</th>
+                                    <th>Ngày tạo</th>
+                                    <th>Tổng số sản phẩm</th>
+                                    <th class="text-end">Tổng tiền</th>
+                                    <th>Trạng thái</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="orders" t-as="o">
+                                    <tr>
+                                        <td>
+                                            <a t-attf-href="/my/b2b/orders/{{ o.id }}"
+                                               class="fw-semibold text-decoration-none"
+                                               t-out="o.name"/>
+                                        </td>
+                                        <td t-out="o.create_date and o.create_date.strftime('%d/%m/%Y %H:%M') or ''"/>
+                                        <td t-out="len(o.line_ids)"/>
+                                        <td class="text-end fw-semibold"
+                                            t-out="'{:,.0f} đ'.format(o.amount_total)"/>
+                                        <td>
+                                            <t t-if="o.state == 'draft'">
+                                                <span class="badge bg-secondary">Nháp</span>
+                                            </t>
+                                            <t t-elif="o.state == 'submitted'">
+                                                <span class="badge bg-info">Đã gửi</span>
+                                            </t>
+                                            <t t-elif="o.state == 'quoted'">
+                                                <span class="badge bg-success">Đã báo giá</span>
+                                            </t>
+                                            <t t-elif="o.state == 'cancelled'">
+                                                <span class="badge bg-danger">Đã hủy</span>
+                                            </t>
+                                            <t t-else="">
+                                                <span class="badge bg-light text-dark" t-out="o.state"/>
+                                            </t>
+                                        </td>
+                                        <td class="text-end">
+                                            <a t-attf-href="/my/b2b/orders/{{ o.id }}"
+                                               class="btn btn-sm btn-outline-primary">
+                                                Xem chi tiết
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <t t-call="portal.pager" t-if="pager['page_count'] > 1">
+                        <t t-set="pager" t-value="pager"/>
+                    </t>
+                </t>
+
+                <t t-else="">
+                    <div class="text-center py-5">
+                        <i class="fa fa-file-text-o fa-4x text-muted mb-3"/>
+                        <h5 class="text-muted">Chưa có đơn đặt hàng nào</h5>
+                        <form action="/my/b2b/orders/new" method="post" class="mt-3">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa fa-plus me-1"/>Tạo đơn đầu tiên
+                            </button>
+                        </form>
+                    </div>
+                </t>
+            </div>
+        </t>
+    </template>
+
+    <!-- =========================================================
+         DETAIL / EDIT: /my/b2b/orders/<id>
+         ========================================================= -->
+    <template id="portal_order_form" name="B2B Order Form">
+        <t t-call="portal.portal_layout">
+            <t t-set="page_name" t-value="'b2b_orders'"/>
+
+            <div class="container mt-3 b2b-order-form">
+                <!-- Top bar: back button + status pill -->
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <a href="/my/b2b/orders" class="btn btn-outline-secondary">
+                        <i class="fa fa-arrow-left me-1"/>Quay lại danh sách
+                    </a>
+                    <t t-if="order.state == 'draft'">
+                        <span class="badge rounded-pill bg-secondary fs-6 px-3 py-2">Dự thảo</span>
+                    </t>
+                    <t t-elif="order.state == 'submitted'">
+                        <span class="badge rounded-pill bg-info fs-6 px-3 py-2">Đã gửi - chờ báo giá</span>
+                    </t>
+                    <t t-elif="order.state == 'quoted'">
+                        <span class="badge rounded-pill bg-success fs-6 px-3 py-2">Đã có báo giá</span>
+                    </t>
+                    <t t-elif="order.state == 'cancelled'">
+                        <span class="badge rounded-pill bg-danger fs-6 px-3 py-2">Đã hủy</span>
+                    </t>
+                </div>
+
+                <!-- Header công ty -->
+                <div class="mb-2">
+                    <div class="fw-bold text-uppercase">CÔNG TY TNHH CÔNG NGHỆ QUANG HỌC VIỆT NAM</div>
+                    <div>Số nhà 63 phố Lê Duẩn, P. Cửa Nam, Q. Hoàn Kiếm, TP. Hà Nội, Việt Nam</div>
+                    <div>Tel: 024 38221225</div>
+                </div>
+
+                <h3 class="text-center fw-bold mt-3 mb-3">ĐƠN ĐẶT HÀNG</h3>
+
+                <!-- Thông tin đại lý + số đơn -->
+                <div class="mb-3 b2b-order-info">
+                    <div class="d-flex justify-content-between flex-wrap">
+                        <div><strong>Số:</strong> <span t-out="order.name"/></div>
+                        <div class="fst-italic">
+                            <t t-set="d" t-value="order.create_date or order.date_request"/>
+                            Ngày: <t t-out="d.strftime('%d/%m/%Y %H:%M')"/>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-7">
+                            <div><strong>Đại lý:</strong> <span t-out="dealer.name"/></div>
+                            <div><strong>Địa chỉ:</strong> <span t-out="dealer_address"/></div>
+                            <div><strong>Diễn giải:</strong> <span t-out="order.note or ''"/></div>
+                        </div>
+                        <div class="col-md-5">
+                            <div><strong>Mã số thuế:</strong> <span t-out="dealer.vat or ''"/></div>
+                            <div>
+                                <strong>Điện thoại &amp; Email:</strong>
+                                <span t-out="(dealer.phone or '') + ((' / ' + dealer.email) if dealer.email else '')"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bảng dòng đơn -->
+                <form t-attf-action="/my/b2b/orders/{{ order.id }}/line/update" method="post">
+                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-bordered align-middle text-center b2b-line-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-nowrap" style="width: 60px;">STT</th>
+                                    <th>Thương hiệu</th>
+                                    <th>Model</th>
+                                    <th>Tên hàng hóa</th>
+                                    <th>Mã màu</th>
+                                    <th style="width: 110px;">Số lượng</th>
+                                    <th class="text-end" style="width: 130px;">Đơn giá</th>
+                                    <th class="text-end" style="width: 140px;">Thành tiền</th>
+                                    <t t-if="can_edit">
+                                        <th class="b2b-col-delete" style="width: 50px;"/>
+                                    </t>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-if="order_lines_view">
+                                    <t t-foreach="order_lines_view" t-as="lv">
+                                        <tr>
+                                            <td t-out="lv_index + 1"/>
+                                            <td class="text-start" t-out="lv['brand']"/>
+                                            <td class="text-start">
+                                                <div class="fw-semibold"
+                                                     t-out="lv['model'] or lv['product'].display_name"/>
+                                                <small t-if="lv['model']" class="text-muted"
+                                                       t-out="lv['product'].name"/>
+                                            </td>
+                                            <td class="text-start" t-out="lv['product'].display_name"/>
+                                            <td t-out="lv['color']"/>
+                                            <td>
+                                                <t t-if="can_edit">
+                                                    <input type="number"
+                                                           t-attf-name="qty_{{ lv['line'].id }}"
+                                                           t-att-value="int(lv['line'].product_uom_qty)"
+                                                           min="0" class="form-control form-control-sm text-center"
+                                                           style="max-width: 90px; margin: auto;"
+                                                           onchange="this.form.submit()"/>
+                                                </t>
+                                                <t t-else="">
+                                                    <t t-out="int(lv['line'].product_uom_qty)"/>
+                                                </t>
+                                            </td>
+                                            <td class="text-end"
+                                                t-out="'{:,.0f} đ'.format(lv['line'].price_unit)"/>
+                                            <td class="text-end fw-bold"
+                                                t-out="'{:,.0f} đ'.format(lv['line'].price_subtotal)"/>
+                                            <t t-if="can_edit">
+                                                <td class="b2b-col-delete">
+                                                    <button type="submit"
+                                                            t-attf-formaction="/my/b2b/orders/{{ order.id }}/line/{{ lv['line'].id }}/remove"
+                                                            class="btn btn-sm btn-link text-danger p-0"
+                                                            title="Xóa dòng">
+                                                        <i class="fa fa-trash-o fa-lg"/>
+                                                    </button>
+                                                </td>
+                                            </t>
+                                        </tr>
+                                        <!-- Button "Thêm 1 dòng" chỉ sau line cuối (khi can_edit) -->
+                                        <t t-if="can_edit and lv_last">
+                                            <tr class="b2b-add-row"
+                                                t-att-data-line-count="len(order_lines_view)">
+                                                <td colspan="9" class="text-center py-2">
+                                                    <button type="button"
+                                                            class="btn btn-outline-primary btn-sm b2b-add-line-btn">
+                                                        <i class="fa fa-plus me-1"/>Thêm 1 dòng
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </t>
+                                </t>
+                                <t t-elif="not can_edit">
+                                    <tr>
+                                        <td colspan="8" class="text-muted py-4">
+                                            Chưa có sản phẩm nào trong đơn.
+                                        </td>
+                                    </tr>
+                                </t>
+
+                                <!-- Add-row đầu tiên khi chưa có line nào (khi can_edit) -->
+                                <t t-if="can_edit and not order_lines_view">
+                                    <tr class="b2b-add-row" data-line-count="0">
+                                        <td colspan="9" class="text-center py-3">
+                                            <button type="button"
+                                                    class="btn btn-outline-primary btn-sm b2b-add-line-btn">
+                                                <i class="fa fa-plus me-1"/>Thêm 1 dòng
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </t>
+
+                                <!-- Cascade row dùng chung, JS sẽ move tới ngay sau button được click -->
+                                <t t-if="can_edit">
+                                    <tr class="b2b-cascade-row" style="display: none;">
+                                        <td class="b2b-cascade-stt fw-bold"></td>
+                                        <td>
+                                            <select class="form-select form-select-sm b2b-sel-brand">
+                                                <option value="">-- Thương hiệu --</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <div class="b2b-model-combo position-relative">
+                                                <button type="button"
+                                                        class="form-select form-select-sm text-start b2b-model-toggle"
+                                                        disabled="disabled">
+                                                    <span class="b2b-model-toggle-text text-muted">-- Model --</span>
+                                                </button>
+                                                <div class="b2b-model-panel border bg-white shadow-sm"
+                                                     style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1050;">
+                                                    <div class="p-1">
+                                                        <input type="text"
+                                                               class="form-control form-control-sm b2b-model-search"
+                                                               placeholder="Tìm model..."/>
+                                                    </div>
+                                                    <ul class="b2b-model-list list-unstyled m-0"
+                                                        style="max-height:230px; overflow-y:auto;"></ul>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td></td>
+                                        <td>
+                                            <select class="form-select form-select-sm b2b-sel-color" disabled="disabled">
+                                                <option value="">-- Mã màu --</option>
+                                            </select>
+                                        </td>
+                                        <td colspan="4">
+                                            <input type="number" min="1" value="1"
+                                                   class="form-control form-control-sm text-center b2b-cascade-qty"
+                                                   style="max-width: 80px; margin: auto;"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td t-att-colspan="can_edit and 7 or 7" class="text-end fw-bold">Tổng cộng:</td>
+                                    <td class="text-end fw-bold text-nowrap"
+                                        t-out="'{:,.0f} đ'.format(order.amount_total)"/>
+                                    <t t-if="can_edit">
+                                        <td></td>
+                                    </t>
+                                </tr>
+                                <tr>
+                                    <td t-att-colspan="can_edit and 7 or 7" class="text-end fw-bold">Giá trị thuế:</td>
+                                    <td class="text-end fw-bold text-nowrap">0 đ</td>
+                                    <t t-if="can_edit">
+                                        <td></td>
+                                    </t>
+                                </tr>
+                                <tr>
+                                    <td t-att-colspan="can_edit and 7 or 7" class="text-end fw-bold">Tổng thanh toán:</td>
+                                    <td class="text-end fw-bold text-primary fs-5 text-nowrap"
+                                        t-out="'{:,.0f} đ'.format(order.amount_total)"/>
+                                    <t t-if="can_edit">
+                                        <td></td>
+                                    </t>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </form>
+
+                <!-- Action buttons -->
+                <div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mt-3">
+                    <t t-if="order.sale_order_ids">
+                        <t t-foreach="order.sale_order_ids" t-as="so">
+                            <a t-attf-href="/my/orders/{{ so.id }}"
+                               class="btn btn-outline-primary"
+                               target="_blank">
+                                <i class="fa fa-file-text-o me-1"/>Xem báo giá <t t-out="so.name"/>
+                            </a>
+                        </t>
+                    </t>
+                    <t t-if="can_edit">
+                        <div class="d-flex gap-2">
+                            <form t-attf-action="/my/b2b/orders/{{ order.id }}/cancel" method="post" class="m-0"
+                                  onsubmit="return confirm('Hủy đơn nháp này?');">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <button type="submit" class="btn btn-outline-danger">
+                                    <i class="fa fa-trash me-1"/>Hủy đơn
+                                </button>
+                            </form>
+                            <form t-attf-action="/my/b2b/orders/{{ order.id }}/submit" method="post" class="m-0"
+                                  onsubmit="return confirm('Gửi đơn đặt hàng này lên hệ thống?');">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <button type="submit" class="btn btn-primary btn-lg"
+                                        t-att-disabled="not order.line_ids and 'disabled' or None">
+                                    <i class="fa fa-paper-plane me-1"/>Gửi đơn đặt hàng
+                                </button>
+                            </form>
+                        </div>
+                    </t>
+                </div>
+            </div>
+        </t>
+    </template>
+
+</odoo>

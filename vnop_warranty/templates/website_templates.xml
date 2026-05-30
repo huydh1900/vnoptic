@@ -9,67 +9,225 @@
 
     <!-- ============== ĐĂNG KÝ BẢO HÀNH ============== -->
 
+    <!-- Partial: toggle "Khách lẻ" + block OTP đại lý (countdown 120s) -->
+    <template id="template_warranty_dealer_otp_partial" name="OTP đại lý partial">
+        <div class="vn-dealer-toggle" t-att-data-token="reg.token"
+             style="display:flex; justify-content:space-between; align-items:center;
+                    background:#fff; border:1px solid #e5e7eb; border-radius:6px;
+                    padding:10px 14px; margin-bottom:12px;">
+            <div>
+                <b>Khách lẻ</b>
+                <div class="sub" style="font-size:12px;color:#6b7280;">
+                    Tắt nếu bạn là đại lý muốn xem BH bán buôn.
+                </div>
+            </div>
+            <label class="vn-switch" style="position:relative;display:inline-block;width:46px;height:24px;">
+                <input type="checkbox" class="vn-retail-toggle" checked="checked"
+                       style="opacity:0;width:0;height:0;"/>
+                <span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
+                             background:#0e6e6b;border-radius:24px;transition:.2s;"
+                      class="vn-switch-slider"></span>
+            </label>
+        </div>
+
+        <section class="vn-card vn-otp-block" style="display:none;">
+            <div class="vn-card-head"><h3>XÁC THỰC ĐẠI LÝ (OTP)</h3></div>
+            <div class="vn-card-body">
+                <p class="sub" style="margin:0 0 10px;">
+                    Mã OTP 6 số sẽ gửi về email đối tác của đơn này. Mã có hiệu lực <b>2 phút</b>.
+                </p>
+                <button type="button" class="vn-btn vn-otp-send-btn">Gửi OTP</button>
+                <div class="vn-otp-step2" style="display:none; margin-top:12px;">
+                    <div class="vn-field">
+                        <label>Nhập mã OTP <span class="vn-otp-countdown"
+                              style="color:#0e6e6b;font-weight:600;margin-left:8px;"></span></label>
+                        <input type="text" class="vn-otp-input" maxlength="6"
+                               inputmode="numeric" pattern="[0-9]{6}"
+                               placeholder="______"
+                               style="letter-spacing:8px;font-size:20px;text-align:center;"/>
+                    </div>
+                    <button type="button" class="vn-btn vn-btn-block vn-otp-verify-btn">Xác nhận</button>
+                </div>
+                <div class="vn-otp-msg" style="margin-top:10px;font-size:13px;"></div>
+            </div>
+        </section>
+
+        <script>
+        (function(){
+            var root = document.querySelector('.vn-dealer-toggle');
+            if (!root) return;
+            var token = root.getAttribute('data-token');
+            var toggle = document.querySelector('.vn-retail-toggle');
+            var slider = document.querySelector('.vn-switch-slider');
+            var retailBlock = document.querySelector('.vn-retail-block');
+            var otpBlock = document.querySelector('.vn-otp-block');
+            var sendBtn = document.querySelector('.vn-otp-send-btn');
+            var step2 = document.querySelector('.vn-otp-step2');
+            var input = document.querySelector('.vn-otp-input');
+            var verifyBtn = document.querySelector('.vn-otp-verify-btn');
+            var countdown = document.querySelector('.vn-otp-countdown');
+            var msg = document.querySelector('.vn-otp-msg');
+            var timer = null;
+
+            function setSlider(on){
+                slider.style.background = on ? '#0e6e6b' : '#9ca3af';
+            }
+            setSlider(true);
+
+            toggle.addEventListener('change', function(){
+                var on = toggle.checked;
+                setSlider(on);
+                if (on) {
+                    if (retailBlock) retailBlock.style.display = '';
+                    otpBlock.style.display = 'none';
+                } else {
+                    if (retailBlock) retailBlock.style.display = 'none';
+                    otpBlock.style.display = '';
+                }
+            });
+
+            function rpc(url, payload){
+                return fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({jsonrpc: '2.0', method: 'call', params: payload || {}})
+                }).then(function(r){ return r.json(); }).then(function(d){ return d.result || {}; });
+            }
+
+            function startCountdown(sec){
+                if (timer) clearInterval(timer);
+                var s = sec;
+                countdown.textContent = '(' + s + 's)';
+                verifyBtn.disabled = false;
+                timer = setInterval(function(){
+                    s--;
+                    if (s &lt;= 0) {
+                        clearInterval(timer);
+                        countdown.textContent = '(Hết hạn)';
+                        verifyBtn.disabled = true;
+                    } else {
+                        countdown.textContent = '(' + s + 's)';
+                    }
+                }, 1000);
+            }
+
+            sendBtn.addEventListener('click', function(){
+                msg.textContent = '';
+                sendBtn.disabled = true;
+                rpc('/warranty/otp/' + token + '/request').then(function(r){
+                    if (r.ok) {
+                        step2.style.display = '';
+                        msg.style.color = '#0e6e6b';
+                        msg.textContent = 'Đã gửi OTP về ' + (r.email_masked || 'email');
+                        startCountdown(r.ttl || 120);
+                        sendBtn.textContent = 'Gửi lại OTP';
+                        sendBtn.disabled = false;
+                    } else {
+                        msg.style.color = '#b91c1c';
+                        msg.textContent = r.error || 'Không gửi được OTP.';
+                        sendBtn.disabled = false;
+                    }
+                }).catch(function(){
+                    msg.style.color = '#b91c1c';
+                    msg.textContent = 'Lỗi mạng.';
+                    sendBtn.disabled = false;
+                });
+            });
+
+            verifyBtn.addEventListener('click', function(){
+                var code = (input.value || '').trim();
+                if (!/^\d{6}$/.test(code)) {
+                    msg.style.color = '#b91c1c';
+                    msg.textContent = 'Mã OTP phải gồm 6 chữ số.';
+                    return;
+                }
+                verifyBtn.disabled = true;
+                rpc('/warranty/otp/' + token + '/verify', {code: code}).then(function(r){
+                    if (r.ok) {
+                        msg.style.color = '#0e6e6b';
+                        msg.textContent = 'Xác thực thành công, đang chuyển trang…';
+                        if (timer) clearInterval(timer);
+                        window.location.reload();
+                    } else {
+                        msg.style.color = '#b91c1c';
+                        msg.textContent = r.error || 'Mã không đúng.';
+                        verifyBtn.disabled = false;
+                    }
+                }).catch(function(){
+                    msg.style.color = '#b91c1c';
+                    msg.textContent = 'Lỗi mạng.';
+                    verifyBtn.disabled = false;
+                });
+            });
+        })();
+        </script>
+    </template>
+
     <template id="template_warranty_register_form" name="Đăng ký bảo hành">
         <t t-call="vnop_product_portal.vnoptic_public_layout">
             <t t-set="page_title" t-value="'Đăng ký bảo hành – VNOptic'"/>
             <div class="vn-narrow">
                 <h2 class="vn-page-title">Đăng ký bảo hành sản phẩm</h2>
 
-                <section class="vn-card">
-                    <div class="vn-card-head">
-                        <h3>THÔNG TIN PHIẾU BẢO HÀNH</h3>
-                    </div>
-                    <div class="vn-card-body">
-                        <div class="vn-info-row">
-                            <span class="k">Sản phẩm:</span>
-                            <span class="v" t-out="reg.product_id.display_name"/>
-                        </div>
-                        <div class="vn-info-row">
-                            <span class="k">Gói bảo hành:</span>
-                            <span class="v">
-                                <t t-out="reg.warranty_id.name"/>
-                                (<t t-out="reg.warranty_id.duration"/>
-                                <t t-out="dict(reg.warranty_id._fields['duration_unit'].selection).get(reg.warranty_id.duration_unit, '')"/>
-                                + <t t-out="reg.warranty_id.bonus_days"/> ngày bonus)
-                            </span>
-                        </div>
-                    </div>
-                </section>
+                <t t-call="vnop_warranty.template_warranty_dealer_otp_partial"/>
 
-                <t t-if="error">
-                    <div class="vn-alert vn-alert-danger" t-out="error"/>
-                </t>
+                <div class="vn-retail-block">
+                    <section class="vn-card">
+                        <div class="vn-card-head">
+                            <h3>THÔNG TIN PHIẾU BẢO HÀNH</h3>
+                        </div>
+                        <div class="vn-card-body">
+                            <div class="vn-info-row">
+                                <span class="k">Sản phẩm:</span>
+                                <span class="v" t-out="reg.product_id.display_name"/>
+                            </div>
+                            <div class="vn-info-row">
+                                <span class="k">Gói bảo hành:</span>
+                                <span class="v">
+                                    <t t-out="reg.warranty_id.name"/>
+                                    (<t t-out="reg.warranty_id.duration"/>
+                                    <t t-out="dict(reg.warranty_id._fields['duration_unit'].selection).get(reg.warranty_id.duration_unit, '')"/>
+                                    + <t t-out="reg.warranty_id.bonus_days"/> ngày bonus)
+                                </span>
+                            </div>
+                        </div>
+                    </section>
 
-                <section class="vn-card">
-                    <div class="vn-card-head">
-                        <h3>THÔNG TIN KHÁCH HÀNG</h3>
-                        <p class="sub">Vui lòng điền chính xác để được hỗ trợ tốt nhất</p>
-                    </div>
-                    <div class="vn-card-body">
-                        <form t-attf-action="/warranty/register/{{ reg.token }}/submit"
-                              method="POST">
-                            <input type="hidden" name="csrf_token"
-                                   t-att-value="request.csrf_token()"/>
-                            <div class="vn-field">
-                                <label>Họ và tên <span class="req">*</span></label>
-                                <input type="text" name="customer_name" required="required"/>
-                            </div>
-                            <div class="vn-field">
-                                <label>Số điện thoại <span class="req">*</span></label>
-                                <input type="tel" name="customer_phone" required="required"/>
-                            </div>
-                            <div class="vn-field">
-                                <label>Email</label>
-                                <input type="email" name="customer_email"/>
-                            </div>
-                            <div class="vn-field">
-                                <label>Địa chỉ</label>
-                                <input type="text" name="customer_address"/>
-                            </div>
-                            <button type="submit" class="vn-btn vn-btn-block">Đăng ký</button>
-                        </form>
-                    </div>
-                </section>
+                    <t t-if="error">
+                        <div class="vn-alert vn-alert-danger" t-out="error"/>
+                    </t>
+
+                    <section class="vn-card">
+                        <div class="vn-card-head">
+                            <h3>THÔNG TIN KHÁCH HÀNG</h3>
+                            <p class="sub">Vui lòng điền chính xác để được hỗ trợ tốt nhất</p>
+                        </div>
+                        <div class="vn-card-body">
+                            <form t-attf-action="/warranty/register/{{ reg.token }}/submit"
+                                  method="POST">
+                                <input type="hidden" name="csrf_token"
+                                       t-att-value="request.csrf_token()"/>
+                                <div class="vn-field">
+                                    <label>Họ và tên <span class="req">*</span></label>
+                                    <input type="text" name="customer_name" required="required"/>
+                                </div>
+                                <div class="vn-field">
+                                    <label>Số điện thoại <span class="req">*</span></label>
+                                    <input type="tel" name="customer_phone" required="required"/>
+                                </div>
+                                <div class="vn-field">
+                                    <label>Email</label>
+                                    <input type="email" name="customer_email"/>
+                                </div>
+                                <div class="vn-field">
+                                    <label>Địa chỉ</label>
+                                    <input type="text" name="customer_address"/>
+                                </div>
+                                <button type="submit" class="vn-btn vn-btn-block">Đăng ký</button>
+                            </form>
+                        </div>
+                    </section>
+                </div>
             </div>
         </t>
     </template>
@@ -118,13 +276,133 @@
         <t t-call="vnop_product_portal.vnoptic_public_layout">
             <t t-set="page_title" t-value="'Phiếu đã kích hoạt – VNOptic'"/>
             <div class="vn-narrow">
-                <div class="vn-alert vn-alert-warning">
-                    <h4>Phiếu bảo hành này đã được đăng ký trước đó.</h4>
-                    <p>Nếu bạn cần hỗ trợ, vui lòng liên hệ cửa hàng.</p>
+                <t t-call="vnop_warranty.template_warranty_dealer_otp_partial"/>
+
+                <div class="vn-retail-block">
+                    <div class="vn-alert vn-alert-warning">
+                        <h4>Phiếu bảo hành này đã được đăng ký trước đó.</h4>
+                        <p>Nếu bạn cần hỗ trợ, vui lòng liên hệ cửa hàng.</p>
+                    </div>
+                    <p style="text-align:center;">
+                        <a class="vn-btn-link" href="/warranty/check">Tra cứu bảo hành</a>
+                    </p>
                 </div>
-                <p style="text-align:center;">
-                    <a class="vn-btn-link" href="/warranty/check">Tra cứu bảo hành</a>
-                </p>
+            </div>
+        </t>
+    </template>
+
+    <!-- View dành cho user internal/portal đã login (đại lý quét) -->
+    <template id="template_warranty_internal_view" name="Thông tin BH (nội bộ/đại lý)">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title" t-value="'Thông tin bảo hành – VNOptic'"/>
+            <div class="vn-narrow">
+                <h2 class="vn-page-title">Thông tin bảo hành</h2>
+
+                <t t-set="state_label" t-value="dict(reg._fields['state'].selection).get(reg.state, '')"/>
+
+                <section class="vn-card">
+                    <div class="vn-card-head">
+                        <h3>SẢN PHẨM</h3>
+                    </div>
+                    <div class="vn-card-body">
+                        <div class="vn-info-row">
+                            <span class="k">Sản phẩm:</span>
+                            <span class="v" t-out="reg.product_id.display_name"/>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Đơn bán:</span>
+                            <span class="v" t-out="reg.sale_order_id.name"/>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Gói bảo hành:</span>
+                            <span class="v">
+                                <t t-out="reg.warranty_id.name"/>
+                                (<t t-out="reg.warranty_id.duration"/>
+                                <t t-out="dict(reg.warranty_id._fields['duration_unit'].selection).get(reg.warranty_id.duration_unit, '')"/>
+                                <t t-if="reg.warranty_id.bonus_days">
+                                    + <t t-out="reg.warranty_id.bonus_days"/> ngày bonus
+                                </t>)
+                            </span>
+                        </div>
+                        <div class="vn-info-row">
+                            <span class="k">Trạng thái:</span>
+                            <span class="v">
+                                <b t-out="state_label"/>
+                            </span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Bảo hành bán buôn — luôn hiển thị khi có date_delivered -->
+                <section class="vn-card">
+                    <div class="vn-card-head">
+                        <h3>BẢO HÀNH BÁN BUÔN (TỪ NGÀY XUẤT KHO)</h3>
+                    </div>
+                    <div class="vn-card-body">
+                        <t t-if="reg.date_delivered">
+                            <div class="vn-info-row">
+                                <span class="k">Ngày xuất kho:</span>
+                                <span class="v" t-out="reg.date_delivered.strftime('%d/%m/%Y')"/>
+                            </div>
+                            <div class="vn-info-row">
+                                <span class="k">Hết hạn bảo hành:</span>
+                                <span class="v" t-out="reg.date_wholesale_end and reg.date_wholesale_end.strftime('%d/%m/%Y') or ''"/>
+                            </div>
+                            <div class="vn-info-row">
+                                <span class="k">Còn lại:</span>
+                                <span class="v">
+                                    <t t-if="reg.days_remaining_wholesale &gt; 0">
+                                        <b style="color:#0e6e6b;"><t t-out="reg.days_remaining_wholesale"/> ngày</b>
+                                    </t>
+                                    <t t-else="">
+                                        <b style="color:#b91c1c;">Đã hết hạn</b>
+                                    </t>
+                                </span>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <p class="sub">Chưa có ngày xuất kho — phiếu giao hàng chưa xác nhận.</p>
+                        </t>
+                    </div>
+                </section>
+
+                <!-- Bảo hành khách lẻ (chỉ khi đã kích hoạt) -->
+                <t t-if="reg.state == 'active' or reg.state == 'expired'">
+                    <section class="vn-card">
+                        <div class="vn-card-head">
+                            <h3>BẢO HÀNH KHÁCH LẺ (TỪ NGÀY KÍCH HOẠT)</h3>
+                        </div>
+                        <div class="vn-card-body">
+                            <div class="vn-info-row">
+                                <span class="k">Khách hàng:</span>
+                                <span class="v" t-out="reg.customer_name or '—'"/>
+                            </div>
+                            <div class="vn-info-row">
+                                <span class="k">SĐT:</span>
+                                <span class="v" t-out="reg.customer_phone or '—'"/>
+                            </div>
+                            <div class="vn-info-row">
+                                <span class="k">Bắt đầu:</span>
+                                <span class="v" t-out="reg.date_start and reg.date_start.strftime('%d/%m/%Y') or ''"/>
+                            </div>
+                            <div class="vn-info-row">
+                                <span class="k">Hết hạn:</span>
+                                <span class="v" t-out="reg.date_end and reg.date_end.strftime('%d/%m/%Y') or ''"/>
+                            </div>
+                        </div>
+                    </section>
+                </t>
+                <t t-if="reg.state == 'pending'">
+                    <div class="vn-alert vn-alert-warning">
+                        <b>Phiếu này chưa được khách lẻ kích hoạt.</b>
+                        <p>Khi khách quét mã (không login) sẽ thấy form điền thông tin để kích hoạt thẻ bảo hành.</p>
+                    </div>
+                </t>
+
+                <div class="vn-info-row" style="margin-top: 8px;">
+                    <span class="k">Mã phiếu:</span>
+                    <span class="v"><code t-out="reg.token"/></span>
+                </div>
             </div>
         </t>
     </template>
@@ -153,7 +431,27 @@
                     <div class="vn-alert vn-alert-danger" t-out="error"/>
                 </t>
 
-                <section class="vn-card">
+                <!-- Toggle: Khách lẻ (mặc định) vs Nhà bán buôn (OTP) -->
+                <div class="vn-check-toggle"
+                     style="display:flex; justify-content:space-between; align-items:center;
+                            background:#fff; border:1px solid #e5e7eb; border-radius:6px;
+                            padding:10px 14px; margin-bottom:12px;">
+                    <div>
+                        <b>Nhà bán buôn</b>
+                        <div class="sub" style="font-size:12px;color:#6b7280;">
+                            Bật nếu bạn là đại lý muốn xem BH bán buôn (xác thực OTP qua email).
+                        </div>
+                    </div>
+                    <label class="vn-switch" style="position:relative;display:inline-block;width:46px;height:24px;">
+                        <input type="checkbox" class="vn-wholesale-toggle"
+                               style="opacity:0;width:0;height:0;"/>
+                        <span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
+                                     background:#9ca3af;border-radius:24px;transition:.2s;"
+                              class="vn-check-switch-slider"></span>
+                    </label>
+                </div>
+
+                <section class="vn-card vn-check-retail-block">
                     <div class="vn-card-body">
                         <p class="sub" style="margin-bottom: 12px;">
                             Nhập <b>Mã phiếu</b> hoặc <b>Số điện thoại</b> đã đăng ký (chỉ cần một trong hai).
@@ -174,6 +472,141 @@
                         </form>
                     </div>
                 </section>
+
+                <!-- Block bán buôn: nhập mã phiếu -> gửi OTP -> xác thực -->
+                <section class="vn-card vn-check-wholesale-block" style="display:none;">
+                    <div class="vn-card-head"><h3>XÁC THỰC ĐẠI LÝ (OTP)</h3></div>
+                    <div class="vn-card-body">
+                        <div class="vn-field">
+                            <label>Mã phiếu bảo hành <span class="req">*</span></label>
+                            <input type="text" class="vn-ws-token"
+                                   placeholder="Mã in trên tem hoặc nhận khi đăng ký"/>
+                        </div>
+                        <p class="sub" style="margin:0 0 10px;">
+                            Mã OTP 6 số sẽ gửi về email đối tác của đơn này. Mã có hiệu lực <b>2 phút</b>.
+                        </p>
+                        <button type="button" class="vn-btn vn-ws-send-btn">Gửi OTP</button>
+                        <div class="vn-ws-step2" style="display:none; margin-top:12px;">
+                            <div class="vn-field">
+                                <label>Nhập mã OTP <span class="vn-ws-countdown"
+                                      style="color:#0e6e6b;font-weight:600;margin-left:8px;"></span></label>
+                                <input type="text" class="vn-ws-input" maxlength="6"
+                                       inputmode="numeric" pattern="[0-9]{6}"
+                                       placeholder="______"
+                                       style="letter-spacing:8px;font-size:20px;text-align:center;"/>
+                            </div>
+                            <button type="button" class="vn-btn vn-btn-block vn-ws-verify-btn">Xác nhận</button>
+                        </div>
+                        <div class="vn-ws-msg" style="margin-top:10px;font-size:13px;"></div>
+                    </div>
+                </section>
+
+                <script>
+                (function(){
+                    var root = document.querySelector('.vn-check-toggle');
+                    if (!root) return;
+                    var toggle = document.querySelector('.vn-wholesale-toggle');
+                    var slider = document.querySelector('.vn-check-switch-slider');
+                    var retailBlock = document.querySelector('.vn-check-retail-block');
+                    var wsBlock = document.querySelector('.vn-check-wholesale-block');
+                    var tokenInput = document.querySelector('.vn-ws-token');
+                    var sendBtn = document.querySelector('.vn-ws-send-btn');
+                    var step2 = document.querySelector('.vn-ws-step2');
+                    var input = document.querySelector('.vn-ws-input');
+                    var verifyBtn = document.querySelector('.vn-ws-verify-btn');
+                    var countdown = document.querySelector('.vn-ws-countdown');
+                    var msg = document.querySelector('.vn-ws-msg');
+                    var timer = null;
+
+                    toggle.addEventListener('change', function(){
+                        var on = toggle.checked;
+                        slider.style.background = on ? '#0e6e6b' : '#9ca3af';
+                        retailBlock.style.display = on ? 'none' : '';
+                        wsBlock.style.display = on ? '' : 'none';
+                    });
+
+                    function rpc(url, payload){
+                        return fetch(url, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({jsonrpc: '2.0', method: 'call', params: payload || {}})
+                        }).then(function(r){ return r.json(); }).then(function(d){ return d.result || {}; });
+                    }
+
+                    function startCountdown(sec){
+                        if (timer) clearInterval(timer);
+                        var s = sec;
+                        countdown.textContent = '(' + s + 's)';
+                        verifyBtn.disabled = false;
+                        timer = setInterval(function(){
+                            s--;
+                            if (s &lt;= 0) {
+                                clearInterval(timer);
+                                countdown.textContent = '(Hết hạn)';
+                                verifyBtn.disabled = true;
+                            } else {
+                                countdown.textContent = '(' + s + 's)';
+                            }
+                        }, 1000);
+                    }
+
+                    sendBtn.addEventListener('click', function(){
+                        var token = (tokenInput.value || '').trim();
+                        msg.textContent = '';
+                        if (!token) {
+                            msg.style.color = '#b91c1c';
+                            msg.textContent = 'Vui lòng nhập Mã phiếu bảo hành.';
+                            return;
+                        }
+                        sendBtn.disabled = true;
+                        rpc('/warranty/otp/' + encodeURIComponent(token) + '/request').then(function(r){
+                            if (r.ok) {
+                                step2.style.display = '';
+                                msg.style.color = '#0e6e6b';
+                                msg.textContent = 'Đã gửi OTP về ' + (r.email_masked || 'email');
+                                startCountdown(r.ttl || 120);
+                                sendBtn.textContent = 'Gửi lại OTP';
+                                sendBtn.disabled = false;
+                            } else {
+                                msg.style.color = '#b91c1c';
+                                msg.textContent = r.error || 'Không gửi được OTP.';
+                                sendBtn.disabled = false;
+                            }
+                        }).catch(function(){
+                            msg.style.color = '#b91c1c';
+                            msg.textContent = 'Lỗi mạng.';
+                            sendBtn.disabled = false;
+                        });
+                    });
+
+                    verifyBtn.addEventListener('click', function(){
+                        var token = (tokenInput.value || '').trim();
+                        var code = (input.value || '').trim();
+                        if (!/^\d{6}$/.test(code)) {
+                            msg.style.color = '#b91c1c';
+                            msg.textContent = 'Mã OTP phải gồm 6 chữ số.';
+                            return;
+                        }
+                        verifyBtn.disabled = true;
+                        rpc('/warranty/otp/' + encodeURIComponent(token) + '/verify', {code: code}).then(function(r){
+                            if (r.ok) {
+                                msg.style.color = '#0e6e6b';
+                                msg.textContent = 'Xác thực thành công, đang chuyển trang…';
+                                if (timer) clearInterval(timer);
+                                window.location = '/warranty/register/' + encodeURIComponent(token);
+                            } else {
+                                msg.style.color = '#b91c1c';
+                                msg.textContent = r.error || 'Mã không đúng.';
+                                verifyBtn.disabled = false;
+                            }
+                        }).catch(function(){
+                            msg.style.color = '#b91c1c';
+                            msg.textContent = 'Lỗi mạng.';
+                            verifyBtn.disabled = false;
+                        });
+                    });
+                })();
+                </script>
             </div>
         </t>
     </template>

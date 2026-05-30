@@ -1,0 +1,347 @@
+// Port từ SYT-hrm bms_hrm/hr_headcount_quota_report.scss để khớp form mẫu chuẩn.
+.o_nxt_report {
+    background-color: #F5F7FB;
+    padding: 20px !important;
+    min-height: 100%;
+    height: 100%;
+    overflow: auto;
+    color: #101828;
+
+    .o_filter_card {
+        background: #ffffff;
+        border-radius: 10px;
+        box-shadow: 0 1px 3px rgba(16, 24, 40, 0.08);
+        padding: 22px 24px;
+        margin-bottom: 20px;
+    }
+
+    .o_filter_label {
+        display: block;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #1F2D5C;
+        letter-spacing: 0.3px;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+    }
+
+    .o_filter_select,
+    .o_datetime_input {
+        width: 100%;
+        border-radius: 8px;
+        border: 1px solid #D0D5DD;
+        padding: 8px 12px;
+        background-color: #fff;
+        font-size: 0.9rem;
+        color: #101828;
+
+        &:focus {
+            outline: none;
+            border-color: #1A73E8;
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.12);
+        }
+    }
+
+    // ---------- Tag multi-select ----------
+    .o_branch_tags_field {
+        position: relative;
+        width: 100%;
+        min-height: 40px;
+        border: 1px solid #D0D5DD;
+        border-radius: 8px;
+        background-color: #fff;
+        padding: 4px 36px 4px 8px;
+        cursor: text;
+
+        &:focus-within {
+            border-color: #1A73E8;
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.12);
+        }
+        > .o_branch_tags > .o_branch_clear_all {
+            position: absolute;
+            top: 50%;
+            right: 6px;
+            transform: translateY(-50%);
+            padding: 4px 6px;
+            margin: 0;
+        }
+    }
+    .o_branch_tags {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+        min-height: 30px;
+    }
+    .o_branch_tags.o_branch_tags--nowrap {
+        flex-wrap: nowrap;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .o_branch_tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background-color: #E7EFFA;
+        color: #1F2D5C;
+        border: 1px solid #C8D3E4;
+        border-radius: 14px;
+        padding: 2px 4px 2px 10px;
+        font-size: 0.82rem;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+    .o_branch_tag_label {
+        max-width: 180px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .o_branch_tag_remove {
+        border: 0;
+        background: transparent;
+        color: #1F2D5C;
+        font-size: 1rem;
+        line-height: 1;
+        padding: 0 4px;
+        cursor: pointer;
+        border-radius: 50%;
+        &:hover { background-color: #1F2D5C; color: #ffffff; }
+    }
+    .o_branch_input {
+        flex: 1;
+        min-width: 100px;
+        border: 0;
+        outline: none;
+        padding: 4px 2px;
+        font-size: 0.9rem;
+        color: #101828;
+        background: transparent;
+    }
+    .o_branch_dropdown {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        max-height: 240px;
+        overflow-y: auto;
+        background-color: #ffffff;
+        border: 1px solid #D0D5DD;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(16, 24, 40, 0.12);
+        z-index: 1000;
+    }
+    .o_branch_dropdown_item {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+        color: #101828;
+        cursor: pointer;
+        &:hover { background-color: #F0F5FC; color: #1F2D5C; }
+    }
+    .o_branch_summary_chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background-color: #E7EFFA;
+        color: #1F2D5C;
+        border: 1px solid #C8D3E4;
+        border-radius: 14px;
+        padding: 2px 10px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        &:hover { background-color: #DCE7F7; }
+    }
+    .o_branch_summary_badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 20px;
+        padding: 0 6px;
+        background-color: #1A73E8;
+        color: #ffffff;
+        border-radius: 10px;
+        font-size: 0.72rem;
+        font-weight: 700;
+    }
+    .o_branch_clear_all {
+        background: transparent;
+        border: 0;
+        color: #B42318;
+        font-size: 0.82rem;
+        font-weight: 500;
+        padding: 2px 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        &:hover { text-decoration: underline; }
+    }
+    .o_branch_popover {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        width: 360px;
+        max-width: 100%;
+        background-color: #ffffff;
+        border: 1px solid #D0D5DD;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(16, 24, 40, 0.18);
+        z-index: 1050;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .o_branch_popover_search {
+        width: 100%;
+        border: 1px solid #D0D5DD;
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 0.85rem;
+        outline: none;
+        &:focus { border-color: #1A73E8; box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.12); }
+    }
+    .o_branch_popover_list { max-height: 280px; overflow-y: auto; margin: 0 -4px; }
+    .o_branch_popover_item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        &:hover { background-color: #F0F5FC; }
+    }
+    .o_branch_popover_item_label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .o_branch_popover_empty { padding: 16px 8px; text-align: center; color: #98A2B3; font-size: 0.85rem; }
+    .o_branch_popover_footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid #EAECF0;
+        padding-top: 8px;
+    }
+    .o_branch_popover_close {
+        background: transparent;
+        border: 1px solid #D0D5DD;
+        color: #344054;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        cursor: pointer;
+        &:hover { background-color: #F2F4F7; }
+    }
+
+    // ---------- Checkbox + nút tìm kiếm ----------
+    .o_nxt_check {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 0.9rem;
+        color: #344054;
+        cursor: pointer;
+        input { width: 16px; height: 16px; cursor: pointer; }
+    }
+    .o_search_btn {
+        background-color: #1A73E8;
+        border: 1px solid #1A73E8;
+        color: #ffffff;
+        padding: 9px 32px;
+        font-weight: 600;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        &:hover:not(:disabled) { background-color: #155CB8; border-color: #155CB8; }
+        &:disabled { opacity: 0.65; cursor: default; }
+    }
+
+    // ---------- Card kết quả ----------
+    .o_report_card {
+        background: #ffffff;
+        border-radius: 10px;
+        box-shadow: 0 1px 3px rgba(16, 24, 40, 0.08);
+        padding: 18px 20px;
+    }
+    .o_report_title {
+        color: #1F2D5C;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin: 0;
+        font-size: 1.05rem;
+        letter-spacing: 0.3px;
+    }
+    .o_nxt_count_badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 12px;
+        border-radius: 14px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        background: #E7EFFA;
+        color: #1F5FBF;
+        white-space: nowrap;
+    }
+    .o_export_btn {
+        background-color: #22C55E;
+        border-color: #22C55E;
+        color: #ffffff;
+        font-weight: 600;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        &:hover:not(:disabled) { background-color: #16A34A; border-color: #16A34A; color: #fff; }
+        &:disabled { opacity: 0.6; }
+    }
+
+    // ---------- Trạng thái rỗng ----------
+    .o_nxt_state {
+        padding: 48px 24px;
+        text-align: center;
+        color: #98A2B3;
+        font-size: 0.95rem;
+        i { margin-right: 6px; font-size: 1rem; }
+    }
+
+    // ---------- Bảng ----------
+    .o_nxt_table_wrap { overflow: auto; max-height: calc(100vh - 320px); }
+    .o_nxt_table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        white-space: nowrap;
+
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background-color: #E7EFFA;
+            color: #1F2D5C;
+            font-weight: 700;
+            text-align: left;
+            border: 1px solid #C8D3E4;
+            padding: 8px 10px;
+        }
+        tbody td {
+            border: 1px solid #E4E7EC;
+            padding: 6px 10px;
+            color: #101828;
+        }
+        tbody tr:hover td { background-color: #F0F5FC; }
+
+        th.o_nxt_num, td.o_nxt_num { text-align: right; font-variant-numeric: tabular-nums; }
+
+        tfoot td {
+            position: sticky;
+            bottom: 0;
+            z-index: 2;
+            background-color: #FFFBEB;
+            font-weight: 700;
+            border: 1px solid #E4E7EC;
+            padding: 8px 10px;
+        }
+    }
+}

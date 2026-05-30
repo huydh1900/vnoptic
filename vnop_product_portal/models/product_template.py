@@ -151,31 +151,36 @@ class ProductTemplate(models.Model):
     )
     _INTEM_MAX_RECORDS = 10000
 
-    def _intem_row_values(self):
-        """Trả về list 17 phần tử khớp thứ tự cột A..Q của template intem.
+    def _intem_row_values(self, warranty_qr_url=''):
+        """Trả về list 18 phần tử khớp thứ tự cột A..R của template intem.
         Cột trống (Date / Export / EA / Number) trả '' để giữ định dạng.
+
+        :param warranty_qr_url: URL QR bảo hành (warranty.registration.register_url)
+            do caller truyền vào — vì warranty là per-SN, không thể derive ở cấp
+            product.template. Caller (vd sale.order) phải build map template→URL.
         """
         self.ensure_one()
         qr_url = self.x_java_qr_url or self.qr_portal_url or ''
         cid = self.barcode or self.default_code or ''
         return [
-            qr_url,                                              # A Qr
-            self.display_name or self.name or '',                # B Name
-            cid,                                                 # C Cid
-            self.country_id.name if self.country_id else '',     # D Country
-            self.brand_id.name if self.brand_id else '',         # E TradeMark
-            self._portal_get_serial(),                           # F Serial
-            self._portal_get_material(),                         # G Material
-            self._portal_get_specification(),                    # H Specification
-            self.list_price or 0.0,                              # I Price
-            '',                                                  # J Date
-            '',                                                  # K Export
-            '',                                                  # L EA
-            self.x_uses or '',                                   # M Use
-            self.x_guide or '',                                  # N Guide
-            self.x_warning or '',                                # O Warning
-            self.x_preserve or '',                               # P Preserve
-            '',                                                  # Q Number
+            warranty_qr_url or '',                               # A QrWarranty
+            qr_url,                                              # B Qr
+            self.display_name or self.name or '',                # C Name
+            cid,                                                 # D Cid
+            self.country_id.name if self.country_id else '',     # E Country
+            self.brand_id.name if self.brand_id else '',         # F TradeMark
+            self._portal_get_serial(),                           # G Serial
+            self._portal_get_material(),                         # H Material
+            self._portal_get_specification(),                    # I Specification
+            self.list_price or 0.0,                              # J Price
+            '',                                                  # K Date
+            '',                                                  # L Export
+            '',                                                  # M EA
+            self.x_uses or '',                                   # N Use
+            self.x_guide or '',                                  # O Guide
+            self.x_warning or '',                                # P Warning
+            self.x_preserve or '',                               # Q Preserve
+            '',                                                  # R Number
         ]
 
     def action_export_intem(self):

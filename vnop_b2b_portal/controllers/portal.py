@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
+import json
+
 from odoo import fields, http
-from odoo.exceptions import AccessError, MissingError
+from odoo.exceptions import AccessError, MissingError, UserError
 from odoo.http import request
 from odoo.addons.portal.controllers.portal import CustomerPortal, pager
 
 
 class B2BPortal(CustomerPortal):
-    """Portal B2B đại lý: catalog, cart, đặt đơn, công nợ."""
+    """Portal B2B đại lý: đơn yêu cầu đặt hàng (CRUD), công nợ."""
 
-    _B2B_PAGE_SIZE = 20
+    _B2B_ORDER_PAGE_SIZE = 20
 
     # -------------------------------------------------------------------------
     # Private helpers
@@ -17,87 +19,66 @@ class B2BPortal(CustomerPortal):
     def _b2b_partner(self):
         """Trả về commercial_partner_id của user hiện tại.
 
-        Raise NotFound nếu:
-        - is_b2b_portal_active = False
-        - Hoặc company mismatch
+        Raise nếu không phải portal user hoặc company mismatch.
         """
-        partner = request.env.user.partner_id.commercial_partner_id
-        if not partner or not partner.is_b2b_portal_active:
+        user = request.env.user
+        if not user.share:
             raise MissingError("Bạn không có quyền truy cập cổng B2B đại lý.")
-
-        # Multi-company check: partner phải thuộc company hiện tại
+        partner = user.partner_id.commercial_partner_id
+        if not partner:
+            raise MissingError("Bạn không có quyền truy cập cổng B2B đại lý.")
         if partner.company_id and partner.company_id.id != request.env.company.id:
             raise MissingError("Công ty không khớp.")
-
         return partner
 
     def _b2b_partner_safe(self):
-        """Trả về partner hoặc None (không raise)."""
         try:
             return self._b2b_partner()
         except (MissingError, AccessError):
             return None
 
     def _b2b_pricelist(self, partner):
-        """Trả pricelist từ partner hoặc default của company."""
         pricelist = partner.property_product_pricelist
         if pricelist:
             return pricelist
-        # Fallback: pricelist mặc định của company
         return request.env['product.pricelist'].sudo().search([
             ('company_id', 'in', (False, request.env.company.id)),
         ], limit=1)
 
-    def _b2b_cart_get(self):
-        """Đọc cart từ session. Format: {str(product_id): qty}."""
-        return dict(request.session.get('b2b_cart', {}))
+    def _b2b_request_domain(self, partner):
+        """Domain chuẩn cho đơn yêu cầu B2B của dealer (loại trừ cancelled)."""
+        return [
+            ('commercial_partner_id', '=', partner.id),
+            ('state', '!=', 'cancelled'),
+        ]
 
-    def _b2b_cart_set(self, cart):
-        """Ghi cart vào session sau khi validate product_id tồn tại + sale_ok=True."""
-        valid_cart = {}
-        if cart:
-            product_ids = [int(pid) for pid in cart.keys()]
-            valid_products = request.env['product.product'].sudo().search([
-                ('id', 'in', product_ids),
-                ('sale_ok', '=', True),
-                ('active', '=', True),
-            ])
-            valid_ids = {p.id for p in valid_products}
-            for pid_str, qty in cart.items():
-                pid = int(pid_str)
-                if pid in valid_ids and qty > 0:
-                    valid_cart[str(pid)] = qty
-        request.session['b2b_cart'] = valid_cart
+    def _b2b_get_request(self, request_id, partner):
+        """Browse + verify ownership."""
+        rec = request.env['vnop.order.request'].sudo().browse(int(request_id)).exists()
+        if not rec or rec.commercial_partner_id.id != partner.id:
+            raise MissingError("Đơn yêu cầu không tồn tại.")
+        return rec
 
-    def _b2b_get_cart_products(self, cart, partner, pricelist):
-        """Trả list dict với product detail + price cho hiển thị cart.
-
-        Batch load để tránh N+1.
-        """
-        if not cart:
-            return []
-        product_ids = [int(pid) for pid in cart.keys()]
-        today = fields.Date.today()
-        products = request.env['product.product'].sudo().browse(product_ids).filtered(
-            lambda p: p.active and p.sale_ok
-        )
+    def _b2b_request_lines_view(self, order_request):
+        """Map request lines → list dict cho template (kèm brand/model/color)."""
         result = []
-        for product in products:
-            qty = cart.get(str(product.id), 0)
-            if qty <= 0:
-                continue
-            price = pricelist._get_product_price(
-                product, qty,
-                uom=product.uom_id,
-                date=today,
-            )
+        for ln in order_request.line_ids:
+            tmpl = ln.product_id.product_tmpl_id
             result.append({
-                'product': product,
-                'qty': qty,
-                'price_unit': price,
-                'subtotal': price * qty,
+                'line': ln,
+                'product': ln.product_id,
+                'brand': tmpl.brand_id.name or '' if 'brand_id' in tmpl._fields else '',
+                'model': (tmpl.opt_model if 'opt_model' in tmpl._fields else '')
+                         or ln.product_id.default_code or '',
+                'color': tmpl.opt_color if 'opt_color' in tmpl._fields else '',
             })
         return result
+
+    def _b2b_dealer_address(self, partner):
+        return ', '.join(
+            ln.strip() for ln in partner.sudo()._display_address(without_company=True).split('\n')
+            if ln.strip()
+        )
 
     def _prepare_home_portal_values(self, counters):
         values = super()._prepare_home_portal_values(counters)
@@ -105,17 +86,13 @@ class B2BPortal(CustomerPortal):
         if not partner:
             return values
 
-        cart = self._b2b_cart_get()
-        cart_count = sum(int(q) for q in cart.values())
+        is_initial_render = not counters
 
-        if 'b2b_order_count' in counters:
-            values['b2b_order_count'] = request.env['sale.order'].sudo().search_count([
-                ('partner_id.commercial_partner_id', '=', partner.id),
-                ('state', '!=', 'cancel'),
-            ])
-        if 'b2b_cart_count' in counters:
-            values['b2b_cart_count'] = cart_count
-        if 'b2b_invoice_count' in counters:
+        if is_initial_render or 'b2b_order_count' in counters:
+            values['b2b_order_count'] = request.env['vnop.order.request'].sudo().search_count(
+                self._b2b_request_domain(partner)
+            )
+        if is_initial_render or 'b2b_invoice_count' in counters:
             values['b2b_invoice_count'] = request.env['account.move'].sudo().search_count([
                 ('partner_id.commercial_partner_id', '=', partner.id),
                 ('move_type', 'in', ('out_invoice', 'out_refund')),
@@ -123,185 +100,228 @@ class B2BPortal(CustomerPortal):
                 ('state', '=', 'posted'),
             ])
 
-        values['is_user_b2b'] = partner
-        values['b2b_cart_count'] = cart_count
+        if is_initial_render:
+            values['is_user_b2b'] = partner
         return values
 
     # -------------------------------------------------------------------------
-    # Routes — Catalog
+    # Routes — Đơn yêu cầu đặt hàng (list + detail + CRUD)
     # -------------------------------------------------------------------------
 
-    @http.route('/my/catalog', type='http', auth='user', website=True)
-    def b2b_catalog(self, page=1, category_id=None, search='', **kw):
+    @http.route('/my/b2b/orders', type='http', auth='user', website=True)
+    def b2b_orders(self, page=1, search='', **kw):
         partner = self._b2b_partner()
-        pricelist = self._b2b_pricelist(partner)
-        today = fields.Date.today()
-
-        domain = [('sale_ok', '=', True), ('active', '=', True)]
-        if category_id:
-            try:
-                category_id = int(category_id)
-                domain.append(('categ_id', 'child_of', category_id))
-            except (ValueError, TypeError):
-                category_id = None
+        domain = self._b2b_request_domain(partner)
         if search:
-            domain += ['|',
-                ('name', 'ilike', search),
-                ('default_code', 'ilike', search),
-            ]
+            domain += [('name', 'ilike', search)]
 
-        Product = request.env['product.product'].sudo()
-        total = Product.search_count(domain)
+        OrderRequest = request.env['vnop.order.request'].sudo()
+        total = OrderRequest.search_count(domain)
         pg = pager(
-            url='/my/catalog',
+            url='/my/b2b/orders',
             total=total,
             page=int(page),
-            step=self._B2B_PAGE_SIZE,
-            url_args={'category_id': category_id or '', 'search': search},
+            step=self._B2B_ORDER_PAGE_SIZE,
+            url_args={'search': search},
         )
-        products_raw = Product.search(domain, offset=pg['offset'], limit=self._B2B_PAGE_SIZE)
-
-        # Batch price fetch
-        product_lines = []
-        for product in products_raw:
-            price = pricelist._get_product_price(
-                product, 1,
-                uom=product.uom_id,
-                date=today,
-            )
-            product_lines.append({'product': product, 'price': price})
-
-        # Category filter options
-        categories = request.env['product.category'].sudo().search([])
+        orders = OrderRequest.search(
+            domain, offset=pg['offset'], limit=self._B2B_ORDER_PAGE_SIZE,
+            order='create_date desc',
+        )
 
         values = self._prepare_portal_layout_values()
         values.update({
             'is_user_b2b': partner,
-            'product_lines': product_lines,
+            'orders': orders,
             'pager': pg,
             'search': search,
-            'category_id': category_id,
-            'categories': categories,
-            'currency': pricelist.currency_id,
-            'page_name': 'b2b_catalog',
+            'page_name': 'b2b_orders',
         })
-        return request.render('vnop_b2b_portal.portal_catalog', values)
+        return request.render('vnop_b2b_portal.portal_orders_list', values)
 
-    # -------------------------------------------------------------------------
-    # Routes — Cart
-    # -------------------------------------------------------------------------
+    @http.route('/my/b2b/orders/new', type='http', auth='user', website=True, methods=['POST'])
+    def b2b_order_new(self, **kw):
+        partner = self._b2b_partner()
+        pricelist = self._b2b_pricelist(partner)
+        order_request = request.env['vnop.order.request'].sudo().create({
+            'partner_id': partner.id,
+            'pricelist_id': pricelist.id if pricelist else False,
+        })
+        return request.redirect(f'/my/b2b/orders/{order_request.id}')
 
-    @http.route('/my/cart/add', type='http', auth='user', website=True, methods=['POST'])
-    def b2b_cart_add(self, product_id, qty=1, **kw):
-        self._b2b_partner()
-        cart = self._b2b_cart_get()
+    @http.route('/my/b2b/orders/<int:order_id>', type='http', auth='user', website=True)
+    def b2b_order_detail(self, order_id, **kw):
+        partner = self._b2b_partner()
+        order_request = self._b2b_get_request(order_id, partner)
+        pricelist = order_request.pricelist_id or self._b2b_pricelist(partner)
+
+        values = self._prepare_portal_layout_values()
+        values.update({
+            'is_user_b2b': partner,
+            'order': order_request,
+            'order_lines_view': self._b2b_request_lines_view(order_request),
+            'can_edit': order_request.state == 'draft',
+            'currency': pricelist.currency_id if pricelist else order_request.currency_id,
+            'company': request.env.company.sudo(),
+            'dealer': partner.sudo(),
+            'dealer_address': self._b2b_dealer_address(partner),
+            'page_name': 'b2b_orders',
+        })
+        return request.render('vnop_b2b_portal.portal_order_form', values)
+
+    def _b2b_assert_editable(self, order_request):
+        if order_request.state != 'draft':
+            raise UserError("Đơn đã gửi, không thể chỉnh sửa.")
+
+    @http.route('/my/b2b/orders/<int:order_id>/line/add',
+                type='http', auth='user', website=True, methods=['POST'])
+    def b2b_order_line_add(self, order_id, product_id, qty=1, **kw):
+        partner = self._b2b_partner()
+        order_request = self._b2b_get_request(order_id, partner)
+        self._b2b_assert_editable(order_request)
         try:
             product_id = int(product_id)
             qty = max(1, int(qty))
         except (ValueError, TypeError):
-            return request.redirect('/my/catalog')
+            return request.redirect(f'/my/b2b/orders/{order_request.id}')
 
-        key = str(product_id)
-        cart[key] = cart.get(key, 0) + qty
-        self._b2b_cart_set(cart)
-        return request.redirect('/my/catalog')
+        product = request.env['product.product'].sudo().browse(product_id).exists()
+        if not product or not product.sale_ok or not product.active:
+            return request.redirect(f'/my/b2b/orders/{order_request.id}')
 
-    @http.route('/my/cart', type='http', auth='user', website=True)
-    def b2b_cart(self, **kw):
+        # Nếu đã có line cùng product → cộng qty thay vì tạo mới
+        existing = order_request.line_ids.filtered(lambda ln: ln.product_id.id == product.id)
+        if existing:
+            existing[0].product_uom_qty = existing[0].product_uom_qty + qty
+        else:
+            request.env['vnop.order.request.line'].sudo().create({
+                'request_id': order_request.id,
+                'product_id': product.id,
+                'name': product.display_name,
+                'product_uom': product.uom_id.id,
+                'product_uom_qty': qty,
+                'price_unit': order_request._get_price_unit(product, qty),
+            })
+        return request.redirect(f'/my/b2b/orders/{order_request.id}')
+
+    @http.route('/my/b2b/orders/<int:order_id>/line/update',
+                type='http', auth='user', website=True, methods=['POST'])
+    def b2b_order_line_update(self, order_id, **kw):
         partner = self._b2b_partner()
-        pricelist = self._b2b_pricelist(partner)
-        cart = self._b2b_cart_get()
-        cart_lines = self._b2b_get_cart_products(cart, partner, pricelist)
-        total = sum(line['subtotal'] for line in cart_lines)
+        order_request = self._b2b_get_request(order_id, partner)
+        self._b2b_assert_editable(order_request)
 
-        values = self._prepare_portal_layout_values()
-        values.update({
-            'is_user_b2b': partner,
-            'cart_lines': cart_lines,
-            'cart_total': total,
-            'currency': pricelist.currency_id,
-            'page_name': 'b2b_cart',
-        })
-        return request.render('vnop_b2b_portal.portal_cart', values)
-
-    @http.route('/my/cart/update', type='http', auth='user', website=True, methods=['POST'])
-    def b2b_cart_update(self, **kw):
-        self._b2b_partner()
-        cart = self._b2b_cart_get()
-        # Hỗ trợ cập nhật nhiều dòng cùng lúc: qty_<pid>=<qty>
         for key, val in kw.items():
-            if key.startswith('qty_'):
-                try:
-                    pid = str(int(key[4:]))
-                    qty = int(val)
-                    if qty <= 0:
-                        cart.pop(pid, None)
-                    else:
-                        cart[pid] = qty
-                except (ValueError, TypeError):
-                    continue
-        self._b2b_cart_set(cart)
-        return request.redirect('/my/cart')
+            if not key.startswith('qty_'):
+                continue
+            try:
+                line_id = int(key[4:])
+                qty = int(val)
+            except (ValueError, TypeError):
+                continue
+            line = order_request.line_ids.filtered(lambda ln: ln.id == line_id)
+            if not line:
+                continue
+            if qty <= 0:
+                line.unlink()
+            else:
+                line.product_uom_qty = qty
+        return request.redirect(f'/my/b2b/orders/{order_request.id}')
 
-    @http.route('/my/cart/checkout', type='http', auth='user', website=True, methods=['POST'])
-    def b2b_cart_checkout(self, **kw):
+    @http.route('/my/b2b/orders/<int:order_id>/line/<int:line_id>/remove',
+                type='http', auth='user', website=True, methods=['POST'])
+    def b2b_order_line_remove(self, order_id, line_id, **kw):
         partner = self._b2b_partner()
-        pricelist = self._b2b_pricelist(partner)
-        cart = self._b2b_cart_get()
+        order_request = self._b2b_get_request(order_id, partner)
+        self._b2b_assert_editable(order_request)
+        line = order_request.line_ids.filtered(lambda ln: ln.id == line_id)
+        if line:
+            line.unlink()
+        return request.redirect(f'/my/b2b/orders/{order_request.id}')
 
-        if not cart:
-            return request.redirect('/my/cart')
+    @http.route('/my/b2b/orders/<int:order_id>/submit',
+                type='http', auth='user', website=True, methods=['POST'])
+    def b2b_order_submit(self, order_id, **kw):
+        partner = self._b2b_partner()
+        order_request = self._b2b_get_request(order_id, partner)
+        self._b2b_assert_editable(order_request)
+        if not order_request.line_ids:
+            return request.redirect(f'/my/b2b/orders/{order_request.id}')
+        order_request.action_submit()
+        return request.redirect(f'/my/b2b/orders/{order_request.id}')
 
-        today = fields.Date.today()
-        product_ids = [int(pid) for pid in cart.keys()]
-        products = request.env['product.product'].sudo().search([
-            ('id', 'in', product_ids),
+    @http.route('/my/b2b/orders/<int:order_id>/cancel',
+                type='http', auth='user', website=True, methods=['POST'])
+    def b2b_order_cancel(self, order_id, **kw):
+        """Hủy đơn nháp (chưa gửi)."""
+        partner = self._b2b_partner()
+        order_request = self._b2b_get_request(order_id, partner)
+        self._b2b_assert_editable(order_request)
+        order_request.action_cancel()
+        return request.redirect('/my/b2b/orders')
+
+    # -------------------------------------------------------------------------
+    # Routes — Brand/Model/Color cascade (JSON)
+    # -------------------------------------------------------------------------
+
+    def _b2b_json(self, payload):
+        return request.make_response(
+            json.dumps(payload),
+            headers=[('Content-Type', 'application/json')],
+        )
+
+    @http.route('/my/b2b/products/brands', type='http', auth='user', website=True)
+    def b2b_products_brands(self, **kw):
+        self._b2b_partner()
+        templates = request.env['product.template'].sudo().search([
             ('sale_ok', '=', True),
             ('active', '=', True),
+            ('brand_id', '!=', False),
         ])
-        valid_ids = {p.id: p for p in products}
+        brands = templates.brand_id.sorted('name')
+        return self._b2b_json({'results': [{'id': b.id, 'name': b.name} for b in brands]})
 
-        skipped_products = []
-        order_lines = []
-        for pid_str, qty in cart.items():
-            pid = int(pid_str)
-            product = valid_ids.get(pid)
-            if not product:
-                skipped_products.append(pid_str)
-                continue
-            price = pricelist._get_product_price(
-                product, qty,
-                uom=product.uom_id,
-                date=today,
-            )
-            order_lines.append((0, 0, {
-                'product_id': product.id,
-                'product_uom_qty': qty,
-                'price_unit': price,
-            }))
+    @http.route('/my/b2b/products/models', type='http', auth='user', website=True)
+    def b2b_products_models(self, brand_id=None, **kw):
+        self._b2b_partner()
+        try:
+            brand_id = int(brand_id)
+        except (TypeError, ValueError):
+            return self._b2b_json({'results': []})
+        templates = request.env['product.template'].sudo().search([
+            ('sale_ok', '=', True),
+            ('active', '=', True),
+            ('brand_id', '=', brand_id),
+            ('opt_model', '!=', False),
+        ])
+        models = sorted({t.opt_model for t in templates if t.opt_model})
+        return self._b2b_json({'results': [{'model': m} for m in models]})
 
-        if not order_lines:
-            return request.redirect('/my/cart')
-
-        order_vals = {
-            'partner_id': partner.id,
-            'pricelist_id': pricelist.id,
-            'order_line': order_lines,
-        }
-        SaleOrder = request.env['sale.order'].sudo()
-        order = SaleOrder.create(order_vals)
-        order._compute_amounts()
-
-        # Xóa cart
-        self._b2b_cart_set({})
-
-        # Cảnh báo nếu có sản phẩm bị bỏ qua
-        if skipped_products:
-            request.session['b2b_checkout_warning'] = (
-                'Một số sản phẩm đã bị xóa hoặc không còn khả dụng và đã bị bỏ qua.'
-            )
-
-        return request.redirect(order.get_portal_url())
+    @http.route('/my/b2b/products/colors', type='http', auth='user', website=True)
+    def b2b_products_colors(self, brand_id=None, opt_model=None, **kw):
+        self._b2b_partner()
+        try:
+            brand_id = int(brand_id)
+        except (TypeError, ValueError):
+            return self._b2b_json({'results': []})
+        opt_model = (opt_model or '').strip()
+        if not opt_model:
+            return self._b2b_json({'results': []})
+        templates = request.env['product.template'].sudo().search([
+            ('sale_ok', '=', True),
+            ('active', '=', True),
+            ('brand_id', '=', brand_id),
+            ('opt_model', '=', opt_model),
+            ('opt_color', '!=', False),
+        ])
+        # Group by color (lấy variant chính của template đầu tiên match)
+        seen = {}
+        for t in templates:
+            c = (t.opt_color or '').strip()
+            if c and c not in seen and t.product_variant_id:
+                seen[c] = t.product_variant_id.id
+        results = [{'color': c, 'product_id': pid} for c, pid in sorted(seen.items())]
+        return self._b2b_json({'results': results})
 
     # -------------------------------------------------------------------------
     # Routes — Financial
@@ -320,10 +340,8 @@ class B2BPortal(CustomerPortal):
             ('payment_state', 'not in', ('paid', 'in_payment')),
         ], order='invoice_date_due asc')
 
-        # Tổng dư nợ
         total_overdue = sum(inv.amount_residual for inv in unpaid_invoices)
 
-        # Paid this month: tháng hiện tại (1st → today)
         month_start = today.replace(day=1)
         paid_invoices = AccountMove.search([
             ('partner_id.commercial_partner_id', '=', partner.id),
@@ -335,7 +353,6 @@ class B2BPortal(CustomerPortal):
         ])
         paid_this_month = sum(inv.amount_total for inv in paid_invoices)
 
-        # Aging buckets
         aging_buckets = {'0-30': 0.0, '31-60': 0.0, '61-90': 0.0, 'over-90': 0.0}
         for inv in unpaid_invoices:
             days = (today - inv.invoice_date_due).days if inv.invoice_date_due else 0

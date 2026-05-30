@@ -1,0 +1,101 @@
+// Footer style đồng bộ với vnop_product_portal/vnoptic_public_layout.
+// Copy có chủ đích để portal pages (/my/*) hiển thị footer giống public website
+// mà không cross-depend vnop_product_portal. Nếu update style ở 1 chỗ, nhớ sync
+// chỗ còn lại (TODO: extract reusable nếu cần maintain lâu dài).
+
+.vn-footer {
+    background: #1ba3d5;
+    color: #ffffff;
+    padding: 40px 32px 22px;
+
+    &-inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1.5fr 1fr 1fr 1fr;
+        gap: 36px;
+    }
+
+    h4 {
+        margin: 0 0 16px;
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    ul {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 14px;
+    }
+
+    li {
+        padding: 5px 0;
+        font-size: 14px;
+        color: #ffffff;
+
+        &::before {
+            content: "•";
+            margin-right: 10px;
+            color: #ffffff;
+        }
+    }
+
+    p {
+        margin: 0 0 14px;
+        font-size: 14px;
+        line-height: 1.65;
+        color: #ffffff;
+    }
+
+    .contact-row {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        margin: 6px 0;
+        font-size: 14px;
+        color: #ffffff;
+
+        svg {
+            flex-shrink: 0;
+            margin-top: 3px;
+        }
+    }
+
+    .vn-footer-link,
+    ul a {
+        color: #ffffff;
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+
+    .vn-foot-label {
+        margin-top: 14px;
+        font-size: 14px;
+        color: #ffffff;
+    }
+}
+
+.vn-footer-bottom {
+    background: #a5cd39;
+    color: #ffffff;
+    text-align: center;
+    padding: 14px 16px;
+    font-size: 14px;
+}
+
+@media (max-width: 900px) {
+    .vn-footer-inner {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 560px) {
+    .vn-footer-inner {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+}

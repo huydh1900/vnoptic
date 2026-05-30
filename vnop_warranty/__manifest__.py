@@ -1,12 +1,14 @@
 {
     'name': 'VNOptic - Bảo hành',
-    'version': '18.0.1.1.0',
+    'version': '18.0.1.6.0',
     'category': 'Sales',
     'summary': 'Đăng ký + tra cứu bảo hành (MVP)',
     'depends': [
         'vnop_sync',
         'vnop_product_portal',
         'sale_management',
+        'sale_stock',
+        'stock',
         'website',
     ],
     'data': [
@@ -15,6 +17,7 @@
         'views/warranty_registration_views.xml',
         'views/sale_order_views.xml',
         'views/menu.xml',
+        'wizard/warranty_label_preview_views.xml',
         'templates/website_templates.xml',
         'templates/warranty_label_print.xml',
     ],

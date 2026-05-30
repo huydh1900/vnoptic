@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- ============ Tag multi-select (chip + dropdown + popover) ============ -->
+    <t t-name="vnop_stock_nxt.TagSelect">
+        <div class="o_branch_tags_field" t-on-click="openDropdown">
+            <div class="o_branch_tags o_branch_tags--nowrap">
+                <span t-foreach="visible" t-as="o" t-key="o.id" class="o_branch_tag">
+                    <span class="o_branch_tag_label" t-esc="o.name"/>
+                    <button type="button" class="o_branch_tag_remove"
+                            t-on-click.stop="() => this.remove(o.id)">×</button>
+                </span>
+                <button t-if="hiddenCount > 0" type="button" class="o_branch_summary_chip"
+                        t-on-click.stop="togglePopover" t-att-aria-expanded="state.popoverOpen">
+                    <span class="o_branch_summary_badge">+<t t-esc="hiddenCount"/></span>
+                </button>
+                <input type="text" class="o_branch_input"
+                       t-att-value="state.query"
+                       t-on-input="onQueryInput"
+                       t-on-focus="openDropdown"
+                       t-on-blur="closeDropdown"
+                       t-att-placeholder="selected.length ? '' : (props.placeholder || 'Chọn...')"/>
+                <button t-if="selected.length" type="button" class="o_branch_clear_all"
+                        t-on-click.stop="clearAll" title="Xoá tất cả">
+                    <i class="fa fa-times-circle"/>
+                </button>
+            </div>
+
+            <div t-if="state.popoverOpen" class="o_branch_popover" t-on-click.stop="">
+                <input type="text" class="o_branch_popover_search"
+                       t-att-value="state.popoverSearch" t-on-input="onPopoverSearch"
+                       placeholder="Tìm trong mục đã chọn..."/>
+                <div class="o_branch_popover_list">
+                    <div t-foreach="filteredInPopover" t-as="o" t-key="o.id" class="o_branch_popover_item">
+                        <span class="o_branch_popover_item_label" t-esc="o.name"/>
+                        <button type="button" class="o_branch_tag_remove"
+                                t-on-click.stop="() => this.remove(o.id)">×</button>
+                    </div>
+                    <div t-if="!filteredInPopover.length" class="o_branch_popover_empty">
+                        <i class="fa fa-search me-2"/> Không tìm thấy
+                    </div>
+                </div>
+                <div class="o_branch_popover_footer">
+                    <button type="button" class="o_branch_clear_all" t-on-click.stop="clearAll">
+                        <i class="fa fa-times-circle"/> Xoá tất cả
+                    </button>
+                    <button type="button" class="o_branch_popover_close" t-on-click.stop="togglePopover">Đóng</button>
+                </div>
+            </div>
+
+            <div t-if="state.dropdownOpen and filteredOptions.length" class="o_branch_dropdown">
+                <div t-foreach="filteredOptions" t-as="o" t-key="o.id"
+                     class="o_branch_dropdown_item"
+                     t-on-mousedown.prevent="() => this.add(o.id)" t-esc="o.name"/>
+            </div>
+        </div>
+    </t>
+
+    <!-- ============ Báo cáo NXT ============ -->
+    <t t-name="vnop_stock_nxt.NxtReport">
+        <div class="o_nxt_report">
+
+            <!-- Card filter -->
+            <div class="o_filter_card">
+                <div class="row g-3 mb-3 align-items-end">
+                    <div class="col-md-2">
+                        <label class="o_filter_label">Từ ngày</label>
+                        <DateTimeInput type="'date'" value="state.fromDate" format="'dd/MM/yyyy'"
+                                       placeholder="'dd/mm/yyyy'" onChange.bind="onFromChange"/>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="o_filter_label">Đến ngày</label>
+                        <DateTimeInput type="'date'" value="state.toDate" format="'dd/MM/yyyy'"
+                                       placeholder="'dd/mm/yyyy'" onChange.bind="onToChange"/>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="o_filter_label">Kho</label>
+                        <TagSelect options="state.warehouses" ids="state.selectedWh"
+                                   placeholder="'Chọn kho...'" update.bind="onWhUpdate"/>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="o_filter_label">Nhóm sản phẩm</label>
+                        <TagSelect options="state.classifications" ids="state.selectedCls"
+                                   placeholder="'Chọn nhóm...'" update.bind="onClsUpdate"/>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="o_filter_label">Tìm kiếm</label>
+                        <input type="text" class="o_filter_select" t-model="state.search"
+                               placeholder="Tên / mã / mã vạch..."
+                               t-on-keydown="onSearchKeydown"/>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-center align-items-center gap-4">
+                    <label class="o_nxt_check mb-0">
+                        <input type="checkbox" t-model="state.onlyMovement"/>
+                        Chỉ sản phẩm có phát sinh
+                    </label>
+                    <button type="button" class="o_search_btn" t-on-click="onSearch"
+                            t-att-disabled="state.loading">
+                        <i class="fa fa-search"/>
+                        <t t-if="state.loading">Đang tải...</t>
+                        <t t-else="">Tìm kiếm</t>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Card kết quả -->
+            <div class="o_report_card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <h5 class="o_report_title">Danh sách Nhập - Xuất - Tồn</h5>
+                        <span class="o_nxt_count_badge" t-if="state.searched and !state.loading">
+                            <t t-esc="state.count"/> dòng<t t-if="state.limited"> · hiển thị 1000 đầu</t>
+                        </span>
+                    </div>
+                    <button type="button" class="btn o_export_btn btn-sm" t-on-click="onExport"
+                            t-att-disabled="state.loading or state.exporting or !state.searched">
+                        <i class="fa fa-file-excel-o"/>
+                        <t t-if="state.exporting">Đang xuất...</t>
+                        <t t-else="">Xuất Excel</t>
+                    </button>
+                </div>
+
+                <div t-if="state.loading" class="o_nxt_state">
+                    <i class="fa fa-spinner fa-spin"/> Đang tải dữ liệu...
+                </div>
+                <div t-elif="!state.searched" class="o_nxt_state">
+                    <i class="fa fa-filter"/> Chọn điều kiện và nhấn <b class="mx-1">Tìm kiếm</b> để hiển thị báo cáo.
+                </div>
+                <div t-elif="!state.rows.length" class="o_nxt_state">
+                    <i class="fa fa-inbox"/> Không có dữ liệu phù hợp.
+                </div>
+                <div t-else="" class="o_nxt_table_wrap">
+                    <table class="o_nxt_table">
+                        <thead>
+                            <tr>
+                                <t t-foreach="state.columns" t-as="col" t-key="col.key">
+                                    <th t-att-class="isNum(col.key) ? 'o_nxt_num' : ''" t-esc="col.label"/>
+                                </t>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="state.rows" t-as="row" t-key="row_index">
+                                <t t-foreach="state.columns" t-as="col" t-key="col.key">
+                                    <td t-att-class="isNum(col.key) ? 'o_nxt_num' : ''"
+                                        t-esc="fmt(row[col.key], col.key)"/>
+                                </t>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="o_total_row">
+                                <t t-foreach="state.columns" t-as="col" t-key="col.key">
+                                    <td t-att-class="isNum(col.key) ? 'o_nxt_num' : ''">
+                                        <t t-if="col.key === 'wh_code'">TỔNG</t>
+                                        <t t-elif="isNum(col.key)" t-esc="fmt(state.totals[col.key], col.key)"/>
+                                    </td>
+                                </t>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </t>
+
+</templates>

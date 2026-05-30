@@ -25,6 +25,30 @@
                 <attribute name="string">Tỉnh</attribute>
                 <attribute name="placeholder">Tỉnh</attribute>
             </xpath>
+            <xpath expr="(//span[@name='address_name'])[1]" position="replace"/>
+            <xpath expr="(//div[hasclass('o_address_format')])[1]" position="replace">
+                <field name="vat" string="Mã số thuế" placeholder="Mã số thuế" readonly="parent_id"/>
+                <field name="country_id" string="Quốc gia" placeholder="Chọn quốc gia"
+                       options='{"no_open": True, "no_create": True}'
+                       readonly="type == 'contact' and parent_id"/>
+                <field name="state_id" string="Tỉnh/Thành phố" placeholder="Chọn Tỉnh/Thành phố"
+                       options="{'no_open': True, 'no_quick_create': True}"
+                       readonly="type == 'contact' and parent_id"
+                       context="{'country_id': country_id, 'default_country_id': country_id}"/>
+                <field name="ward_id" string="Phường/Xã" placeholder="Chọn Phường/Xã"
+                       options="{'no_open': True, 'no_create': True}"
+                       domain="[('state_id', '=', state_id)]"
+                       readonly="type == 'contact' and parent_id"/>
+                <field name="street" string="Địa chỉ cụ thể" placeholder="Số nhà, tên đường..."
+                       readonly="type == 'contact' and parent_id"/>
+                <field name="city" invisible="1"/>
+                <field name="street2" invisible="1"/>
+                <field name="zip" invisible="1"/>
+            </xpath>
+            <xpath expr="(//field[@name='vat'])[last()]" position="replace"/>
+            <xpath expr="(//field[@name='mobile'])[1]" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
         </field>
     </record>
     <record id="vnoptic_view_partner_tree_inherit" model="ir.ui.view">

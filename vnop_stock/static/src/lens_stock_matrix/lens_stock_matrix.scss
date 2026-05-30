@@ -6,97 +6,432 @@
     overflow: hidden;
 
     .o_lsm_header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        padding: 18px 24px;
-        background: #ffffff;
-        border-bottom: 1px solid #e4e8ef;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        padding: 20px 24px 8px;
+        background: #f7f9fc;
 
-        .o_lsm_title h2 {
-            margin: 0 0 2px 0;
-            font-size: 20px;
-            font-weight: 600;
-            color: #1f2937;
+        .o_lsm_search_card {
+            background: #ffffff;
+            border: 1px solid #e4e8ef;
+            border-radius: 14px;
+            padding: 20px 24px 18px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
         }
 
-        .o_lsm_actions {
+        .o_lsm_card_head {
             display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 14px;
         }
-
-        .o_lsm_search {
-            display: flex;
-            align-items: flex-end;
-            gap: 8px;
-            padding: 6px 10px;
-            background: #f7faff;
-            border: 1px solid #e0e7f3;
-            border-radius: 8px;
-
-            .o_lsm_search_field {
-                display: flex;
-                flex-direction: column;
-                min-width: 130px;
-
-                label {
-                    font-size: 11px;
-                    font-weight: 600;
-                    color: #6b7280;
-                    text-transform: uppercase;
-                    letter-spacing: 0.3px;
-                    margin-bottom: 2px;
-                }
-
-                input {
-                    font-variant-numeric: tabular-nums;
-                    border-color: #d6e2f5;
-
-                    &:focus {
-                        border-color: #2d73de;
-                        box-shadow: 0 0 0 2px rgba(45, 115, 222, 0.15);
-                    }
-                }
-            }
-
-            .o_lsm_search_btn {
-                align-self: flex-end;
-                margin-bottom: 0;
-                height: 31px;
-                white-space: nowrap;
-            }
-
-            .o_lsm_clear {
-                align-self: flex-end;
-                margin-bottom: 0;
-                height: 31px;
-                padding: 4px 8px;
-                color: #6b7280;
-
-                &:hover {
-                    color: #dc2626;
-                }
-            }
+        .o_lsm_card_title {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 700;
+            color: #1e3a8a;
+        }
+        .o_lsm_card_sub {
+            margin: 2px 0 0;
+            font-size: 12.5px;
+            color: #6b7280;
         }
 
         .o_lsm_total_badge {
-            padding: 6px 12px;
+            align-self: center;
+            padding: 6px 14px;
             background: #eef4ff;
             color: #2d73de;
             border-radius: 999px;
             font-size: 13px;
+            white-space: nowrap;
             b { font-weight: 700; }
+        }
+
+        .o_lsm_grid {
+            display: grid;
+            // Nhóm Mắt hẹp (0.7) — Tên Tròng kính rộng (1.8) — SPH/CYL bằng nhau (1).
+            grid-template-columns:
+                minmax(0, 0.7fr)
+                minmax(0, 1.8fr)
+                minmax(0, 1fr)
+                minmax(0, 1fr);
+            gap: 16px;
+
+            @media (max-width: 1100px) {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            @media (max-width: 600px) {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .o_lsm_field_label {
+            display: block;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+        .o_lsm_field_hint {
+            font-weight: 400;
+            color: #9ca3af;
+        }
+
+        .o_lsm_lens_box {
+            .o_lsm_lens_trigger {
+                text-align: left;
+                background: #fff;
+                cursor: pointer;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                padding-right: 56px;
+            }
+            .o_lsm_lens_trigger_placeholder {
+                color: inherit;
+            }
+            // Caret ▼ nằm trong .o_lsm_lens_box (không phải .o_lsm_combobox),
+            // nên phải khai lại position absolute ở đây, nếu không sẽ bị
+            // flex container đẩy ra ngoài bên phải ô input.
+            .o_lsm_combo_caret {
+                position: absolute;
+                right: 12px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 11px;
+                color: #9ca3af;
+                pointer-events: none;
+                transition: transform .15s ease;
+
+                &.o_lsm_caret_open {
+                    transform: translateY(-50%) rotate(180deg);
+                }
+            }
+        }
+
+        .o_lsm_lens_popup {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            z-index: 30;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+            display: flex;
+            flex-direction: column;
+            max-height: 320px;
+            overflow: hidden;
+
+            .o_lsm_lens_popup_search {
+                padding: 10px;
+                border-bottom: 1px solid #f1f5f9;
+                input {
+                    height: 34px;
+                    font-size: 13px;
+                    border-radius: 6px;
+                }
+            }
+            .o_lsm_lens_popup_list {
+                flex: 1 1 auto;
+                overflow-y: auto;
+                padding: 4px 0;
+            }
+            .o_lsm_lens_popup_item {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding: 8px 14px;
+                background: transparent;
+                border: 0;
+                font-size: 13px;
+                color: #111827;
+                text-align: left;
+                cursor: pointer;
+                &:hover { background: #f8fafc; }
+            }
+            .o_lsm_lens_popup_item_active {
+                background: #eff6ff;
+                color: #1d4ed8;
+                font-weight: 500;
+            }
+            .o_lsm_lens_popup_item_all {
+                color: #2d73de;
+                border-bottom: 1px solid #eef1f6;
+            }
+            .o_lsm_lens_popup_name {
+                flex: 1 1 auto;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .o_lsm_lens_popup_remove {
+                color: #94a3b8;
+                cursor: pointer;
+                padding: 2px 6px;
+                border-radius: 4px;
+                &:hover { color: #ef4444; background: #fef2f2; }
+            }
+            .o_lsm_lens_popup_empty {
+                padding: 14px;
+                color: #9ca3af;
+                font-size: 13px;
+                text-align: center;
+            }
+            .o_lsm_lens_popup_more {
+                padding: 8px 14px;
+                color: #6b7280;
+                font-size: 12px;
+                font-style: italic;
+                text-align: center;
+                border-top: 1px dashed #e5e7eb;
+            }
+            .o_lsm_lens_popup_foot {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 8px 12px;
+                border-top: 1px solid #f1f5f9;
+                background: #fafafa;
+                .o_lsm_lens_popup_clear {
+                    background: transparent;
+                    border: 0;
+                    color: #ef4444;
+                    font-size: 13px;
+                    cursor: pointer;
+                    padding: 4px 6px;
+                    &:hover { text-decoration: underline; }
+                }
+                .o_lsm_lens_popup_close {
+                    background: #fff;
+                    border: 1px solid #d1d5db;
+                    color: #374151;
+                    font-size: 13px;
+                    padding: 5px 14px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    &:hover { background: #f3f4f6; }
+                }
+            }
+        }
+
+        .o_lsm_input {
+            position: relative;
+            display: flex;
+            align-items: center;
+
+            .o_lsm_input_icon {
+                position: absolute;
+                left: 12px;
+                top: 50%;
+                transform: translateY(-50%);
+                color: #9ca3af;
+                font-size: 13px;
+                pointer-events: none;
+            }
+
+            .o_lsm_control {
+                width: 100%;
+                height: 40px;
+                padding: 8px 34px 8px 34px;
+                font-size: 13.5px;
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                color: #1f2937;
+                transition: border-color .15s, box-shadow .15s;
+                font-variant-numeric: tabular-nums;
+
+                &::placeholder { color: #9ca3af; }
+
+                &:focus {
+                    outline: none;
+                    border-color: #2d73de;
+                    box-shadow: 0 0 0 3px rgba(45, 115, 222, 0.15);
+                }
+            }
+
+            .o_lsm_select {
+                appearance: none;
+                -webkit-appearance: none;
+                background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%239ca3af' d='M0 0l5 6 5-6z'/></svg>");
+                background-repeat: no-repeat;
+                background-position: right 12px center;
+                padding-right: 30px;
+            }
+
+            .o_lsm_input_clear {
+                position: absolute;
+                right: 30px;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 22px;
+                height: 22px;
+                border: none;
+                background: transparent;
+                color: #dc2626;
+                cursor: pointer;
+                border-radius: 4px;
+
+                &:hover { color: #ffffff; background: #dc2626; }
+            }
+        }
+
+        .o_lsm_combobox {
+            position: relative;
+
+            .o_lsm_combo_caret {
+                position: absolute;
+                right: 12px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 11px;
+                color: #9ca3af;
+                pointer-events: none;
+                transition: transform .15s ease;
+
+                &.o_lsm_caret_open {
+                    transform: translateY(-50%) rotate(180deg);
+                }
+            }
+
+            .o_lsm_combo {
+                padding-right: 30px;
+            }
+        }
+
+        .o_lsm_dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            max-height: 240px;
+            overflow-y: auto;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+            z-index: 1050;
+            padding: 4px;
+
+            .o_lsm_dropdown_item {
+                display: block;
+                width: 100%;
+                text-align: left;
+                padding: 8px 12px;
+                border: none;
+                background: transparent;
+                color: #1f2937;
+                font-size: 13.5px;
+                font-variant-numeric: tabular-nums;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: background-color .1s;
+
+                &:hover, &:focus {
+                    background: #eef4ff;
+                    color: #2d73de;
+                    outline: none;
+                }
+            }
+
+            &.o_lsm_dropdown_empty {
+                padding: 12px;
+                color: #9ca3af;
+                font-size: 13px;
+                text-align: center;
+            }
+
+            .o_lsm_dropdown_item_all {
+                color: #2d73de;
+                border-bottom: 1px solid #eef1f6;
+                margin-bottom: 2px;
+            }
+
+            .o_lsm_dropdown_empty_row {
+                padding: 10px 12px;
+                color: #9ca3af;
+                font-size: 12.5px;
+                text-align: center;
+                font-style: italic;
+            }
+
+            /* Scrollbar mảnh cho dropdown */
+            &::-webkit-scrollbar { width: 8px; }
+            &::-webkit-scrollbar-thumb {
+                background: #d6e2f5;
+                border-radius: 4px;
+            }
+        }
+
+        .o_lsm_card_actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .o_lsm_btn_primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 40px;
+            padding: 0 22px;
+            background: #2d73de;
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            font-size: 13.5px;
+            font-weight: 600;
+            box-shadow: 0 2px 6px rgba(45, 115, 222, 0.25);
+            transition: background-color .15s, box-shadow .15s, transform .05s;
+
+            &:hover { background: #2461c4; color: #ffffff; }
+            &:active { transform: translateY(1px); }
+        }
+
+        .o_lsm_btn_ghost {
+            height: 40px;
+            padding: 0 14px;
+            background: transparent;
+            color: #6b7280;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 13px;
+
+            &:hover { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
+        }
+
+        .o_lsm_btn_danger {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 40px;
+            padding: 0 18px;
+            background: #dc2626;
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            font-size: 13.5px;
+            font-weight: 600;
+            box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
+            transition: background-color .15s, box-shadow .15s, transform .05s;
+
+            &:hover { background: #b91c1c; color: #ffffff; }
+            &:active { transform: translateY(1px); }
         }
     }
 
     .o_lsm_body {
         flex: 1;
-        overflow: auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
         padding: 24px;
     }
 
@@ -168,15 +503,16 @@
                 letter-spacing: 0.3px;
                 line-height: 1;
             }
+            // Rows = SPH (trái), Cols = CYL (trên): nhãn flip lại tương ứng.
             .o_lsm_corner_sph {
-                top: 8px;
-                right: 12px;
-                color: #0ea573;
-            }
-            .o_lsm_corner_cyl {
                 bottom: 8px;
                 left: 12px;
                 color: #2d73de;
+            }
+            .o_lsm_corner_cyl {
+                top: 8px;
+                right: 12px;
+                color: #0ea573;
             }
         }
 
@@ -199,11 +535,20 @@
         .o_lsm_cell {
             font-variant-numeric: tabular-nums;
             transition: background-color 0.15s ease;
+            cursor: default;
 
             &:hover {
                 outline: 2px solid #2d73de;
                 outline-offset: -2px;
-                cursor: default;
+            }
+
+            &.o_lsm_cell_clickable {
+                cursor: pointer;
+
+                &:hover {
+                    outline: 2px solid #1d4ed8;
+                    background-color: rgba(45, 115, 222, 0.18) !important;
+                }
             }
         }
 

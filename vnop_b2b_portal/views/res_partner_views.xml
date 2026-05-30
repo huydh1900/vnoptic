@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_partner_form_b2b" model="ir.ui.view">
+        <field name="name">res.partner.form.b2b</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='sales_purchases']//group[@name='container_row_2']" position="inside">
+                <group string="Cổng B2B" name="b2b_portal_info">
+                    <button name="%(portal.partner_wizard_action_create_and_open)d"
+                            type="action"
+                            string="Cấp quyền B2B Portal"
+                            class="btn-primary"
+                            invisible="not id"
+                            context="{'active_model': 'res.partner', 'active_ids': [id], 'active_id': id}"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

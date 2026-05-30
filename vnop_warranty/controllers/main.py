@@ -21,6 +21,14 @@ class WarrantyPortal(http.Controller):
         )
         if not reg:
             return request.render('vnop_warranty.template_warranty_not_found')
+        # 1) User login Odoo → view dealer luôn.
+        # 2) Public user đã verify OTP qua session → cũng vào view dealer.
+        user = request.env.user
+        dealer_session_key = 'warranty_dealer_view_%d' % reg.id
+        if not user._is_public() or request.session.get(dealer_session_key):
+            return request.render(
+                'vnop_warranty.template_warranty_internal_view', {'reg': reg},
+            )
         if reg.state != 'pending':
             return request.render(
                 'vnop_warranty.template_warranty_already_active', {'reg': reg},
@@ -28,6 +36,42 @@ class WarrantyPortal(http.Controller):
         return request.render(
             'vnop_warranty.template_warranty_register_form', {'reg': reg},
         )
+
+    @http.route(
+        '/warranty/otp/<string:token>/request',
+        type='json', auth='public', csrf=False,
+    )
+    def otp_request(self, token, **kw):
+        reg = request.env['warranty.registration'].sudo().search(
+            [('token', '=', token)], limit=1,
+        )
+        if not reg:
+            return {'ok': False, 'error': 'Không tìm thấy phiếu.'}
+        email = reg._generate_dealer_otp()
+        if not email:
+            return {'ok': False, 'error': 'Đơn này chưa có email đối tác để nhận OTP.'}
+        # Mask email: a***@domain
+        try:
+            local, domain = email.split('@', 1)
+            masked = (local[0] + '***' if local else '***') + '@' + domain
+        except ValueError:
+            masked = '***'
+        return {'ok': True, 'email_masked': masked, 'ttl': 120}
+
+    @http.route(
+        '/warranty/otp/<string:token>/verify',
+        type='json', auth='public', csrf=False,
+    )
+    def otp_verify(self, token, code=None, **kw):
+        reg = request.env['warranty.registration'].sudo().search(
+            [('token', '=', token)], limit=1,
+        )
+        if not reg:
+            return {'ok': False, 'error': 'Không tìm thấy phiếu.'}
+        if not reg._verify_dealer_otp(code or ''):
+            return {'ok': False, 'error': 'Mã OTP không đúng hoặc đã hết hạn.'}
+        request.session['warranty_dealer_view_%d' % reg.id] = True
+        return {'ok': True}
 
     @http.route(
         '/warranty/register/<string:token>/submit',

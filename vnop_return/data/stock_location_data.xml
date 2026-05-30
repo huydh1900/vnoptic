@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Kho Thanh Lý: chứa hàng trả về không bán lại được, chờ thanh lý -->
+    <record id="location_liquidation" model="stock.location">
+        <field name="name">Kho Thanh Lý</field>
+        <field name="usage">internal</field>
+        <field name="location_id" ref="stock.stock_location_locations"/>
+        <field name="comment">Hàng trả từ đại lý không đạt chất lượng bán lại, chờ thanh lý.</field>
+    </record>
+
+    <!-- Kho Hàng Thương Mại: hàng trả đạt chất lượng, nhập lại để bán -->
+    <!-- TODO: nếu cần hàng sẵn sàng bán từ kho chính, reparent location_id
+         về warehouse.view_location_id của warehouse chính sau khi xác định warehouse. -->
+    <record id="location_commercial" model="stock.location">
+        <field name="name">Kho Hàng Thương Mại</field>
+        <field name="usage">internal</field>
+        <field name="location_id" ref="stock.stock_location_locations"/>
+        <field name="comment">Hàng trả từ đại lý đạt chất lượng, nhập lại để bán.</field>
+    </record>
+</odoo>

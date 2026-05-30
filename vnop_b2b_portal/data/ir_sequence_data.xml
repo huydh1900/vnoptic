@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="seq_vnop_order_request" model="ir.sequence">
+        <field name="name">B2B Order Request</field>
+        <field name="code">vnop.order.request</field>
+        <field name="prefix">ĐH/%(range_y)s%(range_month)s</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+        <field name="implementation">standard</field>
+        <field name="use_date_range" eval="True"/>
+    </record>
+</odoo>

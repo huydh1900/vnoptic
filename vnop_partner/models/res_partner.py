@@ -4,7 +4,7 @@ import logging
 import re
 import requests
 
-from odoo import api, models, _
+from odoo import api, fields, models, _
 
 _logger = logging.getLogger(__name__)
 
@@ -17,6 +17,24 @@ class ResPartner(models.Model):
     _sql_constraints = [
         ('ref_unique', 'unique(ref)', 'Mã khách hàng đã tồn tại, vui lòng kiểm tra lại!')
     ]
+
+    ward_id = fields.Many2one(
+        'vnop.ward', string='Phường/Xã',
+        domain="[('state_id', '=', state_id)]",
+        ondelete='restrict',
+    )
+
+    @api.onchange('ward_id')
+    def _onchange_ward_id(self):
+        if self.ward_id:
+            self.city = self.ward_id.name
+            if self.ward_id.state_id and self.state_id != self.ward_id.state_id:
+                self.state_id = self.ward_id.state_id
+
+    @api.onchange('state_id')
+    def _onchange_state_id_reset_ward(self):
+        if self.ward_id and self.ward_id.state_id != self.state_id:
+            self.ward_id = False
 
     @api.onchange('vat')
     def _onchange_vat_vietqr(self):
@@ -53,10 +71,8 @@ class ResPartner(models.Model):
             self._fill_address_from_vietqr(data['address'])
 
     def _fill_address_from_vietqr(self, address):
-        """Parse VietQR address and fill street + state_id.
-
-        City/zip bị ẩn trên form nên không tách city riêng — gộp toàn bộ
-        phần địa chỉ (trừ tỉnh đã match) vào street.
+        """Parse VietQR address theo cấu trúc 2 cấp sau 2025-07-01:
+        street, ..., phường/xã, tỉnh/TP. Match từ phải sang trái.
         """
         vietnam = self.country_id if self.country_id.code == 'VN' else self.env.ref('base.vn', raise_if_not_found=False)
         if not vietnam:
@@ -66,16 +82,57 @@ class ResPartner(models.Model):
         if len(parts) < 2:
             self.street = address
             return
-        # Phần cuối thường là tỉnh/TP
-        province_part = parts[-1]
-        state = self._match_vn_state(province_part, vietnam)
+
+        remaining = parts[:]
+
+        # 1) Tỉnh/TP ở phần cuối
+        state = self._match_vn_state(remaining[-1], vietnam)
         if state:
             self.state_id = state
-            remaining = parts[:-1]
-        else:
-            remaining = parts[:]
+            remaining.pop()
+
+        # 2) Phường/Xã: thử các phần còn lại từ phải sang, ưu tiên state_id
+        ward = False
+        for idx in range(len(remaining) - 1, -1, -1):
+            ward = self._match_vn_ward(remaining[idx], state)
+            if ward:
+                # Nếu ward match được state khác, override state cũ
+                if state and ward.state_id != state:
+                    continue
+                self.ward_id = ward
+                if not state and ward.state_id:
+                    self.state_id = ward.state_id
+                remaining.pop(idx)
+                break
+
         if remaining:
             self.street = ', '.join(remaining)
+
+    def _match_vn_ward(self, text, state):
+        """Match text với vnop.ward, optionally filter theo state."""
+        text_norm = self._normalize_ward_name(text)
+        if not text_norm:
+            return False
+        domain = []
+        if state:
+            domain.append(('state_id', '=', state.id))
+        wards = self.env['vnop.ward'].search(domain)
+        for w in wards:
+            if self._normalize_ward_name(w.name) == text_norm:
+                return w
+        return False
+
+    @staticmethod
+    def _normalize_ward_name(name):
+        """Chuẩn hóa tên phường/xã: bỏ prefix Phường/Xã/Thị trấn, lowercase."""
+        name = (name or '').strip()
+        name = re.sub(
+            r'^(phường\s+|xã\s+|thị\s+trấn\s+|p\.\s*|x\.\s*|tt\.\s*)',
+            '',
+            name,
+            flags=re.IGNORECASE,
+        )
+        return name.strip().lower()
 
     def _match_vn_state(self, text, country):
         """Match text against VN state names with normalization."""

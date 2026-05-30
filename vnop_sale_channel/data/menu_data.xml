@@ -14,4 +14,10 @@
         <field name="active" eval="False"/>
     </record>
 
+    <record id="sale.res_partner_menu" model="ir.ui.menu">
+        <field name="name">Đại lý</field>
+        <field name="parent_id" ref="sale.sale_menu_root"/>
+        <field name="sequence">15</field>
+    </record>
+
 </odoo>

@@ -8,7 +8,7 @@ VNOptic is an **Odoo 18.0 addons workspace** for an optical/eyewear business. Ea
 
 ## Build, Test, and Development Commands
 
-All commands run from repository root. Replace `<odoo.conf>` and `<db>` with your local values (default: `conf/vnoptic.conf`, DB `vnoptic82`).
+All commands run from repository root. Replace `<odoo.conf>` and `<db>` with your local values (default: `conf/vnoptic.conf`, DB `vnoptic80`).
 
 ```bash
 # Update modules
@@ -108,7 +108,7 @@ Required vars: `SPRING_BOOT_BASE_URL`, `SPRINGBOOT_SERVICE_USERNAME`, `SPRINGBOO
 Optional: `SSL_VERIFY`, `LOGIN_TIMEOUT`, `API_TIMEOUT`, `PRODUCT_IMAGE_PARALLEL_WORKERS` (default 8), `PRODUCT_IMAGE_SYNC_MODE` (off/missing/changed/always).
 
 ### `conf/vnoptic.conf` (Odoo server config)
-PostgreSQL on localhost:5432, HTTP port 8029, addons path includes `odoo18/addons`, `enterprise`, `vnoptic`.
+PostgreSQL on localhost:5432, HTTP port 8067, addons path includes `odoo18/addons`, `enterprise`, `vnoptic`.
 
 ## Security Notes
 

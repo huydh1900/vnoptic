@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="warranty_label_preview_wizard_form" model="ir.ui.view">
+        <field name="name">warranty.label.preview.wizard.form</field>
+        <field name="model">warranty.label.preview.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Preview tem QR bảo hành" class="o_warranty_label_preview">
+                <field name="sale_order_id" invisible="1"/>
+                <group>
+                    <field name="preview_html" nolabel="1" readonly="1" widget="html"
+                           options="{'safe': true}"/>
+                </group>
+                <footer>
+                    <button name="action_print" type="object" string="In / Lưu PDF"
+                            class="btn-primary"/>
+                    <button special="cancel" string="Đóng" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_warranty_label_preview_wizard" model="ir.actions.act_window">
+        <field name="name">Preview tem QR bảo hành</field>
+        <field name="res_model">warranty.label.preview.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!--
+        Template body chỉ chứa phần grid tem + style scoped, dùng cho wizard
+        (không có <html>/<head>/<body> wrapper, không có toolbar).
+    -->
+    <template id="warranty_label_preview_body" name="Body preview tem QR (wizard)">
+        <div class="o_warranty_label_preview_body">
+            <style>
+                .o_warranty_label_preview_body { color: #1f2933; font-size: 13px; }
+                .o_warranty_label_preview_body .lbl-sheet {
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 8px;
+                    padding: 8px;
+                    background: #ffffff;
+                }
+                .o_warranty_label_preview_body a.lbl,
+                .o_warranty_label_preview_body a.lbl:hover,
+                .o_warranty_label_preview_body a.lbl:visited {
+                    text-decoration: none;
+                    color: inherit;
+                }
+                .o_warranty_label_preview_body .lbl {
+                    border: 1px dashed #cbd5e1;
+                    border-radius: 4px;
+                    padding: 10px;
+                    display: grid;
+                    grid-template-rows: auto 1fr auto;
+                    background: #fff;
+                    min-height: 200px;
+                    cursor: pointer;
+                    transition: box-shadow .15s ease, border-color .15s ease;
+                }
+                .o_warranty_label_preview_body a.lbl:hover {
+                    border-color: #0e6e6b;
+                    box-shadow: 0 2px 10px rgba(14, 110, 107, 0.18);
+                }
+                .o_warranty_label_preview_body .lbl-head {
+                    display: flex; align-items: center; justify-content: space-between;
+                    border-bottom: 1px solid #e5e7eb;
+                    padding-bottom: 6px; margin-bottom: 6px;
+                }
+                .o_warranty_label_preview_body .lbl-brand {
+                    font-size: 12px; font-weight: 700; color: #0e3b3b;
+                }
+                .o_warranty_label_preview_body .lbl-brand small {
+                    display: block; font-weight: 400; color: #6b7280; font-size: 10px;
+                }
+                .o_warranty_label_preview_body .lbl-pkg {
+                    font-size: 10px; font-weight: 600; color: #fff;
+                    background: #0e6e6b; padding: 2px 8px; border-radius: 999px;
+                }
+                .o_warranty_label_preview_body .lbl-body {
+                    display: grid; grid-template-columns: 110px 1fr;
+                    gap: 8px; align-items: center;
+                }
+                .o_warranty_label_preview_body .lbl-qr {
+                    width: 110px; height: 110px;
+                    border: 1px solid #e5e7eb; border-radius: 3px;
+                    padding: 3px; background: #fff;
+                }
+                .o_warranty_label_preview_body .lbl-qr img {
+                    width: 100%; height: 100%; display: block;
+                    image-rendering: pixelated;
+                }
+                .o_warranty_label_preview_body .lbl-product {
+                    font-size: 12px; font-weight: 700; color: #1f2933;
+                    margin: 0 0 4px;
+                }
+                .o_warranty_label_preview_body .lbl-meta {
+                    margin: 2px 0; color: #4b5563; font-size: 11px;
+                }
+                .o_warranty_label_preview_body .lbl-meta b { color: #1f2933; }
+                .o_warranty_label_preview_body .lbl-token {
+                    font-family: ui-monospace, Menlo, Consolas, monospace;
+                    font-size: 10px; color: #0e6e6b; word-break: break-all;
+                }
+                .o_warranty_label_preview_body .lbl-foot {
+                    border-top: 1px dashed #e5e7eb;
+                    padding-top: 4px; margin-top: 6px;
+                    font-size: 10px; color: #6b7280;
+                    display: flex; justify-content: space-between;
+                }
+                .o_warranty_label_preview_body .lbl-empty {
+                    padding: 24px; text-align: center; color: #6b7280;
+                }
+            </style>
+
+            <t t-if="not regs">
+                <div class="lbl-empty">
+                    <h4>Chưa có phiếu bảo hành</h4>
+                    <p>Đơn này chưa sinh phiếu bảo hành. Xác nhận phiếu giao hàng có sản phẩm gắn "Bảo hành công ty" để sinh tem.</p>
+                </div>
+            </t>
+
+            <t t-if="regs">
+                <div class="lbl-sheet">
+                    <t t-foreach="regs" t-as="reg">
+                        <a class="lbl" t-att-href="reg.register_url" target="_blank" rel="noopener noreferrer"
+                           t-att-title="'Mở: %s' % (reg.register_url or '')">
+                            <div class="lbl-head">
+                                <div class="lbl-brand">
+                                    VNOPTIC
+                                    <small>Bảo hành điện tử</small>
+                                </div>
+                                <span class="lbl-pkg" t-out="reg.warranty_id.name"/>
+                            </div>
+                            <div class="lbl-body">
+                                <div class="lbl-qr">
+                                    <img t-att-src="'data:image/png;base64,%s' % qr_map.get(reg.id, '')" alt="QR"/>
+                                </div>
+                                <div class="lbl-info">
+                                    <p class="lbl-product" t-out="reg.product_id.display_name"/>
+                                    <p class="lbl-meta">
+                                        <b>Đơn:</b> <t t-out="order.name"/>
+                                    </p>
+                                    <p class="lbl-meta">
+                                        <b>Thời hạn:</b>
+                                        <t t-out="reg.warranty_id.duration"/>
+                                        <t t-out="dict(reg.warranty_id._fields['duration_unit'].selection).get(reg.warranty_id.duration_unit, '')"/>
+                                        <t t-if="reg.warranty_id.bonus_days">
+                                            + <t t-out="reg.warranty_id.bonus_days"/>n
+                                        </t>
+                                    </p>
+                                    <p class="lbl-token" t-out="reg.token"/>
+                                </div>
+                            </div>
+                            <div class="lbl-foot">
+                                <span>Quét QR để đăng ký bảo hành</span>
+                                <span>vnoptictech.com.vn</span>
+                            </div>
+                        </a>
+                    </t>
+                </div>
+            </t>
+        </div>
+    </template>
+
+</odoo>

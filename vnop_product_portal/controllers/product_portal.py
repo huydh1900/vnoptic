@@ -151,6 +151,20 @@ class ProductPortalController(http.Controller):
         return request.render('vnop_product_portal.privacy_policy_page', {})
 
     @http.route(
+        '/contact',
+        type='http', auth='public', methods=['GET'], csrf=False, sitemap=False,
+    )
+    def contact_page(self, **_kwargs):
+        return request.render('vnop_product_portal.contact_page', {})
+
+    @http.route(
+        ['/contactus', '/contactus-thank-you'],
+        type='http', auth='public', methods=['GET'], csrf=False, sitemap=False,
+    )
+    def contactus_redirect(self, **_kwargs):
+        return request.redirect('/contact', code=301)
+
+    @http.route(
         '/product/image/<int:product_id>',
         type='http', auth='public', methods=['GET'], csrf=False, sitemap=False,
     )

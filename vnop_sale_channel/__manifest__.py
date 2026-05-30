@@ -13,6 +13,9 @@
         'sale_management',
         'sale_pdf_quote_builder',
         'stock',
+        'vnop_partner',
+        'vnop_product_portal',
+        'attachment_preview',
     ],
     'data': [
         'security/ir.model.access.csv',
@@ -25,7 +28,13 @@
         'views/product_pricelist_views.xml',
         'views/sale_order_views.xml',
         'wizard/sale_order_line_import_wizard_views.xml',
+        'wizard/sale_intem_preview_wizard_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'vnop_sale_channel/static/src/scss/intem_preview.scss',
+        ],
+    },
     'external_dependencies': {
         'python': ['num2words'],
     },

@@ -6,10 +6,6 @@
         <xpath expr="//ol" position="after">
             <t t-if="is_user_b2b">
                 <div class="b2b_portal_nav d-flex gap-2 flex-wrap mt-2">
-                    <a t-attf-class="btn btn-sm #{page_name == 'b2b_catalog' and 'btn-primary' or 'btn-outline-secondary'}"
-                       href="/my/catalog">
-                        <i class="fa fa-th me-1"/>Danh mục
-                    </a>
                     <a t-attf-class="btn btn-sm #{page_name == 'b2b_cart' and 'btn-primary' or 'btn-outline-secondary'}"
                        href="/my/cart">
                         <i class="fa fa-shopping-cart me-1"/>Giỏ hàng

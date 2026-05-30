@@ -4,47 +4,280 @@
     <t t-name="vnop_stock.LensStockMatrix">
         <div class="o_lens_stock_matrix o_action_manager">
             <div class="o_lsm_header">
-                <div class="o_lsm_title">
-                    <h2>Tồn kho Tròng kính theo Độ</h2>
-                    <p class="text-muted mb-0">
-                        Ma trận tồn kho – cột: <b>SPH (Độ cận)</b>, dòng: <b>CYL (Độ loạn)</b>
-                    </p>
-                </div>
-                <div class="o_lsm_actions">
-                    <div class="o_lsm_search">
-                        <div class="o_lsm_search_field">
-                            <label>SPH (Độ cận)</label>
-                            <input type="text"
-                                   class="form-control form-control-sm"
-                                   placeholder="VD: -1.25"
-                                   t-ref="sphInput"
-                                   t-on-input="onSphSearchInput"
-                                   t-on-keydown="onSearchKeydown"/>
+                <div class="o_lsm_search_card">
+                    <div class="o_lsm_card_head">
+                        <div>
+                            <h2 class="o_lsm_card_title">Tìm kiếm Tồn kho Tròng kính</h2>
+                            <p class="o_lsm_card_sub">Nhập các tiêu chí để lọc dữ liệu tồn kho</p>
                         </div>
-                        <div class="o_lsm_search_field">
-                            <label>CYL (Độ loạn)</label>
-                            <input type="text"
-                                   class="form-control form-control-sm"
-                                   placeholder="VD: -0.75"
-                                   t-ref="cylInput"
-                                   t-on-input="onCylSearchInput"
-                                   t-on-keydown="onSearchKeydown"/>
+                        <span class="o_lsm_total_badge" t-if="!state.loading and state.searched">
+                            Tổng tồn: <b><t t-esc="formatQty(grandTotal)"/></b>
+                        </span>
+                    </div>
+
+                    <div class="o_lsm_grid">
+                        <div class="o_lsm_field">
+                            <label class="o_lsm_field_label">Nhóm Mắt</label>
+                            <div class="o_lsm_input">
+                                <i class="fa fa-search o_lsm_input_icon"/>
+                                <select class="form-control o_lsm_control o_lsm_select"
+                                        t-on-change="onClassificationChange">
+                                    <option value="">— Tất cả nhóm —</option>
+                                    <option t-foreach="state.lensClassifications" t-as="c" t-key="c.id"
+                                            t-att-value="c.id"
+                                            t-att-selected="state.classificationId == c.id">
+                                        <t t-esc="c.name"/>
+                                    </option>
+                                </select>
+                                <button class="o_lsm_input_clear"
+                                        t-if="state.classificationId"
+                                        t-on-click="onClearClassification"
+                                        title="Bỏ chọn nhóm">
+                                    <i class="fa fa-times"/>
+                                </button>
+                            </div>
                         </div>
-                        <button class="btn btn-primary btn-sm o_lsm_search_btn"
+
+                        <div class="o_lsm_field">
+                            <label class="o_lsm_field_label">Tên Tròng kính</label>
+                            <div class="o_lsm_input o_lsm_lens_box" t-ref="lensBox">
+                                <i class="fa fa-search o_lsm_input_icon"/>
+                                <button type="button"
+                                        class="form-control o_lsm_control o_lsm_lens_trigger"
+                                        t-on-click="onToggleLensPicker">
+                                    <span t-if="selectedLensName" class="o_lsm_lens_trigger_text">
+                                        <t t-esc="selectedLensName"/>
+                                    </span>
+                                    <span t-else="" class="o_lsm_lens_trigger_placeholder">
+                                        — Tất cả tròng kính —
+                                    </span>
+                                </button>
+                                <button class="o_lsm_input_clear"
+                                        t-if="state.lensKey"
+                                        t-on-mousedown.prevent=""
+                                        t-on-click="onClearLens"
+                                        title="Bỏ chọn mẫu">
+                                    <i class="fa fa-times"/>
+                                </button>
+                                <i class="fa fa-chevron-down o_lsm_combo_caret"
+                                   t-att-class="{ 'o_lsm_caret_open': state.lensPickerOpen }"/>
+                                <div class="o_lsm_lens_popup" t-if="state.lensPickerOpen">
+                                    <div class="o_lsm_lens_popup_search">
+                                        <input type="text"
+                                               class="form-control"
+                                               placeholder="Mắt Cadillac..."
+                                               autocomplete="off"
+                                               t-on-input="onLensSearchInput"
+                                               t-on-keydown="onLensSearchKeydown"
+                                               t-ref="lensSearchInput"/>
+                                    </div>
+                                    <div class="o_lsm_lens_popup_list">
+                                        <button type="button"
+                                                class="o_lsm_lens_popup_item o_lsm_lens_popup_item_all"
+                                                t-att-class="{ 'o_lsm_lens_popup_item_active': !state.lensKey }"
+                                                t-on-click="() => this.onPickLens('')">
+                                            <span class="o_lsm_lens_popup_name"><b>Tất cả tròng kính</b></span>
+                                        </button>
+                                        <button t-foreach="visibleLensModels" t-as="m" t-key="m.key"
+                                                type="button"
+                                                class="o_lsm_lens_popup_item"
+                                                t-att-class="{ 'o_lsm_lens_popup_item_active': state.lensKey === m.key }"
+                                                t-on-click="() => this.onPickLens(m.key)">
+                                            <span class="o_lsm_lens_popup_name">
+                                                <t t-esc="m.name"/>
+                                            </span>
+                                            <span class="o_lsm_lens_popup_remove"
+                                                  t-if="state.lensKey === m.key"
+                                                  t-on-click.stop="onClearLens">
+                                                <i class="fa fa-times"/>
+                                            </span>
+                                        </button>
+                                        <div t-if="!visibleLensModels.length"
+                                             class="o_lsm_lens_popup_empty">
+                                            Không có mẫu phù hợp
+                                        </div>
+                                        <div t-if="lensOverflow"
+                                             class="o_lsm_lens_popup_more">
+                                            Đang hiển thị <t t-esc="visibleLensModels.length"/>/<t t-esc="filteredLensModels.length"/>. Nhập thêm để thu hẹp...
+                                        </div>
+                                    </div>
+                                    <div class="o_lsm_lens_popup_foot">
+                                        <button type="button"
+                                                class="o_lsm_lens_popup_clear"
+                                                t-on-click="onClearLens">
+                                            <i class="fa fa-times-circle me-1"/>Xoá tất cả
+                                        </button>
+                                        <button type="button"
+                                                class="o_lsm_lens_popup_close"
+                                                t-on-click="onCloseLensPicker">
+                                            Đóng
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="o_lsm_field">
+                            <label class="o_lsm_field_label">SPH (Độ cầu)</label>
+                            <div class="o_lsm_input o_lsm_lens_box" t-ref="sphBox">
+                                <i class="fa fa-search o_lsm_input_icon"/>
+                                <button type="button"
+                                        class="form-control o_lsm_control o_lsm_lens_trigger"
+                                        t-on-click="onToggleSphPicker">
+                                    <span t-if="state.sphDraft" class="o_lsm_lens_trigger_text">
+                                        <t t-esc="state.sphDraft"/>
+                                    </span>
+                                    <span t-else="" class="o_lsm_lens_trigger_placeholder">
+                                        — Tất cả SPH —
+                                    </span>
+                                </button>
+                                <button class="o_lsm_input_clear"
+                                        t-if="state.sphDraft"
+                                        t-on-mousedown.prevent=""
+                                        t-on-click="onClearSph"
+                                        title="Bỏ chọn SPH">
+                                    <i class="fa fa-times"/>
+                                </button>
+                                <i class="fa fa-chevron-down o_lsm_combo_caret"
+                                   t-att-class="{ 'o_lsm_caret_open': state.sphPickerOpen }"/>
+                                <div class="o_lsm_lens_popup" t-if="state.sphPickerOpen">
+                                    <div class="o_lsm_lens_popup_search">
+                                        <input type="text"
+                                               class="form-control"
+                                               placeholder="Tìm SPH..."
+                                               autocomplete="off"
+                                               t-on-input="onSphPopupSearchInput"
+                                               t-on-keydown="onSphPopupKeydown"
+                                               t-ref="sphSearchInput"/>
+                                    </div>
+                                    <div class="o_lsm_lens_popup_list">
+                                        <button type="button"
+                                                class="o_lsm_lens_popup_item o_lsm_lens_popup_item_all"
+                                                t-att-class="{ 'o_lsm_lens_popup_item_active': !state.sphDraft }"
+                                                t-on-click="() => this.onPickSph('')">
+                                            <span class="o_lsm_lens_popup_name"><b>Tất cả SPH</b></span>
+                                        </button>
+                                        <button t-foreach="sphDropdownOptions" t-as="opt" t-key="opt.id"
+                                                type="button"
+                                                class="o_lsm_lens_popup_item"
+                                                t-att-class="{ 'o_lsm_lens_popup_item_active': state.sphDraft === opt.name }"
+                                                t-on-click="() => this.onPickSph(opt.name)">
+                                            <span class="o_lsm_lens_popup_name">
+                                                <t t-esc="opt.name"/>
+                                            </span>
+                                        </button>
+                                        <div t-if="!sphDropdownOptions.length"
+                                             class="o_lsm_lens_popup_empty">
+                                            Không có giá trị phù hợp
+                                        </div>
+                                        <div t-if="sphDropdownOverflow"
+                                             class="o_lsm_lens_popup_more">
+                                            Đang hiển thị <t t-esc="sphDropdownOptions.length"/>/<t t-esc="sphDropdownTotal"/>. Nhập thêm để thu hẹp...
+                                        </div>
+                                    </div>
+                                    <div class="o_lsm_lens_popup_foot">
+                                        <button type="button"
+                                                class="o_lsm_lens_popup_clear"
+                                                t-on-click="onClearSph">
+                                            <i class="fa fa-times-circle me-1"/>Xoá tất cả
+                                        </button>
+                                        <button type="button"
+                                                class="o_lsm_lens_popup_close"
+                                                t-on-click="onCloseSphPicker">
+                                            Đóng
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="o_lsm_field">
+                            <label class="o_lsm_field_label">CYL (Độ trụ)</label>
+                            <div class="o_lsm_input o_lsm_lens_box" t-ref="cylBox">
+                                <i class="fa fa-search o_lsm_input_icon"/>
+                                <button type="button"
+                                        class="form-control o_lsm_control o_lsm_lens_trigger"
+                                        t-on-click="onToggleCylPicker">
+                                    <span t-if="state.cylDraft" class="o_lsm_lens_trigger_text">
+                                        <t t-esc="state.cylDraft"/>
+                                    </span>
+                                    <span t-else="" class="o_lsm_lens_trigger_placeholder">
+                                        — Tất cả CYL —
+                                    </span>
+                                </button>
+                                <button class="o_lsm_input_clear"
+                                        t-if="state.cylDraft"
+                                        t-on-mousedown.prevent=""
+                                        t-on-click="onClearCyl"
+                                        title="Bỏ chọn CYL">
+                                    <i class="fa fa-times"/>
+                                </button>
+                                <i class="fa fa-chevron-down o_lsm_combo_caret"
+                                   t-att-class="{ 'o_lsm_caret_open': state.cylPickerOpen }"/>
+                                <div class="o_lsm_lens_popup" t-if="state.cylPickerOpen">
+                                    <div class="o_lsm_lens_popup_search">
+                                        <input type="text"
+                                               class="form-control"
+                                               placeholder="Tìm CYL..."
+                                               autocomplete="off"
+                                               t-on-input="onCylPopupSearchInput"
+                                               t-on-keydown="onCylPopupKeydown"
+                                               t-ref="cylSearchInput"/>
+                                    </div>
+                                    <div class="o_lsm_lens_popup_list">
+                                        <button type="button"
+                                                class="o_lsm_lens_popup_item o_lsm_lens_popup_item_all"
+                                                t-att-class="{ 'o_lsm_lens_popup_item_active': !state.cylDraft }"
+                                                t-on-click="() => this.onPickCyl('')">
+                                            <span class="o_lsm_lens_popup_name"><b>Tất cả CYL</b></span>
+                                        </button>
+                                        <button t-foreach="cylDropdownOptions" t-as="opt" t-key="opt.id"
+                                                type="button"
+                                                class="o_lsm_lens_popup_item"
+                                                t-att-class="{ 'o_lsm_lens_popup_item_active': state.cylDraft === opt.name }"
+                                                t-on-click="() => this.onPickCyl(opt.name)">
+                                            <span class="o_lsm_lens_popup_name">
+                                                <t t-esc="opt.name"/>
+                                            </span>
+                                        </button>
+                                        <div t-if="!cylDropdownOptions.length"
+                                             class="o_lsm_lens_popup_empty">
+                                            Không có giá trị phù hợp
+                                        </div>
+                                        <div t-if="cylDropdownOverflow"
+                                             class="o_lsm_lens_popup_more">
+                                            Đang hiển thị <t t-esc="cylDropdownOptions.length"/>/<t t-esc="cylDropdownTotal"/>. Nhập thêm để thu hẹp...
+                                        </div>
+                                    </div>
+                                    <div class="o_lsm_lens_popup_foot">
+                                        <button type="button"
+                                                class="o_lsm_lens_popup_clear"
+                                                t-on-click="onClearCyl">
+                                            <i class="fa fa-times-circle me-1"/>Xoá tất cả
+                                        </button>
+                                        <button type="button"
+                                                class="o_lsm_lens_popup_close"
+                                                t-on-click="onCloseCylPicker">
+                                            Đóng
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="o_lsm_card_actions">
+                        <button class="btn o_lsm_btn_primary"
                                 t-on-click="onApplySearch"
                                 title="Tìm kiếm (Enter)">
-                            <i class="fa fa-search me-1"/> Tìm kiếm
+                            <i class="fa fa-search me-2"/>Tìm kiếm
                         </button>
-                        <button class="btn btn-light btn-sm o_lsm_clear"
-                                t-if="state.sphSearchApplied or state.cylSearchApplied"
-                                t-on-click="onClearSearch"
-                                title="Xoá tìm kiếm">
-                            <i class="fa fa-times"/>
+                        <button class="btn o_lsm_btn_danger"
+                                t-on-click="onClearAllFilters"
+                                title="Đặt lại tất cả bộ lọc về mặc định">
+                            <i class="fa fa-times-circle me-2"/>Xoá bộ lọc
                         </button>
                     </div>
-                    <span class="o_lsm_total_badge" t-if="!state.loading">
-                        Tổng tồn: <b><t t-esc="formatQty(grandTotal)"/></b>
-                    </span>
                 </div>
             </div>
 
@@ -54,12 +287,21 @@
                     <div class="mt-2">Đang tải dữ liệu tồn kho...</div>
                 </div>
 
+                <div t-elif="!state.searched" class="o_lsm_empty">
+                    <i class="fa fa-search fa-3x text-muted"/>
+                    <h4 class="mt-3">Nhấn "Tìm kiếm" để xem kết quả</h4>
+                    <p class="text-muted">
+                        Chọn các điều kiện ở trên rồi nhấn <b>Tìm kiếm</b> (hoặc Enter) để tạo bảng tồn kho.
+                    </p>
+                </div>
+
                 <div t-elif="!state.sphAxis.length or !state.cylAxis.length"
                      class="o_lsm_empty">
                     <i class="fa fa-inbox fa-3x text-muted"/>
                     <h4 class="mt-3">Chưa cấu hình danh mục SPH/CYL</h4>
                     <p class="text-muted">
-                        Selection SPH/CYL được khai báo trong <b>product.template</b> (<code>_SPH_VALUES</code> / <code>_CYL_VALUES</code>).
+                        Selection SPH/CYL khai báo trong <b>product.template</b>
+                        (<code>_SPH_VALUES</code> / <code>_CYL_VALUES</code>).
                     </p>
                 </div>
 
@@ -68,7 +310,7 @@
                     <i class="fa fa-search fa-3x text-muted"/>
                     <h4 class="mt-3">Không tìm thấy kết quả</h4>
                     <p class="text-muted">
-                        Không có giá trị SPH/CYL nào khớp với từ khoá tìm kiếm.
+                        Không có giá trị SPH/CYL nào khớp với từ khoá.
                     </p>
                 </div>
 
@@ -80,34 +322,37 @@
                                     <span class="o_lsm_corner_sph">SPH</span>
                                     <span class="o_lsm_corner_cyl">CYL</span>
                                 </th>
-                                <th t-foreach="filteredSphAxis" t-as="sph" t-key="sph.id"
+                                <th t-foreach="filteredCylAxis" t-as="cyl" t-key="cyl.id"
                                     class="o_lsm_col_head">
-                                    <t t-esc="sph.name"/>
+                                    <t t-esc="cyl.name"/>
                                 </th>
-                                <th class="o_lsm_total_head">Tổng</th>
+                                <th class="o_lsm_total_head">TOTAL</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr t-foreach="filteredCylAxis" t-as="cyl" t-key="cyl.id">
+                            <tr t-foreach="filteredSphAxis" t-as="sph" t-key="sph.id">
                                 <th class="o_lsm_row_head">
-                                    <t t-esc="cyl.name"/>
+                                    <t t-esc="sph.name"/>
                                 </th>
-                                <td t-foreach="filteredSphAxis" t-as="sph" t-key="sph.id"
+                                <td t-foreach="filteredCylAxis" t-as="cyl" t-key="cyl.id"
                                     class="o_lsm_cell"
-                                    t-att-style="cellStyle(getCell(cyl.id, sph.id))">
-                                    <t t-esc="formatQty(getCell(cyl.id, sph.id))"/>
+                                    t-att-class="{ 'o_lsm_cell_clickable': getCell(sph.id, cyl.id) }"
+                                    t-att-style="cellStyle(getCell(sph.id, cyl.id))"
+                                    t-on-click="() => this.onCellClick(sph.id, cyl.id)"
+                                    t-att-title="getCell(sph.id, cyl.id) ? 'Xem chi tiết tồn kho' : ''">
+                                    <t t-esc="formatQty(getCell(sph.id, cyl.id))"/>
                                 </td>
                                 <td class="o_lsm_row_total">
-                                    <t t-esc="formatQty(getRowTotal(cyl.id))"/>
+                                    <t t-esc="formatQty(getRowTotal(sph.id))"/>
                                 </td>
                             </tr>
                         </tbody>
                         <tfoot>
                             <tr>
-                                <th class="o_lsm_row_head">Tổng</th>
-                                <td t-foreach="filteredSphAxis" t-as="sph" t-key="sph.id"
+                                <th class="o_lsm_row_head">TOTAL</th>
+                                <td t-foreach="filteredCylAxis" t-as="cyl" t-key="cyl.id"
                                     class="o_lsm_col_total">
-                                    <t t-esc="formatQty(getColTotal(sph.id))"/>
+                                    <t t-esc="formatQty(getColTotal(cyl.id))"/>
                                 </td>
                                 <td class="o_lsm_grand_total">
                                     <t t-esc="formatQty(grandTotal)"/>

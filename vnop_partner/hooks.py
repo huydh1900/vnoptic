@@ -2,7 +2,10 @@
 """Post-init hook: thay thế 63 tỉnh/thành cũ của Việt Nam bằng 34 đơn vị
 hành chính sau sáp nhập (hiệu lực 01/07/2025)."""
 
+import json
 import logging
+import os
+import re
 
 from odoo import SUPERUSER_ID, api
 
@@ -106,3 +109,64 @@ def post_init_hook(env):
                 "name": name,
                 "code": code,
             })
+
+    _seed_wards(env, vn_country)
+
+
+_PROVINCE_PREFIX_RE = re.compile(
+    r'^(thành\s+phố\s+|tỉnh\s+|tp\.?\s*)', flags=re.IGNORECASE
+)
+
+
+def _normalize(name):
+    return _PROVINCE_PREFIX_RE.sub('', (name or '').strip()).strip().lower()
+
+
+def _seed_wards(env, vn_country):
+    """Load phường/xã từ data/vn_wards.json (nguồn provinces.open-api.vn v2,
+    cập nhật sau sáp nhập 2025-07-01) vào model vnop.ward.
+    """
+    data_path = os.path.join(os.path.dirname(__file__), 'data', 'vn_wards.json')
+    if not os.path.isfile(data_path):
+        _logger.warning("vn_wards.json không tồn tại tại %s", data_path)
+        return
+    with open(data_path, encoding='utf-8') as f:
+        provinces = json.load(f)
+
+    State = env['res.country.state']
+    states = State.search([('country_id', '=', vn_country.id)])
+    # Map state theo tên đã chuẩn hóa
+    state_by_name = {_normalize(s.name): s for s in states}
+    # Alias đặc biệt
+    hcm = state_by_name.get('hồ chí minh')
+    if not hcm:
+        # Odoo lưu "TP. Hồ Chí Minh" -> sau strip prefix còn "hồ chí minh"
+        hcm = state_by_name.get('tp. hồ chí minh') or state_by_name.get('tp hồ chí minh')
+        if hcm:
+            state_by_name['hồ chí minh'] = hcm
+
+    Ward = env['vnop.ward']
+    existing = {w.code: w for w in Ward.search([])}
+
+    rows = []
+    skipped_provinces = set()
+    for p in provinces:
+        key = _normalize(p.get('name', ''))
+        state = state_by_name.get(key)
+        if not state:
+            skipped_provinces.add(p.get('name'))
+            continue
+        for w in p.get('wards') or []:
+            code = str(w.get('code'))
+            if code in existing:
+                continue
+            rows.append({
+                'name': w.get('name'),
+                'code': code,
+                'state_id': state.id,
+            })
+    if rows:
+        Ward.create(rows)
+        _logger.info("vnop_partner: seeded %s phường/xã", len(rows))
+    if skipped_provinces:
+        _logger.warning("vnop_partner: không match được tỉnh: %s", skipped_provinces)

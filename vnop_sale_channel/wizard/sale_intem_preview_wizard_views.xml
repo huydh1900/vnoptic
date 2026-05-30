@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_sale_intem_preview_wizard_form" model="ir.ui.view">
+        <field name="name">sale.intem.preview.wizard.form</field>
+        <field name="model">sale.intem.preview.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Xem trước file In tem" class="o_intem_preview_form">
+                <field name="attachment_id" invisible="1"/>
+                <field name="preview_html" nolabel="1" readonly="1"/>
+                <footer>
+                    <button string="Tải về" name="action_download" type="object" class="btn-primary"/>
+                    <button string="Đóng" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

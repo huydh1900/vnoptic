@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Menu gốc cấp cao nhất: "Báo cáo". Các module report khác gắn submenu
+         vào parent="vnop_report.menu_vnop_report_root". -->
+    <menuitem id="menu_vnop_report_root"
+              name="Báo cáo"
+              web_icon="vnop_report,static/description/icon.png"
+              sequence="90"
+              groups="base.group_user"/>
+</odoo>

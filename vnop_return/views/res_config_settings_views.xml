@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_vnop_return" model="ir.ui.view">
+        <field name="name">res.config.settings.vnop.return</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="sale.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='sale_management']" position="inside">
+                <block title="Trả hàng lỗi từ đại lý" name="vnop_return_approval"
+                       groups="vnop_return.group_return_chief_accountant">
+                    <setting id="vnop_return_director_threshold_setting"
+                             string="Ngưỡng Giám đốc duyệt"
+                             help="Phiếu trả ngoại lệ vượt ngưỡng này sẽ cần Giám đốc duyệt thay vì Trưởng phòng KD.">
+                        <field name="vnop_return_director_threshold" widget="monetary"/>
+                        <field name="company_currency_id" invisible="1"/>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

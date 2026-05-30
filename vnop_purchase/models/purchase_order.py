@@ -2,6 +2,24 @@ from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 
 
+class IrUiMenu(models.Model):
+    _inherit = 'ir.ui.menu'
+
+    @api.model
+    def _vnop_rename_purchase_form_menu(self):
+        """Override tên menu purchase.menu_purchase_form_action sang 'Quản lý hàng về'
+        cho cả en_US và vi_VN. Cần vì name là field translate; vi.po dịch chung
+        msgid 'Purchase Orders' nên XML <field name="name"> không thắng được.
+        Gọi qua <function> trong data XML để chạy mỗi lần `-u vnop_purchase`.
+        """
+        menu = self.env.ref('purchase.menu_purchase_form_action', raise_if_not_found=False)
+        if not menu:
+            return
+        new_name = 'Quản lý hàng về'
+        menu.with_context(lang='vi_VN').name = new_name
+        menu.with_context(lang='en_US').name = new_name
+
+
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 

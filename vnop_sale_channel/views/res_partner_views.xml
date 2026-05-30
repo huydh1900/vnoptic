@@ -39,8 +39,62 @@
         </field>
     </record>
 
+    <record id="view_partner_form_customer" model="ir.ui.view">
+        <field name="name">res.partner.form.customer</field>
+        <field name="model">res.partner</field>
+        <field name="mode">primary</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <field name="ref" position="attributes">
+                <attribute name="string">Mã khách hàng</attribute>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_partner_tree_customer" model="ir.ui.view">
+        <field name="name">res.partner.list.customer</field>
+        <field name="model">res.partner</field>
+        <field name="mode">primary</field>
+        <field name="inherit_id" ref="base.view_partner_tree"/>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <field name="complete_name" position="after">
+                <field name="ref" string="Mã khách hàng" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_res_partner_filter_customer" model="ir.ui.view">
+        <field name="name">res.partner.search.customer</field>
+        <field name="model">res.partner</field>
+        <field name="mode">primary</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <field name="ref" position="attributes">
+                <attribute name="string">Mã khách hàng</attribute>
+            </field>
+        </field>
+    </record>
+
     <record id="account.res_partner_action_customer" model="ir.actions.act_window">
         <field name="domain">[('customer_rank', '>', 0)]</field>
+        <field name="search_view_id" ref="view_res_partner_filter_customer"/>
+    </record>
+
+    <record id="customer_action_list_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_partner_tree_customer"/>
+        <field name="act_window_id" ref="account.res_partner_action_customer"/>
+    </record>
+
+    <record id="customer_action_form_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="3"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_partner_form_customer"/>
+        <field name="act_window_id" ref="account.res_partner_action_customer"/>
     </record>
 
     <record id="account.res_partner_action_supplier" model="ir.actions.act_window">

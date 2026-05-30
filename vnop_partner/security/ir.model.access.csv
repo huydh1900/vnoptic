@@ -1,1 +1,3 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_vnop_ward_user,vnop.ward.user,model_vnop_ward,base.group_user,1,0,0,0
+access_vnop_ward_manager,vnop.ward.manager,model_vnop_ward,base.group_system,1,1,1,1

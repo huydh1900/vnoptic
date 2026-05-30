@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="ir_config_director_threshold" model="ir.config_parameter">
+        <field name="key">vnop_return.director_threshold</field>
+        <field name="value">10000000</field>
+    </record>
+</odoo>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- 1. Nhóm Sản xuất / NCC -->
+    <record id="reason_coating" model="vnop.return.reason">
+        <field name="code">PROD_COATING</field>
+        <field name="name">Tròng lỗi lớp phủ (Coating)</field>
+        <field name="defect_group" ref="defect_group_production"/>
+        <field name="default_return_type">policy</field>
+        <field name="description">Tròng bị bong tróc, loang màu lớp phủ.</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="reason_wrong_rx" model="vnop.return.reason">
+        <field name="code">PROD_WRONG_RX</field>
+        <field name="name">Tròng sai độ / sai thông số</field>
+        <field name="defect_group" ref="defect_group_production"/>
+        <field name="default_return_type">policy</field>
+        <field name="description">Lỗi do phòng đặt đánh RX hoặc nhà máy đúc phôi.</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="reason_frame_tech" model="vnop.return.reason">
+        <field name="code">PROD_FRAME_TECH</field>
+        <field name="name">Gọng lỗi kỹ thuật</field>
+        <field name="defect_group" ref="defect_group_production"/>
+        <field name="default_return_type">policy</field>
+        <field name="description">Bong sơn, hỏng lò xo, gãy gọng do lỗi sản xuất.</field>
+        <field name="sequence">30</field>
+    </record>
+
+    <!-- 2. Nhóm Vận chuyển -->
+    <record id="reason_shipping_broken" model="vnop.return.reason">
+        <field name="code">SHIP_BROKEN</field>
+        <field name="name">Nứt / vỡ / xước do vận chuyển</field>
+        <field name="defect_group" ref="defect_group_shipping"/>
+        <field name="default_return_type">policy</field>
+        <field name="description">Hư hại phát sinh trong quá trình vận chuyển tới đại lý.</field>
+        <field name="sequence">10</field>
+    </record>
+
+    <!-- 3. Nhóm Thương mại / Chính sách -->
+    <record id="reason_sale_wrong_order" model="vnop.return.reason">
+        <field name="code">COMM_SALE_WRONG</field>
+        <field name="name">Sale lên sai đơn</field>
+        <field name="defect_group" ref="defect_group_commercial"/>
+        <field name="default_return_type">exception</field>
+        <field name="description">Sale lập đơn sai sản phẩm / số lượng / giá.</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="reason_acc_wrong_invoice" model="vnop.return.reason">
+        <field name="code">COMM_ACC_WRONG</field>
+        <field name="name">Kế toán lên sai đơn</field>
+        <field name="defect_group" ref="defect_group_commercial"/>
+        <field name="default_return_type">exception</field>
+        <field name="description">Kế toán xuất hoá đơn sai dữ liệu so với đơn hàng.</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="reason_dealer_change_frame" model="vnop.return.reason">
+        <field name="code">COMM_DEALER_CHANGE</field>
+        <field name="name">Đại lý đổi mẫu gọng (thu hồi hàng chậm bán)</field>
+        <field name="defect_group" ref="defect_group_commercial"/>
+        <field name="default_return_type">exception</field>
+        <field name="description">Đại lý đề nghị đổi mẫu, trả lại hàng tồn chậm bán.</field>
+        <field name="sequence">30</field>
+    </record>
+    <record id="reason_dealer_consignment" model="vnop.return.reason">
+        <field name="code">COMM_CONSIGNMENT</field>
+        <field name="name">Đại lý trả hàng ký gửi</field>
+        <field name="defect_group" ref="defect_group_commercial"/>
+        <field name="default_return_type">exception</field>
+        <field name="description">Trả hàng ký gửi theo thoả thuận, có thể không gắn hoá đơn gốc.</field>
+        <field name="sequence">40</field>
+    </record>
+</odoo>

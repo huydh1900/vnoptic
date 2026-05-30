@@ -332,7 +332,7 @@
                                 <li><a href="/policy/privacy">Chính sách bảo mật</a></li>
                                 <li>Điều khoản dịch vụ</li>
                                 <li>Câu hỏi thường gặp</li>
-                                <li>Liên hệ</li>
+                                <li><a href="/contact">Liên hệ</a></li>
                             </ul>
                         </div>
                     </div>
@@ -529,10 +529,10 @@
     <!-- ============== TRANG CHỦ ============== -->
     <template id="home_page" name="VNOptic Home Page">
         <t t-call="vnop_product_portal.vnoptic_public_layout">
-            <t t-set="page_title">VNOPTICTECH — Kính mắt cao cấp</t>
+            <t t-set="page_title">VNOPTICTECH - Kính mắt cao cấp chính hãng</t>
             <t t-set="head_extra">
                 <style>
-                    .vn-home { display: flex; flex-direction: column; gap: 56px; }
+                    .vn-home { display: flex; flex-direction: column; gap: 72px; }
 
                     /* Hero */
                     .vn-hero-home {
@@ -546,28 +546,37 @@
                     }
                     .vn-hero-home .eyebrow {
                         display: inline-block;
-                        background: #a5cd39;
-                        color: #fff;
-                        padding: 4px 12px;
+                        background: #eef4dd;
+                        color: #3a5417;
+                        border: 1px solid #d7e6ad;
+                        padding: 5px 14px;
                         border-radius: 999px;
                         font-size: 12px;
-                        font-weight: 600;
-                        letter-spacing: 0.4px;
+                        font-weight: 700;
+                        letter-spacing: 0.6px;
                         text-transform: uppercase;
-                        margin-bottom: 16px;
+                        margin-bottom: 18px;
                     }
                     .vn-hero-home h1 {
-                        font-size: 40px;
-                        line-height: 1.15;
-                        margin: 0 0 16px;
+                        font-size: clamp(32px, 4.2vw, 48px);
+                        line-height: 1.1;
+                        letter-spacing: -0.02em;
+                        margin: 0 0 18px;
                         color: #1f2a1a;
-                        font-weight: 700;
+                        font-weight: 800;
                     }
                     .vn-hero-home p {
                         font-size: 16px;
+                        line-height: 1.6;
                         color: #4a4a4a;
                         margin: 0 0 28px;
-                        max-width: 520px;
+                        max-width: 480px;
+                    }
+                    .vn-hero-actions {
+                        display: flex;
+                        align-items: center;
+                        flex-wrap: wrap;
+                        gap: 6px 4px;
                     }
                     .vn-cta {
                         display: inline-flex;
@@ -617,10 +626,11 @@
                         margin-bottom: 28px;
                     }
                     .vn-section-head h2 {
-                        font-size: 28px;
+                        font-size: 32px;
+                        letter-spacing: -0.015em;
                         margin: 0 0 8px;
                         color: #1f2a1a;
-                        font-weight: 700;
+                        font-weight: 800;
                     }
                     .vn-section-head p {
                         font-size: 15px;
@@ -685,7 +695,8 @@
                     }
                     .vn-prod:hover {
                         transform: translateY(-3px);
-                        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+                        border-color: #d7e6ad;
+                        box-shadow: 0 10px 28px rgba(31,42,26,0.12);
                     }
                     .vn-prod-img {
                         aspect-ratio: 1 / 1;
@@ -801,7 +812,8 @@
                     }
                     .vn-blog-card:hover {
                         transform: translateY(-2px);
-                        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+                        border-color: #d7e6ad;
+                        box-shadow: 0 10px 28px rgba(31,42,26,0.12);
                     }
                     .vn-blog-img {
                         aspect-ratio: 3 / 2;
@@ -961,21 +973,37 @@
                         .vn-newsletter form { flex-direction: column; }
                         .vn-newsletter button { width: 100%; }
                     }
+
+                    @media (prefers-reduced-motion: reduce) {
+                        .vn-cat, .vn-prod, .vn-blog-card, .vn-cta, .vn-socials a,
+                        .vn-prod-img img, .vn-blog-img img {
+                            transition: none !important;
+                        }
+                        .vn-cat:hover, .vn-prod:hover, .vn-blog-card:hover,
+                        .vn-cta:hover, .vn-socials a:hover {
+                            transform: none !important;
+                        }
+                        .vn-prod:hover .vn-prod-img img,
+                        .vn-blog-card:hover .vn-blog-img img { transform: none !important; }
+                    }
                 </style>
             </t>
 
             <div class="vn-home">
                 <!-- Hero -->
                 <section class="vn-hero-home">
-                    <div>
-                        <span class="eyebrow">VNOPTICTECH · Kính mắt cao cấp</span>
-                        <p>Gần 50 năm kinh nghiệm trong ngành kính và quang học. Sản phẩm chính hãng,
-                            công nghệ hiện đại, dịch vụ chuyên nghiệp.</p>
-                        <a href="#featured-products" class="vn-cta">
-                            Xem sản phẩm
-                            <span>→</span>
-                        </a>
-                        <a href="/policy/return" class="vn-cta-ghost">Chính sách đổi trả</a>
+                    <div class="vn-hero-copy">
+                        <span class="eyebrow">Kính mắt chính hãng</span>
+                        <h1>Nhìn rõ hơn, tự tin hơn mỗi ngày</h1>
+                        <p>Gần 50 năm kinh nghiệm quang học. Sản phẩm chính hãng, công nghệ hiện đại,
+                            dịch vụ tận tâm.</p>
+                        <div class="vn-hero-actions">
+                            <a href="#featured-products" class="vn-cta">
+                                Xem sản phẩm
+                                <span aria-hidden="true">→</span>
+                            </a>
+                            <a href="/policy/return" class="vn-cta-ghost">Chính sách đổi trả</a>
+                        </div>
                     </div>
                     <div class="vn-hero-img-wrap">
                         <div class="blob"></div>
@@ -1281,6 +1309,247 @@
                 </ul>
                 <p>Trong trường hợp Quý Khách hàng có ý kiến đóng góp/khiếu nại liên quan đến chất lượng sản phẩm, Quý Khách hàng vui lòng liên hệ đường dây chăm sóc khách hàng của chúng tôi.</p>
             </article>
+        </t>
+    </template>
+
+    <!-- ============== TRANG LIÊN HỆ ============== -->
+    <template id="contact_page_styles" name="Contact Page Shared Styles">
+        <style>
+            .vn-contact-page {
+                max-width: 1200px;
+                margin: 24px auto;
+                padding: 0 16px 40px;
+            }
+            .vn-contact {
+                display: grid;
+                grid-template-columns: 1.05fr 1fr;
+                gap: 32px;
+                align-items: stretch;
+                background: #fff;
+                padding: 32px;
+                border-radius: 12px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            }
+            .vn-contact-left { padding: 0; }
+            .vn-contact-title {
+                font-size: 20px;
+                font-weight: 700;
+                color: #1f2a1a;
+                margin: 0 0 18px;
+            }
+            .vn-contact-info-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 18px 24px;
+                margin-bottom: 32px;
+            }
+            .vn-contact-item {
+                display: flex;
+                gap: 12px;
+                align-items: flex-start;
+            }
+            .vn-contact-icon {
+                width: 36px; height: 36px;
+                flex-shrink: 0;
+                border-radius: 50%;
+                background: #f0f5e2;
+                display: flex; align-items: center; justify-content: center;
+                color: #1f2a1a;
+            }
+            .vn-contact-text .lbl {
+                font-weight: 700;
+                color: #1f2a1a;
+                font-size: 14px;
+                margin-bottom: 2px;
+            }
+            .vn-contact-text .val {
+                font-size: 13px;
+                color: #4a4a4a;
+                line-height: 1.5;
+                word-break: break-word;
+            }
+            .vn-contact-text .val a {
+                color: #4a4a4a;
+                text-decoration: none;
+            }
+            .vn-contact-text .val a:hover { color: #a5cd39; }
+            .vn-contact-desc {
+                font-size: 13px;
+                color: #6a6a6a;
+                margin: 0 0 16px;
+            }
+            .vn-contact-form {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .vn-contact-form .row2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+            .vn-contact-form input,
+            .vn-contact-form textarea {
+                width: 100%;
+                padding: 12px 14px;
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                font-size: 14px;
+                font-family: inherit;
+                color: #1f2a1a;
+                background: #fff;
+                outline: none;
+                transition: border-color .15s ease;
+            }
+            .vn-contact-form input:focus,
+            .vn-contact-form textarea:focus { border-color: #a5cd39; }
+            .vn-contact-form textarea { resize: vertical; min-height: 110px; }
+            .vn-recaptcha-notice {
+                font-size: 12px;
+                color: #8a8a8a;
+                margin: 4px 0 0;
+            }
+            .vn-recaptcha-notice a {
+                color: #4a78d6;
+                text-decoration: none;
+            }
+            .vn-recaptcha-notice a:hover { text-decoration: underline; }
+            .vn-contact-form button {
+                align-self: flex-start;
+                margin-top: 4px;
+                padding: 12px 28px;
+                background: #a5cd39;
+                color: #fff;
+                font-weight: 700;
+                font-size: 13px;
+                letter-spacing: 0.5px;
+                text-transform: uppercase;
+                border: none;
+                border-radius: 999px;
+                cursor: pointer;
+                transition: background .15s ease;
+            }
+            .vn-contact-form button:hover { background: #8fb52f; }
+            .vn-contact-map {
+                position: relative;
+                min-height: 460px;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            }
+            .vn-contact-map iframe {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                border: 0;
+            }
+            @media (max-width: 900px) {
+                .vn-contact { grid-template-columns: 1fr; padding: 20px; }
+                .vn-contact-info-grid { grid-template-columns: 1fr; }
+                .vn-contact-form .row2 { grid-template-columns: 1fr; }
+                .vn-contact-map { min-height: 320px; }
+            }
+        </style>
+    </template>
+
+    <template id="contact_page" name="Contact Page">
+        <t t-call="vnop_product_portal.vnoptic_public_layout">
+            <t t-set="page_title">Liên hệ</t>
+            <t t-set="head_extra">
+                <t t-call="vnop_product_portal.contact_page_styles"/>
+            </t>
+            <div class="vn-contact-page">
+                <div class="vn-contact">
+                    <div class="vn-contact-left">
+                        <h3 class="vn-contact-title">Thông tin liên hệ</h3>
+                        <div class="vn-contact-info-grid">
+                            <div class="vn-contact-item">
+                                <div class="vn-contact-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                         stroke="currentColor" stroke-width="2"
+                                         stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                        <circle cx="12" cy="10" r="3"/>
+                                    </svg>
+                                </div>
+                                <div class="vn-contact-text">
+                                    <div class="lbl">Địa chỉ</div>
+                                    <div class="val">Số 63 phố Lê Duẩn, Phường Cửa Nam, Quận Hoàn Kiếm, Thành phố Hà Nội, Việt Nam</div>
+                                </div>
+                            </div>
+                            <div class="vn-contact-item">
+                                <div class="vn-contact-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                         stroke="currentColor" stroke-width="2"
+                                         stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                </div>
+                                <div class="vn-contact-text">
+                                    <div class="lbl">Thời gian làm việc</div>
+                                    <div class="val">Thứ 2 đến Thứ 6: từ 8h đến 17h30</div>
+                                </div>
+                            </div>
+                            <div class="vn-contact-item">
+                                <div class="vn-contact-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                         stroke="currentColor" stroke-width="2"
+                                         stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                    </svg>
+                                </div>
+                                <div class="vn-contact-text">
+                                    <div class="lbl">Điện thoại</div>
+                                    <div class="val"><a href="tel:+842438221225">+842438221225</a></div>
+                                </div>
+                            </div>
+                            <div class="vn-contact-item">
+                                <div class="vn-contact-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                         stroke="currentColor" stroke-width="2"
+                                         stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                        <polyline points="22,6 12,13 2,6"/>
+                                    </svg>
+                                </div>
+                                <div class="vn-contact-text">
+                                    <div class="lbl">Email</div>
+                                    <div class="val"><a href="mailto:info@vnoptictech.com.vn">info@vnoptictech.com.vn</a></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h3 class="vn-contact-title">Gửi thắc mắc cho chúng tôi</h3>
+                        <p class="vn-contact-desc">Nếu bạn có thắc mắc gì, có thể gửi yêu cầu cho chúng tôi, và chúng tôi sẽ liên lạc với bạn sớm nhất có thể .</p>
+                        <form action="#" method="post" class="vn-contact-form">
+                            <input type="text" name="name" placeholder="Tên của bạn" required="required"/>
+                            <div class="row2">
+                                <input type="email" name="email" placeholder="Email của bạn" required="required"/>
+                                <input type="tel" name="phone" placeholder="Số điện thoại của bạn"/>
+                            </div>
+                            <textarea name="message" placeholder="Nội dung" rows="5"/>
+                            <p class="vn-recaptcha-notice">
+                                This site is protected by reCAPTCHA and the Google
+                                <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+                                and
+                                <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+                                apply.
+                            </p>
+                            <button type="submit">Gửi cho chúng tôi</button>
+                        </form>
+                    </div>
+                    <div class="vn-contact-map">
+                        <iframe src="https://maps.google.com/maps?q=S%E1%BB%91%2063%20ph%E1%BB%91%20L%C3%AA%20Du%E1%BA%A9n%2C%20Ph%C6%B0%E1%BB%9Dng%20C%E1%BB%ADa%20Nam%2C%20Qu%E1%BA%ADn%20Ho%C3%A0n%20Ki%E1%BA%BFm%2C%20H%C3%A0%20N%E1%BB%99i&amp;t=&amp;z=16&amp;ie=UTF8&amp;iwloc=&amp;output=embed"
+                                loading="lazy"
+                                referrerpolicy="no-referrer-when-downgrade"
+                                title="Bản đồ VNOPTICTECH"/>
+                    </div>
+                </div>
+            </div>
         </t>
     </template>
 
