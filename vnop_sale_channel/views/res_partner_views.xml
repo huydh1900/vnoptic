@@ -72,8 +72,10 @@
         <field name="inherit_id" ref="base.view_res_partner_filter"/>
         <field name="priority">99</field>
         <field name="arch" type="xml">
-            <field name="ref" position="attributes">
-                <attribute name="string">Mã khách hàng</attribute>
+            <!-- View primary clone không nhận extension của vnop_partner (thêm field ref
+                 vào search base), nên phải tự thêm field ref ở đây thay vì position="attributes". -->
+            <field name="name" position="after">
+                <field name="ref" string="Mã khách hàng"/>
             </field>
         </field>
     </record>
