@@ -141,6 +141,7 @@
                                    readonly="state != 'draft'"/>
                             <field name="amount_total" widget="monetary"/>
                             <field name="currency_id" invisible="1"/>
+                            <field name="allowed_product_ids" invisible="1"/>
                             <field name="next_approver_role" readonly="1"/>
                         </group>
                     </group>
@@ -153,15 +154,11 @@
                             <field name="line_ids"
                                    readonly="state not in ('draft','back_to_sales')">
                                 <list editable="bottom">
-                                    <field name="sale_order_line_id"
-                                           options="{'no_create': True}"
-                                           context="{'default_order_id': parent.sale_order_id}"/>
-                                    <field name="product_id" options="{'no_create': True}"/>
-                                    <field name="lot_id" optional="show"
-                                           options="{'no_create': True}"/>
+                                    <field name="product_id" options="{'no_create': True}"
+                                           domain="[('id', 'in', parent.allowed_product_ids)] if parent.sale_order_id else []"/>
                                     <field name="quantity"/>
-                                    <field name="product_uom_id"/>
-                                    <field name="price_unit"/>
+                                    <field name="product_uom_id" optional="hide"/>
+                                    <field name="price_unit" readonly="1"/>
                                     <field name="subtotal" sum="Tổng"/>
                                     <field name="warranty_days_remaining" readonly="1"
                                            optional="show"/>

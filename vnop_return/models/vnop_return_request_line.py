@@ -14,14 +14,14 @@ class VnopReturnRequestLine(models.Model):
         domain="[('order_id', '=', parent.sale_order_id)]")
     product_id = fields.Many2one('product.product', string='Sản phẩm',
                                  required=True)
-    lot_id = fields.Many2one('stock.lot', string='Lô / Serial',
-                             domain="[('product_id', '=', product_id)]")
     product_uom_id = fields.Many2one('uom.uom', string='Đơn vị',
                                      required=True)
     quantity = fields.Float(string='Số lượng', required=True, default=1.0,
                             digits='Product Unit of Measure')
-    price_unit = fields.Monetary(string='Giá gốc',
-                                 currency_field='currency_id')
+    price_unit = fields.Monetary(
+        string='Giá gốc', currency_field='currency_id',
+        compute='_compute_price_unit', store=True, readonly=False,
+        help='Giá lúc bán lấy từ dòng đơn hàng gốc; có thể chỉnh tay khi trả ngoại lệ.')
     subtotal = fields.Monetary(string='Thành tiền', compute='_compute_subtotal',
                                store=True, currency_field='currency_id')
     currency_id = fields.Many2one(related='request_id.currency_id', readonly=True)
@@ -70,6 +70,21 @@ class VnopReturnRequestLine(models.Model):
             days = max(regs.mapped('days_remaining_wholesale') or [0])
             line.warranty_days_remaining = days
 
+    @api.depends('product_id', 'request_id.sale_order_id')
+    def _compute_price_unit(self):
+        """Lấy giá lúc bán từ dòng đơn gốc. Tính server-side nên persist kể cả
+        khi field readonly trên view (onchange của field readonly không được
+        web client gửi lên khi lưu)."""
+        for line in self:
+            so = line.request_id.sale_order_id
+            sol = so.order_line.filtered(
+                lambda ol: ol.product_id == line.product_id)[:1] \
+                if (so and line.product_id) else False
+            if sol:
+                line.price_unit = sol.price_unit
+            elif not line.price_unit:
+                line.price_unit = 0.0
+
     @api.depends('quantity', 'price_unit')
     def _compute_subtotal(self):
         for line in self:
@@ -87,7 +102,16 @@ class VnopReturnRequestLine(models.Model):
 
     @api.onchange('product_id')
     def _onchange_product(self):
-        if self.product_id and not self.product_uom_id:
+        if not self.product_id:
+            return
+        # Lấy giá/đơn vị từ dòng đơn hàng gốc (giá lúc bán) nếu có đơn gốc.
+        so = self.request_id.sale_order_id
+        sol = so.order_line.filtered(
+            lambda line: line.product_id == self.product_id)[:1] if so else False
+        if sol:
+            self.sale_order_line_id = sol
+            self.product_uom_id = sol.product_uom
+        elif not self.product_uom_id:
             self.product_uom_id = self.product_id.uom_id
 
     @api.onchange('reason_id')

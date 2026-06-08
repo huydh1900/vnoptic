@@ -57,6 +57,10 @@ class VnopReturnRequest(models.Model):
     # --- Dòng SP ---
     line_ids = fields.One2many('vnop.return.request.line',
                                'request_id', string='Sản phẩm trả')
+    allowed_product_ids = fields.Many2many(
+        'product.product', string='SP thuộc đơn gốc',
+        compute='_compute_allowed_product_ids',
+        help='Dùng giới hạn domain SP trả khi đã chọn đơn hàng gốc.')
     company_id = fields.Many2one('res.company', default=lambda s: s.env.company,
                                  required=True)
     currency_id = fields.Many2one(related='company_id.currency_id', readonly=True)
@@ -93,6 +97,11 @@ class VnopReturnRequest(models.Model):
                                 tracking=True)
 
     # ======================= COMPUTE =======================
+    @api.depends('sale_order_id', 'sale_order_id.order_line.product_id')
+    def _compute_allowed_product_ids(self):
+        for rec in self:
+            rec.allowed_product_ids = rec.sale_order_id.order_line.product_id
+
     @api.depends('line_ids.subtotal')
     def _compute_amount_total(self):
         for rec in self:
@@ -362,31 +371,29 @@ class VnopReturnRequest(models.Model):
             loc = warehouse.lot_stock_id
         return loc
 
-    def _find_source_delivery(self):
-        """Tìm phiếu giao gốc (outgoing, done) phủ hết SP cần trả, để có thể
-        dùng cơ chế trả hàng chuẩn của Odoo (giữ origin_returned_move_id +
-        to_refund). Trả về rỗng nếu không có đơn gốc hoặc không phiếu nào phủ đủ
-        → caller fallback tạo phiếu thủ công."""
+    def _find_delivery_for_product(self, product):
+        """Phiếu giao gốc (outgoing, done) đầu tiên trong đơn có giao SP này, để
+        neo trả về (giữ origin_returned_move_id + to_refund). Khớp theo TỪNG SP
+        nên SP trả nằm rải nhiều phiếu giao vẫn neo được. Rỗng nếu không có đơn
+        gốc hoặc SP chưa từng giao → caller fallback phiếu thủ công."""
         self.ensure_one()
-        if not self.sale_order_id:
+        if not self.sale_order_id or not product:
             return self.env['stock.picking']
         pickings = self.sale_order_id.picking_ids.filtered(
             lambda p: p.picking_type_code == 'outgoing' and p.state == 'done')
-        want = set(self.line_ids.mapped('product_id').ids)
-        if not want:
-            return self.env['stock.picking']
         for picking in pickings:
-            done_products = set(picking.move_ids.filtered(
-                lambda m: m.state == 'done').mapped('product_id').ids)
-            if want <= done_products:
+            done_products = picking.move_ids.filtered(
+                lambda m: m.state == 'done').mapped('product_id')
+            if product in done_products:
                 return picking
         return self.env['stock.picking']
 
-    def _create_return_via_wizard(self, source_picking, dst):
+    def _create_return_via_wizard(self, source_picking, dst, lines):
         """Dùng stock.return.picking._create_return() để tạo phiếu nhập trả có
         neo về move giao gốc (origin_returned_move_id) và set to_refund (giảm
         qty_delivered). Đích được redirect về Kho Tạm qua context (xem
-        stock_return_picking.py). Trả về rỗng nếu không khớp được dòng nào."""
+        stock_return_picking.py). Chỉ trả các SP trong `lines`. Trả về rỗng nếu
+        không khớp được dòng nào."""
         self.ensure_one()
         wizard = self.env['stock.return.picking'].with_context(
             active_id=source_picking.id,
@@ -394,7 +401,7 @@ class VnopReturnRequest(models.Model):
             vnop_return_dest_location_id=dst.id,
         ).create({'picking_id': source_picking.id})
         qty_by_product = {}
-        for line in self.line_ids:
+        for line in lines:
             qty_by_product.setdefault(line.product_id.id, 0.0)
             qty_by_product[line.product_id.id] += line.quantity
         matched = False
@@ -409,9 +416,10 @@ class VnopReturnRequest(models.Model):
             return self.env['stock.picking']
         return wizard._create_return()
 
-    def _create_return_manual(self, dst):
-        """Tạo phiếu nhập trả thủ công khi không xác định được phiếu giao gốc
-        (vd: trả ngoại lệ không gắn đơn). Không có origin_returned_move_id."""
+    def _create_return_manual(self, dst, lines):
+        """Tạo phiếu nhập trả thủ công cho các SP không neo được phiếu giao gốc
+        (vd: trả ngoại lệ không gắn đơn, SP chưa từng giao). Không có
+        origin_returned_move_id."""
         self.ensure_one()
         warehouse = self.env['stock.warehouse'].search(
             [('company_id', '=', self.company_id.id)], limit=1)
@@ -425,7 +433,7 @@ class VnopReturnRequest(models.Model):
             'location_id': src.id,
             'location_dest_id': dst.id,
             'company_id': self.company_id.id,
-        }) for line in self.line_ids]
+        }) for line in lines]
         picking = self.env['stock.picking'].create({
             'partner_id': self.partner_id.id,
             'picking_type_id': picking_type.id,
@@ -443,57 +451,95 @@ class VnopReturnRequest(models.Model):
         if self.return_picking_ids:
             return self.return_picking_ids
         dst = self._get_return_dest_location()
-        source_picking = self._find_source_delivery()
-        picking = self.env['stock.picking']
-        if source_picking:
+        # Gom dòng trả theo phiếu giao gốc của từng SP (neo to_refund). SP không
+        # khớp phiếu giao nào → gom vào nhóm thủ công.
+        Line = self.env['vnop.return.request.line']
+        groups = {}            # picking_id -> recordset lines
+        src_by_id = {}         # picking_id -> picking
+        unmatched = Line
+        for line in self.line_ids:
+            src = self._find_delivery_for_product(line.product_id)
+            if src:
+                src_by_id[src.id] = src
+                groups[src.id] = groups.get(src.id, Line) | line
+            else:
+                unmatched |= line
+
+        pickings = self.env['stock.picking']
+        for pid, lines in groups.items():
             # Ưu tiên reuse cơ chế Odoo để giữ truy vết + qty_delivered.
-            # Nếu wizard không tạo được (đã trả hết, không khớp dòng...) → fallback.
+            # Wizard không tạo được (đã trả hết...) → dồn xuống phiếu thủ công.
             try:
-                picking = self._create_return_via_wizard(source_picking, dst)
+                created = self._create_return_via_wizard(src_by_id[pid], dst, lines)
             except UserError:
-                picking = self.env['stock.picking']
-        if not picking:
-            picking = self._create_return_manual(dst)
-        self.return_picking_ids = [(4, picking.id)]
-        return picking
+                created = self.env['stock.picking']
+            if created:
+                pickings |= created
+            else:
+                unmatched |= lines
+        if unmatched:
+            pickings |= self._create_return_manual(dst, unmatched)
+        self.return_picking_ids = [(4, p.id) for p in pickings]
+        return pickings
+
+    def _get_refund_source_invoice(self):
+        """Hoá đơn gốc để neo credit note (lấy account/thuế + sale_line_ids giúp
+        giảm qty_invoiced trên đơn). Ưu tiên hoá đơn chọn tay; nếu trống mà có
+        đơn gốc → suy hoá đơn out_invoice đã posted của đơn."""
+        self.ensure_one()
+        if self.invoice_id:
+            return self.invoice_id
+        if self.sale_order_id:
+            return self.sale_order_id.invoice_ids.filtered(
+                lambda m: m.move_type == 'out_invoice'
+                and m.state == 'posted')[:1]
+        return self.env['account.move']
 
     def _create_refund(self):
+        """Tạo credit note theo SL trả thực tế (không đảo nguyên hoá đơn). Neo
+        về dòng hoá đơn gốc khi có: copy account/thuế + sale_line_ids để đơn gốc
+        giảm qty_invoiced. Không có hoá đơn gốc → credit note 'trần' như cũ."""
         self.ensure_one()
-        if not self.invoice_id:
-            # Cho phép trường hợp không có hoá đơn gốc → tạo credit note thủ công
-            move_vals = {
-                'move_type': 'out_refund',
-                'partner_id': self.partner_id.id,
-                'invoice_user_id': self.salesperson_id.id,
-                'invoice_origin': self.name,
-                'ref': _('Trả hàng lỗi - %s', self.name),
-                'invoice_line_ids': [(0, 0, {
-                    'product_id': line.product_id.id,
-                    'quantity': line.quantity,
-                    'price_unit': line.price_unit,
-                    'name': line.product_id.display_name,
-                }) for line in self.line_ids],
+        source_invoice = self._get_refund_source_invoice()
+        inv_line_by_product = {}
+        for il in source_invoice.invoice_line_ids.filtered(
+                lambda aml: aml.product_id
+                and aml.display_type not in ('line_section', 'line_note')):
+            inv_line_by_product.setdefault(il.product_id.id, il)
+
+        invoice_lines = []
+        for line in self.line_ids:
+            vals = {
+                'product_id': line.product_id.id,
+                'quantity': line.quantity,
+                'price_unit': line.price_unit,
+                'name': line.product_id.display_name,
+                'product_uom_id': line.product_uom_id.id,
             }
-            move = self.env['account.move'].create(move_vals)
-        else:
-            # Dùng wizard chuẩn account.move.reversal
-            reversal_wiz = self.env['account.move.reversal'].with_context(
-                active_model='account.move',
-                active_ids=self.invoice_id.ids,
-            ).create({
-                'reason': _('Trả hàng lỗi - %s', self.name),
-                'journal_id': self.invoice_id.journal_id.id,
-            })
-            action = reversal_wiz.refund_moves()
-            move_id = action.get('res_id') or (action.get('domain') and action['domain'][0][2])
-            if isinstance(move_id, list):
-                move = self.env['account.move'].browse(move_id)
-            else:
-                move = self.env['account.move'].browse(move_id)
-            # Cập nhật salesperson + ref
-            move.write({
-                'invoice_user_id': self.salesperson_id.id,
-                'ref': _('Trả hàng lỗi - %s', self.name),
-            })
+            il = inv_line_by_product.get(line.product_id.id)
+            if il:
+                vals.update({
+                    'price_unit': il.price_unit,
+                    'account_id': il.account_id.id,
+                    'tax_ids': [(6, 0, il.tax_ids.ids)],
+                })
+            invoice_lines.append((0, 0, vals))
+
+        move = self.env['account.move'].create({
+            'move_type': 'out_refund',
+            'partner_id': self.partner_id.id,
+            'invoice_user_id': self.salesperson_id.id,
+            'invoice_origin': self.name,
+            'ref': _('Trả hàng lỗi - %s', self.name),
+            'reversed_entry_id': source_invoice.id or False,
+            'invoice_line_ids': invoice_lines,
+        })
+        # Neo dòng đơn hàng gốc: phải write SAU create — sale_line_ids truyền
+        # trong invoice_line_ids lúc create bị account.move strip, không giảm
+        # được qty_invoiced.
+        for ml in move.invoice_line_ids.filtered(lambda aml: aml.product_id):
+            il = inv_line_by_product.get(ml.product_id.id)
+            if il and il.sale_line_ids:
+                ml.sale_line_ids = [(6, 0, il.sale_line_ids.ids)]
         self.refund_move_ids = [(4, m, 0) for m in move.ids]
         return move

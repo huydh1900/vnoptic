@@ -4,4 +4,5 @@ from . import vnop_return_request
 from . import vnop_return_request_line
 from . import stock_picking
 from . import stock_return_picking
+from . import sale_order
 from . import res_config_settings

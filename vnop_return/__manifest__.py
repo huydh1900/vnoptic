@@ -26,6 +26,7 @@
         'views/res_config_settings_views.xml',
         'views/vnop_return_reason_views.xml',
         'views/vnop_return_request_views.xml',
+        'views/sale_order_views.xml',
         'views/menu.xml',
     ],
     'license': 'LGPL-3',
