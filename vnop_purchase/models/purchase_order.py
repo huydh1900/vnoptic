@@ -16,8 +16,12 @@ class IrUiMenu(models.Model):
         if not menu:
             return
         new_name = 'Quản lý hàng về'
-        menu.with_context(lang='vi_VN').name = new_name
         menu.with_context(lang='en_US').name = new_name
+        # Chỉ ghi bản dịch vi_VN khi ngôn ngữ này đã được cài, tránh
+        # UserError "Invalid language code: vi_VN" khi cài trên DB chưa có vi_VN.
+        installed_langs = dict(self.env['res.lang'].get_installed())
+        if 'vi_VN' in installed_langs:
+            menu.with_context(lang='vi_VN').name = new_name
 
 
 class PurchaseOrder(models.Model):
