@@ -22,6 +22,7 @@ export class TagSelect extends Component {
         ids: { type: Array },
         placeholder: { type: String, optional: true },
         update: { type: Function },
+        showSelectAll: { type: Boolean, optional: true },
     };
 
     setup() {
@@ -44,6 +45,8 @@ export class TagSelect extends Component {
     }
     get visible() { return this.selected.slice(0, TAG_VISIBLE); }
     get hiddenCount() { return Math.max(this.selected.length - TAG_VISIBLE, 0); }
+
+    get allSelected() { return this.props.ids.length === this.props.options.length && this.props.options.length > 0; }
 
     get filteredOptions() {
         const idSet = new Set(this.props.ids);
@@ -71,6 +74,7 @@ export class TagSelect extends Component {
     }
     remove(id) { this.props.update(this.props.ids.filter((x) => x !== id)); }
     clearAll() { this.props.update([]); this.state.popoverOpen = false; this.state.popoverSearch = ""; }
+    selectAll() { this.props.update(this.props.options.map((o) => o.id)); this.state.dropdownOpen = false; this.state.query = ""; }
 
     togglePopover() {
         this.state.popoverOpen = !this.state.popoverOpen;
@@ -191,6 +195,9 @@ export class NxtReport extends Component {
         }
     }
 
+    isSubtotal(row) {
+        return !!row._subtotal;
+    }
     isNum(key) {
         return !!key && (key.startsWith("qty_") || key.startsWith("val_"));
     }

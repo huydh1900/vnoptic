@@ -13,6 +13,9 @@
         box-shadow: 0 1px 3px rgba(16, 24, 40, 0.08);
         padding: 22px 24px;
         margin-bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
     }
 
     .o_filter_label {
@@ -40,6 +43,70 @@
             border-color: #1A73E8;
             box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.12);
         }
+    }
+
+    .o_filter_actions {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding-top: 4px;
+        border-top: 1px solid #EAECF0;
+        flex-wrap: wrap;
+    }
+
+    .o_filter_search_wrap {
+        position: relative;
+        flex: 1;
+        min-width: 200px;
+        max-width: 360px;
+
+        .o_filter_search_icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #98A2B3;
+            font-size: 0.85rem;
+            pointer-events: none;
+        }
+
+        .o_filter_search_input {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid #D0D5DD;
+            padding: 8px 12px 8px 34px;
+            background-color: #fff;
+            font-size: 0.9rem;
+            color: #101828;
+
+            &:focus {
+                outline: none;
+                border-color: #1A73E8;
+                box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.12);
+            }
+        }
+    }
+
+    .o_filter_btn_group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+    }
+
+    .o_reset_btn {
+        background: transparent;
+        border: 1px solid #D0D5DD;
+        color: #344054;
+        padding: 8px 18px;
+        font-weight: 600;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        &:hover { background-color: #F2F4F7; border-color: #98A2B3; }
     }
 
     // ---------- Tag multi-select ----------
@@ -164,6 +231,18 @@
         font-size: 0.72rem;
         font-weight: 700;
     }
+    .o_branch_select_all {
+        background-color: #E7EFFA;
+        border: 1px solid #C8D3E4;
+        color: #1F2D5C;
+        border-radius: 14px;
+        padding: 2px 10px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        &:hover { background-color: #DCE7F7; }
+    }
     .o_branch_clear_all {
         background: transparent;
         border: 0;
@@ -238,22 +317,24 @@
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         color: #344054;
         cursor: pointer;
-        input { width: 16px; height: 16px; cursor: pointer; }
+        white-space: nowrap;
+        input { width: 16px; height: 16px; cursor: pointer; accent-color: #1A73E8; }
     }
     .o_search_btn {
         background-color: #1A73E8;
         border: 1px solid #1A73E8;
         color: #ffffff;
-        padding: 9px 32px;
+        padding: 8px 24px;
         font-weight: 600;
         border-radius: 8px;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
+        cursor: pointer;
         &:hover:not(:disabled) { background-color: #155CB8; border-color: #155CB8; }
         &:disabled { opacity: 0.65; cursor: default; }
     }
@@ -333,6 +414,13 @@
         tbody tr:hover td { background-color: #F0F5FC; }
 
         th.o_nxt_num, td.o_nxt_num { text-align: right; font-variant-numeric: tabular-nums; }
+
+        tbody tr.o_subtotal_row td {
+            background-color: #FFF3CD;
+            font-weight: 700;
+            border-top: 2px solid #E4E7EC;
+        }
+        tbody tr.o_subtotal_row:hover td { background-color: #FFF0B3; }
 
         tfoot td {
             position: sticky;
