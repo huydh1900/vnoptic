@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import float_compare
 
 
 class VnopReturnRequestLine(models.Model):
@@ -126,3 +127,27 @@ class VnopReturnRequestLine(models.Model):
         for line in self:
             if line.quantity <= 0:
                 raise ValidationError(_('Số lượng trả phải > 0.'))
+
+    @api.constrains('quantity', 'product_id')
+    def _check_qty_vs_delivered(self):
+        precision = self.env['decimal.precision'].precision_get('Product Unit of Measure')
+        for line in self:
+            so = line.request_id.sale_order_id
+            if not so:
+                continue
+            # Tổng qty_delivered của tất cả dòng cùng SP trên đơn gốc
+            delivered = sum(
+                sol.qty_delivered for sol in so.order_line
+                if sol.product_id == line.product_id)
+            # Tổng SL trả từ tất cả phiếu active (kể cả phiếu hiện tại)
+            all_return_lines = self.env['vnop.return.request.line'].search([
+                ('request_id.sale_order_id', '=', so.id),
+                ('request_id.state', 'not in', ('cancel', 'refused')),
+                ('product_id', '=', line.product_id.id),
+            ])
+            total_returned = sum(all_return_lines.mapped('quantity'))
+            if float_compare(total_returned, delivered, precision_digits=precision) > 0:
+                raise ValidationError(_(
+                    'SP "%s": tổng SL trả (%.2f) vượt SL đã giao (%.2f) trên đơn %s.',
+                    line.product_id.display_name,
+                    total_returned, delivered, so.name))

@@ -8,3 +8,4 @@ access_vnop_return_request_admin,vnop.return.request admin,model_vnop_return_req
 access_vnop_return_request_line_user,vnop.return.request.line user,model_vnop_return_request_line,group_return_user,1,1,1,1
 access_vnop_return_qc_wizard,qc wizard,model_vnop_return_qc_classify_wizard,group_return_otk,1,1,1,1
 access_vnop_return_qc_wizard_line,qc wizard line,model_vnop_return_qc_classify_wizard_line,group_return_otk,1,1,1,1
+access_vnop_return_line_import_wizard,return line import wizard,model_vnop_return_line_import_wizard,group_return_user,1,1,1,1
