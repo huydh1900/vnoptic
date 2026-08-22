@@ -33,6 +33,15 @@ class ProductTemplateExtension(models.Model):
     ], string='Loại tròng')
 
     x_java_qr_url = fields.Char(string='QR URL (Java)', copy=False)
+    legacy_code = fields.Char(
+        string='Mã 6 số (PM cũ)',
+        size=20,
+        index=True,
+        copy=False,
+        help='Mã hàng tự sinh trên phần mềm cũ (cột "Mã số hàng tự sinh" trong file '
+             'Excel import, vd: 016549). Chỉ để tra cứu/đối chiếu — KHÔNG thay thế '
+             'barcode do Odoo tự sinh theo quy tắc hiện tại.',
+    )
     legacy_product_id = fields.Integer(
         string='Legacy Product ID',
         index=True,

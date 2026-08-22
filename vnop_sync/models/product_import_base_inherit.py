@@ -62,6 +62,7 @@ class ProductTemplateImportBaseInherit(models.Model):
     _VNOP_EXPORT_TEMPLATE_PREFIX = 'VNOP - Product Template'
 
     _VNOP_COMMON_FIELDS = [
+        'legacy_code',
         'categ_id',
         'image_1920',
         'name',

@@ -30,7 +30,7 @@
                      để tránh trùng với filter "Loại sản phẩm" (group_by classification_type)
                      do vnop_sync thêm ở dưới. -->
                 <filter name="type" position="replace"/>
-                <field name="name" filter_domain="['|', '|', ('name', 'ilike', self), ('barcode', 'ilike', self), ('default_code', 'ilike', self)]"/>
+                <field name="name" filter_domain="['|', '|', '|', ('name', 'ilike', self), ('barcode', 'ilike', self), ('default_code', 'ilike', self), ('legacy_code', 'ilike', self)]"/>
                 <field name="brand_id"/>
                 <field name="categ_id"/>
                 <field name="country_id"/>
@@ -129,6 +129,8 @@
                                options="{'no_create': True}"/>
                         <field name="classification_id" options="{'no_create': True}"/>
                         <field name="barcode"/>
+                        <field name="legacy_code" readonly="1"
+                               invisible="not legacy_code"/>
                         <field name="default_code" string="Mã theo NSX (REF)"/>
                         <field name="len_type" invisible="classification_type != 'lens'"/>
                         <field name="brand_id"/>

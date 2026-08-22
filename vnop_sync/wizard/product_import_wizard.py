@@ -28,6 +28,7 @@ PRODUCT_TYPE_SELECTION = [
 # ─────────────────────────────────────────────────────────────────────────
 VN_LABEL_TO_FIELD = {
     # Common
+    'mã số hàng tự sinh': 'legacy_code',
     'mã hàng tự định nghĩa': 'default_code',
     'mã hàng tự đinh nghĩa': 'default_code',
     'mã nhóm hàng': 'classification_code',
@@ -115,7 +116,6 @@ VN_LABEL_TO_FIELD = {
 
 # Cột bị ghi chú "bỏ đi" hoặc không cần map
 VN_LABEL_IGNORE = {
-    'mã số hàng tự sinh',           # auto-generated
     'loại hàng',                     # luôn 01 - hình thức quản lý cũ
     'tên nguồn cung cấp',           # tự suy ra từ Ma NCC
     'hình thức quản lý (01)',       # legacy
@@ -732,10 +732,59 @@ class ProductImportWizard(models.TransientModel):
                     'details': details,
                 })
 
+        # 3b. Kiểm tra mã 6 số (PM cũ) trùng trong file / đã có trong DB
+        self._validate_legacy_code(issues, rows, col_index)
+
         # 4. Kiểm tra giá trị M2O/M2M tồn tại
         self._validate_vn_relational(issues, header, rows, col_index)
 
         return issues, buckets
+
+    def _validate_legacy_code(self, issues, rows, col_index):
+        """Cảnh báo mã 6 số (PM cũ) bị trùng trong file hoặc đã tồn tại trong DB.
+
+        Chỉ warn — mã 6 số là tham chiếu, không phải khóa; import vẫn chạy.
+        """
+        idx = col_index.get('legacy_code')
+        if idx is None:
+            return
+
+        seen = {}
+        dups = {}
+        for r_idx, row in enumerate(rows):
+            code = (row[idx] or '').strip()
+            if not code:
+                continue
+            if code in seen:
+                dups.setdefault(code, [seen[code]]).append(r_idx + 1)
+            else:
+                seen[code] = r_idx + 1
+
+        if dups:
+            details = [
+                '"%s" (dòng: %s)' % (c, ', '.join(str(r) for r in dups[c][:5]))
+                for c in list(dups.keys())[:self._MAX_SAMPLE]
+            ]
+            issues.append({
+                'level': 'warn',
+                'title': _('Mã 6 số trùng trong file: %s mã') % len(dups),
+                'details': details,
+            })
+
+        if seen:
+            existing = self.env['product.template'].with_context(active_test=False).search_read(
+                [('legacy_code', 'in', list(seen.keys()))], ['legacy_code']
+            )
+            codes = [r['legacy_code'] for r in existing if r['legacy_code']]
+            if codes:
+                details = [', '.join(codes[:10])]
+                if len(codes) > 10:
+                    details.append(_('... và %s mã khác') % (len(codes) - 10))
+                issues.append({
+                    'level': 'warn',
+                    'title': _('Mã 6 số đã tồn tại trong hệ thống: %s mã') % len(codes),
+                    'details': details,
+                })
 
     def _validate_vn_relational(self, issues, header, rows, col_index):
         """Phát hiện giá trị cid/code không tồn tại → đẩy vào missing_ref_ids."""
@@ -1771,6 +1820,9 @@ class ProductImportWizard(models.TransientModel):
             return [x.strip() for x in re.split(r'[,;]', v) if x.strip()]
 
         # Common scalar
+        # Mã 6 số của phần mềm cũ — chỉ lưu tham chiếu, không đụng barcode
+        if cell('legacy_code'):
+            vals['legacy_code'] = cell('legacy_code')
         # Cột Excel "default_code" → ghi vào field barcode (CID là khóa nội bộ)
         if cell('default_code'):
             vals['barcode'] = cell('default_code')
