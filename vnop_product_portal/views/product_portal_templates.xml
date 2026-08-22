@@ -479,7 +479,7 @@
                 </div>
                 <div class="vn-card-body">
                     <div class="vn-grid-2">
-                        <div class="vn-row"><span class="k">Mã kính:</span><span class="v" t-out="ma_kinh"/></div>
+                        <div class="vn-row"><span class="k">Mã sản phẩm:</span><span class="v" t-out="ma_kinh"/></div>
                         <div class="vn-row"><span class="k">SPH:</span><span class="v" t-out="sph"/></div>
 
                         <div class="vn-row"><span class="k">Xuất xứ:</span><span class="v" t-out="xuat_xu"/></div>

@@ -69,7 +69,8 @@ class ProductPortalController(http.Controller):
             'image_url': f"/product/image/{product.id}",
 
             # THÔNG TIN SẢN PHẨM (left column / right column)
-            'ma_kinh': _or_placeholder(product.barcode or product.default_code),
+            # Ưu tiên mã 6 số import từ PM cũ (legacy_code), fallback barcode Odoo tự sinh
+            'ma_kinh': _or_placeholder(product.legacy_code or product.barcode or product.default_code),
             'sph': sph,
             'xuat_xu': _or_placeholder(product.country_id.name if product.country_id else ''),
             'cyl': cyl,
