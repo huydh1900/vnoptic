@@ -59,8 +59,29 @@ class ProductPortalController(http.Controller):
             extras.append(product.accessory_note)
         extra_info = ', '.join(extras) if extras else 'Không'
 
+        is_frame = (
+            product.classification_type == 'frame'
+            or (not product.x_sph and not product.x_cyl and bool(
+                product.opt_model or product.opt_color or product.ngang_mat
+                or product.cao_mat or product.opt_bridge_width
+                or product.opt_temple_width
+            ))
+        )
+
+        def _mm(val):
+            return ('%g mm' % val) if val else PLACEHOLDER
+
         values = {
             'product': product,
+            'is_frame': is_frame,
+
+            # THÔNG TIN GỌNG KÍNH (frame)
+            'ma_model': _or_placeholder(product.opt_model),
+            'ma_mau': _or_placeholder(product.opt_color),
+            'ngang_mat': _mm(product.ngang_mat or product.opt_lens_width),
+            'cao_mat': _mm(product.cao_mat or product.opt_lens_height),
+            'dai_cau': _mm(product.opt_bridge_width),
+            'dai_cang': _mm(product.opt_temple_width),
             'name': product.display_name or product.name or '',
             'brand': product.brand_id.name if product.brand_id else '',
             'description': product.description_sale or PLACEHOLDER,

@@ -411,7 +411,7 @@
                     }
                     .vn-row {
                         display: grid;
-                        grid-template-columns: 110px 1fr;
+                        grid-template-columns: 150px 1fr;
                         align-items: center;
                         padding: 11px 0;
                         border-bottom: 1px solid #ededed;
@@ -438,7 +438,7 @@
                     @media (max-width: 560px) {
                         .vn-hero-info h1 { font-size: 20px; }
                         .vn-price { font-size: 19px; }
-                        .vn-row { grid-template-columns: 100px 1fr; }
+                        .vn-row { grid-template-columns: 130px 1fr; }
                     }
                 </style>
             </t>
@@ -478,21 +478,37 @@
                     <p class="sub">Thông số &amp; Cấu hình</p>
                 </div>
                 <div class="vn-card-body">
-                    <div class="vn-grid-2">
+                    <div class="vn-grid-2" t-if="is_frame">
                         <div class="vn-row"><span class="k">Mã sản phẩm:</span><span class="v" t-out="ma_kinh"/></div>
-                        <div class="vn-row"><span class="k">SPH:</span><span class="v" t-out="sph"/></div>
+                        <div class="vn-row"><span class="k">Giá bán lẻ có thuế:</span><span class="v"><t t-out="'{:,.0f}'.format(price)"/> <t t-out="currency_symbol"/></span></div>
+
+                        <div class="vn-row"><span class="k">Mã model:</span><span class="v" t-out="ma_model"/></div>
+                        <div class="vn-row"><span class="k">Mã màu:</span><span class="v" t-out="ma_mau"/></div>
+
+                        <div class="vn-row"><span class="k">Ngang mắt:</span><span class="v" t-out="ngang_mat"/></div>
+                        <div class="vn-row"><span class="k">Cao mắt:</span><span class="v" t-out="cao_mat"/></div>
+
+                        <div class="vn-row"><span class="k">Dài cầu:</span><span class="v" t-out="dai_cau"/></div>
+                        <div class="vn-row"><span class="k">Dài càng:</span><span class="v" t-out="dai_cang"/></div>
 
                         <div class="vn-row"><span class="k">Xuất xứ:</span><span class="v" t-out="xuat_xu"/></div>
-                        <div class="vn-row"><span class="k">CYL:</span><span class="v" t-out="cyl"/></div>
+                        <div class="vn-row"><span class="k">Vật liệu:</span><span class="v" t-out="vat_lieu"/></div>
+                    </div>
+                    <div class="vn-grid-2" t-else="">
+                        <div class="vn-row"><span class="k">Mã sản phẩm:</span><span class="v" t-out="ma_kinh"/></div>
+                        <div class="vn-row"><span class="k">Giá bán lẻ có thuế:</span><span class="v"><t t-out="'{:,.0f}'.format(price)"/> <t t-out="currency_symbol"/></span></div>
+
+                        <div class="vn-row"><span class="k">Độ cầu (SPH):</span><span class="v" t-out="sph"/></div>
+                        <div class="vn-row"><span class="k">Độ trụ (CYL):</span><span class="v" t-out="cyl"/></div>
+
+                        <div class="vn-row"><span class="k">Độ cộng thêm (ADD):</span><span class="v" t-out="add_val"/></div>
+                        <div class="vn-row"><span class="k">Chiết suất:</span><span class="v" t-out="chiet_suat"/></div>
+
+                        <div class="vn-row"><span class="k">Đường kính:</span><span class="v" t-out="duong_kinh"/></div>
+                        <div class="vn-row"><span class="k">Xuất xứ:</span><span class="v" t-out="xuat_xu"/></div>
 
                         <div class="vn-row"><span class="k">Phân loại:</span><span class="v" t-out="phan_loai"/></div>
-                        <div class="vn-row"><span class="k">ADD:</span><span class="v" t-out="add_val"/></div>
-
-                        <div class="vn-row"><span class="k">Chiết suất:</span><span class="v" t-out="chiet_suat"/></div>
-                        <div class="vn-row"><span class="k">Đường kính:</span><span class="v" t-out="duong_kinh"/></div>
-
                         <div class="vn-row"><span class="k">Vật liệu:</span><span class="v" t-out="vat_lieu"/></div>
-                        <div class="vn-row"><span class="k"></span><span class="v"></span></div>
                     </div>
                 </div>
             </section>
@@ -504,6 +520,7 @@
                     <p class="sub">Thông tin bổ sung về sản phẩm</p>
                 </div>
                 <div class="vn-card-body vn-stack">
+                    <div class="vn-row-stack" t-if="is_frame"><b>Mô tả:</b> <span t-out="description"/></div>
                     <div class="vn-row-stack"><b>Thông tin bổ sung:</b> <span t-out="thong_tin_bo_sung"/></div>
                     <div class="vn-row-stack"><b>Hướng dẫn sử dụng:</b> <span t-out="huong_dan"/></div>
                     <div class="vn-row-stack"><b>Bảo quản:</b> <span t-out="bao_quan"/></div>

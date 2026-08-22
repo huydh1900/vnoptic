@@ -2,7 +2,9 @@
 import base64
 import io
 import logging
+import os
 import re
+from urllib.parse import unquote, urlparse
 
 from openpyxl import load_workbook
 
@@ -19,6 +21,14 @@ _logger = logging.getLogger(__name__)
 PRODUCT_TYPE_SELECTION = [
     ('auto', 'Theo Mã nhóm hàng'),
 ]
+
+# Cột "Link ảnh sản phẩm": giới hạn để 1 file lỗi không kéo sập cả lần import.
+IMAGE_MAX_BYTES = 10 * 1024 * 1024
+IMAGE_ALLOWED_EXT = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
+IMAGE_DOWNLOAD_TIMEOUT = 20
+# Thư mục gốc trên máy chủ Odoo để ghép với tên file/đường dẫn tương đối
+# (đặt qua Cài đặt > Tham số hệ thống).
+IMAGE_BASE_PATH_PARAM = 'vnop_sync.image_import_base_path'
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -49,6 +59,11 @@ VN_LABEL_TO_FIELD = {
     'mã thuế bán ra': 'taxes_code',
     'kiểu in nhãn': 'label_print_type',
     'phụ kiện': 'accessory_note',
+    # Ảnh sản phẩm: đường dẫn file (server) hoặc URL http(s) → nạp vào image_1920
+    'link ảnh sản phẩm': 'image_path',
+    'link ảnh': 'image_path',
+    'đường dẫn ảnh': 'image_path',
+    'ảnh sản phẩm': 'image_path',
     # Tab "Thông tin sử dụng" — text/html fields chung cho mọi consu
     'thông tin bổ sung': 'accessory_note',
     'mô tả': 'description_sale',
@@ -738,7 +753,41 @@ class ProductImportWizard(models.TransientModel):
         # 4. Kiểm tra giá trị M2O/M2M tồn tại
         self._validate_vn_relational(issues, header, rows, col_index)
 
+        # 5. Kiểm tra cột "Link ảnh sản phẩm" — file có đọc được trên máy chủ không
+        self._validate_vn_images(issues, rows, col_index)
+
         return issues, buckets
+
+    _IMAGE_ISSUE_SAMPLE_LIMIT = 10
+
+    def _validate_vn_images(self, issues, rows, col_index):
+        """Cảnh báo các đường dẫn ảnh máy chủ không đọc được (URL http bỏ qua,
+        chỉ kiểm tra khi import thật để tránh tải file lúc kiểm thử)."""
+        idx = col_index.get('image_path')
+        if idx is None:
+            return
+        missing = []
+        checked = set()
+        for r_idx, row in enumerate(rows):
+            raw = (row[idx] or '').strip() if idx < len(row) else ''
+            if not raw or raw.lower().startswith(('http://', 'https://')):
+                continue
+            if raw in checked:
+                continue
+            checked.add(raw)
+            if not self._resolve_image_local_path(raw):
+                missing.append(_('Dòng %s: %s') % (r_idx + 1, raw))
+        if missing:
+            details = missing[:self._IMAGE_ISSUE_SAMPLE_LIMIT]
+            if len(missing) > self._IMAGE_ISSUE_SAMPLE_LIMIT:
+                details.append(_('... và %s đường dẫn khác')
+                               % (len(missing) - self._IMAGE_ISSUE_SAMPLE_LIMIT))
+            issues.append({
+                'level': 'warn',
+                'title': _('Không đọc được %s đường dẫn ảnh trên máy chủ '
+                           '(sản phẩm sẽ được tạo nhưng không có ảnh)') % len(missing),
+                'details': details,
+            })
 
     def _validate_legacy_code(self, issues, rows, col_index):
         """Cảnh báo mã 6 số (PM cũ) bị trùng trong file hoặc đã tồn tại trong DB.
@@ -1803,6 +1852,85 @@ class ProductImportWizard(models.TransientModel):
             },
         }
 
+    # ────────────────────────────────────────────────────────────
+    #   CỘT "LINK ẢNH SẢN PHẨM" → image_1920
+    # ────────────────────────────────────────────────────────────
+
+    def _image_base_path(self):
+        return (self.env['ir.config_parameter'].sudo()
+                .get_param(IMAGE_BASE_PATH_PARAM) or '').strip()
+
+    def _resolve_image_local_path(self, raw):
+        """Chuẩn hoá giá trị ô Excel thành đường dẫn file đọc được trên máy chủ Odoo.
+
+        Chấp nhận: đường dẫn tuyệt đối, file:///..., đường dẫn Windows
+        (C:\anh\a.jpg) và tên file trần — 2 trường hợp sau cần tham số hệ thống
+        `vnop_sync.image_import_base_path` trỏ tới thư mục ảnh trên máy chủ.
+        Trả về path hoặc '' nếu không tìm thấy file.
+        """
+        path = raw.strip().strip('"')
+        if path.lower().startswith('file://'):
+            path = unquote(urlparse(path).path)
+        path = os.path.expanduser(path)
+
+        candidates = [path]
+        base = self._image_base_path()
+        if base:
+            # Đường dẫn máy client (Windows / khác mount) không tồn tại trên
+            # server → thử ghép tên file vào thư mục ảnh của server.
+            filename = re.split(r'[\\/]', path)[-1]
+            candidates.append(os.path.join(base, path.lstrip('/\\')))
+            candidates.append(os.path.join(base, filename))
+
+        for candidate in candidates:
+            if candidate and os.path.isfile(candidate):
+                return candidate
+        return ''
+
+    def _load_image_b64(self, raw, cache):
+        """Đọc ảnh từ URL http(s) hoặc file trên máy chủ → base64 (str).
+
+        Raise UserError với thông báo rõ ràng để caller ghi nhận theo từng dòng.
+        `cache` dùng chung cho cả file import (nhiều dòng cùng 1 ảnh chỉ đọc 1 lần).
+        """
+        key = raw.strip()
+        if key in cache:
+            return cache[key]
+
+        lowered = key.lower()
+        if lowered.startswith(('http://', 'https://')):
+            try:
+                import requests
+                response = requests.get(key, timeout=IMAGE_DOWNLOAD_TIMEOUT, stream=True)
+                response.raise_for_status()
+                content = response.content
+            except Exception as exc:
+                raise UserError(_('Không tải được ảnh từ "%s": %s') % (key, exc)) from exc
+        else:
+            path = self._resolve_image_local_path(key)
+            if not path:
+                raise UserError(_(
+                    'Không tìm thấy file ảnh "%s" trên máy chủ Odoo. '
+                    'Copy ảnh lên máy chủ rồi khai báo thư mục ở tham số hệ thống "%s", '
+                    'hoặc dùng link http(s).'
+                ) % (key, IMAGE_BASE_PATH_PARAM))
+            ext = os.path.splitext(path)[1].lower()
+            if ext and ext not in IMAGE_ALLOWED_EXT:
+                raise UserError(_('File "%s" không phải định dạng ảnh hỗ trợ (%s).')
+                                % (key, ', '.join(sorted(IMAGE_ALLOWED_EXT))))
+            with open(path, 'rb') as fh:
+                content = fh.read()
+
+        if not content:
+            raise UserError(_('File ảnh "%s" rỗng.') % key)
+        if len(content) > IMAGE_MAX_BYTES:
+            raise UserError(_('Ảnh "%s" nặng %.1f MB, vượt giới hạn %s MB.') % (
+                key, len(content) / 1024.0 / 1024.0, IMAGE_MAX_BYTES // (1024 * 1024)))
+
+        encoded = base64.b64encode(content).decode()
+        cache[key] = encoded
+        return encoded
+
     def _row_to_vals(self, row, col_index, caches):
         """Convert một dòng Excel thành dict vals cho product.template.create()."""
         vals = {}
@@ -1836,6 +1964,11 @@ class ProductImportWizard(models.TransientModel):
             vals['barcode'] = cell('barcode')
         if cell('accessory_note'):
             vals['accessory_note'] = cell('accessory_note')
+        # Ảnh sản phẩm từ cột "Link ảnh sản phẩm"
+        if cell('image_path'):
+            vals['image_1920'] = self._load_image_b64(
+                cell('image_path'), caches.setdefault('_image_b64', {}),
+            )
         # Tab "Thông tin sử dụng" (text/html, áp dụng cho mọi sản phẩm consu)
         for tok in ('description_sale', 'x_uses', 'x_guide', 'x_warning', 'x_preserve'):
             v = cell(tok)
