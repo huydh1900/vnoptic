@@ -68,6 +68,7 @@ class SaleOrder(models.Model):
             ) from exc
 
         from odoo.addons.vnop_product_portal.models.product_template import (
+            _INTEM_PARTNER_FIELDS,
             INTEM_TEMPLATE_PATH,
             ProductTemplate,
         )
@@ -95,6 +96,7 @@ class SaleOrder(models.Model):
         all_tmpls.fetch(list(ProductTemplate._INTEM_PREFETCH_FIELDS))
         all_tmpls.country_id.fetch(['name'])
         all_tmpls.brand_id.fetch(['name'])
+        all_tmpls.primary_supplier_id.fetch(_INTEM_PARTNER_FIELDS)
         all_tmpls.lens_index_id.fetch(['name'])
         all_tmpls.material_id.fetch(['name'])
         all_tmpls.opt_material_lens_id.fetch(['name'])

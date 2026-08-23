@@ -14,7 +14,12 @@ INTEM_TEMPLATE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     'static', 'xlsx', 'intem_template.xlsx',
 )
-INTEM_DATA_START_ROW = 2
+# Template có 2 dòng header (EN + VN) → dữ liệu bắt đầu từ dòng 3.
+INTEM_DATA_START_ROW = 3
+# Field cần đọc trên NCC chính để build cột "Xuất khẩu bởi" / "Địa chỉ".
+_INTEM_PARTNER_FIELDS = [
+    'name', 'street', 'street2', 'city', 'state_id', 'zip', 'country_id',
+]
 
 
 class ProductTemplate(models.Model):
@@ -111,6 +116,34 @@ class ProductTemplate(models.Model):
                 parts.append(self.opt_color)
         return ' • '.join(p for p in parts if p)
 
+    def _intem_get_size(self):
+        """Cột "Kích thước" của file tem: gộp Ngang mắt - Dài cầu - Dài càng.
+
+        Gọng kính -> "53 - 18 - 148" (mm, bỏ phần thập phân thừa).
+        Tròng kính không có 3 số này -> fallback đường kính.
+        """
+        self.ensure_one()
+
+        def _fmt(val):
+            return ('%g' % val) if val else ''
+
+        lens_w = self.ngang_mat or self.opt_lens_width
+        parts = [_fmt(lens_w), _fmt(self.opt_bridge_width), _fmt(self.opt_temple_width)]
+        if any(parts):
+            return ' - '.join(parts)
+        if self.x_diameter:
+            return 'Ø%gmm' % self.x_diameter
+        return ''
+
+    def _intem_get_exporter(self):
+        """(Tên, Địa chỉ) nhà xuất khẩu = NCC chính của sản phẩm."""
+        self.ensure_one()
+        partner = self.primary_supplier_id
+        if not partner:
+            return '', ''
+        address = partner._display_address(without_company=True) or ''
+        return partner.name or '', ' '.join(address.split())
+
     def _portal_get_material(self):
         """Best-effort material label across lens / frame products."""
         self.ensure_one()
@@ -144,7 +177,8 @@ class ProductTemplate(models.Model):
         'classification_type', 'classification_id', 'categ_id',
         'x_sph', 'x_cyl', 'x_add', 'x_diameter',
         'opt_serial', 'opt_lens_width', 'opt_bridge_width', 'opt_temple_width',
-        'opt_color', 'opt_frame_type_id',
+        'ngang_mat', 'opt_color', 'opt_frame_type_id',
+        'description_sale', 'primary_supplier_id',
         'lens_index_id', 'lens_material_ids', 'lens_coating_ids',
         'material_id', 'opt_material_lens_id',
         'x_uses', 'x_guide', 'x_warning', 'x_preserve',
@@ -152,35 +186,43 @@ class ProductTemplate(models.Model):
     _INTEM_MAX_RECORDS = 10000
 
     def _intem_row_values(self, warranty_qr_url=''):
-        """Trả về list 18 phần tử khớp thứ tự cột A..R của template intem.
-        Cột trống (Date / Export / EA / Number) trả '' để giữ định dạng.
+        """Trả về list 19 phần tử khớp thứ tự cột A..S của template intem.
+
+        Layout theo file mẫu khách hàng dùng để in tem:
+        A Qr | B Name | C Cid | D (trống) | E Country | F TradeMark | G Serial |
+        H Material | I Specification (Kích thước) | J Price | K Date |
+        L Number | M Xuất khẩu bởi | N Địa chỉ | O Use | P Guide | Q Warning |
+        R Preserve | S Mô tả chung.
 
         :param warranty_qr_url: URL QR bảo hành (warranty.registration.register_url)
             do caller truyền vào — vì warranty là per-SN, không thể derive ở cấp
             product.template. Caller (vd sale.order) phải build map template→URL.
+            Ưu tiên hơn QR sản phẩm vì tem dán theo từng sản phẩm bán ra.
         """
         self.ensure_one()
-        qr_url = self.x_java_qr_url or self.qr_portal_url or ''
+        qr_url = warranty_qr_url or self.x_java_qr_url or self.qr_portal_url or ''
         cid = self.barcode or self.default_code or ''
+        exporter_name, exporter_address = self._intem_get_exporter()
         return [
-            warranty_qr_url or '',                               # A QrWarranty
-            qr_url,                                              # B Qr
-            self.display_name or self.name or '',                # C Name
-            cid,                                                 # D Cid
+            qr_url,                                              # A Qr
+            self.display_name or self.name or '',                # B Name
+            cid,                                                 # C Cid
+            '',                                                  # D (trống)
             self.country_id.name if self.country_id else '',     # E Country
             self.brand_id.name if self.brand_id else '',         # F TradeMark
             self._portal_get_serial(),                           # G Serial
             self._portal_get_material(),                         # H Material
-            self._portal_get_specification(),                    # I Specification
+            self._intem_get_size(),                              # I Kích thước
             self.list_price or 0.0,                              # J Price
-            '',                                                  # K Date
-            '',                                                  # L Export
-            '',                                                  # M EA
-            self.x_uses or '',                                   # N Use
-            self.x_guide or '',                                  # O Guide
-            self.x_warning or '',                                # P Warning
-            self.x_preserve or '',                               # Q Preserve
-            '',                                                  # R Number
+            fields.Date.context_today(self),                     # K Date
+            '',                                                  # L Number
+            exporter_name,                                       # M Xuất khẩu bởi
+            exporter_address,                                    # N Địa chỉ
+            self.x_uses or '',                                   # O Use
+            self.x_guide or '',                                  # P Guide
+            self.x_warning or '',                                # Q Warning
+            self.x_preserve or '',                               # R Preserve
+            self.description_sale or '',                         # S Mô tả chung
         ]
 
     def action_export_intem(self):
@@ -213,6 +255,7 @@ class ProductTemplate(models.Model):
         # Prefetch sub-records cho các Many2one cần đọc .name
         self.country_id.fetch(['name'])
         self.brand_id.fetch(['name'])
+        self.primary_supplier_id.fetch(_INTEM_PARTNER_FIELDS)
         self.lens_index_id.fetch(['name'])
         self.material_id.fetch(['name'])
         self.opt_material_lens_id.fetch(['name'])
