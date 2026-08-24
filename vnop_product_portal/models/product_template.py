@@ -203,7 +203,7 @@ class ProductTemplate(models.Model):
     # recordset thay vì lazy-load lặt vặt khi chạm tới từng cột.
     _INTEM_PREFETCH_FIELDS = (
         'name', 'display_name', 'barcode', 'default_code', 'list_price',
-        'x_java_qr_url', 'qr_portal_url', 'legacy_product_id',
+        'x_java_qr_url', 'qr_portal_url', 'legacy_product_id', 'legacy_code',
         'country_id', 'brand_id',
         'classification_type', 'classification_id', 'categ_id',
         'x_sph', 'x_cyl', 'x_add', 'x_diameter',
@@ -233,9 +233,10 @@ class ProductTemplate(models.Model):
         """
         self.ensure_one()
         qr_url = warranty_qr_url or self.x_java_qr_url or self.qr_portal_url or ''
-        # Mã hiện hành do Odoo sinh (barcode). KHÔNG dùng legacy_code —
-        # mã của phần mềm cũ đã ngừng sử dụng.
-        cid = self.barcode or self.default_code or ''
+        # Ưu tiên mã 6 số khách nhập khi import (legacy_code) — đây là mã
+        # in trên tem. Field tên "legacy" nhưng vẫn là mã đang dùng; barcode
+        # Odoo tự sinh (dạng 26xxxxxx) chỉ là fallback khi chưa import mã 6 số.
+        cid = self.legacy_code or self.barcode or self.default_code or ''
         exporter_name, exporter_address = self._intem_get_exporter()
         return [
             qr_url,                                              # A Qr
