@@ -99,6 +99,8 @@ class SaleOrder(models.Model):
         all_tmpls.primary_supplier_id.fetch(_INTEM_PARTNER_FIELDS)
         all_tmpls.lens_index_id.fetch(['name'])
         all_tmpls.material_id.fetch(['name'])
+        all_tmpls.opt_materials_front_ids.fetch(['name'])
+        all_tmpls.opt_materials_temple_ids.fetch(['name'])
         all_tmpls.opt_material_lens_id.fetch(['name'])
         all_tmpls.opt_frame_type_id.fetch(['name'])
         all_tmpls.lens_material_ids.fetch(['name'])

@@ -127,13 +127,44 @@ class ProductTemplate(models.Model):
         def _fmt(val):
             return ('%g' % val) if val else ''
 
-        lens_w = self.ngang_mat or self.opt_lens_width
-        parts = [_fmt(lens_w), _fmt(self.opt_bridge_width), _fmt(self.opt_temple_width)]
+        # Mapping theo header import (product_import_wizard.HEADER_MAP):
+        # "Ngang mắt" -> ngang_mat, "Dài cầu" -> opt_bridge_width,
+        # "Dài càng" -> opt_temple_width.
+        # Fallback opt_lens_width: dữ liệu sync từ Java đổ ngang mắt vào
+        # opt_lens_width (ngang_mat chỉ có ở record import bằng Excel).
+        parts = [
+            _fmt(self.ngang_mat or self.opt_lens_width),
+            _fmt(self.opt_bridge_width),
+            _fmt(self.opt_temple_width),
+        ]
         if any(parts):
             return ' - '.join(parts)
         if self.x_diameter:
             return 'Ø%gmm' % self.x_diameter
         return ''
+
+    def _intem_get_material(self):
+        """Cột "Vật liệu" của file tem: mặt trước + càng kính.
+
+        VD: "Mặt trước: nhựa TR90, Càng: nhựa TR90+kim loại".
+        Sản phẩm không phải gọng (tròng, phụ kiện) -> fallback về
+        `_portal_get_material()`.
+        """
+        self.ensure_one()
+        parts = []
+        if self.opt_materials_front_ids:
+            parts.append(
+                'Mặt trước: %s'
+                % '+'.join(self.opt_materials_front_ids.mapped('name'))
+            )
+        if self.opt_materials_temple_ids:
+            parts.append(
+                'Càng: %s'
+                % '+'.join(self.opt_materials_temple_ids.mapped('name'))
+            )
+        if parts:
+            return ', '.join(parts)
+        return self._portal_get_material()
 
     def _intem_get_exporter(self):
         """(Tên, Địa chỉ) nhà xuất khẩu = NCC chính của sản phẩm."""
@@ -181,6 +212,7 @@ class ProductTemplate(models.Model):
         'description_sale', 'primary_supplier_id',
         'lens_index_id', 'lens_material_ids', 'lens_coating_ids',
         'material_id', 'opt_material_lens_id',
+        'opt_materials_front_ids', 'opt_materials_temple_ids',
         'x_uses', 'x_guide', 'x_warning', 'x_preserve',
     )
     _INTEM_MAX_RECORDS = 10000
@@ -201,6 +233,8 @@ class ProductTemplate(models.Model):
         """
         self.ensure_one()
         qr_url = warranty_qr_url or self.x_java_qr_url or self.qr_portal_url or ''
+        # Mã hiện hành do Odoo sinh (barcode). KHÔNG dùng legacy_code —
+        # mã của phần mềm cũ đã ngừng sử dụng.
         cid = self.barcode or self.default_code or ''
         exporter_name, exporter_address = self._intem_get_exporter()
         return [
@@ -211,7 +245,7 @@ class ProductTemplate(models.Model):
             self.country_id.name if self.country_id else '',     # E Country
             self.brand_id.name if self.brand_id else '',         # F TradeMark
             self._portal_get_serial(),                           # G Serial
-            self._portal_get_material(),                         # H Material
+            self._intem_get_material(),                          # H Material
             self._intem_get_size(),                              # I Kích thước
             self.list_price or 0.0,                              # J Price
             fields.Date.context_today(self),                     # K Date
@@ -258,6 +292,8 @@ class ProductTemplate(models.Model):
         self.primary_supplier_id.fetch(_INTEM_PARTNER_FIELDS)
         self.lens_index_id.fetch(['name'])
         self.material_id.fetch(['name'])
+        self.opt_materials_front_ids.fetch(['name'])
+        self.opt_materials_temple_ids.fetch(['name'])
         self.opt_material_lens_id.fetch(['name'])
         self.opt_frame_type_id.fetch(['name'])
         self.lens_material_ids.fetch(['name'])
