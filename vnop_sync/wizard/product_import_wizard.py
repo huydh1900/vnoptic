@@ -59,7 +59,10 @@ VN_LABEL_TO_FIELD = {
     'mã thuế bán ra': 'taxes_code',
     'kiểu in nhãn': 'label_print_type',
     'phụ kiện': 'accessory_note',
-    # Ảnh sản phẩm: đường dẫn file (server) hoặc URL http(s) → nạp vào image_1920
+    # Ảnh sản phẩm: tên file khớp với ảnh upload ở wizard (ưu tiên),
+    # fallback đường dẫn file (server) hoặc URL http(s) → nạp vào image_1920
+    'tên ảnh': 'image_path',
+    'tên ảnh sản phẩm': 'image_path',
     'link ảnh sản phẩm': 'image_path',
     'link ảnh': 'image_path',
     'đường dẫn ảnh': 'image_path',
@@ -339,6 +342,13 @@ class ProductImportWizard(models.TransientModel):
         help='"Cập nhật" sẽ tìm sản phẩm đã tồn tại theo mã vạch (ưu tiên) hoặc tên đầy đủ và ghi đè thông tin từ file. Các dòng không khớp sẽ bị bỏ qua.')
     file_data = fields.Binary(string='File Excel', required=True)
     file_name = fields.Char()
+    image_attachment_ids = fields.Many2many(
+        'ir.attachment', 'product_import_wizard_image_rel',
+        'wizard_id', 'attachment_id',
+        string='Ảnh sản phẩm',
+        help='Upload ảnh; mỗi ảnh được gán cho dòng có cột "Tên ảnh" trùng tên file '
+             '(không phân biệt hoa thường, có thể bỏ phần đuôi .jpg/.png).',
+    )
 
     state = fields.Selection([
         ('upload', 'Upload'),
@@ -768,6 +778,7 @@ class ProductImportWizard(models.TransientModel):
             return
         missing = []
         checked = set()
+        caches = {}
         for r_idx, row in enumerate(rows):
             raw = (row[idx] or '').strip() if idx < len(row) else ''
             if not raw or raw.lower().startswith(('http://', 'https://')):
@@ -775,6 +786,8 @@ class ProductImportWizard(models.TransientModel):
             if raw in checked:
                 continue
             checked.add(raw)
+            if self._match_uploaded_image(raw, caches):
+                continue
             if not self._resolve_image_local_path(raw):
                 missing.append(_('Dòng %s: %s') % (r_idx + 1, raw))
         if missing:
@@ -782,10 +795,15 @@ class ProductImportWizard(models.TransientModel):
             if len(missing) > self._IMAGE_ISSUE_SAMPLE_LIMIT:
                 details.append(_('... và %s đường dẫn khác')
                                % (len(missing) - self._IMAGE_ISSUE_SAMPLE_LIMIT))
+            if self.image_attachment_ids:
+                title = _('Không tìm thấy %s ảnh trong danh sách ảnh đã upload '
+                          '(dòng đó sẽ báo lỗi khi import/cập nhật)') % len(missing)
+            else:
+                title = _('Không đọc được %s đường dẫn ảnh trên máy chủ — '
+                          'hãy upload ảnh ở trường "Ảnh sản phẩm"') % len(missing)
             issues.append({
                 'level': 'warn',
-                'title': _('Không đọc được %s đường dẫn ảnh trên máy chủ '
-                           '(sản phẩm sẽ được tạo nhưng không có ảnh)') % len(missing),
+                'title': title,
                 'details': details,
             })
 
@@ -1370,6 +1388,8 @@ class ProductImportWizard(models.TransientModel):
                 continue
             prepared.append((r_idx, tid, label, vals))
 
+        self._drop_unchanged_images(prepared, rows, col_index, caches)
+
         def _flush(batch):
             if not batch:
                 return
@@ -1449,6 +1469,35 @@ class ProductImportWizard(models.TransientModel):
             error_text=final_error_text,
         )
 
+    def _drop_unchanged_images(self, prepared, rows, col_index, caches):
+        """Bỏ image_1920 khỏi vals khi ảnh upload trùng checksum ảnh hiện tại
+        của sản phẩm → tránh ghi + resize lại 5 biến thể ảnh khi cập nhật hàng loạt."""
+        idx = col_index.get('image_path')
+        if idx is None or not self.image_attachment_ids:
+            return
+        targets = {}
+        for r_idx, tid, _lb, vals in prepared:
+            if 'image_1920' not in vals:
+                continue
+            raw = (rows[r_idx][idx] or '').strip() if idx < len(rows[r_idx]) else ''
+            uploaded = self._match_uploaded_image(
+                raw, caches.setdefault('_image_b64', {})) if raw else None
+            if uploaded and uploaded.get('checksum'):
+                targets[tid] = uploaded['checksum']
+        if not targets:
+            return
+        current = {
+            a['res_id']: a['checksum']
+            for a in self.env['ir.attachment'].sudo().search_read([
+                ('res_model', '=', 'product.template'),
+                ('res_field', '=', 'image_1920'),
+                ('res_id', 'in', list(targets)),
+            ], ['res_id', 'checksum'])
+        }
+        for _ri, tid, _lb, vals in prepared:
+            if tid in targets and current.get(tid) == targets[tid]:
+                vals.pop('image_1920', None)
+
     def _update_vn_label_job(self, raw_b64):
         """Worker queue_job: chạy update VN-label trong background."""
         self.ensure_one()
@@ -1509,6 +1558,7 @@ class ProductImportWizard(models.TransientModel):
         # vì update cũng có thể fail khi write nếu giá trị M2O/M2M chưa tồn tại.
         issues = []
         self._validate_vn_relational(issues, header, rows, col_index)
+        self._validate_vn_images(issues, rows, col_index)
         html = self._build_update_preview_html(
             len(rows), matches, not_found, ambiguous, dup_in_file, issues=issues)
         self.write({'state': 'preview', 'preview_text': html})
@@ -1887,6 +1937,38 @@ class ProductImportWizard(models.TransientModel):
                 return candidate
         return ''
 
+    @staticmethod
+    def _image_name_keys(name):
+        """Khoá so khớp tên ảnh: tên file (lower) + tên bỏ đuôi ảnh."""
+        base = re.split(r'[\\/]', (name or '').strip().strip('"'))[-1].lower()
+        if not base:
+            return []
+        stem, ext = os.path.splitext(base)
+        if ext in IMAGE_ALLOWED_EXT and stem:
+            return [base, stem]
+        return [base]
+
+    def _match_uploaded_image(self, raw, caches):
+        """Tra ảnh upload (image_attachment_ids) theo tên ở cột "Tên ảnh".
+
+        Index tên → {id, checksum} build 1 lần/lần chạy (không đọc datas),
+        trả về dict hoặc None.
+        """
+        index = caches.get('_uploaded_image_index')
+        if index is None:
+            index = {}
+            if self.image_attachment_ids:
+                for att in self.image_attachment_ids.read(['name', 'checksum']):
+                    for key in self._image_name_keys(att['name']):
+                        index.setdefault(key, att)
+            caches['_uploaded_image_index'] = index
+        if not index:
+            return None
+        for key in self._image_name_keys(raw):
+            if key in index:
+                return index[key]
+        return None
+
     def _load_image_b64(self, raw, cache):
         """Đọc ảnh từ URL http(s) hoặc file trên máy chủ → base64 (str).
 
@@ -1896,6 +1978,19 @@ class ProductImportWizard(models.TransientModel):
         key = raw.strip()
         if key in cache:
             return cache[key]
+
+        uploaded = self._match_uploaded_image(key, cache)
+        if uploaded:
+            # datas đã là base64 → dùng thẳng, mỗi ảnh chỉ đọc filestore 1 lần.
+            att = self.env['ir.attachment'].browse(uploaded['id'])
+            encoded = att.datas.decode() if isinstance(att.datas, bytes) else att.datas
+            if not encoded:
+                raise UserError(_('Ảnh "%s" rỗng.') % key)
+            cache[key] = encoded
+            return encoded
+        if self.image_attachment_ids and not key.lower().startswith(('http://', 'https://')) \
+                and not self._resolve_image_local_path(key):
+            raise UserError(_('Không tìm thấy ảnh "%s" trong danh sách ảnh đã upload.') % key)
 
         lowered = key.lower()
         if lowered.startswith(('http://', 'https://')):
@@ -1964,7 +2059,7 @@ class ProductImportWizard(models.TransientModel):
             vals['barcode'] = cell('barcode')
         if cell('accessory_note'):
             vals['accessory_note'] = cell('accessory_note')
-        # Ảnh sản phẩm từ cột "Link ảnh sản phẩm"
+        # Ảnh sản phẩm từ cột "Tên ảnh" (ảnh upload) / "Link ảnh sản phẩm"
         if cell('image_path'):
             vals['image_1920'] = self._load_image_b64(
                 cell('image_path'), caches.setdefault('_image_b64', {}),

@@ -6,7 +6,7 @@ import { patch } from "@web/core/utils/patch";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 
 const PRODUCT_MODEL = "product.template";
-const TEMPLATE_FILE_URL = "/vnop_purchase/static/xlsx/import_san_pham.xlsx?v=20260920";
+const TEMPLATE_FILE_URL = "/vnop_purchase/static/xlsx/import_san_pham.xlsx?v=20261002";
 const CLASSIFICATION_FIELD = "classification_type";
 const CLASSIFICATION_LABELS = {
     frame: "Gọng kính",

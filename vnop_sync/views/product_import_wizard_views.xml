@@ -24,6 +24,8 @@
                     <field name="product_type"/>
                     <field name="file_data" filename="file_name"/>
                     <field name="file_name" invisible="1"/>
+                    <field name="image_attachment_ids" widget="many2many_binary"
+                           string="Ảnh sản phẩm"/>
                 </group>
 
                 <!-- Bước 2: Kiểm thử -->
