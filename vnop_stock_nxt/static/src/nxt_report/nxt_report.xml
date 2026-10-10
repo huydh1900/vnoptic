@@ -20,6 +20,11 @@
                        t-on-focus="openDropdown"
                        t-on-blur="closeDropdown"
                        t-att-placeholder="selected.length ? '' : (props.placeholder || 'Chọn...')"/>
+                <button t-if="props.showSelectAll and !allSelected" type="button"
+                        class="o_branch_select_all"
+                        t-on-click.stop="selectAll" title="Chọn tất cả">
+                    Tất cả
+                </button>
                 <button t-if="selected.length" type="button" class="o_branch_clear_all"
                         t-on-click.stop="clearAll" title="Xoá tất cả">
                     <i class="fa fa-times-circle"/>
@@ -62,45 +67,53 @@
 
             <!-- Card filter -->
             <div class="o_filter_card">
-                <div class="row g-3 mb-3 align-items-end">
-                    <div class="col-md-2">
+                <!-- Hàng 1: Ngày + Kho + Nhóm SP -->
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3 col-lg-2">
                         <label class="o_filter_label">Từ ngày</label>
                         <DateTimeInput type="'date'" value="state.fromDate" format="'dd/MM/yyyy'"
                                        placeholder="'dd/mm/yyyy'" onChange.bind="onFromChange"/>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3 col-lg-2">
                         <label class="o_filter_label">Đến ngày</label>
                         <DateTimeInput type="'date'" value="state.toDate" format="'dd/MM/yyyy'"
                                        placeholder="'dd/mm/yyyy'" onChange.bind="onToChange"/>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-6 col-lg-4">
                         <label class="o_filter_label">Kho</label>
                         <TagSelect options="state.warehouses" ids="state.selectedWh"
-                                   placeholder="'Chọn kho...'" update.bind="onWhUpdate"/>
+                                   placeholder="'Chọn kho...'" update.bind="onWhUpdate"
+                                   showSelectAll="true"/>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-6 col-lg-4">
                         <label class="o_filter_label">Nhóm sản phẩm</label>
                         <TagSelect options="state.classifications" ids="state.selectedCls"
                                    placeholder="'Chọn nhóm...'" update.bind="onClsUpdate"/>
                     </div>
-                    <div class="col-md-2">
-                        <label class="o_filter_label">Tìm kiếm</label>
-                        <input type="text" class="o_filter_select" t-model="state.search"
+                </div>
+                <!-- Hàng 2: Tìm kiếm + Checkbox + Nút -->
+                <div class="o_filter_actions">
+                    <div class="o_filter_search_wrap">
+                        <i class="fa fa-search o_filter_search_icon"/>
+                        <input type="text" class="o_filter_search_input" t-model="state.search"
                                placeholder="Tên / mã / mã vạch..."
                                t-on-keydown="onSearchKeydown"/>
                     </div>
-                </div>
-                <div class="d-flex justify-content-center align-items-center gap-4">
                     <label class="o_nxt_check mb-0">
                         <input type="checkbox" t-model="state.onlyMovement"/>
-                        Chỉ sản phẩm có phát sinh
+                        Chỉ SP có phát sinh
                     </label>
-                    <button type="button" class="o_search_btn" t-on-click="onSearch"
-                            t-att-disabled="state.loading">
-                        <i class="fa fa-search"/>
-                        <t t-if="state.loading">Đang tải...</t>
-                        <t t-else="">Tìm kiếm</t>
-                    </button>
+                    <div class="o_filter_btn_group">
+                        <button type="button" class="o_search_btn" t-on-click="onSearch"
+                                t-att-disabled="state.loading">
+                            <i t-att-class="state.loading ? 'fa fa-spinner fa-spin' : 'fa fa-search'"/>
+                            <t t-if="state.loading">Đang tải...</t>
+                            <t t-else="">Xem báo cáo</t>
+                        </button>
+                        <button type="button" class="o_reset_btn" t-on-click="onReset">
+                            <i class="fa fa-refresh"/> Đặt lại
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -140,7 +153,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr t-foreach="state.rows" t-as="row" t-key="row_index">
+                            <tr t-foreach="state.rows" t-as="row" t-key="row_index"
+                                t-att-class="isSubtotal(row) ? 'o_subtotal_row' : ''">
                                 <t t-foreach="state.columns" t-as="col" t-key="col.key">
                                     <td t-att-class="isNum(col.key) ? 'o_nxt_num' : ''"
                                         t-esc="fmt(row[col.key], col.key)"/>

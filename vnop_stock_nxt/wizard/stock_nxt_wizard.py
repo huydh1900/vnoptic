@@ -60,17 +60,21 @@ class StockNxtWizard(models.TransientModel):
         for r in rows:
             for k in NUM_KEYS:
                 totals[k] += r[k]
+        limited = len(rows) > PREVIEW_LIMIT
+        preview_rows = rows[:PREVIEW_LIMIT]
+        rows_with_sub = self._insert_wh_subtotals(preview_rows)
         return {
-            'rows': rows[:PREVIEW_LIMIT],
+            'rows': rows_with_sub,
             'count': len(rows),
             'totals': totals,
-            'limited': len(rows) > PREVIEW_LIMIT,
+            'limited': limited,
             'columns': [{'key': k, 'label': lbl} for k, lbl in NXT_COLUMNS],
         }
 
     @api.model
     def export_xlsx(self, filters):
         rows = self._build_rows_full(filters)
+        rows = self._insert_wh_subtotals(rows)
         from_date = fields.Date.to_date(filters.get('from_date'))
         to_date = fields.Date.to_date(filters.get('to_date'))
         data = self._write_xlsx(rows)
@@ -165,6 +169,40 @@ class StockNxtWizard(models.TransientModel):
         rows.sort(key=lambda r: (r['wh_code'], r['classif_code'], r['default_code'], r['name']))
         return rows
 
+    @staticmethod
+    def _make_subtotal_row(wh_code, rows_in_wh, from_str, to_str):
+        sub = {k: '' for k, _lbl in NXT_COLUMNS}
+        sub['wh_code'] = wh_code
+        sub['name'] = 'Cộng kho %s' % wh_code
+        sub['from_date'] = from_str
+        sub['to_date'] = to_str
+        sub['_subtotal'] = True
+        for k in NUM_KEYS:
+            sub[k] = sum(r[k] for r in rows_in_wh)
+        return sub
+
+    @staticmethod
+    def _insert_wh_subtotals(rows):
+        """Chèn dòng subtotal sau mỗi nhóm kho khi có >= 2 kho.
+        Input không cần pre-sorted — hàm tự sort theo wh_code."""
+        if not rows:
+            return rows
+        wh_codes = set(r['wh_code'] for r in rows if r.get('wh_code'))
+        if len(wh_codes) <= 1:
+            return rows
+        from itertools import groupby
+        sorted_rows = sorted(rows, key=lambda r: r.get('wh_code', ''))
+        result = []
+        for wh_code, grp in groupby(sorted_rows, key=lambda r: r['wh_code']):
+            items = list(grp)
+            result.extend(items)
+            result.append(StockNxtWizard._make_subtotal_row(
+                wh_code, items,
+                items[0].get('from_date', ''),
+                items[0].get('to_date', ''),
+            ))
+        return result
+
     def _fetch_qty(self, from_dt, to_end_dt, wh_ids, company_id):
         """SL theo (warehouse_id, product_id) từ stock_move_line.
         Tồn đầu = nhập-xuất trước from_dt. Nhập/Xuất phân theo
@@ -245,7 +283,7 @@ class StockNxtWizard(models.TransientModel):
                    SUM(CASE WHEN create_date >= %(from)s AND value > 0 THEN value ELSE 0 END) AS val_in,
                    SUM(CASE WHEN create_date >= %(from)s AND value < 0 THEN -value ELSE 0 END) AS val_out
               FROM attr
-             WHERE usage = 'internal' AND wh = ANY(%(wh)s)
+             WHERE usage = 'internal' AND wh = ANY(%(wh)s) AND wh IS NOT NULL
              GROUP BY wh, product_id
         """, {'company': company_id, 'from': from_dt, 'to_end': to_end_dt, 'wh': wh_ids})
         res = {}
@@ -268,15 +306,21 @@ class StockNxtWizard(models.TransientModel):
                                'border': 1, 'align': 'center', 'valign': 'vcenter'})
         f_txt = wb.add_format({'border': 1})
         f_num = wb.add_format({'border': 1, 'num_format': '#,##0.##'})
+        f_sub_txt = wb.add_format({'border': 1, 'bold': True, 'bg_color': '#FFF3CD'})
+        f_sub_num = wb.add_format({'border': 1, 'bold': True, 'bg_color': '#FFF3CD',
+                                   'num_format': '#,##0.##'})
         for col, (_key, label) in enumerate(NXT_COLUMNS):
             ws.write(0, col, label, f_hdr)
         for r, row in enumerate(rows, start=1):
+            is_sub = row.get('_subtotal', False)
             for col, (key, _label) in enumerate(NXT_COLUMNS):
                 value = row.get(key, '')
                 if key in NUM_KEYS:
-                    ws.write_number(r, col, value or 0, f_num)
+                    ws.write_number(r, col, value or 0,
+                                    f_sub_num if is_sub else f_num)
                 else:
-                    ws.write(r, col, value, f_txt)
+                    ws.write(r, col, value,
+                             f_sub_txt if is_sub else f_txt)
         ws.freeze_panes(1, 0)
         wb.close()
         buf.seek(0)

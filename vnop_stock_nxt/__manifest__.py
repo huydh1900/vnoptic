@@ -9,6 +9,7 @@
     'external_dependencies': {'python': ['xlsxwriter']},
     'data': [
         'security/ir.model.access.csv',
+        'data/stock_warehouse_data.xml',
         'wizard/stock_nxt_wizard_views.xml',
     ],
     'assets': {
@@ -21,4 +22,5 @@
     'license': 'LGPL-3',
     'installable': True,
     'application': False,
+    'test_tags': ['vnop_stock_nxt'],
 }

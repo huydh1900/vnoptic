@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="warehouse_20001" model="stock.warehouse">
+        <field name="name">Kho bán buôn HN</field>
+        <field name="code">20001</field>
+        <field name="company_id" ref="base.main_company"/>
+    </record>
+
+    <record id="warehouse_20002" model="stock.warehouse">
+        <field name="name">Kho mẫu</field>
+        <field name="code">20002</field>
+        <field name="company_id" ref="base.main_company"/>
+    </record>
+
+    <record id="warehouse_20003" model="stock.warehouse">
+        <field name="name">Mẫu SG</field>
+        <field name="code">20003</field>
+        <field name="company_id" ref="base.main_company"/>
+    </record>
+
+    <record id="warehouse_20004" model="stock.warehouse">
+        <field name="name">Kho HCM</field>
+        <field name="code">20004</field>
+        <field name="company_id" ref="base.main_company"/>
+    </record>
+
+    <record id="warehouse_20005" model="stock.warehouse">
+        <field name="name">Kho lỗi</field>
+        <field name="code">20005</field>
+        <field name="company_id" ref="base.main_company"/>
+    </record>
+
+</odoo>
