@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import base64
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
@@ -228,6 +230,33 @@ class VnopReturnRequest(models.Model):
             if not regs or max(regs.mapped('days_remaining_wholesale') or [-1]) < 0:
                 out_of_warranty.append(line.product_id.display_name)
         return out_of_warranty
+
+    # ======================= IMPORT EXCEL =======================
+    def action_open_import_wizard(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Import dòng trả hàng'),
+            'res_model': 'vnop.return.line.import.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_request_id': self.id},
+        }
+
+    def action_download_return_template(self):
+        self.ensure_one()
+        data = self.env['vnop.return.line.import.wizard'].generate_template()
+        att = self.env['ir.attachment'].create({
+            'name': 'Template_Tra_Hang.xlsx',
+            'type': 'binary',
+            'datas': base64.b64encode(data),
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/web/content/%s?download=true' % att.id,
+            'target': 'self',
+        }
 
     # ======================= ACTIONS =======================
     def action_submit(self):

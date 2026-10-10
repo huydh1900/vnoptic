@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="view_return_line_import_wizard_form" model="ir.ui.view">
+        <field name="name">vnop.return.line.import.wizard.form</field>
+        <field name="model">vnop.return.line.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import dòng trả hàng từ Excel">
+                <field name="request_id" invisible="1"/>
+                <field name="state" invisible="1"/>
+                <field name="return_type" invisible="1"/>
+
+                <group invisible="state != 'upload'">
+                    <field name="defect_group" options="{'no_create': True}"/>
+                    <field name="reason_id" options="{'no_create': True}"/>
+                    <field name="file_data" filename="file_name"/>
+                    <field name="file_name" invisible="1"/>
+                </group>
+
+                <group invisible="state != 'validated'">
+                    <field name="validated_count"/>
+                    <field name="error_text" invisible="not error_text" widget="text"/>
+                </group>
+
+                <group invisible="state != 'done'">
+                    <field name="imported_count"/>
+                    <field name="error_text" invisible="not error_text" widget="text"/>
+                </group>
+
+                <footer invisible="state != 'upload'">
+                    <button name="action_validate" type="object" string="Kiểm thử"
+                            class="btn-warning" icon="fa-check-circle"/>
+                    <button name="action_import" type="object" string="Import"
+                            class="btn-success" icon="fa-upload"/>
+                    <button string="Đóng" class="btn-secondary" special="cancel"/>
+                </footer>
+                <footer invisible="state != 'validated'">
+                    <button name="action_import" type="object" string="Import"
+                            class="btn-success" icon="fa-upload"
+                            invisible="error_text"/>
+                    <button name="action_back_upload" type="object" string="Quay lại"
+                            class="btn-info" icon="fa-arrow-left"/>
+                    <button string="Đóng" class="btn-secondary" special="cancel"/>
+                </footer>
+                <footer invisible="state != 'done'">
+                    <button string="Đóng" class="btn-primary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

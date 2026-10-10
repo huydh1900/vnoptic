@@ -151,6 +151,14 @@
                            invisible="return_type == 'policy' and sale_order_id"/>
                     <notebook>
                         <page string="Sản phẩm trả" name="lines">
+                            <div invisible="state != 'draft'" class="mb-2">
+                                <button name="action_download_return_template" type="object"
+                                        string="Tải template" icon="fa-download"
+                                        class="btn-link"/>
+                                <button name="action_open_import_wizard" type="object"
+                                        string="Import Excel" icon="fa-upload"
+                                        class="btn-link ms-2"/>
+                            </div>
                             <field name="line_ids"
                                    readonly="state not in ('draft','back_to_sales')">
                                 <list editable="bottom">

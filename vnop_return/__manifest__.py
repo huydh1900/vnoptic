@@ -13,6 +13,7 @@
         'vnop_stock',
         'vnop_warranty',
     ],
+    'external_dependencies': {'python': ['openpyxl']},
     'data': [
         'security/return_groups.xml',
         'security/ir.model.access.csv',
@@ -22,6 +23,7 @@
         'data/stock_location_data.xml',
         'data/return_defect_group_data.xml',
         'data/return_reason_data.xml',
+        'wizard/return_line_import_wizard_views.xml',
         'wizard/return_qc_classify_wizard_views.xml',
         'views/res_config_settings_views.xml',
         'views/vnop_return_reason_views.xml',
